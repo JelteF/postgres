@@ -109,7 +109,6 @@ static int	cliplen(const char *str, int len, int limit);
 int
 PrepareClientEncoding(int encoding)
 {
-	int			current_server_encoding;
 	ListCell   *lc;
 
 	if (!PG_VALID_FE_ENCODING(encoding))
@@ -119,7 +118,7 @@ PrepareClientEncoding(int encoding)
 	if (!backend_startup_complete)
 		return 0;
 
-	current_server_encoding = GetDatabaseEncoding();
+	int			current_server_encoding = GetDatabaseEncoding();
 
 	/*
 	 * Check for cases that require no conversion function.
@@ -139,8 +138,6 @@ PrepareClientEncoding(int encoding)
 		 */
 		Oid			to_server_proc,
 					to_client_proc;
-		ConvProcInfo *convinfo;
-		MemoryContext oldcontext;
 
 		to_server_proc = FindDefaultConversionProc(encoding,
 												   current_server_encoding);
@@ -154,7 +151,7 @@ PrepareClientEncoding(int encoding)
 		/*
 		 * Load the fmgr info into TopMemoryContext (could still fail here)
 		 */
-		convinfo = (ConvProcInfo *) MemoryContextAlloc(TopMemoryContext,
+		ConvProcInfo *convinfo = (ConvProcInfo *) MemoryContextAlloc(TopMemoryContext,
 													   sizeof(ConvProcInfo));
 		convinfo->s_encoding = current_server_encoding;
 		convinfo->c_encoding = encoding;
@@ -164,7 +161,7 @@ PrepareClientEncoding(int encoding)
 					  TopMemoryContext);
 
 		/* Attach new info to head of list */
-		oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+		MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 		ConvProcList = lcons(convinfo, ConvProcList);
 		MemoryContextSwitchTo(oldcontext);
 
@@ -207,8 +204,6 @@ PrepareClientEncoding(int encoding)
 int
 SetClientEncoding(int encoding)
 {
-	int			current_server_encoding;
-	bool		found;
 	ListCell   *lc;
 
 	if (!PG_VALID_FE_ENCODING(encoding))
@@ -221,7 +216,7 @@ SetClientEncoding(int encoding)
 		return 0;
 	}
 
-	current_server_encoding = GetDatabaseEncoding();
+	int			current_server_encoding = GetDatabaseEncoding();
 
 	/*
 	 * Check for cases that require no conversion function.
@@ -242,7 +237,7 @@ SetClientEncoding(int encoding)
 	 * release any duplicate entries so that repeated Prepare/Set cycles don't
 	 * leak memory.
 	 */
-	found = false;
+	bool		found = false;
 	foreach(lc, ConvProcList)
 	{
 		ConvProcInfo *convinfo = (ConvProcInfo *) lfirst(lc);
@@ -280,7 +275,6 @@ SetClientEncoding(int encoding)
 void
 InitializeClientEncoding(void)
 {
-	int			current_server_encoding;
 
 	Assert(!backend_startup_complete);
 	backend_startup_complete = true;
@@ -304,22 +298,20 @@ InitializeClientEncoding(void)
 	 * the server encoding is fixed within any one backend process, we don't
 	 * have to do this more than once.
 	 */
-	current_server_encoding = GetDatabaseEncoding();
+	int			current_server_encoding = GetDatabaseEncoding();
 	if (current_server_encoding != PG_UTF8 &&
 		current_server_encoding != PG_SQL_ASCII)
 	{
-		Oid			utf8_to_server_proc;
 
 		Assert(IsTransactionState());
-		utf8_to_server_proc =
+		Oid			utf8_to_server_proc =
 			FindDefaultConversionProc(PG_UTF8,
 									  current_server_encoding);
 		/* If there's no such conversion, just leave the pointer as NULL */
 		if (OidIsValid(utf8_to_server_proc))
 		{
-			FmgrInfo   *finfo;
 
-			finfo = (FmgrInfo *) MemoryContextAlloc(TopMemoryContext,
+			FmgrInfo   *finfo = (FmgrInfo *) MemoryContextAlloc(TopMemoryContext,
 													sizeof(FmgrInfo));
 			fmgr_info_cxt(utf8_to_server_proc, finfo,
 						  TopMemoryContext);
@@ -356,8 +348,6 @@ unsigned char *
 pg_do_encoding_conversion(unsigned char *src, int len,
 						  int src_encoding, int dest_encoding)
 {
-	unsigned char *result;
-	Oid			proc;
 
 	if (len <= 0)
 		return src;				/* empty string is always valid */
@@ -378,7 +368,7 @@ pg_do_encoding_conversion(unsigned char *src, int len,
 	if (!IsTransactionState())	/* shouldn't happen */
 		elog(ERROR, "cannot perform encoding conversion outside a transaction");
 
-	proc = FindDefaultConversionProc(src_encoding, dest_encoding);
+	Oid			proc = FindDefaultConversionProc(src_encoding, dest_encoding);
 	if (!OidIsValid(proc))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_FUNCTION),
@@ -402,7 +392,7 @@ pg_do_encoding_conversion(unsigned char *src, int len,
 				 errdetail("String of %d bytes is too long for encoding conversion.",
 						   len)));
 
-	result = (unsigned char *)
+	unsigned char *result = (unsigned char *)
 		MemoryContextAllocHuge(CurrentMemoryContext,
 							   (Size) len * MAX_CONVERSION_GROWTH + 1);
 
@@ -447,14 +437,13 @@ pg_convert_to(PG_FUNCTION_ARGS)
 	Datum		dest_encoding_name = PG_GETARG_DATUM(1);
 	Datum		src_encoding_name = DirectFunctionCall1(namein,
 														CStringGetDatum(DatabaseEncoding->name));
-	Datum		result;
 
 	/*
 	 * pg_convert expects a bytea as its first argument. We're passing it a
 	 * text argument here, relying on the fact that they are both in fact
 	 * varlena types, and thus structurally identical.
 	 */
-	result = DirectFunctionCall3(pg_convert, string,
+	Datum		result = DirectFunctionCall3(pg_convert, string,
 								 src_encoding_name, dest_encoding_name);
 
 	PG_RETURN_DATUM(result);
@@ -472,9 +461,8 @@ pg_convert_from(PG_FUNCTION_ARGS)
 	Datum		src_encoding_name = PG_GETARG_DATUM(1);
 	Datum		dest_encoding_name = DirectFunctionCall1(namein,
 														 CStringGetDatum(DatabaseEncoding->name));
-	Datum		result;
 
-	result = DirectFunctionCall3(pg_convert, string,
+	Datum		result = DirectFunctionCall3(pg_convert, string,
 								 src_encoding_name, dest_encoding_name);
 
 	/*
@@ -500,10 +488,6 @@ pg_convert(PG_FUNCTION_ARGS)
 	int			src_encoding = pg_char_to_encoding(src_encoding_name);
 	char	   *dest_encoding_name = NameStr(*PG_GETARG_NAME(2));
 	int			dest_encoding = pg_char_to_encoding(dest_encoding_name);
-	const char *src_str;
-	char	   *dest_str;
-	bytea	   *retval;
-	int			len;
 
 	if (src_encoding < 0)
 		ereport(ERROR,
@@ -517,12 +501,12 @@ pg_convert(PG_FUNCTION_ARGS)
 						dest_encoding_name)));
 
 	/* make sure that source string is valid */
-	len = VARSIZE_ANY_EXHDR(string);
-	src_str = VARDATA_ANY(string);
+	int			len = VARSIZE_ANY_EXHDR(string);
+	const char *src_str = VARDATA_ANY(string);
 	pg_verify_mbstr_len(src_encoding, src_str, len, false);
 
 	/* perform conversion */
-	dest_str = (char *) pg_do_encoding_conversion((unsigned char *) unconstify(char *, src_str),
+	char	   *dest_str = (char *) pg_do_encoding_conversion((unsigned char *) unconstify(char *, src_str),
 												  len,
 												  src_encoding,
 												  dest_encoding);
@@ -534,7 +518,7 @@ pg_convert(PG_FUNCTION_ARGS)
 	/*
 	 * build bytea data type structure.
 	 */
-	retval = (bytea *) palloc(len + VARHDRSZ);
+	bytea	   *retval = (bytea *) palloc(len + VARHDRSZ);
 	SET_VARSIZE(retval, len + VARHDRSZ);
 	memcpy(VARDATA(retval), dest_str, len);
 
@@ -560,9 +544,6 @@ length_in_encoding(PG_FUNCTION_ARGS)
 	bytea	   *string = PG_GETARG_BYTEA_PP(0);
 	char	   *src_encoding_name = NameStr(*PG_GETARG_NAME(1));
 	int			src_encoding = pg_char_to_encoding(src_encoding_name);
-	const char *src_str;
-	int			len;
-	int			retval;
 
 	if (src_encoding < 0)
 		ereport(ERROR,
@@ -570,10 +551,10 @@ length_in_encoding(PG_FUNCTION_ARGS)
 				 errmsg("invalid encoding name \"%s\"",
 						src_encoding_name)));
 
-	len = VARSIZE_ANY_EXHDR(string);
-	src_str = VARDATA_ANY(string);
+	int			len = VARSIZE_ANY_EXHDR(string);
+	const char *src_str = VARDATA_ANY(string);
 
-	retval = pg_verify_mbstr_len(src_encoding, src_str, len, false);
+	int			retval = pg_verify_mbstr_len(src_encoding, src_str, len, false);
 
 	PG_RETURN_INT32(retval);
 }
@@ -726,7 +707,6 @@ static char *
 perform_default_encoding_conversion(const char *src, int len,
 									bool is_client_to_server)
 {
-	char	   *result;
 	int			src_encoding,
 				dest_encoding;
 	FmgrInfo   *flinfo;
@@ -758,7 +738,7 @@ perform_default_encoding_conversion(const char *src, int len,
 				 errdetail("String of %d bytes is too long for encoding conversion.",
 						   len)));
 
-	result = (char *)
+	char	   *result = (char *)
 		MemoryContextAllocHuge(CurrentMemoryContext,
 							   (Size) len * MAX_CONVERSION_GROWTH + 1);
 
@@ -806,8 +786,6 @@ void
 pg_unicode_to_server(pg_wchar c, unsigned char *s)
 {
 	unsigned char c_as_utf8[MAX_MULTIBYTE_CHAR_LEN + 1];
-	int			c_as_utf8_len;
-	int			server_encoding;
 
 	/*
 	 * Complain if invalid Unicode code point.  The choice of errcode here is
@@ -827,7 +805,7 @@ pg_unicode_to_server(pg_wchar c, unsigned char *s)
 	}
 
 	/* If the server encoding is UTF-8, we just need to reformat the code */
-	server_encoding = GetDatabaseEncoding();
+	int			server_encoding = GetDatabaseEncoding();
 	if (server_encoding == PG_UTF8)
 	{
 		unicode_to_utf8(c, s);
@@ -845,7 +823,7 @@ pg_unicode_to_server(pg_wchar c, unsigned char *s)
 
 	/* Construct UTF-8 source string */
 	unicode_to_utf8(c, c_as_utf8);
-	c_as_utf8_len = pg_utf_mblen(c_as_utf8);
+	int			c_as_utf8_len = pg_utf_mblen(c_as_utf8);
 	c_as_utf8[c_as_utf8_len] = '\0';
 
 	/* Convert, or throw error if we can't */
@@ -977,7 +955,6 @@ int
 pg_encoding_mbcliplen(int encoding, const char *mbstr,
 					  int len, int limit)
 {
-	mblen_converter mblen_fn;
 	int			clen = 0;
 	int			l;
 
@@ -985,7 +962,7 @@ pg_encoding_mbcliplen(int encoding, const char *mbstr,
 	if (pg_encoding_max_length(encoding) == 1)
 		return cliplen(mbstr, len, limit);
 
-	mblen_fn = pg_wchar_table[encoding].mblen;
+	mblen_converter mblen_fn = pg_wchar_table[encoding].mblen;
 
 	while (len > 0 && *mbstr)
 	{
@@ -1474,7 +1451,6 @@ int
 pg_verify_mbstr_len(int encoding, const char *mbstr, int len, bool noError)
 {
 	mbverifier	mbverify;
-	int			mb_len;
 
 	Assert(PG_VALID_ENCODING(encoding));
 
@@ -1495,11 +1471,10 @@ pg_verify_mbstr_len(int encoding, const char *mbstr, int len, bool noError)
 	/* fetch function pointer just once */
 	mbverify = pg_wchar_table[encoding].mbverify;
 
-	mb_len = 0;
+	int			mb_len = 0;
 
 	while (len > 0)
 	{
-		int			l;
 
 		/* fast path for ASCII-subset characters */
 		if (!IS_HIGHBIT_SET(*mbstr))
@@ -1516,7 +1491,7 @@ pg_verify_mbstr_len(int encoding, const char *mbstr, int len, bool noError)
 			report_invalid_encoding(encoding, mbstr, len);
 		}
 
-		l = (*mbverify) ((const unsigned char *) mbstr, len);
+		int			l = (*mbverify) ((const unsigned char *) mbstr, len);
 
 		if (l < 0)
 		{

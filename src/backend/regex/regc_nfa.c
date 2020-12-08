@@ -187,9 +187,8 @@ newstate(struct nfa *nfa)
 static struct state *			/* NULL on error */
 newfstate(struct nfa *nfa, int flag)
 {
-	struct state *s;
 
-	s = newstate(nfa);
+	struct state *s = newstate(nfa);
 	if (s != NULL)
 		s->flag = (char) flag;
 	return s;
@@ -325,10 +324,9 @@ createarc(struct nfa *nfa,
 		  struct state *from,
 		  struct state *to)
 {
-	struct arc *a;
 
 	/* the arc is physically allocated within its from-state */
-	a = allocarc(nfa, from);
+	struct arc *a = allocarc(nfa, from);
 	if (NISERR())
 		return;
 	assert(a != NULL);
@@ -381,7 +379,6 @@ allocarc(struct nfa *nfa,
 	/* if none at hand, get more */
 	if (s->free == NULL)
 	{
-		struct arcbatch *newAb;
 		int			i;
 
 		if (nfa->v->spaceused >= REG_MAX_COMPILE_SPACE)
@@ -389,7 +386,7 @@ allocarc(struct nfa *nfa,
 			NERR(REG_ETOOBIG);
 			return NULL;
 		}
-		newAb = (struct arcbatch *) MALLOC(sizeof(struct arcbatch));
+		struct arcbatch *newAb = (struct arcbatch *) MALLOC(sizeof(struct arcbatch));
 		if (newAb == NULL)
 		{
 			NERR(REG_ESPACE);
@@ -423,7 +420,6 @@ freearc(struct nfa *nfa,
 {
 	struct state *from = victim->from;
 	struct state *to = victim->to;
-	struct arc *predecessor;
 
 	assert(victim->type != 0);
 
@@ -433,7 +429,7 @@ freearc(struct nfa *nfa,
 
 	/* take it off source's out-chain */
 	assert(from != NULL);
-	predecessor = victim->outchainRev;
+	struct arc *predecessor = victim->outchainRev;
 	if (predecessor == NULL)
 	{
 		assert(from->outs == victim);
@@ -495,13 +491,12 @@ static void
 changearctarget(struct arc *a, struct state *newto)
 {
 	struct state *oldto = a->to;
-	struct arc *predecessor;
 
 	assert(oldto != newto);
 
 	/* take it off old target's in-chain */
 	assert(oldto != NULL);
-	predecessor = a->inchainRev;
+	struct arc *predecessor = a->inchainRev;
 	if (predecessor == NULL)
 	{
 		assert(oldto->ins == a);
@@ -582,21 +577,19 @@ static void
 sortins(struct nfa *nfa,
 		struct state *s)
 {
-	struct arc **sortarray;
 	struct arc *a;
 	int			n = s->nins;
-	int			i;
 
 	if (n <= 1)
 		return;					/* nothing to do */
 	/* make an array of arc pointers ... */
-	sortarray = (struct arc **) MALLOC(n * sizeof(struct arc *));
+	struct arc **sortarray = (struct arc **) MALLOC(n * sizeof(struct arc *));
 	if (sortarray == NULL)
 	{
 		NERR(REG_ESPACE);
 		return;
 	}
-	i = 0;
+	int			i = 0;
 	for (a = s->ins; a != NULL; a = a->inchain)
 		sortarray[i++] = a;
 	assert(i == n);
@@ -649,21 +642,19 @@ static void
 sortouts(struct nfa *nfa,
 		 struct state *s)
 {
-	struct arc **sortarray;
 	struct arc *a;
 	int			n = s->nouts;
-	int			i;
 
 	if (n <= 1)
 		return;					/* nothing to do */
 	/* make an array of arc pointers ... */
-	sortarray = (struct arc **) MALLOC(n * sizeof(struct arc *));
+	struct arc **sortarray = (struct arc **) MALLOC(n * sizeof(struct arc *));
 	if (sortarray == NULL)
 	{
 		NERR(REG_ESPACE);
 		return;
 	}
-	i = 0;
+	int			i = 0;
 	for (a = s->outs; a != NULL; a = a->outchain)
 		sortarray[i++] = a;
 	assert(i == n);
@@ -757,8 +748,6 @@ moveins(struct nfa *nfa,
 		 * will put the arc onto the front of newState's chain, so it does not
 		 * break our walk through the sorted part of the chain.
 		 */
-		struct arc *oa;
-		struct arc *na;
 
 		/*
 		 * Because we bypass newarc() in this code path, we'd better include a
@@ -774,8 +763,8 @@ moveins(struct nfa *nfa,
 		sortins(nfa, newState);
 		if (NISERR())
 			return;				/* might have failed to sort */
-		oa = oldState->ins;
-		na = newState->ins;
+		struct arc *oa = oldState->ins;
+		struct arc *na = newState->ins;
 		while (oa != NULL && na != NULL)
 		{
 			struct arc *a = oa;
@@ -846,8 +835,6 @@ copyins(struct nfa *nfa,
 		 * will put new arcs onto the front of newState's chain, so it does
 		 * not break our walk through the sorted part of the chain.
 		 */
-		struct arc *oa;
-		struct arc *na;
 
 		/*
 		 * Because we bypass newarc() in this code path, we'd better include a
@@ -863,8 +850,8 @@ copyins(struct nfa *nfa,
 		sortins(nfa, newState);
 		if (NISERR())
 			return;				/* might have failed to sort */
-		oa = oldState->ins;
-		na = newState->ins;
+		struct arc *oa = oldState->ins;
+		struct arc *na = newState->ins;
 		while (oa != NULL && na != NULL)
 		{
 			struct arc *a = oa;
@@ -912,9 +899,7 @@ mergeins(struct nfa *nfa,
 		 struct arc **arcarray,
 		 int arccount)
 {
-	struct arc *na;
 	int			i;
-	int			j;
 
 	if (arccount <= 0)
 		return;
@@ -940,7 +925,7 @@ mergeins(struct nfa *nfa,
 	 * arcarray very likely includes dups, so we must eliminate them.  (This
 	 * could be folded into the next loop, but it's not worth the trouble.)
 	 */
-	j = 0;
+	int			j = 0;
 	for (i = 1; i < arccount; i++)
 	{
 		switch (sortins_cmp(&arcarray[j], &arcarray[i]))
@@ -965,7 +950,7 @@ mergeins(struct nfa *nfa,
 	 * sorted part of the chain.
 	 */
 	i = 0;
-	na = s->ins;
+	struct arc *na = s->ins;
 	while (i < arccount && na != NULL)
 	{
 		struct arc *a = arcarray[i];
@@ -1028,8 +1013,6 @@ moveouts(struct nfa *nfa,
 		 * will put new arcs onto the front of newState's chain, so it does
 		 * not break our walk through the sorted part of the chain.
 		 */
-		struct arc *oa;
-		struct arc *na;
 
 		/*
 		 * Because we bypass newarc() in this code path, we'd better include a
@@ -1045,8 +1028,8 @@ moveouts(struct nfa *nfa,
 		sortouts(nfa, newState);
 		if (NISERR())
 			return;				/* might have failed to sort */
-		oa = oldState->outs;
-		na = newState->outs;
+		struct arc *oa = oldState->outs;
+		struct arc *na = newState->outs;
 		while (oa != NULL && na != NULL)
 		{
 			struct arc *a = oa;
@@ -1114,8 +1097,6 @@ copyouts(struct nfa *nfa,
 		 * will put new arcs onto the front of newState's chain, so it does
 		 * not break our walk through the sorted part of the chain.
 		 */
-		struct arc *oa;
-		struct arc *na;
 
 		/*
 		 * Because we bypass newarc() in this code path, we'd better include a
@@ -1131,8 +1112,8 @@ copyouts(struct nfa *nfa,
 		sortouts(nfa, newState);
 		if (NISERR())
 			return;				/* might have failed to sort */
-		oa = oldState->outs;
-		na = newState->outs;
+		struct arc *oa = oldState->outs;
+		struct arc *na = newState->outs;
 		while (oa != NULL && na != NULL)
 		{
 			struct arc *a = oa;
@@ -1874,9 +1855,6 @@ fixempties(struct nfa *nfa,
 	struct state *nexts;
 	struct arc *a;
 	struct arc *nexta;
-	int			totalinarcs;
-	struct arc **inarcsorig;
-	struct arc **arcarray;
 	int			arccount;
 	int			prevnins;
 	int			nskip;
@@ -1976,13 +1954,13 @@ fixempties(struct nfa *nfa,
 
 	/* Remember the states' first original inarcs */
 	/* ... and while at it, count how many old inarcs there are altogether */
-	inarcsorig = (struct arc **) MALLOC(nfa->nstates * sizeof(struct arc *));
+	struct arc **inarcsorig = (struct arc **) MALLOC(nfa->nstates * sizeof(struct arc *));
 	if (inarcsorig == NULL)
 	{
 		NERR(REG_ESPACE);
 		return;
 	}
-	totalinarcs = 0;
+	int			totalinarcs = 0;
 	for (s = nfa->states; s != NULL; s = s->next)
 	{
 		inarcsorig[s->no] = s->ins;
@@ -1995,7 +1973,7 @@ fixempties(struct nfa *nfa,
 	 * overestimate of the space needed, but the NFA is unlikely to be large
 	 * enough at this point to make it worth being smarter.
 	 */
-	arcarray = (struct arc **) MALLOC(totalinarcs * sizeof(struct arc *));
+	struct arc **arcarray = (struct arc **) MALLOC(totalinarcs * sizeof(struct arc *));
 	if (arcarray == NULL)
 	{
 		NERR(REG_ESPACE);
@@ -2167,7 +2145,6 @@ fixconstraintloops(struct nfa *nfa,
 	struct state *nexts;
 	struct arc *a;
 	struct arc *nexta;
-	int			hasconstraints;
 
 	/*
 	 * In the trivial case of a state that loops to itself, we can just drop
@@ -2175,7 +2152,7 @@ fixconstraintloops(struct nfa *nfa,
 	 * such loops are far more common than loops containing multiple states.
 	 * While we're at it, note whether any constraint arcs survive.
 	 */
-	hasconstraints = 0;
+	int			hasconstraints = 0;
 	for (s = nfa->states; s != NULL && !NISERR(); s = nexts)
 	{
 		nexts = s->next;
@@ -2350,12 +2327,9 @@ findconstraintloop(struct nfa *nfa, struct state *s)
 static void
 breakconstraintloop(struct nfa *nfa, struct state *sinitial)
 {
-	struct state *s;
 	struct state *shead;
 	struct state *stail;
-	struct state *sclone;
 	struct state *nexts;
-	struct arc *refarc;
 	struct arc *a;
 	struct arc *nexta;
 
@@ -2365,8 +2339,8 @@ breakconstraintloop(struct nfa *nfa, struct state *sinitial)
 	 * there any other secondary heuristics we want to use here?)  Set refarc
 	 * to point to the selected lone constraint arc, if there is one.
 	 */
-	refarc = NULL;
-	s = sinitial;
+	struct arc *refarc = NULL;
+	struct state *s = sinitial;
 	do
 	{
 		nexts = s->tmp;
@@ -2415,7 +2389,7 @@ breakconstraintloop(struct nfa *nfa, struct state *sinitial)
 	/*
 	 * Recursively build clone state(s) as needed.
 	 */
-	sclone = newstate(nfa);
+	struct state *sclone = newstate(nfa);
 	if (sclone == NULL)
 	{
 		assert(NISERR());
@@ -2503,7 +2477,6 @@ clonesuccessorstates(struct nfa *nfa,
 					 char *outerdonemap,
 					 int nstates)
 {
-	char	   *donemap;
 	struct arc *a;
 
 	/* Since this is recursive, it could be driven to stack overflow */
@@ -2514,7 +2487,7 @@ clonesuccessorstates(struct nfa *nfa,
 	}
 
 	/* If this state hasn't already got a donemap, create one */
-	donemap = curdonemap;
+	char	   *donemap = curdonemap;
 	if (donemap == NULL)
 	{
 		donemap = (char *) MALLOC(nstates * sizeof(char));
@@ -2579,7 +2552,6 @@ clonesuccessorstates(struct nfa *nfa,
 		 */
 		if (isconstraintarc(a) && hasconstraintout(sto))
 		{
-			struct state *prevclone;
 			int			canmerge;
 			struct arc *a2;
 
@@ -2595,7 +2567,7 @@ clonesuccessorstates(struct nfa *nfa,
 			 * Check whether we already have a child clone state for this
 			 * source state.
 			 */
-			prevclone = NULL;
+			struct state *prevclone = NULL;
 			for (a2 = sclone->outs; a2 != NULL; a2 = a2->outchain)
 			{
 				if (a2->to->tmp == sto)
@@ -2665,9 +2637,8 @@ clonesuccessorstates(struct nfa *nfa,
 				/*
 				 * We need to create a new successor clone state.
 				 */
-				struct state *stoclone;
 
-				stoclone = newstate(nfa);
+				struct state *stoclone = newstate(nfa);
 				if (stoclone == NULL)
 				{
 					assert(NISERR());
@@ -2730,7 +2701,6 @@ cleanup(struct nfa *nfa)
 {
 	struct state *s;
 	struct state *nexts;
-	int			n;
 
 	if (NISERR())
 		return;
@@ -2751,7 +2721,7 @@ cleanup(struct nfa *nfa)
 	/* the nins==0 (final unreachable) case will be caught later */
 
 	/* renumber surviving states */
-	n = 0;
+	int			n = 0;
 	for (s = nfa->states; s != NULL; s = s->next)
 		s->no = n++;
 	nfa->nstates = n;
@@ -2839,15 +2809,12 @@ compact(struct nfa *nfa,
 {
 	struct state *s;
 	struct arc *a;
-	size_t		nstates;
-	size_t		narcs;
-	struct carc *ca;
 	struct carc *first;
 
 	assert(!NISERR());
 
-	nstates = 0;
-	narcs = 0;
+	size_t		nstates = 0;
+	size_t		narcs = 0;
 	for (s = nfa->states; s != NULL; s = s->next)
 	{
 		nstates++;
@@ -2878,7 +2845,7 @@ compact(struct nfa *nfa,
 	cnfa->ncolors = maxcolor(nfa->cm) + 1;
 	cnfa->flags = 0;
 
-	ca = cnfa->arcs;
+	struct carc *ca = cnfa->arcs;
 	for (s = nfa->states; s != NULL; s = s->next)
 	{
 		assert((size_t) s->no < nstates);
@@ -3028,15 +2995,13 @@ static void
 dumparcs(struct state *s,
 		 FILE *f)
 {
-	int			pos;
-	struct arc *a;
 
 	/* printing oldest arcs first is usually clearer */
-	a = s->outs;
+	struct arc *a = s->outs;
 	assert(a != NULL);
 	while (a->outchain != NULL)
 		a = a->outchain;
-	pos = 1;
+	int			pos = 1;
 	do
 	{
 		dumparc(a, s, f);
@@ -3155,10 +3120,9 @@ dumpcstate(int st,
 		   FILE *f)
 {
 	struct carc *ca;
-	int			pos;
 
 	fprintf(f, "%d%s", st, (cnfa->stflags[st] & CNFA_NOPROGRESS) ? ":" : ".");
-	pos = 1;
+	int			pos = 1;
 	for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++)
 	{
 		if (ca->co < cnfa->ncolors)

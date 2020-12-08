@@ -338,13 +338,11 @@ escape_quotes(const char *src)
 static char *
 escape_quotes_bki(const char *src)
 {
-	char	   *result;
 	char	   *data = escape_quotes(src);
-	char	   *resultp;
 	char	   *datap;
 
-	result = (char *) pg_malloc(strlen(data) + 3);
-	resultp = result;
+	char	   *result = (char *) pg_malloc(strlen(data) + 3);
+	char	   *resultp = result;
 	*resultp++ = '\'';
 	for (datap = data; *datap; datap++)
 		*resultp++ = *datap;
@@ -367,7 +365,6 @@ replace_token(char **lines, const char *token, const char *replacement)
 {
 	int			numlines = 1;
 	int			i;
-	char	  **result;
 	int			toklen,
 				replen,
 				diff;
@@ -375,7 +372,7 @@ replace_token(char **lines, const char *token, const char *replacement)
 	for (i = 0; lines[i]; i++)
 		numlines++;
 
-	result = (char **) pg_malloc(numlines * sizeof(char *));
+	char	  **result = (char **) pg_malloc(numlines * sizeof(char *));
 
 	toklen = strlen(token);
 	replen = strlen(replacement);
@@ -384,8 +381,6 @@ replace_token(char **lines, const char *token, const char *replacement)
 	for (i = 0; i < numlines; i++)
 	{
 		char	   *where;
-		char	   *newline;
-		int			pre;
 
 		/* just copy pointer if NULL or no change needed */
 		if (lines[i] == NULL || (where = strstr(lines[i], token)) == NULL)
@@ -396,9 +391,9 @@ replace_token(char **lines, const char *token, const char *replacement)
 
 		/* if we get here a change is needed - set up new line */
 
-		newline = (char *) pg_malloc(strlen(lines[i]) + diff + 1);
+		char	   *newline = (char *) pg_malloc(strlen(lines[i]) + diff + 1);
 
-		pre = where - lines[i];
+		int			pre = where - lines[i];
 
 		memcpy(newline, lines[i], pre);
 
@@ -425,12 +420,11 @@ filter_lines_with_token(char **lines, const char *token)
 	int			i,
 				src,
 				dst;
-	char	  **result;
 
 	for (i = 0; lines[i]; i++)
 		numlines++;
 
-	result = (char **) pg_malloc(numlines * sizeof(char *));
+	char	  **result = (char **) pg_malloc(numlines * sizeof(char *));
 
 	for (src = 0, dst = 0; src < numlines; src++)
 	{
@@ -448,11 +442,8 @@ filter_lines_with_token(char **lines, const char *token)
 static char **
 readfile(const char *path)
 {
-	char	  **result;
 	FILE	   *infile;
 	StringInfoData line;
-	int			maxlines;
-	int			n;
 
 	if ((infile = fopen(path, "r")) == NULL)
 	{
@@ -462,10 +453,10 @@ readfile(const char *path)
 
 	initStringInfo(&line);
 
-	maxlines = 1024;
-	result = (char **) pg_malloc(maxlines * sizeof(char *));
+	int			maxlines = 1024;
+	char	  **result = (char **) pg_malloc(maxlines * sizeof(char *));
 
-	n = 0;
+	int			n = 0;
 	while (pg_get_line_buf(infile, &line))
 	{
 		/* make sure there will be room for a trailing NULL pointer */
@@ -525,12 +516,11 @@ writefile(char *path, char **lines)
 static FILE *
 popen_check(const char *command, const char *mode)
 {
-	FILE	   *cmdfd;
 
 	fflush(stdout);
 	fflush(stderr);
 	errno = 0;
-	cmdfd = popen(command, mode);
+	FILE	   *cmdfd = popen(command, mode);
 	if (cmdfd == NULL)
 		pg_log_error("could not execute command \"%s\": %m", command);
 	return cmdfd;
@@ -835,11 +825,9 @@ write_version_file(const char *extrapath)
 static void
 set_null_conf(void)
 {
-	FILE	   *conf_file;
-	char	   *path;
 
-	path = psprintf("%s/postgresql.conf", pg_data);
-	conf_file = fopen(path, PG_BINARY_W);
+	char	   *path = psprintf("%s/postgresql.conf", pg_data);
+	FILE	   *conf_file = fopen(path, PG_BINARY_W);
 	if (conf_file == NULL)
 	{
 		pg_log_error("could not open file \"%s\" for writing: %m", path);
@@ -875,11 +863,10 @@ choose_dsm_implementation(void)
 
 	while (ntries > 0)
 	{
-		uint32		handle;
 		char		name[64];
 		int			fd;
 
-		handle = random();
+		uint32		handle = random();
 		snprintf(name, 64, "/PostgreSQL.%u", handle);
 		if ((fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, 0600)) != -1)
 		{
@@ -1039,7 +1026,6 @@ pretty_wal_size(int segment_count)
 static void
 setup_config(void)
 {
-	char	  **conflines;
 	char		repltok[MAXPGPATH];
 	char		path[MAXPGPATH];
 	char	   *autoconflines[3];
@@ -1049,7 +1035,7 @@ setup_config(void)
 
 	/* postgresql.conf */
 
-	conflines = readfile(conf_file);
+	char	  **conflines = readfile(conf_file);
 
 	snprintf(repltok, sizeof(repltok), "max_connections = %d", n_connections);
 	conflines = replace_token(conflines, "#max_connections = 100", repltok);
@@ -1341,14 +1327,13 @@ bootstrap_template1(void)
 {
 	PG_CMD_DECL;
 	char	  **line;
-	char	  **bki_lines;
 	char		headerline[MAXPGPATH];
 	char		buf[64];
 
 	printf(_("running bootstrap script ... "));
 	fflush(stdout);
 
-	bki_lines = readfile(bki_file);
+	char	  **bki_lines = readfile(bki_file);
 
 	/* Check that bki file appears to be of the right version */
 
@@ -1455,12 +1440,11 @@ get_su_pwd(void)
 		/*
 		 * Read password from terminal
 		 */
-		char	   *pwd2;
 
 		printf("\n");
 		fflush(stdout);
 		pwd1 = simple_prompt("Enter new superuser password: ", false);
-		pwd2 = simple_prompt("Enter it again: ", false);
+		char	   *pwd2 = simple_prompt("Enter it again: ", false);
 		if (strcmp(pwd1, pwd2) != 0)
 		{
 			fprintf(stderr, _("Passwords didn't match.\n"));
@@ -1605,9 +1589,8 @@ static void
 setup_sysviews(FILE *cmdfd)
 {
 	char	  **line;
-	char	  **sysviews_setup;
 
-	sysviews_setup = readfile(system_views_file);
+	char	  **sysviews_setup = readfile(system_views_file);
 
 	for (line = sysviews_setup; *line != NULL; line++)
 	{
@@ -1667,9 +1650,8 @@ static void
 setup_dictionary(FILE *cmdfd)
 {
 	char	  **line;
-	char	  **conv_lines;
 
-	conv_lines = readfile(dictionary_file);
+	char	  **conv_lines = readfile(dictionary_file);
 	for (line = conv_lines; *line != NULL; line++)
 	{
 		PG_CMD_PUTS(*line);
@@ -1704,7 +1686,6 @@ static void
 setup_privileges(FILE *cmdfd)
 {
 	char	  **line;
-	char	  **priv_lines;
 	static char *privileges_setup[] = {
 		"UPDATE pg_class "
 		"  SET relacl = (SELECT array_agg(a.acl) FROM "
@@ -1841,7 +1822,7 @@ setup_privileges(FILE *cmdfd)
 		NULL
 	};
 
-	priv_lines = replace_token(privileges_setup, "$POSTGRES_SUPERUSERNAME",
+	char	  **priv_lines = replace_token(privileges_setup, "$POSTGRES_SUPERUSERNAME",
 							   escape_quotes(username));
 	for (line = priv_lines; *line != NULL; line++)
 		PG_CMD_PUTS(*line);
@@ -1854,18 +1835,16 @@ setup_privileges(FILE *cmdfd)
 static void
 set_info_version(void)
 {
-	char	   *letterversion;
 	long		major = 0,
 				minor = 0,
 				micro = 0;
 	char	   *endptr;
 	char	   *vstr = pg_strdup(PG_VERSION);
-	char	   *ptr;
 
-	ptr = vstr + (strlen(vstr) - 1);
+	char	   *ptr = vstr + (strlen(vstr) - 1);
 	while (ptr != vstr && (*ptr < '0' || *ptr > '9'))
 		ptr--;
-	letterversion = ptr + 1;
+	char	   *letterversion = ptr + 1;
 	major = strtol(vstr, &endptr, 10);
 	if (*endptr)
 		minor = strtol(endptr + 1, &endptr, 10);
@@ -1882,9 +1861,8 @@ static void
 setup_schema(FILE *cmdfd)
 {
 	char	  **line;
-	char	  **lines;
 
-	lines = readfile(info_schema_file);
+	char	  **lines = readfile(info_schema_file);
 
 	for (line = lines; *line != NULL; line++)
 	{
@@ -2053,16 +2031,10 @@ locale_date_order(const char *locale)
 {
 	struct tm	testtime;
 	char		buf[128];
-	char	   *posD;
-	char	   *posM;
-	char	   *posY;
-	char	   *save;
-	size_t		res;
-	int			result;
 
-	result = DATEORDER_MDY;		/* default */
+	int			result = DATEORDER_MDY;		/* default */
 
-	save = setlocale(LC_TIME, NULL);
+	char	   *save = setlocale(LC_TIME, NULL);
 	if (!save)
 		return result;
 	save = pg_strdup(save);
@@ -2074,7 +2046,7 @@ locale_date_order(const char *locale)
 	testtime.tm_mon = 10;		/* November, should come out as "11" */
 	testtime.tm_year = 133;		/* 2033 */
 
-	res = my_strftime(buf, sizeof(buf), "%x", &testtime);
+	size_t		res = my_strftime(buf, sizeof(buf), "%x", &testtime);
 
 	setlocale(LC_TIME, save);
 	free(save);
@@ -2082,9 +2054,9 @@ locale_date_order(const char *locale)
 	if (res == 0)
 		return result;
 
-	posM = strstr(buf, "11");
-	posD = strstr(buf, "22");
-	posY = strstr(buf, "33");
+	char	   *posM = strstr(buf, "11");
+	char	   *posD = strstr(buf, "22");
+	char	   *posY = strstr(buf, "33");
 
 	if (!posM || !posD || !posY)
 		return result;
@@ -2114,13 +2086,11 @@ locale_date_order(const char *locale)
 static void
 check_locale_name(int category, const char *locale, char **canonname)
 {
-	char	   *save;
-	char	   *res;
 
 	if (canonname)
 		*canonname = NULL;		/* in case of failure */
 
-	save = setlocale(category, NULL);
+	char	   *save = setlocale(category, NULL);
 	if (!save)
 	{
 		pg_log_error("setlocale() failed");
@@ -2135,7 +2105,7 @@ check_locale_name(int category, const char *locale, char **canonname)
 		locale = "";
 
 	/* set the locale with setlocale, to see if it accepts it. */
-	res = setlocale(category, locale);
+	char	   *res = setlocale(category, locale);
 
 	/* save canonical name if requested. */
 	if (res && canonname)
@@ -2178,9 +2148,8 @@ check_locale_name(int category, const char *locale, char **canonname)
 static bool
 check_locale_encoding(const char *locale, int user_enc)
 {
-	int			locale_enc;
 
-	locale_enc = pg_get_encoding_from_locale(locale, true);
+	int			locale_enc = pg_get_encoding_from_locale(locale, true);
 
 	/* See notes in createdb() to understand these tests */
 	if (!(locale_enc == user_enc ||
@@ -2466,9 +2435,8 @@ setup_locale_encoding(void)
 
 	if (!encoding)
 	{
-		int			ctype_enc;
 
-		ctype_enc = pg_get_encoding_from_locale(lc_ctype, true);
+		int			ctype_enc = pg_get_encoding_from_locale(lc_ctype, true);
 
 		if (ctype_enc == -1)
 		{
@@ -2693,10 +2661,9 @@ create_data_directory(void)
 void
 create_xlog_or_symlink(void)
 {
-	char	   *subdirloc;
 
 	/* form name of the place for the subdirectory or symlink */
-	subdirloc = psprintf("%s/pg_wal", pg_data);
+	char	   *subdirloc = psprintf("%s/pg_wal", pg_data);
 
 	if (xlog_dir)
 	{
@@ -2838,9 +2805,8 @@ initialize_data_directory(void)
 
 	for (i = 0; i < lengthof(subdirs); i++)
 	{
-		char	   *path;
 
-		path = psprintf("%s/%s", pg_data, subdirs[i]);
+		char	   *path = psprintf("%s/%s", pg_data, subdirs[i]);
 
 		/*
 		 * The parent directory already exists, so we only need mkdir() not
@@ -2967,8 +2933,6 @@ main(int argc, char *argv[])
 	 */
 	int			c;
 	int			option_index;
-	char	   *effective_user;
-	PQExpBuffer start_db_cmd;
 	char		pg_ctl_path[MAXPGPATH];
 
 	/*
@@ -3188,7 +3152,7 @@ main(int argc, char *argv[])
 
 	setup_bin_paths(argv[0]);
 
-	effective_user = get_id();
+	char	   *effective_user = get_id();
 	if (!username)
 		username = effective_user;
 
@@ -3246,7 +3210,7 @@ main(int argc, char *argv[])
 	/*
 	 * Build up a shell command to tell the user how to start the server
 	 */
-	start_db_cmd = createPQExpBuffer();
+	PQExpBuffer start_db_cmd = createPQExpBuffer();
 
 	/* Get directory specification used to start initdb ... */
 	strlcpy(pg_ctl_path, argv[0], sizeof(pg_ctl_path));

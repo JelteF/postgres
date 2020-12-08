@@ -107,10 +107,9 @@ verify_directory(const char *directory)
 static void
 split_path(const char *path, char **dir, char **fname)
 {
-	char	   *sep;
 
 	/* split filepath into directory & filename */
-	sep = strrchr(path, '/');
+	char	   *sep = strrchr(path, '/');
 
 	/* directory path */
 	if (sep != NULL)
@@ -134,13 +133,12 @@ split_path(const char *path, char **dir, char **fname)
 static int
 open_file_in_directory(const char *directory, const char *fname)
 {
-	int			fd = -1;
 	char		fpath[MAXPGPATH];
 
 	Assert(directory != NULL);
 
 	snprintf(fpath, MAXPGPATH, "%s/%s", directory, fname);
-	fd = open(fpath, O_RDONLY | PG_BINARY, 0);
+	int			fd = open(fpath, O_RDONLY | PG_BINARY, 0);
 
 	if (fd < 0 && errno != ENOENT)
 		fatal_error("could not open file \"%s\": %m", fname);
@@ -189,9 +187,8 @@ search_directory(const char *directory, const char *fname)
 	if (fd >= 0)
 	{
 		PGAlignedXLogBlock buf;
-		int			r;
 
-		r = read(fd, buf.data, XLOG_BLCKSZ);
+		int			r = read(fd, buf.data, XLOG_BLCKSZ);
 		if (r == XLOG_BLCKSZ)
 		{
 			XLogLongPageHeader longhdr = (XLogLongPageHeader) buf.data;
@@ -251,7 +248,6 @@ identify_target_directory(char *directory, char *fname)
 	}
 	else
 	{
-		const char *datadir;
 
 		/* current directory */
 		if (search_directory(".", fname))
@@ -260,7 +256,7 @@ identify_target_directory(char *directory, char *fname)
 		if (search_directory(XLOGDIR, fname))
 			return pg_strdup(XLOGDIR);
 
-		datadir = getenv("PGDATA");
+		const char *datadir = getenv("PGDATA");
 		/* $PGDATA / XLOGDIR */
 		if (datadir != NULL)
 		{
@@ -412,14 +408,12 @@ static void
 XLogDumpCountRecord(XLogDumpConfig *config, XLogDumpStats *stats,
 					XLogReaderState *record)
 {
-	RmgrId		rmid;
-	uint8		recid;
 	uint32		rec_len;
 	uint32		fpi_len;
 
 	stats->count++;
 
-	rmid = XLogRecGetRmid(record);
+	RmgrId		rmid = XLogRecGetRmid(record);
 
 	XLogDumpRecordLen(record, &rec_len, &fpi_len);
 
@@ -436,7 +430,7 @@ XLogDumpCountRecord(XLogDumpConfig *config, XLogDumpStats *stats,
 	 * RmgrId).
 	 */
 
-	recid = XLogRecGetInfo(record) >> 4;
+	uint8		recid = XLogRecGetInfo(record) >> 4;
 
 	stats->record_stats[rmid][recid].count++;
 	stats->record_stats[rmid][recid].rec_len += rec_len;
@@ -449,7 +443,6 @@ XLogDumpCountRecord(XLogDumpConfig *config, XLogDumpStats *stats,
 static void
 XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 {
-	const char *id;
 	const RmgrDescData *desc = &RmgrDescTable[XLogRecGetRmid(record)];
 	uint32		rec_len;
 	uint32		fpi_len;
@@ -470,7 +463,7 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 		   (uint32) (record->ReadRecPtr >> 32), (uint32) record->ReadRecPtr,
 		   (uint32) (xl_prev >> 32), (uint32) xl_prev);
 
-	id = desc->rm_identify(info);
+	const char *id = desc->rm_identify(info);
 	if (id == NULL)
 		printf("desc: UNKNOWN (%x) ", info & ~XLR_INFO_MASK);
 	else
@@ -607,7 +600,6 @@ XLogDumpDisplayStats(XLogDumpConfig *config, XLogDumpStats *stats)
 	uint64		total_count = 0;
 	uint64		total_rec_len = 0;
 	uint64		total_fpi_len = 0;
-	uint64		total_len = 0;
 	double		rec_len_pct,
 				fpi_len_pct;
 
@@ -622,7 +614,7 @@ XLogDumpDisplayStats(XLogDumpConfig *config, XLogDumpStats *stats)
 		total_rec_len += stats->rmgr_stats[ri].rec_len;
 		total_fpi_len += stats->rmgr_stats[ri].fpi_len;
 	}
-	total_len = total_rec_len + total_fpi_len;
+	uint64		total_len = total_rec_len + total_fpi_len;
 
 	/*
 	 * 27 is strlen("Transaction/COMMIT_PREPARED"), 20 is strlen(2^64), 8 is
@@ -657,7 +649,6 @@ XLogDumpDisplayStats(XLogDumpConfig *config, XLogDumpStats *stats)
 		{
 			for (rj = 0; rj < MAX_XLINFO_TYPES; rj++)
 			{
-				const char *id;
 
 				count = stats->record_stats[ri][rj].count;
 				rec_len = stats->record_stats[ri][rj].rec_len;
@@ -669,7 +660,7 @@ XLogDumpDisplayStats(XLogDumpConfig *config, XLogDumpStats *stats)
 					continue;
 
 				/* the upper four bits in xl_info are the rmgr's */
-				id = desc->rm_identify(rj << 4);
+				const char *id = desc->rm_identify(rj << 4);
 				if (id == NULL)
 					id = psprintf("UNKNOWN (%x)", rj << 4);
 
@@ -945,7 +936,6 @@ main(int argc, char **argv)
 	{
 		char	   *directory = NULL;
 		char	   *fname = NULL;
-		int			fd;
 		XLogSegNo	segno;
 
 		split_path(argv[optind], &directory, &fname);
@@ -959,7 +949,7 @@ main(int argc, char **argv)
 		}
 
 		waldir = identify_target_directory(waldir, fname);
-		fd = open_file_in_directory(waldir, fname);
+		int			fd = open_file_in_directory(waldir, fname);
 		if (fd < 0)
 			fatal_error("could not open file \"%s\"", fname);
 		close(fd);

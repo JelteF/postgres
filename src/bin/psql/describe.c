@@ -63,7 +63,6 @@ bool
 describeAggregates(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -126,7 +125,7 @@ describeAggregates(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -149,7 +148,6 @@ bool
 describeAccessMethods(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, true, false, false};
 
@@ -194,7 +192,7 @@ describeAccessMethods(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -219,7 +217,6 @@ bool
 describeTablespaces(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80000)
@@ -281,7 +278,7 @@ describeTablespaces(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -319,9 +316,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 	bool		showProcedure = strchr(functypes, 'p') != NULL;
 	bool		showTrigger = strchr(functypes, 't') != NULL;
 	bool		showWindow = strchr(functypes, 'w') != NULL;
-	bool		have_where;
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, false, false, true, true, true, false, true, false, false, false, false};
 
@@ -521,7 +516,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 		appendPQExpBufferStr(&buf,
 							 "     LEFT JOIN pg_catalog.pg_language l ON l.oid = p.prolang\n");
 
-	have_where = false;
+	bool		have_where = false;
 
 	/* filter by function type, if requested */
 	if (showNormal && showAggregate && showProcedure && showTrigger && showWindow)
@@ -632,7 +627,7 @@ describeFunctions(const char *functypes, const char *pattern, bool verbose, bool
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -667,7 +662,6 @@ bool
 describeTypes(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -759,7 +753,7 @@ describeTypes(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -783,7 +777,6 @@ bool
 describeOperators(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -839,7 +832,7 @@ describeOperators(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 3, 4;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -863,7 +856,6 @@ describeOperators(const char *pattern, bool verbose, bool showSystem)
 bool
 listAllDbs(const char *pattern, bool verbose)
 {
-	PGresult   *res;
 	PQExpBufferData buf;
 	printQueryOpt myopt = pset.popt;
 
@@ -910,7 +902,7 @@ listAllDbs(const char *pattern, bool verbose)
 							  NULL, "d.datname", NULL, NULL);
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -934,7 +926,6 @@ bool
 permissionsList(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, true, false, false, false};
 
@@ -1063,7 +1054,7 @@ permissionsList(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	if (!res)
 	{
 		termPQExpBuffer(&buf);
@@ -1094,7 +1085,6 @@ bool
 listDefaultACLs(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, true, false};
 
@@ -1142,7 +1132,7 @@ listDefaultACLs(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 3;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	if (!res)
 	{
 		termPQExpBuffer(&buf);
@@ -1179,7 +1169,6 @@ bool
 objectDescription(const char *pattern, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, true, false};
 
@@ -1341,7 +1330,7 @@ objectDescription(const char *pattern, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 3;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -1371,7 +1360,6 @@ bool
 describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	int			i;
 
 	initPQExpBuffer(&buf);
@@ -1393,7 +1381,7 @@ describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 2, 3;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -1414,13 +1402,10 @@ describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 
 	for (i = 0; i < PQntuples(res); i++)
 	{
-		const char *oid;
-		const char *nspname;
-		const char *relname;
 
-		oid = PQgetvalue(res, i, 0);
-		nspname = PQgetvalue(res, i, 1);
-		relname = PQgetvalue(res, i, 2);
+		const char *oid = PQgetvalue(res, i, 0);
+		const char *nspname = PQgetvalue(res, i, 1);
+		const char *relname = PQgetvalue(res, i, 2);
 
 		if (!describeOneTableDetails(nspname, relname, oid, verbose))
 		{
@@ -1453,7 +1438,6 @@ describeOneTableDetails(const char *schemaname,
 {
 	bool		retval = false;
 	PQExpBufferData buf;
-	PGresult   *res = NULL;
 	printTableOpt myopt = pset.popt.topt;
 	printTableContent cont;
 	bool		printTableInitialized = false;
@@ -1653,7 +1637,7 @@ describeOneTableDetails(const char *schemaname,
 						  oid);
 	}
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	if (!res)
 		goto error_return;
 
@@ -2043,8 +2027,6 @@ describeOneTableDetails(const char *schemaname,
 		/* Collation, Nullable, Default */
 		if (show_column_details)
 		{
-			char	   *identity;
-			char	   *generated;
 			char	   *default_str;
 			bool		mustfree = false;
 
@@ -2054,8 +2036,8 @@ describeOneTableDetails(const char *schemaname,
 							  strcmp(PQgetvalue(res, i, attnotnull_col), "t") == 0 ? "not null" : "",
 							  false, false);
 
-			identity = PQgetvalue(res, i, attidentity_col);
-			generated = PQgetvalue(res, i, attgenerated_col);
+			char	   *identity = PQgetvalue(res, i, attidentity_col);
+			char	   *generated = PQgetvalue(res, i, attgenerated_col);
 
 			if (identity[0] == ATTRIBUTE_IDENTITY_ALWAYS)
 				default_str = "generated always as identity";
@@ -2113,7 +2095,6 @@ describeOneTableDetails(const char *schemaname,
 	if (tableinfo.ispartition)
 	{
 		/* Footer information for a partition child table */
-		PGresult   *result;
 
 		printfPQExpBuffer(&buf,
 						  "SELECT inhparent::pg_catalog.regclass,\n"
@@ -2127,7 +2108,7 @@ describeOneTableDetails(const char *schemaname,
 						  " JOIN pg_catalog.pg_inherits i"
 						  " ON c.oid = inhrelid"
 						  "\nWHERE c.oid = '%s';", oid);
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 
@@ -2161,12 +2142,11 @@ describeOneTableDetails(const char *schemaname,
 	if (tableinfo.relkind == RELKIND_PARTITIONED_TABLE)
 	{
 		/* Footer information for a partitioned table (partitioning parent) */
-		PGresult   *result;
 
 		printfPQExpBuffer(&buf,
 						  "SELECT pg_catalog.pg_get_partkeydef('%s'::pg_catalog.oid);",
 						  oid);
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 
@@ -2183,7 +2163,6 @@ describeOneTableDetails(const char *schemaname,
 	if (tableinfo.relkind == RELKIND_TOASTVALUE)
 	{
 		/* For a TOAST table, print name of owning table */
-		PGresult   *result;
 
 		printfPQExpBuffer(&buf,
 						  "SELECT n.nspname, c.relname\n"
@@ -2191,7 +2170,7 @@ describeOneTableDetails(const char *schemaname,
 						  " JOIN pg_catalog.pg_namespace n"
 						  " ON n.oid = c.relnamespace\n"
 						  "WHERE reltoastrelid = '%s';", oid);
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 
@@ -2211,7 +2190,6 @@ describeOneTableDetails(const char *schemaname,
 		tableinfo.relkind == RELKIND_PARTITIONED_INDEX)
 	{
 		/* Footer information about an index */
-		PGresult   *result;
 
 		printfPQExpBuffer(&buf,
 						  "SELECT i.indisunique, i.indisprimary, i.indisclustered, ");
@@ -2249,7 +2227,7 @@ describeOneTableDetails(const char *schemaname,
 						  "AND i.indrelid = c2.oid;",
 						  oid);
 
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 		else if (PQntuples(result) != 1)
@@ -2380,8 +2358,6 @@ describeOneTableDetails(const char *schemaname,
 					}
 					else
 					{
-						const char *indexdef;
-						const char *usingpos;
 
 						/* Label as primary key or unique (but not both) */
 						if (strcmp(PQgetvalue(result, i, 1), "t") == 0)
@@ -2395,8 +2371,8 @@ describeOneTableDetails(const char *schemaname,
 						}
 
 						/* Everything after "USING" is echoed verbatim */
-						indexdef = PQgetvalue(result, i, 5);
-						usingpos = strstr(indexdef, " USING ");
+						const char *indexdef = PQgetvalue(result, i, 5);
+						const char *usingpos = strstr(indexdef, " USING ");
 						if (usingpos)
 							indexdef = usingpos + 7;
 						appendPQExpBuffer(&buf, " %s", indexdef);
@@ -2794,7 +2770,6 @@ describeOneTableDetails(const char *schemaname,
 
 					for (i = 0; i < tuples; i++)
 					{
-						const char *ruledef;
 						bool		list_rule = false;
 
 						switch (category)
@@ -2841,7 +2816,7 @@ describeOneTableDetails(const char *schemaname,
 						}
 
 						/* Everything after "CREATE RULE" is echoed verbatim */
-						ruledef = PQgetvalue(result, i, 1);
+						const char *ruledef = PQgetvalue(result, i, 1);
 						ruledef += 12;
 						printfPQExpBuffer(&buf, "    %s", ruledef);
 						printTableAddFooter(&cont, buf.data);
@@ -2891,12 +2866,11 @@ describeOneTableDetails(const char *schemaname,
 	if ((tableinfo.relkind == RELKIND_VIEW ||
 		 tableinfo.relkind == RELKIND_MATVIEW) && verbose)
 	{
-		PGresult   *result;
 
 		printfPQExpBuffer(&buf,
 						  "SELECT pg_catalog.pg_get_viewdef('%s'::pg_catalog.oid, true);",
 						  oid);
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 
@@ -2931,10 +2905,9 @@ describeOneTableDetails(const char *schemaname,
 				printTableAddFooter(&cont, _("Rules:"));
 				for (i = 0; i < PQntuples(result); i++)
 				{
-					const char *ruledef;
 
 					/* Everything after "CREATE RULE" is echoed verbatim */
-					ruledef = PQgetvalue(result, i, 1);
+					const char *ruledef = PQgetvalue(result, i, 1);
 					ruledef += 12;
 
 					printfPQExpBuffer(&buf, " %s", ruledef);
@@ -2951,7 +2924,6 @@ describeOneTableDetails(const char *schemaname,
 	 */
 	if (tableinfo.hastriggers)
 	{
-		PGresult   *result;
 		int			tuples;
 
 		printfPQExpBuffer(&buf,
@@ -2991,7 +2963,7 @@ describeOneTableDetails(const char *schemaname,
 								 "   WHERE d.classid = t.tableoid AND d.objid = t.oid AND d.deptype = 'i' AND c.contype = 'f'))");
 		appendPQExpBufferStr(&buf, "\nORDER BY 1;");
 
-		result = PSQLexec(buf.data);
+		PGresult   *result = PSQLexec(buf.data);
 		if (!result)
 			goto error_return;
 		else
@@ -3012,18 +2984,13 @@ describeOneTableDetails(const char *schemaname,
 				have_heading = false;
 				for (i = 0; i < tuples; i++)
 				{
-					bool		list_trigger;
-					const char *tgdef;
-					const char *usingpos;
-					const char *tgenabled;
-					const char *tgisinternal;
 
 					/*
 					 * Check if this trigger falls into the current category
 					 */
-					tgenabled = PQgetvalue(result, i, 2);
-					tgisinternal = PQgetvalue(result, i, 3);
-					list_trigger = false;
+					const char *tgenabled = PQgetvalue(result, i, 2);
+					const char *tgisinternal = PQgetvalue(result, i, 3);
+					bool		list_trigger = false;
 					switch (category)
 					{
 						case 0:
@@ -3082,8 +3049,8 @@ describeOneTableDetails(const char *schemaname,
 					}
 
 					/* Everything after "TRIGGER" is echoed verbatim */
-					tgdef = PQgetvalue(result, i, 1);
-					usingpos = strstr(tgdef, " TRIGGER ");
+					const char *tgdef = PQgetvalue(result, i, 1);
+					const char *usingpos = strstr(tgdef, " TRIGGER ");
 					if (usingpos)
 						tgdef = usingpos + 9;
 
@@ -3111,12 +3078,11 @@ describeOneTableDetails(const char *schemaname,
 		tableinfo.relkind == RELKIND_PARTITIONED_INDEX ||
 		tableinfo.relkind == RELKIND_TOASTVALUE)
 	{
-		bool		is_partitioned;
 		PGresult   *result;
 		int			tuples;
 
 		/* simplify some repeated tests below */
-		is_partitioned = (tableinfo.relkind == RELKIND_PARTITIONED_TABLE ||
+		bool		is_partitioned = (tableinfo.relkind == RELKIND_PARTITIONED_TABLE ||
 						  tableinfo.relkind == RELKIND_PARTITIONED_INDEX);
 
 		/* print foreign server name */
@@ -3380,14 +3346,13 @@ add_tablespace_footer(printTableContent *const cont, char relkind,
 		 */
 		if (tablespace != 0)
 		{
-			PGresult   *result = NULL;
 			PQExpBufferData buf;
 
 			initPQExpBuffer(&buf);
 			printfPQExpBuffer(&buf,
 							  "SELECT spcname FROM pg_catalog.pg_tablespace\n"
 							  "WHERE oid = '%u';", tablespace);
-			result = PSQLexec(buf.data);
+			PGresult   *result = PSQLexec(buf.data);
 			if (!result)
 			{
 				termPQExpBuffer(&buf);
@@ -3431,11 +3396,9 @@ bool
 describeRoles(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printTableContent cont;
 	printTableOpt myopt = pset.popt.topt;
 	int			ncols = 3;
-	int			nrows = 0;
 	int			i;
 	int			conns;
 	const char	align = 'l';
@@ -3497,11 +3460,11 @@ describeRoles(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	if (!res)
 		return false;
 
-	nrows = PQntuples(res);
+	int			nrows = PQntuples(res);
 	attr = pg_malloc0((nrows + 1) * sizeof(*attr));
 
 	printTableInit(&cont, &myopt, _("List of roles"), ncols, nrows);
@@ -3602,9 +3565,7 @@ bool
 listDbRoleSettings(const char *pattern, const char *pattern2)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
-	bool		havewhere;
 
 	if (pset.sversion < 90000)
 	{
@@ -3626,13 +3587,13 @@ listDbRoleSettings(const char *pattern, const char *pattern2)
 					  gettext_noop("Role"),
 					  gettext_noop("Database"),
 					  gettext_noop("Settings"));
-	havewhere = processSQLNamePattern(pset.db, &buf, pattern, false, false,
+	bool		havewhere = processSQLNamePattern(pset.db, &buf, pattern, false, false,
 									  NULL, "r.rolname", NULL, NULL);
 	processSQLNamePattern(pset.db, &buf, pattern2, havewhere, false,
 						  NULL, "d.datname", NULL, NULL);
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -3693,9 +3654,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 	bool		showForeign = strchr(tabtypes, 'E') != NULL;
 
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
-	int			cols_so_far;
 	bool		translate_columns[] = {false, false, true, false, false, false, false, false, false};
 
 	/* If tabtypes is empty, we default to \dtvmsE (but see also command.c) */
@@ -3736,7 +3695,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 					  gettext_noop("partitioned index"),
 					  gettext_noop("Type"),
 					  gettext_noop("Owner"));
-	cols_so_far = 4;
+	int			cols_so_far = 4;
 
 	if (showIndexes)
 	{
@@ -3851,7 +3810,7 @@ listTables(const char *tabtypes, const char *pattern, bool verbose, bool showSys
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1,2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -3907,7 +3866,6 @@ listPartitionedTables(const char *reltypes, const char *pattern, bool verbose)
 	bool		showNested = strchr(reltypes, 'n') != NULL;
 	PQExpBufferData buf;
 	PQExpBufferData title;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	bool		translate_columns[] = {false, false, false, false, false, false, false, false, false};
 	const char *tabletitle;
@@ -4076,7 +4034,7 @@ listPartitionedTables(const char *reltypes, const char *pattern, bool verbose)
 					  mixed_output ? "\"Type\" DESC, " : "",
 					  showNested || pattern ? "\"Parent name\" NULLS FIRST, " : "");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4107,7 +4065,6 @@ bool
 listLanguages(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -4157,7 +4114,7 @@ listLanguages(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4182,7 +4139,6 @@ bool
 listDomains(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -4244,7 +4200,7 @@ listDomains(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4268,7 +4224,6 @@ bool
 listConversions(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] =
 	{false, false, false, false, true, false};
@@ -4318,7 +4273,7 @@ listConversions(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4344,7 +4299,6 @@ bool
 listEventTriggers(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] =
 	{false, false, false, true, false, false, false};
@@ -4384,7 +4338,7 @@ listEventTriggers(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4410,7 +4364,6 @@ bool
 listCasts(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, false, true, false};
 
@@ -4502,7 +4455,7 @@ listCasts(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, ") )\nORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4528,7 +4481,6 @@ bool
 listCollations(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, false, false, false, true, false};
 
@@ -4601,7 +4553,7 @@ listCollations(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4627,7 +4579,6 @@ bool
 listSchemas(const char *pattern, bool verbose, bool showSystem)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -4660,7 +4611,7 @@ listSchemas(const char *pattern, bool verbose, bool showSystem)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4684,7 +4635,6 @@ bool
 listTSParsers(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80300)
@@ -4720,7 +4670,7 @@ listTSParsers(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4742,7 +4692,6 @@ static bool
 listTSParsersVerbose(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	int			i;
 
 	initPQExpBuffer(&buf);
@@ -4761,7 +4710,7 @@ listTSParsersVerbose(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4782,14 +4731,12 @@ listTSParsersVerbose(const char *pattern)
 
 	for (i = 0; i < PQntuples(res); i++)
 	{
-		const char *oid;
 		const char *nspname = NULL;
-		const char *prsname;
 
-		oid = PQgetvalue(res, i, 0);
+		const char *oid = PQgetvalue(res, i, 0);
 		if (!PQgetisnull(res, i, 1))
 			nspname = PQgetvalue(res, i, 1);
-		prsname = PQgetvalue(res, i, 2);
+		const char *prsname = PQgetvalue(res, i, 2);
 
 		if (!describeOneTSParser(oid, nspname, prsname))
 		{
@@ -4812,7 +4759,6 @@ static bool
 describeOneTSParser(const char *oid, const char *nspname, const char *prsname)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	PQExpBufferData title;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {true, false, false};
@@ -4863,7 +4809,7 @@ describeOneTSParser(const char *oid, const char *nspname, const char *prsname)
 					  gettext_noop("Get token types"),
 					  oid);
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -4931,7 +4877,6 @@ bool
 listTSDictionaries(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80300)
@@ -4978,7 +4923,7 @@ listTSDictionaries(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5002,7 +4947,6 @@ bool
 listTSTemplates(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80300)
@@ -5049,7 +4993,7 @@ listTSTemplates(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5073,7 +5017,6 @@ bool
 listTSConfigs(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80300)
@@ -5109,7 +5052,7 @@ listTSConfigs(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5128,7 +5071,6 @@ static bool
 listTSConfigsVerbose(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	int			i;
 
 	initPQExpBuffer(&buf);
@@ -5151,7 +5093,7 @@ listTSConfigsVerbose(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 3, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5172,17 +5114,14 @@ listTSConfigsVerbose(const char *pattern)
 
 	for (i = 0; i < PQntuples(res); i++)
 	{
-		const char *oid;
-		const char *cfgname;
 		const char *nspname = NULL;
-		const char *prsname;
 		const char *pnspname = NULL;
 
-		oid = PQgetvalue(res, i, 0);
-		cfgname = PQgetvalue(res, i, 1);
+		const char *oid = PQgetvalue(res, i, 0);
+		const char *cfgname = PQgetvalue(res, i, 1);
 		if (!PQgetisnull(res, i, 2))
 			nspname = PQgetvalue(res, i, 2);
-		prsname = PQgetvalue(res, i, 3);
+		const char *prsname = PQgetvalue(res, i, 3);
 		if (!PQgetisnull(res, i, 4))
 			pnspname = PQgetvalue(res, i, 4);
 
@@ -5209,7 +5148,6 @@ describeOneTSConfig(const char *oid, const char *nspname, const char *cfgname,
 {
 	PQExpBufferData buf,
 				title;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	initPQExpBuffer(&buf);
@@ -5234,7 +5172,7 @@ describeOneTSConfig(const char *oid, const char *nspname, const char *cfgname,
 					  gettext_noop("Dictionaries"),
 					  oid);
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5279,7 +5217,6 @@ bool
 listForeignDataWrappers(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80400)
@@ -5338,7 +5275,7 @@ listForeignDataWrappers(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5362,7 +5299,6 @@ bool
 listForeignServers(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80400)
@@ -5420,7 +5356,7 @@ listForeignServers(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5444,7 +5380,6 @@ bool
 listUserMappings(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 80400)
@@ -5481,7 +5416,7 @@ listUserMappings(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5505,7 +5440,6 @@ bool
 listForeignTables(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 90100)
@@ -5559,7 +5493,7 @@ listForeignTables(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5583,7 +5517,6 @@ bool
 listExtensions(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 
 	if (pset.sversion < 90100)
@@ -5616,7 +5549,7 @@ listExtensions(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5640,7 +5573,6 @@ bool
 listExtensionContents(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	int			i;
 
 	if (pset.sversion < 90100)
@@ -5665,7 +5597,7 @@ listExtensionContents(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5686,11 +5618,9 @@ listExtensionContents(const char *pattern)
 
 	for (i = 0; i < PQntuples(res); i++)
 	{
-		const char *extname;
-		const char *oid;
 
-		extname = PQgetvalue(res, i, 0);
-		oid = PQgetvalue(res, i, 1);
+		const char *extname = PQgetvalue(res, i, 0);
+		const char *oid = PQgetvalue(res, i, 1);
 
 		if (!listOneExtensionContents(extname, oid))
 		{
@@ -5712,7 +5642,6 @@ static bool
 listOneExtensionContents(const char *extname, const char *oid)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	PQExpBufferData title;
 	printQueryOpt myopt = pset.popt;
 
@@ -5725,7 +5654,7 @@ listOneExtensionContents(const char *extname, const char *oid)
 					  gettext_noop("Object description"),
 					  oid);
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5753,7 +5682,6 @@ bool
 listPublications(const char *pattern)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, false, false, false, false, false, false};
 
@@ -5800,7 +5728,7 @@ listPublications(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -5829,9 +5757,6 @@ describePublications(const char *pattern)
 {
 	PQExpBufferData buf;
 	int			i;
-	PGresult   *res;
-	bool		has_pubtruncate;
-	bool		has_pubviaroot;
 
 	if (pset.sversion < 100000)
 	{
@@ -5843,8 +5768,8 @@ describePublications(const char *pattern)
 		return true;
 	}
 
-	has_pubtruncate = (pset.sversion >= 110000);
-	has_pubviaroot = (pset.sversion >= 130000);
+	bool		has_pubtruncate = (pset.sversion >= 110000);
+	bool		has_pubviaroot = (pset.sversion >= 130000);
 
 	initPQExpBuffer(&buf);
 
@@ -5867,7 +5792,7 @@ describePublications(const char *pattern)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 2;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	if (!res)
 	{
 		termPQExpBuffer(&buf);
@@ -5994,7 +5919,6 @@ bool
 describeSubscriptions(const char *pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	static const bool translate_columns[] = {false, false, false, false,
 	false, false, false, false};
@@ -6051,7 +5975,7 @@ describeSubscriptions(const char *pattern, bool verbose)
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -6099,7 +6023,6 @@ listOperatorClasses(const char *access_method_pattern,
 					const char *type_pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	bool		have_where = false;
 	static const bool translate_columns[] = {false, false, false, false, false, false, false};
@@ -6165,7 +6088,7 @@ listOperatorClasses(const char *access_method_pattern,
 	}
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2, 4;");
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -6193,7 +6116,6 @@ listOperatorFamilies(const char *access_method_pattern,
 					 const char *type_pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	bool		have_where = false;
 	static const bool translate_columns[] = {false, false, false, false};
@@ -6246,7 +6168,7 @@ listOperatorFamilies(const char *access_method_pattern,
 	}
 
 	appendPQExpBufferStr(&buf, "ORDER BY 1, 2;");
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -6275,7 +6197,6 @@ listOpFamilyOperators(const char *access_method_pattern,
 					  const char *family_pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	bool		have_where = false;
 
@@ -6333,7 +6254,7 @@ listOpFamilyOperators(const char *access_method_pattern,
 						 "  pg_catalog.format_type(o.amoprighttype, NULL),\n"
 						 "  o.amopstrategy;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;
@@ -6362,7 +6283,6 @@ listOpFamilyFunctions(const char *access_method_pattern,
 					  const char *family_pattern, bool verbose)
 {
 	PQExpBufferData buf;
-	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
 	bool		have_where = false;
 	static const bool translate_columns[] = {false, false, false, false, false, false};
@@ -6414,7 +6334,7 @@ listOpFamilyFunctions(const char *access_method_pattern,
 						 "  ap.amproclefttype = ap.amprocrighttype DESC,\n"
 						 "  3, 4, 5;");
 
-	res = PSQLexec(buf.data);
+	PGresult   *res = PSQLexec(buf.data);
 	termPQExpBuffer(&buf);
 	if (!res)
 		return false;

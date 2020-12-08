@@ -358,21 +358,17 @@ static PartitionBoundInfo
 create_hash_bounds(PartitionBoundSpec **boundspecs, int nparts,
 				   PartitionKey key, int **mapping)
 {
-	PartitionBoundInfo boundinfo;
-	PartitionHashBound **hbounds = NULL;
 	int			i;
-	int			ndatums = 0;
-	int			greatest_modulus;
 
-	boundinfo = (PartitionBoundInfoData *)
+	PartitionBoundInfo boundinfo = (PartitionBoundInfoData *)
 		palloc0(sizeof(PartitionBoundInfoData));
 	boundinfo->strategy = key->strategy;
 	/* No special hash partitions. */
 	boundinfo->null_index = -1;
 	boundinfo->default_index = -1;
 
-	ndatums = nparts;
-	hbounds = (PartitionHashBound **)
+	int			ndatums = nparts;
+	PartitionHashBound **hbounds = (PartitionHashBound **)
 		palloc(nparts * sizeof(PartitionHashBound *));
 
 	/* Convert from node to the internal representation */
@@ -394,7 +390,7 @@ create_hash_bounds(PartitionBoundSpec **boundspecs, int nparts,
 		  qsort_partition_hbound_cmp);
 
 	/* After sorting, moduli are now stored in ascending order. */
-	greatest_modulus = hbounds[ndatums - 1]->modulus;
+	int			greatest_modulus = hbounds[ndatums - 1]->modulus;
 
 	boundinfo->ndatums = ndatums;
 	boundinfo->datums = (Datum **) palloc0(ndatums * sizeof(Datum *));
@@ -440,17 +436,14 @@ static PartitionBoundInfo
 create_list_bounds(PartitionBoundSpec **boundspecs, int nparts,
 				   PartitionKey key, int **mapping)
 {
-	PartitionBoundInfo boundinfo;
-	PartitionListValue **all_values = NULL;
 	ListCell   *cell;
 	int			i = 0;
-	int			ndatums = 0;
 	int			next_index = 0;
 	int			default_index = -1;
 	int			null_index = -1;
 	List	   *non_null_values = NIL;
 
-	boundinfo = (PartitionBoundInfoData *)
+	PartitionBoundInfo boundinfo = (PartitionBoundInfoData *)
 		palloc0(sizeof(PartitionBoundInfoData));
 	boundinfo->strategy = key->strategy;
 	/* Will be set correctly below. */
@@ -505,13 +498,13 @@ create_list_bounds(PartitionBoundSpec **boundspecs, int nparts,
 		}
 	}
 
-	ndatums = list_length(non_null_values);
+	int			ndatums = list_length(non_null_values);
 
 	/*
 	 * Collect all list values in one array. Alongside the value, we also save
 	 * the index of partition the value comes from.
 	 */
-	all_values = (PartitionListValue **)
+	PartitionListValue **all_values = (PartitionListValue **)
 		palloc(ndatums * sizeof(PartitionListValue *));
 	i = 0;
 	foreach(cell, non_null_values)
@@ -597,17 +590,14 @@ static PartitionBoundInfo
 create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
 					PartitionKey key, int **mapping)
 {
-	PartitionBoundInfo boundinfo;
-	PartitionRangeBound **rbounds = NULL;
 	PartitionRangeBound **all_bounds,
 			   *prev;
 	int			i,
 				k;
-	int			ndatums = 0;
 	int			default_index = -1;
 	int			next_index = 0;
 
-	boundinfo = (PartitionBoundInfoData *)
+	PartitionBoundInfo boundinfo = (PartitionBoundInfoData *)
 		palloc0(sizeof(PartitionBoundInfoData));
 	boundinfo->strategy = key->strategy;
 	/* There is no special null-accepting range partition. */
@@ -619,7 +609,7 @@ create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
 		palloc0(2 * nparts * sizeof(PartitionRangeBound *));
 
 	/* Create a unified list of range bounds across all the partitions. */
-	ndatums = 0;
+	int			ndatums = 0;
 	for (i = 0; i < nparts; i++)
 	{
 		PartitionBoundSpec *spec = boundspecs[i];
@@ -656,7 +646,7 @@ create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
 			  (void *) key);
 
 	/* Save distinct bounds from all_bounds into rbounds. */
-	rbounds = (PartitionRangeBound **)
+	PartitionRangeBound **rbounds = (PartitionRangeBound **)
 		palloc(ndatums * sizeof(PartitionRangeBound *));
 	k = 0;
 	prev = NULL;
@@ -669,7 +659,6 @@ create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
 		/* Is the current bound distinct from the previous one? */
 		for (j = 0; j < key->partnatts; j++)
 		{
-			Datum		cmpval;
 
 			if (prev == NULL || cur->kind[j] != prev->kind[j])
 			{
@@ -685,7 +674,7 @@ create_range_bounds(PartitionBoundSpec **boundspecs, int nparts,
 			if (cur->kind[j] != PARTITION_RANGE_DATUM_VALUE)
 				break;
 
-			cmpval = FunctionCall2Coll(&key->partsupfunc[j],
+			Datum		cmpval = FunctionCall2Coll(&key->partsupfunc[j],
 									   key->partcollation[j],
 									   cur->datums[j],
 									   prev->datums[j]);
@@ -917,21 +906,15 @@ PartitionBoundInfo
 partition_bounds_copy(PartitionBoundInfo src,
 					  PartitionKey key)
 {
-	PartitionBoundInfo dest;
 	int			i;
-	int			ndatums;
-	int			partnatts;
-	int			num_indexes;
-	bool		hash_part;
-	int			natts;
 
-	dest = (PartitionBoundInfo) palloc(sizeof(PartitionBoundInfoData));
+	PartitionBoundInfo dest = (PartitionBoundInfo) palloc(sizeof(PartitionBoundInfoData));
 
 	dest->strategy = src->strategy;
-	ndatums = dest->ndatums = src->ndatums;
-	partnatts = key->partnatts;
+	int			ndatums = dest->ndatums = src->ndatums;
+	int			partnatts = key->partnatts;
 
-	num_indexes = get_partition_bound_num_indexes(src);
+	int			num_indexes = get_partition_bound_num_indexes(src);
 
 	/* List partitioned tables have only a single partition key. */
 	Assert(key->strategy != PARTITION_STRATEGY_LIST || partnatts == 1);
@@ -958,8 +941,8 @@ partition_bounds_copy(PartitionBoundInfo src,
 	 * For hash partitioning, datums array will have two elements - modulus
 	 * and remainder.
 	 */
-	hash_part = (key->strategy == PARTITION_STRATEGY_HASH);
-	natts = hash_part ? 2 : partnatts;
+	bool		hash_part = (key->strategy == PARTITION_STRATEGY_HASH);
+	int			natts = hash_part ? 2 : partnatts;
 
 	for (i = 0; i < ndatums; i++)
 	{
@@ -1113,7 +1096,6 @@ merge_list_bounds(FmgrInfo *partsupfunc, Oid *partcollation,
 	bool		inner_has_null = partition_bound_accepts_nulls(inner_bi);
 	PartitionMap outer_map;
 	PartitionMap inner_map;
-	int			outer_pos;
 	int			inner_pos;
 	int			next_index = 0;
 	int			null_index = -1;
@@ -1147,13 +1129,11 @@ merge_list_bounds(FmgrInfo *partsupfunc, Oid *partcollation,
 	 * exactly, move to the next pair of list values, otherwise move to the
 	 * next list value on the side with a smaller list value.
 	 */
-	outer_pos = inner_pos = 0;
+	int			outer_pos = inner_pos = 0;
 	while (outer_pos < outer_bi->ndatums || inner_pos < inner_bi->ndatums)
 	{
 		int			outer_index = -1;
 		int			inner_index = -1;
-		Datum	   *outer_datums;
-		Datum	   *inner_datums;
 		int			cmpval;
 		Datum	   *merged_datum = NULL;
 		int			merged_index = -1;
@@ -1186,9 +1166,9 @@ merge_list_bounds(FmgrInfo *partsupfunc, Oid *partcollation,
 		}
 
 		/* Get the list values. */
-		outer_datums = outer_pos < outer_bi->ndatums ?
+		Datum	   *outer_datums = outer_pos < outer_bi->ndatums ?
 			outer_bi->datums[outer_pos] : NULL;
-		inner_datums = inner_pos < inner_bi->ndatums ?
+		Datum	   *inner_datums = inner_pos < inner_bi->ndatums ?
 			inner_bi->datums[inner_pos] : NULL;
 
 		/*
@@ -1420,9 +1400,6 @@ merge_range_bounds(int partnatts, FmgrInfo *partsupfuncs,
 	int			inner_default = inner_bi->default_index;
 	PartitionMap outer_map;
 	PartitionMap inner_map;
-	int			outer_index;
-	int			inner_index;
-	int			outer_lb_pos;
 	int			inner_lb_pos;
 	PartitionRangeBound outer_lb;
 	PartitionRangeBound outer_ub;
@@ -1460,10 +1437,10 @@ merge_range_bounds(int partnatts, FmgrInfo *partsupfuncs,
 	 * lower bounds in the datums arrays in the outer/inner
 	 * PartitionBoundInfos respectively.
 	 */
-	outer_lb_pos = inner_lb_pos = 0;
-	outer_index = get_range_partition(outer_rel, outer_bi, &outer_lb_pos,
+	int			outer_lb_pos = inner_lb_pos = 0;
+	int			outer_index = get_range_partition(outer_rel, outer_bi, &outer_lb_pos,
 									  &outer_lb, &outer_ub);
-	inner_index = get_range_partition(inner_rel, inner_bi, &inner_lb_pos,
+	int			inner_index = get_range_partition(inner_rel, inner_bi, &inner_lb_pos,
 									  &inner_lb, &inner_ub);
 	while (outer_index >= 0 || inner_index >= 0)
 	{
@@ -1506,8 +1483,6 @@ merge_range_bounds(int partnatts, FmgrInfo *partsupfuncs,
 		{
 			/* Two ranges overlap; form a join pair. */
 
-			PartitionRangeBound save_outer_ub;
-			PartitionRangeBound save_inner_ub;
 
 			/* Both partitions should not have been merged yet. */
 			Assert(outer_index >= 0);
@@ -1535,8 +1510,8 @@ merge_range_bounds(int partnatts, FmgrInfo *partsupfuncs,
 									&merged_lb, &merged_ub);
 
 			/* Save the upper bounds of both partitions for use below. */
-			save_outer_ub = outer_ub;
-			save_inner_ub = inner_ub;
+			PartitionRangeBound save_outer_ub = outer_ub;
+			PartitionRangeBound save_inner_ub = inner_ub;
 
 			/* Move to the next pair of ranges. */
 			outer_index = get_range_partition(outer_rel, outer_bi, &outer_lb_pos,
@@ -1744,10 +1719,9 @@ free_partition_map(PartitionMap *map)
 static bool
 is_dummy_partition(RelOptInfo *rel, int part_index)
 {
-	RelOptInfo *part_rel;
 
 	Assert(part_index >= 0);
-	part_rel = rel->part_rels[part_index];
+	RelOptInfo *part_rel = rel->part_rels[part_index];
 	if (part_rel == NULL || IS_DUMMY_REL(part_rel))
 		return true;
 	return false;
@@ -1764,17 +1738,13 @@ static int
 merge_matching_partitions(PartitionMap *outer_map, PartitionMap *inner_map,
 						  int outer_index, int inner_index, int *next_index)
 {
-	int			outer_merged_index;
-	int			inner_merged_index;
-	bool		outer_merged;
-	bool		inner_merged;
 
 	Assert(outer_index >= 0 && outer_index < outer_map->nparts);
-	outer_merged_index = outer_map->merged_indexes[outer_index];
-	outer_merged = outer_map->merged[outer_index];
+	int			outer_merged_index = outer_map->merged_indexes[outer_index];
+	bool		outer_merged = outer_map->merged[outer_index];
 	Assert(inner_index >= 0 && inner_index < inner_map->nparts);
-	inner_merged_index = inner_map->merged_indexes[inner_index];
-	inner_merged = inner_map->merged[inner_index];
+	int			inner_merged_index = inner_map->merged_indexes[inner_index];
+	bool		inner_merged = inner_map->merged[inner_index];
 
 	/*
 	 * Handle cases where we have already assigned a merged partition to each
@@ -2287,14 +2257,13 @@ static void
 fix_merged_indexes(PartitionMap *outer_map, PartitionMap *inner_map,
 				   int nmerged, List *merged_indexes)
 {
-	int		   *new_indexes;
 	int			merged_index;
 	int			i;
 	ListCell   *lc;
 
 	Assert(nmerged > 0);
 
-	new_indexes = (int *) palloc(sizeof(int) * nmerged);
+	int		   *new_indexes = (int *) palloc(sizeof(int) * nmerged);
 	for (i = 0; i < nmerged; i++)
 		new_indexes[i] = -1;
 
@@ -2345,24 +2314,21 @@ generate_matching_part_pairs(RelOptInfo *outer_rel, RelOptInfo *inner_rel,
 {
 	int			outer_nparts = outer_map->nparts;
 	int			inner_nparts = inner_map->nparts;
-	int		   *outer_indexes;
-	int		   *inner_indexes;
-	int			max_nparts;
 	int			i;
 
 	Assert(nmerged > 0);
 	Assert(*outer_parts == NIL);
 	Assert(*inner_parts == NIL);
 
-	outer_indexes = (int *) palloc(sizeof(int) * nmerged);
-	inner_indexes = (int *) palloc(sizeof(int) * nmerged);
+	int		   *outer_indexes = (int *) palloc(sizeof(int) * nmerged);
+	int		   *inner_indexes = (int *) palloc(sizeof(int) * nmerged);
 	for (i = 0; i < nmerged; i++)
 		outer_indexes[i] = inner_indexes[i] = -1;
 
 	/* Set pairs of matching partitions. */
 	Assert(outer_nparts == outer_rel->nparts);
 	Assert(inner_nparts == inner_rel->nparts);
-	max_nparts = Max(outer_nparts, inner_nparts);
+	int			max_nparts = Max(outer_nparts, inner_nparts);
 	for (i = 0; i < max_nparts; i++)
 	{
 		if (i < outer_nparts)
@@ -2421,17 +2387,15 @@ build_merged_partition_bounds(char strategy, List *merged_datums,
 							  List *merged_kinds, List *merged_indexes,
 							  int null_index, int default_index)
 {
-	PartitionBoundInfo merged_bounds;
 	int			ndatums = list_length(merged_datums);
-	int			pos;
 	ListCell   *lc;
 
-	merged_bounds = (PartitionBoundInfo) palloc(sizeof(PartitionBoundInfoData));
+	PartitionBoundInfo merged_bounds = (PartitionBoundInfo) palloc(sizeof(PartitionBoundInfoData));
 	merged_bounds->strategy = strategy;
 	merged_bounds->ndatums = ndatums;
 
 	merged_bounds->datums = (Datum **) palloc(sizeof(Datum *) * ndatums);
-	pos = 0;
+	int			pos = 0;
 	foreach(lc, merged_datums)
 		merged_bounds->datums[pos++] = (Datum *) lfirst(lc);
 
@@ -2844,9 +2808,7 @@ check_new_partition_bound(char *relname, Relation parent,
 				{
 					Datum	  **datums = boundinfo->datums;
 					int			ndatums = boundinfo->ndatums;
-					int			greatest_modulus;
 					int			remainder;
-					int			offset;
 					bool		valid_modulus = true;
 					int			prev_modulus,	/* Previous largest modulus */
 								next_modulus;	/* Next largest modulus */
@@ -2864,7 +2826,7 @@ check_new_partition_bound(char *relname, Relation parent,
 					 * boundinfo->datums that is less than or equal to the
 					 * (spec->modulus, spec->remainder) pair.
 					 */
-					offset = partition_hash_bsearch(boundinfo,
+					int			offset = partition_hash_bsearch(boundinfo,
 													spec->modulus,
 													spec->remainder);
 					if (offset < 0)
@@ -2889,7 +2851,7 @@ check_new_partition_bound(char *relname, Relation parent,
 								(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 								 errmsg("every hash partition modulus must be a factor of the next larger modulus")));
 
-					greatest_modulus = get_hash_partition_greatest_modulus(boundinfo);
+					int			greatest_modulus = get_hash_partition_greatest_modulus(boundinfo);
 					remainder = spec->remainder;
 
 					/*
@@ -2970,7 +2932,6 @@ check_new_partition_bound(char *relname, Relation parent,
 			{
 				PartitionRangeBound *lower,
 						   *upper;
-				int			cmpval;
 
 				Assert(spec->strategy == PARTITION_STRATEGY_RANGE);
 				lower = make_one_partition_rbound(key, -1, spec->lowerdatums, true);
@@ -2982,7 +2943,7 @@ check_new_partition_bound(char *relname, Relation parent,
 				 * cannot return zero here, since the lower-bound flags are
 				 * different.
 				 */
-				cmpval = partition_rbound_cmp(key->partnatts,
+				int			cmpval = partition_rbound_cmp(key->partnatts,
 											  key->partsupfunc,
 											  key->partcollation,
 											  lower->datums, lower->kind,
@@ -3006,7 +2967,6 @@ check_new_partition_bound(char *relname, Relation parent,
 
 				if (partdesc->nparts > 0)
 				{
-					int			offset;
 
 					Assert(boundinfo &&
 						   boundinfo->strategy == PARTITION_STRATEGY_RANGE &&
@@ -3028,7 +2988,7 @@ check_new_partition_bound(char *relname, Relation parent,
 					 * since the index array is initialised with an extra -1
 					 * at the end.
 					 */
-					offset = partition_range_bsearch(key->partnatts,
+					int			offset = partition_range_bsearch(key->partnatts,
 													 key->partsupfunc,
 													 key->partcollation,
 													 boundinfo, lower,
@@ -3083,13 +3043,12 @@ check_new_partition_bound(char *relname, Relation parent,
 						 * The new partition overlaps with the existing
 						 * partition between offset and offset + 1.
 						 */
-						PartitionRangeDatum *datum;
 
 						/*
 						 * Point to problematic key in the lower datums list;
 						 * if we have equality, point to the first one.
 						 */
-						datum = cmpval == 0 ? linitial(spec->lowerdatums) :
+						PartitionRangeDatum *datum = cmpval == 0 ? linitial(spec->lowerdatums) :
 							list_nth(spec->lowerdatums, Abs(cmpval) - 1);
 						overlap = true;
 						overlap_location = datum->location;
@@ -3127,15 +3086,13 @@ void
 check_default_partition_contents(Relation parent, Relation default_rel,
 								 PartitionBoundSpec *new_spec)
 {
-	List	   *new_part_constraints;
-	List	   *def_part_constraints;
 	List	   *all_parts;
 	ListCell   *lc;
 
-	new_part_constraints = (new_spec->strategy == PARTITION_STRATEGY_LIST)
+	List	   *new_part_constraints = (new_spec->strategy == PARTITION_STRATEGY_LIST)
 		? get_qual_for_list(parent, new_spec)
 		: get_qual_for_range(parent, new_spec, false);
-	def_part_constraints =
+	List	   *def_part_constraints =
 		get_proposed_default_constraint(new_part_constraints);
 
 	/*
@@ -3174,13 +3131,6 @@ check_default_partition_contents(Relation parent, Relation default_rel,
 		Oid			part_relid = lfirst_oid(lc);
 		Relation	part_rel;
 		Expr	   *partition_constraint;
-		EState	   *estate;
-		ExprState  *partqualstate = NULL;
-		Snapshot	snapshot;
-		ExprContext *econtext;
-		TableScanDesc scan;
-		MemoryContext oldCxt;
-		TupleTableSlot *tupslot;
 
 		/* Lock already taken above. */
 		if (part_relid != RelationGetRelid(default_rel))
@@ -3237,21 +3187,21 @@ check_default_partition_contents(Relation parent, Relation default_rel,
 			continue;
 		}
 
-		estate = CreateExecutorState();
+		EState	   *estate = CreateExecutorState();
 
 		/* Build expression execution states for partition check quals */
-		partqualstate = ExecPrepareExpr(partition_constraint, estate);
+		ExprState  *partqualstate = ExecPrepareExpr(partition_constraint, estate);
 
-		econtext = GetPerTupleExprContext(estate);
-		snapshot = RegisterSnapshot(GetLatestSnapshot());
-		tupslot = table_slot_create(part_rel, &estate->es_tupleTable);
-		scan = table_beginscan(part_rel, snapshot, 0, NULL);
+		ExprContext *econtext = GetPerTupleExprContext(estate);
+		Snapshot	snapshot = RegisterSnapshot(GetLatestSnapshot());
+		TupleTableSlot *tupslot = table_slot_create(part_rel, &estate->es_tupleTable);
+		TableScanDesc scan = table_beginscan(part_rel, snapshot, 0, NULL);
 
 		/*
 		 * Switch to per-tuple memory context and reset it for each tuple
 		 * produced, so we don't leak memory.
 		 */
-		oldCxt = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+		MemoryContext oldCxt = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 
 		while (table_scan_getnextslot(scan, ForwardScanDirection, tupslot))
 		{
@@ -3306,20 +3256,18 @@ get_hash_partition_greatest_modulus(PartitionBoundInfo bound)
 static PartitionRangeBound *
 make_one_partition_rbound(PartitionKey key, int index, List *datums, bool lower)
 {
-	PartitionRangeBound *bound;
 	ListCell   *lc;
-	int			i;
 
 	Assert(datums != NIL);
 
-	bound = (PartitionRangeBound *) palloc0(sizeof(PartitionRangeBound));
+	PartitionRangeBound *bound = (PartitionRangeBound *) palloc0(sizeof(PartitionRangeBound));
 	bound->index = index;
 	bound->datums = (Datum *) palloc0(key->partnatts * sizeof(Datum));
 	bound->kind = (PartitionRangeDatumKind *) palloc0(key->partnatts *
 													  sizeof(PartitionRangeDatumKind));
 	bound->lower = lower;
 
-	i = 0;
+	int			i = 0;
 	foreach(lc, datums)
 	{
 		PartitionRangeDatum *datum = castNode(PartitionRangeDatum, lfirst(lc));
@@ -3495,10 +3443,9 @@ partition_list_bsearch(FmgrInfo *partsupfunc, Oid *partcollation,
 	hi = boundinfo->ndatums - 1;
 	while (lo < hi)
 	{
-		int32		cmpval;
 
 		mid = (lo + hi + 1) / 2;
-		cmpval = DatumGetInt32(FunctionCall2Coll(&partsupfunc[0],
+		int32		cmpval = DatumGetInt32(FunctionCall2Coll(&partsupfunc[0],
 												 partcollation[0],
 												 boundinfo->datums[mid][0],
 												 value));
@@ -3583,10 +3530,9 @@ partition_range_datum_bsearch(FmgrInfo *partsupfunc, Oid *partcollation,
 	hi = boundinfo->ndatums - 1;
 	while (lo < hi)
 	{
-		int32		cmpval;
 
 		mid = (lo + hi + 1) / 2;
-		cmpval = partition_rbound_datum_cmp(partsupfunc,
+		int32		cmpval = partition_rbound_datum_cmp(partsupfunc,
 											partcollation,
 											boundinfo->datums[mid],
 											boundinfo->kind[mid],
@@ -3751,13 +3697,12 @@ static Oid
 get_partition_operator(PartitionKey key, int col, StrategyNumber strategy,
 					   bool *need_relabel)
 {
-	Oid			operoid;
 
 	/*
 	 * Get the operator in the partitioning opfamily using the opclass'
 	 * declared input type as both left- and righttype.
 	 */
-	operoid = get_opfamily_member(key->partopfamily[col],
+	Oid			operoid = get_opfamily_member(key->partopfamily[col],
 								  key->partopcintype[col],
 								  key->partopcintype[col],
 								  strategy);
@@ -3787,12 +3732,11 @@ static Expr *
 make_partition_op_expr(PartitionKey key, int keynum,
 					   uint16 strategy, Expr *arg1, Expr *arg2)
 {
-	Oid			operoid;
 	bool		need_relabel = false;
 	Expr	   *result = NULL;
 
 	/* Get the correct btree operator for this partitioning column */
-	operoid = get_partition_operator(key, keynum, strategy, &need_relabel);
+	Oid			operoid = get_partition_operator(key, keynum, strategy, &need_relabel);
 
 	/*
 	 * Chosen operator may be such that the non-Const operand needs to be
@@ -3822,11 +3766,9 @@ make_partition_op_expr(PartitionKey key, int keynum,
 				if (nelems > 1 &&
 					!type_is_array(key->parttypid[keynum]))
 				{
-					ArrayExpr  *arrexpr;
-					ScalarArrayOpExpr *saopexpr;
 
 					/* Construct an ArrayExpr for the right-hand inputs */
-					arrexpr = makeNode(ArrayExpr);
+					ArrayExpr  *arrexpr = makeNode(ArrayExpr);
 					arrexpr->array_typeid =
 						get_array_type(key->parttypid[keynum]);
 					arrexpr->array_collid = key->parttypcoll[keynum];
@@ -3836,7 +3778,7 @@ make_partition_op_expr(PartitionKey key, int keynum,
 					arrexpr->location = -1;
 
 					/* Build leftop = ANY (rightop) */
-					saopexpr = makeNode(ScalarArrayOpExpr);
+					ScalarArrayOpExpr *saopexpr = makeNode(ScalarArrayOpExpr);
 					saopexpr->opno = operoid;
 					saopexpr->opfuncid = get_opcode(operoid);
 					saopexpr->useOr = true;
@@ -3900,16 +3842,10 @@ static List *
 get_qual_for_hash(Relation parent, PartitionBoundSpec *spec)
 {
 	PartitionKey key = RelationGetPartitionKey(parent);
-	FuncExpr   *fexpr;
-	Node	   *relidConst;
-	Node	   *modulusConst;
-	Node	   *remainderConst;
-	List	   *args;
-	ListCell   *partexprs_item;
 	int			i;
 
 	/* Fixed arguments. */
-	relidConst = (Node *) makeConst(OIDOID,
+	Node	   *relidConst = (Node *) makeConst(OIDOID,
 									-1,
 									InvalidOid,
 									sizeof(Oid),
@@ -3917,7 +3853,7 @@ get_qual_for_hash(Relation parent, PartitionBoundSpec *spec)
 									false,
 									true);
 
-	modulusConst = (Node *) makeConst(INT4OID,
+	Node	   *modulusConst = (Node *) makeConst(INT4OID,
 									  -1,
 									  InvalidOid,
 									  sizeof(int32),
@@ -3925,7 +3861,7 @@ get_qual_for_hash(Relation parent, PartitionBoundSpec *spec)
 									  false,
 									  true);
 
-	remainderConst = (Node *) makeConst(INT4OID,
+	Node	   *remainderConst = (Node *) makeConst(INT4OID,
 										-1,
 										InvalidOid,
 										sizeof(int32),
@@ -3933,8 +3869,8 @@ get_qual_for_hash(Relation parent, PartitionBoundSpec *spec)
 										false,
 										true);
 
-	args = list_make3(relidConst, modulusConst, remainderConst);
-	partexprs_item = list_head(key->partexprs);
+	List	   *args = list_make3(relidConst, modulusConst, remainderConst);
+	ListCell   *partexprs_item = list_head(key->partexprs);
 
 	/* Add an argument for each key column. */
 	for (i = 0; i < key->partnatts; i++)
@@ -3960,7 +3896,7 @@ get_qual_for_hash(Relation parent, PartitionBoundSpec *spec)
 		args = lappend(args, keyCol);
 	}
 
-	fexpr = makeFuncExpr(F_SATISFIES_HASH_PARTITION,
+	FuncExpr   *fexpr = makeFuncExpr(F_SATISFIES_HASH_PARTITION,
 						 BOOLOID,
 						 args,
 						 InvalidOid,
@@ -4037,14 +3973,13 @@ get_qual_for_list(Relation parent, PartitionBoundSpec *spec)
 
 		for (i = 0; i < ndatums; i++)
 		{
-			Const	   *val;
 
 			/*
 			 * Construct Const from known-not-null datum.  We must be careful
 			 * to copy the value, because our result has to be able to outlive
 			 * the relcache entry we're copying from.
 			 */
-			val = makeConst(key->parttypid[0],
+			Const	   *val = makeConst(key->parttypid[0],
 							key->parttypmod[0],
 							key->parttypcoll[0],
 							key->parttyplen[0],
@@ -4120,9 +4055,8 @@ get_qual_for_list(Relation parent, PartitionBoundSpec *spec)
 
 		if (opexpr)
 		{
-			Expr	   *or;
 
-			or = makeBoolExpr(OR_EXPR, list_make2(nulltest, opexpr), -1);
+			Expr	   *or = makeBoolExpr(OR_EXPR, list_make2(nulltest, opexpr), -1);
 			result = list_make1(or);
 		}
 		else
@@ -4225,31 +4159,27 @@ get_qual_for_range(Relation parent, PartitionBoundSpec *spec,
 		for (i = 0; i < nparts; i++)
 		{
 			Oid			inhrelid = inhoids[i];
-			HeapTuple	tuple;
-			Datum		datum;
 			bool		isnull;
-			PartitionBoundSpec *bspec;
 
-			tuple = SearchSysCache1(RELOID, inhrelid);
+			HeapTuple	tuple = SearchSysCache1(RELOID, inhrelid);
 			if (!HeapTupleIsValid(tuple))
 				elog(ERROR, "cache lookup failed for relation %u", inhrelid);
 
-			datum = SysCacheGetAttr(RELOID, tuple,
+			Datum		datum = SysCacheGetAttr(RELOID, tuple,
 									Anum_pg_class_relpartbound,
 									&isnull);
 			if (isnull)
 				elog(ERROR, "null relpartbound for relation %u", inhrelid);
 
-			bspec = (PartitionBoundSpec *)
+			PartitionBoundSpec *bspec = (PartitionBoundSpec *)
 				stringToNode(TextDatumGetCString(datum));
 			if (!IsA(bspec, PartitionBoundSpec))
 				elog(ERROR, "expected PartitionBoundSpec");
 
 			if (!bspec->is_default)
 			{
-				List	   *part_qual;
 
-				part_qual = get_qual_for_range(parent, bspec, true);
+				List	   *part_qual = get_qual_for_range(parent, bspec, true);
 
 				/*
 				 * AND the constraints of the partition and add to
@@ -4264,7 +4194,6 @@ get_qual_for_range(Relation parent, PartitionBoundSpec *spec,
 
 		if (or_expr_args != NIL)
 		{
-			Expr	   *other_parts_constr;
 
 			/*
 			 * Combine the constraints obtained for non-default partitions
@@ -4272,7 +4201,7 @@ get_qual_for_range(Relation parent, PartitionBoundSpec *spec,
 			 * the NOT NULL test for partition keys (which is to avoid its
 			 * useless repetition).  Add the same now.
 			 */
-			other_parts_constr =
+			Expr	   *other_parts_constr =
 				makeBoolExpr(AND_EXPR,
 							 lappend(get_range_nulltest(key),
 									 list_length(or_expr_args) > 1
@@ -4312,11 +4241,6 @@ get_qual_for_range(Relation parent, PartitionBoundSpec *spec,
 	partexprs_item_saved = partexprs_item;	/* placate compiler */
 	forboth(cell1, spec->lowerdatums, cell2, spec->upperdatums)
 	{
-		EState	   *estate;
-		MemoryContext oldcxt;
-		Expr	   *test_expr;
-		ExprState  *test_exprstate;
-		Datum		test_result;
 		bool		isNull;
 
 		ldatum = castNode(PartitionRangeDatum, lfirst(cell1));
@@ -4344,14 +4268,14 @@ get_qual_for_range(Relation parent, PartitionBoundSpec *spec,
 			break;
 
 		/* Create the test expression */
-		estate = CreateExecutorState();
-		oldcxt = MemoryContextSwitchTo(estate->es_query_cxt);
-		test_expr = make_partition_op_expr(key, i, BTEqualStrategyNumber,
+		EState	   *estate = CreateExecutorState();
+		MemoryContext oldcxt = MemoryContextSwitchTo(estate->es_query_cxt);
+		Expr	   *test_expr = make_partition_op_expr(key, i, BTEqualStrategyNumber,
 										   (Expr *) lower_val,
 										   (Expr *) upper_val);
 		fix_opfuncids((Node *) test_expr);
-		test_exprstate = ExecInitExpr(test_expr, NULL);
-		test_result = ExecEvalExprSwitchContext(test_exprstate,
+		ExprState  *test_exprstate = ExecInitExpr(test_expr, NULL);
+		Datum		test_result = ExecEvalExprSwitchContext(test_exprstate,
 												GetPerTupleExprContext(estate),
 												&isNull);
 		MemoryContextSwitchTo(oldcxt);
@@ -4599,10 +4523,9 @@ get_range_nulltest(PartitionKey key)
 {
 	List	   *result = NIL;
 	NullTest   *nulltest;
-	ListCell   *partexprs_item;
 	int			i;
 
-	partexprs_item = list_head(key->partexprs);
+	ListCell   *partexprs_item = list_head(key->partexprs);
 	for (i = 0; i < key->partnatts; i++)
 	{
 		Expr	   *keyCol;
@@ -4653,7 +4576,6 @@ compute_partition_hash_value(int partnatts, FmgrInfo *partsupfunc, Oid *partcoll
 		/* Nulls are just ignored */
 		if (!isnull[i])
 		{
-			Datum		hash;
 
 			Assert(OidIsValid(partsupfunc[i].fn_oid));
 
@@ -4662,7 +4584,7 @@ compute_partition_hash_value(int partnatts, FmgrInfo *partsupfunc, Oid *partcoll
 			 * datatype-specific hash functions of each partition key
 			 * attribute.
 			 */
-			hash = FunctionCall2Coll(&partsupfunc[i], partcollation[i],
+			Datum		hash = FunctionCall2Coll(&partsupfunc[i], partcollation[i],
 									 values[i], seed);
 
 			/* Form a single 64-bit hash value */
@@ -4703,19 +4625,15 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 		Oid			partcollid[PARTITION_MAX_KEYS];
 		FmgrInfo	partsupfunc[FLEXIBLE_ARRAY_MEMBER];
 	} ColumnsHashData;
-	Oid			parentId;
-	int			modulus;
-	int			remainder;
 	Datum		seed = UInt64GetDatum(HASH_PARTITION_SEED);
-	ColumnsHashData *my_extra;
 	uint64		rowHash = 0;
 
 	/* Return false if the parent OID, modulus, or remainder is NULL. */
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1) || PG_ARGISNULL(2))
 		PG_RETURN_BOOL(false);
-	parentId = PG_GETARG_OID(0);
-	modulus = PG_GETARG_INT32(1);
-	remainder = PG_GETARG_INT32(2);
+	Oid			parentId = PG_GETARG_OID(0);
+	int			modulus = PG_GETARG_INT32(1);
+	int			remainder = PG_GETARG_INT32(2);
 
 	/* Sanity check modulus and remainder. */
 	if (modulus <= 0)
@@ -4734,16 +4652,14 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 	/*
 	 * Cache hash function information.
 	 */
-	my_extra = (ColumnsHashData *) fcinfo->flinfo->fn_extra;
+	ColumnsHashData *my_extra = (ColumnsHashData *) fcinfo->flinfo->fn_extra;
 	if (my_extra == NULL || my_extra->relid != parentId)
 	{
-		Relation	parent;
-		PartitionKey key;
 		int			j;
 
 		/* Open parent relation and fetch partition key info */
-		parent = relation_open(parentId, AccessShareLock);
-		key = RelationGetPartitionKey(parent);
+		Relation	parent = relation_open(parentId, AccessShareLock);
+		PartitionKey key = RelationGetPartitionKey(parent);
 
 		/* Reject parent table that is not hash-partitioned. */
 		if (key == NULL || key->strategy != PARTITION_STRATEGY_HASH)
@@ -4841,7 +4757,6 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < nkeys; i++)
 		{
-			Datum		hash;
 
 			/* keys start from fourth argument of function. */
 			int			argno = i + 3;
@@ -4849,7 +4764,7 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 			if (PG_ARGISNULL(argno))
 				continue;
 
-			hash = FunctionCall2Coll(&my_extra->partsupfunc[i],
+			Datum		hash = FunctionCall2Coll(&my_extra->partsupfunc[i],
 									 my_extra->partcollid[i],
 									 PG_GETARG_DATUM(argno),
 									 seed);
@@ -4882,12 +4797,11 @@ satisfies_hash_partition(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < nelems; i++)
 		{
-			Datum		hash;
 
 			if (isnull[i])
 				continue;
 
-			hash = FunctionCall2Coll(&my_extra->partsupfunc[0],
+			Datum		hash = FunctionCall2Coll(&my_extra->partsupfunc[0],
 									 my_extra->partcollid[0],
 									 datum[i],
 									 seed);

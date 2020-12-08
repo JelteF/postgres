@@ -43,10 +43,9 @@ fix_path_separator(char *path)
 {
 #ifdef WIN32
 
-	char	   *result;
 	char	   *c;
 
-	result = pg_strdup(path);
+	char	   *result = pg_strdup(path);
 
 	for (c = result; *c != '\0'; c++)
 		if (*c == '/')
@@ -365,12 +364,6 @@ check_locale_and_encoding(DbInfo *olddb, DbInfo *newdb)
 static bool
 equivalent_locale(int category, const char *loca, const char *locb)
 {
-	const char *chara;
-	const char *charb;
-	char	   *canona;
-	char	   *canonb;
-	int			lena;
-	int			lenb;
 
 	/*
 	 * If the names are equal, the locales are equivalent. Checking this first
@@ -384,13 +377,13 @@ equivalent_locale(int category, const char *loca, const char *locb)
 	 * Not identical. Canonicalize both names, remove the encoding parts, and
 	 * try again.
 	 */
-	canona = get_canonical_locale_name(category, loca);
-	chara = strrchr(canona, '.');
-	lena = chara ? (chara - canona) : strlen(canona);
+	char	   *canona = get_canonical_locale_name(category, loca);
+	const char *chara = strrchr(canona, '.');
+	int			lena = chara ? (chara - canona) : strlen(canona);
 
-	canonb = get_canonical_locale_name(category, locb);
-	charb = strrchr(canonb, '.');
-	lenb = charb ? (charb - canonb) : strlen(canonb);
+	char	   *canonb = get_canonical_locale_name(category, locb);
+	const char *charb = strrchr(canonb, '.');
+	int			lenb = charb ? (charb - canonb) : strlen(canonb);
 
 	if (lena == lenb && pg_strncasecmp(canona, canonb, lena) == 0)
 	{
@@ -631,13 +624,12 @@ create_script_for_old_cluster_deletion(char **deletion_script_file_name)
 static void
 check_is_install_user(ClusterInfo *cluster)
 {
-	PGresult   *res;
 	PGconn	   *conn = connectToServer(cluster, "template1");
 
 	prep_status("Checking database user is the install user");
 
 	/* Can't use pg_authid because only superusers can view it. */
-	res = executeQueryOrDie(conn,
+	PGresult   *res = executeQueryOrDie(conn,
 							"SELECT rolsuper, oid "
 							"FROM pg_catalog.pg_roles "
 							"WHERE rolname = current_user "
@@ -683,25 +675,20 @@ static void
 check_proper_datallowconn(ClusterInfo *cluster)
 {
 	int			dbnum;
-	PGconn	   *conn_template1;
-	PGresult   *dbres;
-	int			ntups;
-	int			i_datname;
-	int			i_datallowconn;
 
 	prep_status("Checking database connection settings");
 
-	conn_template1 = connectToServer(cluster, "template1");
+	PGconn	   *conn_template1 = connectToServer(cluster, "template1");
 
 	/* get database names */
-	dbres = executeQueryOrDie(conn_template1,
+	PGresult   *dbres = executeQueryOrDie(conn_template1,
 							  "SELECT	datname, datallowconn "
 							  "FROM	pg_catalog.pg_database");
 
-	i_datname = PQfnumber(dbres, "datname");
-	i_datallowconn = PQfnumber(dbres, "datallowconn");
+	int			i_datname = PQfnumber(dbres, "datname");
+	int			i_datallowconn = PQfnumber(dbres, "datallowconn");
 
-	ntups = PQntuples(dbres);
+	int			ntups = PQntuples(dbres);
 	for (dbnum = 0; dbnum < ntups; dbnum++)
 	{
 		char	   *datname = PQgetvalue(dbres, dbnum, i_datname);
@@ -743,12 +730,11 @@ check_proper_datallowconn(ClusterInfo *cluster)
 static void
 check_for_prepared_transactions(ClusterInfo *cluster)
 {
-	PGresult   *res;
 	PGconn	   *conn = connectToServer(cluster, "template1");
 
 	prep_status("Checking for prepared transactions");
 
-	res = executeQueryOrDie(conn,
+	PGresult   *res = executeQueryOrDie(conn,
 							"SELECT * "
 							"FROM pg_catalog.pg_prepared_xacts");
 
@@ -798,9 +784,7 @@ check_for_isn_and_int8_passing_mismatch(ClusterInfo *cluster)
 
 	for (dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
-		PGresult   *res;
 		bool		db_used = false;
-		int			ntups;
 		int			rowno;
 		int			i_nspname,
 					i_proname;
@@ -808,14 +792,14 @@ check_for_isn_and_int8_passing_mismatch(ClusterInfo *cluster)
 		PGconn	   *conn = connectToServer(cluster, active_db->db_name);
 
 		/* Find any functions coming from contrib/isn */
-		res = executeQueryOrDie(conn,
+		PGresult   *res = executeQueryOrDie(conn,
 								"SELECT n.nspname, p.proname "
 								"FROM	pg_catalog.pg_proc p, "
 								"		pg_catalog.pg_namespace n "
 								"WHERE	p.pronamespace = n.oid AND "
 								"		p.probin = '$libdir/isn'");
 
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
 		i_nspname = PQfnumber(res, "nspname");
 		i_proname = PQfnumber(res, "proname");
 		for (rowno = 0; rowno < ntups; rowno++)
@@ -876,9 +860,7 @@ check_for_user_defined_postfix_ops(ClusterInfo *cluster)
 	/* Find any user defined postfix operators */
 	for (dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
-		PGresult   *res;
 		bool		db_used = false;
-		int			ntups;
 		int			rowno;
 		int			i_oproid,
 					i_oprnsp,
@@ -894,7 +876,7 @@ check_for_user_defined_postfix_ops(ClusterInfo *cluster)
 		 * #define is ever changed, the cutoff we want to use is the value
 		 * used by pre-version 14 servers, not that of some future version.
 		 */
-		res = executeQueryOrDie(conn,
+		PGresult   *res = executeQueryOrDie(conn,
 								"SELECT o.oid AS oproid, "
 								"       n.nspname AS oprnsp, "
 								"       o.oprname, "
@@ -909,7 +891,7 @@ check_for_user_defined_postfix_ops(ClusterInfo *cluster)
 								"      t.typnamespace = tn.oid AND "
 								"      o.oprright = 0 AND "
 								"      o.oid >= 16384");
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
 		i_oproid = PQfnumber(res, "oproid");
 		i_oprnsp = PQfnumber(res, "oprnsp");
 		i_oprname = PQfnumber(res, "oprname");
@@ -975,16 +957,14 @@ check_for_tables_with_oids(ClusterInfo *cluster)
 	/* Find any tables declared WITH OIDS */
 	for (dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
-		PGresult   *res;
 		bool		db_used = false;
-		int			ntups;
 		int			rowno;
 		int			i_nspname,
 					i_relname;
 		DbInfo	   *active_db = &cluster->dbarr.dbs[dbnum];
 		PGconn	   *conn = connectToServer(cluster, active_db->db_name);
 
-		res = executeQueryOrDie(conn,
+		PGresult   *res = executeQueryOrDie(conn,
 								"SELECT n.nspname, c.relname "
 								"FROM	pg_catalog.pg_class c, "
 								"		pg_catalog.pg_namespace n "
@@ -992,7 +972,7 @@ check_for_tables_with_oids(ClusterInfo *cluster)
 								"		c.relhasoids AND"
 								"       n.nspname NOT IN ('pg_catalog')");
 
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		for (rowno = 0; rowno < ntups; rowno++)
@@ -1058,9 +1038,7 @@ check_for_reg_data_type_usage(ClusterInfo *cluster)
 
 	for (dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
-		PGresult   *res;
 		bool		db_used = false;
-		int			ntups;
 		int			rowno;
 		int			i_nspname,
 					i_relname,
@@ -1073,7 +1051,7 @@ check_for_reg_data_type_usage(ClusterInfo *cluster)
 		 * be used to define data types of other columns, so we check all
 		 * relkinds.
 		 */
-		res = executeQueryOrDie(conn,
+		PGresult   *res = executeQueryOrDie(conn,
 								"SELECT n.nspname, c.relname, a.attname "
 								"FROM	pg_catalog.pg_class c, "
 								"		pg_catalog.pg_namespace n, "
@@ -1101,7 +1079,7 @@ check_for_reg_data_type_usage(ClusterInfo *cluster)
 								"		c.relnamespace = n.oid AND "
 								"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
 
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		i_attname = PQfnumber(res, "attname");
@@ -1164,9 +1142,7 @@ check_for_jsonb_9_4_usage(ClusterInfo *cluster)
 
 	for (dbnum = 0; dbnum < cluster->dbarr.ndbs; dbnum++)
 	{
-		PGresult   *res;
 		bool		db_used = false;
-		int			ntups;
 		int			rowno;
 		int			i_nspname,
 					i_relname,
@@ -1179,7 +1155,7 @@ check_for_jsonb_9_4_usage(ClusterInfo *cluster)
 		 * be used to define data types of other columns, so we check all
 		 * relkinds.
 		 */
-		res = executeQueryOrDie(conn,
+		PGresult   *res = executeQueryOrDie(conn,
 								"SELECT n.nspname, c.relname, a.attname "
 								"FROM	pg_catalog.pg_class c, "
 								"		pg_catalog.pg_namespace n, "
@@ -1192,7 +1168,7 @@ check_for_jsonb_9_4_usage(ClusterInfo *cluster)
 								"		n.nspname !~ '^pg_temp_' AND "
 								"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
 
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		i_attname = PQfnumber(res, "attname");
@@ -1243,12 +1219,11 @@ check_for_jsonb_9_4_usage(ClusterInfo *cluster)
 static void
 check_for_pg_role_prefix(ClusterInfo *cluster)
 {
-	PGresult   *res;
 	PGconn	   *conn = connectToServer(cluster, "template1");
 
 	prep_status("Checking for roles starting with \"pg_\"");
 
-	res = executeQueryOrDie(conn,
+	PGresult   *res = executeQueryOrDie(conn,
 							"SELECT * "
 							"FROM pg_catalog.pg_roles "
 							"WHERE rolname ~ '^pg_'");
@@ -1278,11 +1253,9 @@ check_for_pg_role_prefix(ClusterInfo *cluster)
 static char *
 get_canonical_locale_name(int category, const char *locale)
 {
-	char	   *save;
-	char	   *res;
 
 	/* get the current setting, so we can restore it. */
-	save = setlocale(category, NULL);
+	char	   *save = setlocale(category, NULL);
 	if (!save)
 		pg_fatal("failed to get the current locale\n");
 
@@ -1290,7 +1263,7 @@ get_canonical_locale_name(int category, const char *locale)
 	save = pg_strdup(save);
 
 	/* set the locale with setlocale, to see if it accepts it. */
-	res = setlocale(category, locale);
+	char	   *res = setlocale(category, locale);
 
 	if (!res)
 		pg_fatal("failed to get system locale name for \"%s\"\n", locale);

@@ -379,7 +379,6 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 {
 	TupleDesc	typeinfo = slot->tts_tupleDescriptor;
 	DR_printtup *myState = (DR_printtup *) self;
-	MemoryContext oldcontext;
 	StringInfo	buf = &myState->buf;
 	int			natts = typeinfo->natts;
 	int			i;
@@ -392,7 +391,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 	slot_getallattrs(slot);
 
 	/* Switch into per-row context so we can recover memory below */
-	oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
 
 	/*
 	 * Prepare a DataRow message (note buffer is in per-row context)
@@ -429,17 +428,15 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 		if (thisState->format == 0)
 		{
 			/* Text output */
-			char	   *outputstr;
 
-			outputstr = OutputFunctionCall(&thisState->finfo, attr);
+			char	   *outputstr = OutputFunctionCall(&thisState->finfo, attr);
 			pq_sendcountedtext(buf, outputstr, strlen(outputstr), false);
 		}
 		else
 		{
 			/* Binary output */
-			bytea	   *outputbytes;
 
-			outputbytes = SendFunctionCall(&thisState->finfo, attr);
+			bytea	   *outputbytes = SendFunctionCall(&thisState->finfo, attr);
 			pq_sendint32(buf, VARSIZE(outputbytes) - VARHDRSZ);
 			pq_sendbytes(buf, VARDATA(outputbytes),
 						 VARSIZE(outputbytes) - VARHDRSZ);
@@ -464,7 +461,6 @@ printtup_20(TupleTableSlot *slot, DestReceiver *self)
 {
 	TupleDesc	typeinfo = slot->tts_tupleDescriptor;
 	DR_printtup *myState = (DR_printtup *) self;
-	MemoryContext oldcontext;
 	StringInfo	buf = &myState->buf;
 	int			natts = typeinfo->natts;
 	int			i,
@@ -479,7 +475,7 @@ printtup_20(TupleTableSlot *slot, DestReceiver *self)
 	slot_getallattrs(slot);
 
 	/* Switch into per-row context so we can recover memory below */
-	oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
 
 	/*
 	 * tell the frontend to expect new tuple data (in ASCII style)
@@ -513,14 +509,13 @@ printtup_20(TupleTableSlot *slot, DestReceiver *self)
 	{
 		PrinttupAttrInfo *thisState = myState->myinfo + i;
 		Datum		attr = slot->tts_values[i];
-		char	   *outputstr;
 
 		if (slot->tts_isnull[i])
 			continue;
 
 		Assert(thisState->format == 0);
 
-		outputstr = OutputFunctionCall(&thisState->finfo, attr);
+		char	   *outputstr = OutputFunctionCall(&thisState->finfo, attr);
 		pq_sendcountedtext(buf, outputstr, strlen(outputstr), true);
 	}
 
@@ -653,7 +648,6 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 {
 	TupleDesc	typeinfo = slot->tts_tupleDescriptor;
 	DR_printtup *myState = (DR_printtup *) self;
-	MemoryContext oldcontext;
 	StringInfo	buf = &myState->buf;
 	int			natts = typeinfo->natts;
 	int			i,
@@ -668,7 +662,7 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 	slot_getallattrs(slot);
 
 	/* Switch into per-row context so we can recover memory below */
-	oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(myState->tmpcontext);
 
 	/*
 	 * tell the frontend to expect new tuple data (in binary style)
@@ -702,14 +696,13 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 	{
 		PrinttupAttrInfo *thisState = myState->myinfo + i;
 		Datum		attr = slot->tts_values[i];
-		bytea	   *outputbytes;
 
 		if (slot->tts_isnull[i])
 			continue;
 
 		Assert(thisState->format == 1);
 
-		outputbytes = SendFunctionCall(&thisState->finfo, attr);
+		bytea	   *outputbytes = SendFunctionCall(&thisState->finfo, attr);
 		pq_sendint32(buf, VARSIZE(outputbytes) - VARHDRSZ);
 		pq_sendbytes(buf, VARDATA(outputbytes),
 					 VARSIZE(outputbytes) - VARHDRSZ);

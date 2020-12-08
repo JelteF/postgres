@@ -48,11 +48,10 @@ euc_tw_to_big5(PG_FUNCTION_ARGS)
 	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
 	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
 	int			len = PG_GETARG_INT32(4);
-	unsigned char *buf;
 
 	CHECK_ENCODING_CONVERSION_ARGS(PG_EUC_TW, PG_BIG5);
 
-	buf = palloc(len * ENCODING_GROWTH_RATE + 1);
+	unsigned char *buf = palloc(len * ENCODING_GROWTH_RATE + 1);
 	euc_tw2mic(src, buf, len);
 	mic2big5(buf, dest, strlen((char *) buf));
 	pfree(buf);
@@ -66,11 +65,10 @@ big5_to_euc_tw(PG_FUNCTION_ARGS)
 	unsigned char *src = (unsigned char *) PG_GETARG_CSTRING(2);
 	unsigned char *dest = (unsigned char *) PG_GETARG_CSTRING(3);
 	int			len = PG_GETARG_INT32(4);
-	unsigned char *buf;
 
 	CHECK_ENCODING_CONVERSION_ARGS(PG_BIG5, PG_EUC_TW);
 
-	buf = palloc(len * ENCODING_GROWTH_RATE + 1);
+	unsigned char *buf = palloc(len * ENCODING_GROWTH_RATE + 1);
 	big52mic(src, buf, len);
 	mic2euc_tw(buf, dest, strlen((char *) buf));
 	pfree(buf);

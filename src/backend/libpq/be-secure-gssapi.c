@@ -94,8 +94,6 @@ be_gssapi_write(Port *port, void *ptr, size_t len)
 	gss_buffer_desc input,
 				output;
 	size_t		bytes_sent = 0;
-	size_t		bytes_to_encrypt;
-	size_t		bytes_encrypted;
 	gss_ctx_id_t gctx = port->gss->ctx;
 
 	/*
@@ -111,8 +109,8 @@ be_gssapi_write(Port *port, void *ptr, size_t len)
 		elog(FATAL, "GSSAPI caller failed to retransmit all data needing to be retried");
 
 	/* Discount whatever source data we already encrypted. */
-	bytes_to_encrypt = len - PqGSSSendConsumed;
-	bytes_encrypted = PqGSSSendConsumed;
+	size_t		bytes_to_encrypt = len - PqGSSSendConsumed;
+	size_t		bytes_encrypted = PqGSSSendConsumed;
 
 	/*
 	 * Loop through encrypting data and sending it out until it's all done or
@@ -123,7 +121,6 @@ be_gssapi_write(Port *port, void *ptr, size_t len)
 	while (bytes_to_encrypt || PqGSSSendLength)
 	{
 		int			conf_state = 0;
-		uint32		netlen;
 
 		/*
 		 * Check if we have data in the encrypted output buffer that needs to
@@ -133,10 +130,9 @@ be_gssapi_write(Port *port, void *ptr, size_t len)
 		 */
 		if (PqGSSSendLength)
 		{
-			ssize_t		ret;
 			ssize_t		amount = PqGSSSendLength - PqGSSSendNext;
 
-			ret = secure_raw_write(port, PqGSSSendBuffer + PqGSSSendNext, amount);
+			ssize_t		ret = secure_raw_write(port, PqGSSSendBuffer + PqGSSSendNext, amount);
 			if (ret <= 0)
 			{
 				/*
@@ -209,7 +205,7 @@ be_gssapi_write(Port *port, void *ptr, size_t len)
 		PqGSSSendConsumed += input.length;
 
 		/* 4 network-order bytes of length, then payload */
-		netlen = pg_hton32(output.length);
+		uint32		netlen = pg_hton32(output.length);
 		memcpy(PqGSSSendBuffer + PqGSSSendLength, &netlen, sizeof(uint32));
 		PqGSSSendLength += sizeof(uint32);
 
@@ -494,7 +490,6 @@ secure_open_gssapi(Port *port)
 
 	while (true)
 	{
-		ssize_t		ret;
 		gss_buffer_desc input,
 					output = GSS_C_EMPTY_BUFFER;
 
@@ -502,7 +497,7 @@ secure_open_gssapi(Port *port)
 		 * The client always sends first, so try to go ahead and read the
 		 * length and wait on the socket to be readable again if that fails.
 		 */
-		ret = read_or_wait(port, sizeof(uint32));
+		ssize_t		ret = read_or_wait(port, sizeof(uint32));
 		if (ret < 0)
 			return ret;
 

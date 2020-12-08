@@ -645,12 +645,11 @@ advance_and_error:
 static int
 getParamDescriptions(PGconn *conn, int msgLength)
 {
-	PGresult   *result;
 	const char *errmsg = NULL;	/* means "out of memory", see below */
 	int			nparams;
 	int			i;
 
-	result = PQmakeEmptyPGresult(conn, PGRES_COMMAND_OK);
+	PGresult   *result = PQmakeEmptyPGresult(conn, PGRES_COMMAND_OK);
 	if (!result)
 		goto advance_and_error;
 
@@ -870,7 +869,6 @@ set_error_result:
 int
 pqGetErrorNotice3(PGconn *conn, bool isError)
 {
-	PGresult   *res = NULL;
 	bool		have_position = false;
 	PQExpBufferData workBuf;
 	char		id;
@@ -900,7 +898,7 @@ pqGetErrorNotice3(PGconn *conn, bool isError)
 	 * function handles that gracefully, and we still try to set the error
 	 * message as the connection's error message.
 	 */
-	res = PQmakeEmptyPGresult(conn, PGRES_EMPTY_QUERY);
+	PGresult   *res = PQmakeEmptyPGresult(conn, PGRES_EMPTY_QUERY);
 	if (res)
 		res->resultStatus = isError ? PGRES_FATAL_ERROR : PGRES_NONFATAL_ERROR;
 
@@ -985,7 +983,6 @@ void
 pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 					 PGVerbosity verbosity, PGContextVisibility show_context)
 {
-	const char *val;
 	const char *querytext = NULL;
 	int			querypos = 0;
 
@@ -1010,7 +1007,7 @@ pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 	}
 
 	/* Else build error message from relevant fields */
-	val = PQresultErrorField(res, PG_DIAG_SEVERITY);
+	const char *val = PQresultErrorField(res, PG_DIAG_SEVERITY);
 	if (val)
 		appendPQExpBuffer(msg, "%s:  ", val);
 
@@ -1127,11 +1124,9 @@ pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 	}
 	if (verbosity == PQERRORS_VERBOSE)
 	{
-		const char *valf;
-		const char *vall;
 
-		valf = PQresultErrorField(res, PG_DIAG_SOURCE_FILE);
-		vall = PQresultErrorField(res, PG_DIAG_SOURCE_LINE);
+		const char *valf = PQresultErrorField(res, PG_DIAG_SOURCE_FILE);
+		const char *vall = PQresultErrorField(res, PG_DIAG_SOURCE_LINE);
 		val = PQresultErrorField(res, PG_DIAG_SOURCE_FUNCTION);
 		if (val || valf || vall)
 		{
@@ -1158,7 +1153,6 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 #define DISPLAY_SIZE	60		/* screen width limit, in screen cols */
 #define MIN_RIGHT_CUT	10		/* try to keep this far away from EOL */
 
-	char	   *wquery;
 	int			slen,
 				cno,
 				i,
@@ -1179,7 +1173,7 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 		return;
 
 	/* Need a writable copy of the query */
-	wquery = strdup(query);
+	char	   *wquery = strdup(query);
 	if (wquery == NULL)
 		return;					/* fail silently if out of memory */
 
@@ -1268,9 +1262,8 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 		/* Advance */
 		if (mb_encoding)
 		{
-			int			w;
 
-			w = pg_encoding_dsplen(encoding, &wquery[qoffset]);
+			int			w = pg_encoding_dsplen(encoding, &wquery[qoffset]);
 			/* treat any non-tab control chars as width 1 */
 			if (w <= 0)
 				w = 1;
@@ -1413,17 +1406,13 @@ static int
 getNotify(PGconn *conn)
 {
 	int			be_pid;
-	char	   *svname;
-	int			nmlen;
-	int			extralen;
-	PGnotify   *newNotify;
 
 	if (pqGetInt(&be_pid, 4, conn))
 		return EOF;
 	if (pqGets(&conn->workBuffer, conn))
 		return EOF;
 	/* must save name while getting extra string */
-	svname = strdup(conn->workBuffer.data);
+	char	   *svname = strdup(conn->workBuffer.data);
 	if (!svname)
 		return EOF;
 	if (pqGets(&conn->workBuffer, conn))
@@ -1437,9 +1426,9 @@ getNotify(PGconn *conn)
 	 * freed at once.  We don't use NAMEDATALEN because we don't want to tie
 	 * this interface to a specific server name length.
 	 */
-	nmlen = strlen(svname);
-	extralen = strlen(conn->workBuffer.data);
-	newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + extralen + 2);
+	int			nmlen = strlen(svname);
+	int			extralen = strlen(conn->workBuffer.data);
+	PGnotify   *newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + extralen + 2);
 	if (newNotify)
 	{
 		newNotify->relname = (char *) newNotify + sizeof(PGnotify);
@@ -1468,11 +1457,10 @@ getNotify(PGconn *conn)
 static int
 getCopyStart(PGconn *conn, ExecStatusType copytype)
 {
-	PGresult   *result;
 	int			nfields;
 	int			i;
 
-	result = PQmakeEmptyPGresult(conn, copytype);
+	PGresult   *result = PQmakeEmptyPGresult(conn, copytype);
 	if (!result)
 		goto failure;
 
@@ -1773,8 +1761,6 @@ pqGetline3(PGconn *conn, char *s, int maxlen)
 int
 pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 {
-	int			msgLength;
-	int			avail;
 
 	if (conn->asyncStatus != PGASYNC_COPY_OUT
 		&& conn->asyncStatus != PGASYNC_COPY_BOTH)
@@ -1786,7 +1772,7 @@ pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 	 * even if it is not Copy Data.  This should keep PQendcopy from blocking.
 	 * (Note: unlike pqGetCopyData3, we do not change asyncStatus here.)
 	 */
-	msgLength = getCopyDataMessage(conn);
+	int			msgLength = getCopyDataMessage(conn);
 	if (msgLength < 0)
 		return -1;				/* end-of-copy or error */
 	if (msgLength == 0)
@@ -1799,7 +1785,7 @@ pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 	 * returned to the caller.
 	 */
 	conn->inCursor += conn->copy_already_done;
-	avail = msgLength - 4 - conn->copy_already_done;
+	int			avail = msgLength - 4 - conn->copy_already_done;
 	if (avail <= bufsize)
 	{
 		/* Able to consume the whole message */
@@ -1828,7 +1814,6 @@ pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 int
 pqEndcopy3(PGconn *conn)
 {
-	PGresult   *result;
 
 	if (conn->asyncStatus != PGASYNC_COPY_IN &&
 		conn->asyncStatus != PGASYNC_COPY_OUT &&
@@ -1881,7 +1866,7 @@ pqEndcopy3(PGconn *conn)
 		return 1;
 
 	/* Wait for the completion response */
-	result = PQgetResult(conn);
+	PGresult   *result = PQgetResult(conn);
 
 	/* Expecting a successful result */
 	if (result && result->resultStatus == PGRES_COMMAND_OK)
@@ -2124,10 +2109,9 @@ char *
 pqBuildStartupPacket3(PGconn *conn, int *packetlen,
 					  const PQEnvironmentOption *options)
 {
-	char	   *startpacket;
 
 	*packetlen = build_startup_packet(conn, NULL, options);
-	startpacket = (char *) malloc(*packetlen);
+	char	   *startpacket = (char *) malloc(*packetlen);
 	if (!startpacket)
 		return NULL;
 	*packetlen = build_startup_packet(conn, startpacket, options);

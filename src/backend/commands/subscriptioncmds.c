@@ -288,20 +288,16 @@ parse_subscription_options(List *options,
 static Datum
 publicationListToArray(List *publist)
 {
-	ArrayType  *arr;
-	Datum	   *datums;
 	int			j = 0;
 	ListCell   *cell;
-	MemoryContext memcxt;
-	MemoryContext oldcxt;
 
 	/* Create memory context for temporary allocations. */
-	memcxt = AllocSetContextCreate(CurrentMemoryContext,
+	MemoryContext memcxt = AllocSetContextCreate(CurrentMemoryContext,
 								   "publicationListToArray to array",
 								   ALLOCSET_DEFAULT_SIZES);
-	oldcxt = MemoryContextSwitchTo(memcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(memcxt);
 
-	datums = (Datum *) palloc(sizeof(Datum) * list_length(publist));
+	Datum	   *datums = (Datum *) palloc(sizeof(Datum) * list_length(publist));
 
 	foreach(cell, publist)
 	{
@@ -328,7 +324,7 @@ publicationListToArray(List *publist)
 
 	MemoryContextSwitchTo(oldcxt);
 
-	arr = construct_array(datums, list_length(publist),
+	ArrayType  *arr = construct_array(datums, list_length(publist),
 						  TEXTOID, -1, false, TYPALIGN_INT);
 
 	MemoryContextDelete(memcxt);
@@ -477,13 +473,12 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 	if (connect)
 	{
 		char	   *err;
-		WalReceiverConn *wrconn;
 		List	   *tables;
 		ListCell   *lc;
 		char		table_state;
 
 		/* Try to connect to the publisher. */
-		wrconn = walrcv_connect(conninfo, true, stmt->subname, &err);
+		WalReceiverConn *wrconn = walrcv_connect(conninfo, true, stmt->subname, &err);
 		if (!wrconn)
 			ereport(ERROR,
 					(errmsg("could not connect to the publisher: %s", err)));
@@ -504,9 +499,8 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 			foreach(lc, tables)
 			{
 				RangeVar   *rv = (RangeVar *) lfirst(lc);
-				Oid			relid;
 
-				relid = RangeVarGetRelid(rv, AccessShareLock, false);
+				Oid			relid = RangeVarGetRelid(rv, AccessShareLock, false);
 
 				/* Check for supported relkind. */
 				CheckSubscriptionRelkind(get_rel_relkind(relid),
@@ -560,12 +554,7 @@ static void
 AlterSubscription_refresh(Subscription *sub, bool copy_data)
 {
 	char	   *err;
-	List	   *pubrel_names;
-	List	   *subrel_states;
-	Oid		   *subrel_local_oids;
-	Oid		   *pubrel_local_oids;
 	ListCell   *lc;
-	int			off;
 
 	/* Load the library providing us libpq calls. */
 	load_file("libpqwalreceiver", false);
@@ -577,21 +566,21 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 				(errmsg("could not connect to the publisher: %s", err)));
 
 	/* Get the table list from publisher. */
-	pubrel_names = fetch_table_list(wrconn, sub->publications);
+	List	   *pubrel_names = fetch_table_list(wrconn, sub->publications);
 
 	/* We are done with the remote side, close connection. */
 	walrcv_disconnect(wrconn);
 
 	/* Get local table list. */
-	subrel_states = GetSubscriptionRelations(sub->oid);
+	List	   *subrel_states = GetSubscriptionRelations(sub->oid);
 
 	/*
 	 * Build qsorted array of local table oids for faster lookup. This can
 	 * potentially contain all tables in the database so speed of lookup is
 	 * important.
 	 */
-	subrel_local_oids = palloc(list_length(subrel_states) * sizeof(Oid));
-	off = 0;
+	Oid		   *subrel_local_oids = palloc(list_length(subrel_states) * sizeof(Oid));
+	int			off = 0;
 	foreach(lc, subrel_states)
 	{
 		SubscriptionRelState *relstate = (SubscriptionRelState *) lfirst(lc);
@@ -608,14 +597,13 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 	 * Also builds array of local oids of remote tables for the next step.
 	 */
 	off = 0;
-	pubrel_local_oids = palloc(list_length(pubrel_names) * sizeof(Oid));
+	Oid		   *pubrel_local_oids = palloc(list_length(pubrel_names) * sizeof(Oid));
 
 	foreach(lc, pubrel_names)
 	{
 		RangeVar   *rv = (RangeVar *) lfirst(lc);
-		Oid			relid;
 
-		relid = RangeVarGetRelid(rv, AccessShareLock, false);
+		Oid			relid = RangeVarGetRelid(rv, AccessShareLock, false);
 
 		/* Check for supported relkind. */
 		CheckSubscriptionRelkind(get_rel_relkind(relid),
@@ -668,21 +656,16 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 ObjectAddress
 AlterSubscription(AlterSubscriptionStmt *stmt)
 {
-	Relation	rel;
 	ObjectAddress myself;
 	bool		nulls[Natts_pg_subscription];
 	bool		replaces[Natts_pg_subscription];
 	Datum		values[Natts_pg_subscription];
-	HeapTuple	tup;
-	Oid			subid;
 	bool		update_tuple = false;
-	Subscription *sub;
-	Form_pg_subscription form;
 
-	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
+	Relation	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
 
 	/* Fetch the existing tuple. */
-	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
+	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
 							  CStringGetDatum(stmt->subname));
 
 	if (!HeapTupleIsValid(tup))
@@ -691,15 +674,15 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 				 errmsg("subscription \"%s\" does not exist",
 						stmt->subname)));
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
-	subid = form->oid;
+	Form_pg_subscription form = (Form_pg_subscription) GETSTRUCT(tup);
+	Oid			subid = form->oid;
 
 	/* must be owner */
 	if (!pg_subscription_ownercheck(subid, GetUserId()))
 		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SUBSCRIPTION,
 					   stmt->subname);
 
-	sub = GetSubscription(subid, false);
+	Subscription *sub = GetSubscription(subid, false);
 
 	/* Lock the subscription so nobody else can do anything with it. */
 	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
@@ -913,31 +896,22 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 void
 DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 {
-	Relation	rel;
 	ObjectAddress myself;
-	HeapTuple	tup;
-	Oid			subid;
-	Datum		datum;
 	bool		isnull;
 	char	   *subname;
-	char	   *conninfo;
 	char	   *slotname;
-	List	   *subworkers;
 	ListCell   *lc;
 	char		originname[NAMEDATALEN];
 	char	   *err = NULL;
-	RepOriginId originid;
-	WalReceiverConn *wrconn = NULL;
 	StringInfoData cmd;
-	Form_pg_subscription form;
 
 	/*
 	 * Lock pg_subscription with AccessExclusiveLock to ensure that the
 	 * launcher doesn't restart new worker during dropping the subscription
 	 */
-	rel = table_open(SubscriptionRelationId, AccessExclusiveLock);
+	Relation	rel = table_open(SubscriptionRelationId, AccessExclusiveLock);
 
-	tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
+	HeapTuple	tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
 						  CStringGetDatum(stmt->subname));
 
 	if (!HeapTupleIsValid(tup))
@@ -957,8 +931,8 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 		return;
 	}
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
-	subid = form->oid;
+	Form_pg_subscription form = (Form_pg_subscription) GETSTRUCT(tup);
+	Oid			subid = form->oid;
 
 	/* must be owner */
 	if (!pg_subscription_ownercheck(subid, GetUserId()))
@@ -975,7 +949,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
 
 	/* Get subname */
-	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
+	Datum		datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
 							Anum_pg_subscription_subname, &isnull);
 	Assert(!isnull);
 	subname = pstrdup(NameStr(*DatumGetName(datum)));
@@ -984,7 +958,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
 							Anum_pg_subscription_subconninfo, &isnull);
 	Assert(!isnull);
-	conninfo = TextDatumGetCString(datum);
+	char	   *conninfo = TextDatumGetCString(datum);
 
 	/* Get slotname */
 	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
@@ -1032,7 +1006,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	 * subscription till the end of the transaction.
 	 */
 	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
-	subworkers = logicalrep_workers_find(subid, false);
+	List	   *subworkers = logicalrep_workers_find(subid, false);
 	LWLockRelease(LogicalRepWorkerLock);
 	foreach(lc, subworkers)
 	{
@@ -1050,7 +1024,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 
 	/* Remove the origin tracking if exists. */
 	snprintf(originname, sizeof(originname), "pg_%u", subid);
-	originid = replorigin_by_name(originname, true);
+	RepOriginId originid = replorigin_by_name(originname, true);
 	if (originid != InvalidRepOriginId)
 		replorigin_drop(originid, false);
 
@@ -1073,7 +1047,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	initStringInfo(&cmd);
 	appendStringInfo(&cmd, "DROP_REPLICATION_SLOT %s WAIT", quote_identifier(slotname));
 
-	wrconn = walrcv_connect(conninfo, true, subname, &err);
+	WalReceiverConn *wrconn = walrcv_connect(conninfo, true, subname, &err);
 	if (wrconn == NULL)
 		ereport(ERROR,
 				(errmsg("could not connect to publisher when attempting to "
@@ -1085,9 +1059,8 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 
 	PG_TRY();
 	{
-		WalRcvExecResult *res;
 
-		res = walrcv_exec(wrconn, cmd.data, 0, NULL);
+		WalRcvExecResult *res = walrcv_exec(wrconn, cmd.data, 0, NULL);
 
 		if (res->status != WALRCV_OK_COMMAND)
 			ereport(ERROR,
@@ -1118,9 +1091,8 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 static void
 AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 {
-	Form_pg_subscription form;
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
+	Form_pg_subscription form = (Form_pg_subscription) GETSTRUCT(tup);
 
 	if (form->subowner == newOwnerId)
 		return;
@@ -1155,15 +1127,11 @@ AlterSubscriptionOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 ObjectAddress
 AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 {
-	Oid			subid;
-	HeapTuple	tup;
-	Relation	rel;
 	ObjectAddress address;
-	Form_pg_subscription form;
 
-	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
+	Relation	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
 
-	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
+	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
 							  CStringGetDatum(name));
 
 	if (!HeapTupleIsValid(tup))
@@ -1171,8 +1139,8 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("subscription \"%s\" does not exist", name)));
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
-	subid = form->oid;
+	Form_pg_subscription form = (Form_pg_subscription) GETSTRUCT(tup);
+	Oid			subid = form->oid;
 
 	AlterSubscriptionOwner_internal(rel, tup, newOwnerId);
 
@@ -1191,12 +1159,10 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 void
 AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId)
 {
-	HeapTuple	tup;
-	Relation	rel;
 
-	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
+	Relation	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
 
-	tup = SearchSysCacheCopy1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
+	HeapTuple	tup = SearchSysCacheCopy1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
 
 	if (!HeapTupleIsValid(tup))
 		ereport(ERROR,
@@ -1217,12 +1183,9 @@ AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId)
 static List *
 fetch_table_list(WalReceiverConn *wrconn, List *publications)
 {
-	WalRcvExecResult *res;
 	StringInfoData cmd;
-	TupleTableSlot *slot;
 	Oid			tableRow[2] = {TEXTOID, TEXTOID};
 	ListCell   *lc;
-	bool		first;
 	List	   *tablelist = NIL;
 
 	Assert(list_length(publications) > 0);
@@ -1231,7 +1194,7 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 	appendStringInfoString(&cmd, "SELECT DISTINCT t.schemaname, t.tablename\n"
 						   "  FROM pg_catalog.pg_publication_tables t\n"
 						   " WHERE t.pubname IN (");
-	first = true;
+	bool		first = true;
 	foreach(lc, publications)
 	{
 		char	   *pubname = strVal(lfirst(lc));
@@ -1245,7 +1208,7 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 	}
 	appendStringInfoChar(&cmd, ')');
 
-	res = walrcv_exec(wrconn, cmd.data, 2, tableRow);
+	WalRcvExecResult *res = walrcv_exec(wrconn, cmd.data, 2, tableRow);
 	pfree(cmd.data);
 
 	if (res->status != WALRCV_OK_TUPLES)
@@ -1254,20 +1217,17 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 						res->err)));
 
 	/* Process tables. */
-	slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
+	TupleTableSlot *slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
 	while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
 	{
-		char	   *nspname;
-		char	   *relname;
 		bool		isnull;
-		RangeVar   *rv;
 
-		nspname = TextDatumGetCString(slot_getattr(slot, 1, &isnull));
+		char	   *nspname = TextDatumGetCString(slot_getattr(slot, 1, &isnull));
 		Assert(!isnull);
-		relname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
+		char	   *relname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
 		Assert(!isnull);
 
-		rv = makeRangeVar(pstrdup(nspname), pstrdup(relname), -1);
+		RangeVar   *rv = makeRangeVar(pstrdup(nspname), pstrdup(relname), -1);
 		tablelist = lappend(tablelist, rv);
 
 		ExecClearTuple(slot);

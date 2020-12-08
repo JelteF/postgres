@@ -74,7 +74,6 @@ preprocess_targetlist(PlannerInfo *root)
 	CmdType		command_type = parse->commandType;
 	RangeTblEntry *target_rte = NULL;
 	Relation	target_relation = NULL;
-	List	   *tlist;
 	ListCell   *lc;
 
 	/*
@@ -112,7 +111,7 @@ preprocess_targetlist(PlannerInfo *root)
 	 * of the attributes. We also need to fill in any missing attributes. -ay
 	 * 10/94
 	 */
-	tlist = parse->targetList;
+	List	   *tlist = parse->targetList;
 	if (command_type == CMD_INSERT || command_type == CMD_UPDATE)
 		tlist = expand_targetlist(tlist, command_type,
 								  result_relation, target_relation);
@@ -193,17 +192,15 @@ preprocess_targetlist(PlannerInfo *root)
 	 */
 	if (parse->returningList && list_length(parse->rtable) > 1)
 	{
-		List	   *vars;
 		ListCell   *l;
 
-		vars = pull_var_clause((Node *) parse->returningList,
+		List	   *vars = pull_var_clause((Node *) parse->returningList,
 							   PVC_RECURSE_AGGREGATES |
 							   PVC_RECURSE_WINDOWFUNCS |
 							   PVC_INCLUDE_PLACEHOLDERS);
 		foreach(l, vars)
 		{
 			Var		   *var = (Var *) lfirst(l);
-			TargetEntry *tle;
 
 			if (IsA(var, Var) &&
 				var->varno == result_relation)
@@ -212,7 +209,7 @@ preprocess_targetlist(PlannerInfo *root)
 			if (tlist_member((Expr *) var, tlist))
 				continue;		/* already got it */
 
-			tle = makeTargetEntry((Expr *) var,
+			TargetEntry *tle = makeTargetEntry((Expr *) var,
 								  list_length(tlist) + 1,
 								  NULL,
 								  true);
@@ -257,11 +254,10 @@ expand_targetlist(List *tlist, int command_type,
 				  Index result_relation, Relation rel)
 {
 	List	   *new_tlist = NIL;
-	ListCell   *tlist_item;
 	int			attrno,
 				numattrs;
 
-	tlist_item = list_head(tlist);
+	ListCell   *tlist_item = list_head(tlist);
 
 	/*
 	 * The rewriter should have already ensured that the TLEs are in correct

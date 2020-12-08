@@ -44,9 +44,8 @@ scram_HMAC_init(scram_HMAC_ctx *ctx, const uint8 *key, int keylen)
 	 */
 	if (keylen > SHA256_HMAC_B)
 	{
-		pg_cryptohash_ctx *sha256_ctx;
 
-		sha256_ctx = pg_cryptohash_create(PG_SHA256);
+		pg_cryptohash_ctx *sha256_ctx = pg_cryptohash_create(PG_SHA256);
 		if (sha256_ctx == NULL)
 			return -1;
 		if (pg_cryptohash_init(sha256_ctx) < 0 ||
@@ -194,9 +193,8 @@ scram_SaltedPassword(const char *password,
 int
 scram_H(const uint8 *input, int len, uint8 *result)
 {
-	pg_cryptohash_ctx *ctx;
 
-	ctx = pg_cryptohash_create(PG_SHA256);
+	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA256);
 	if (ctx == NULL)
 		return -1;
 

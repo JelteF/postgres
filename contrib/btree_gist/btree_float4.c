@@ -95,9 +95,8 @@ float4_dist(PG_FUNCTION_ARGS)
 {
 	float4		a = PG_GETARG_FLOAT4(0);
 	float4		b = PG_GETARG_FLOAT4(1);
-	float4		r;
 
-	r = a - b;
+	float4		r = a - b;
 	CHECKFLOATVAL(r, isinf(a) || isinf(b), true);
 
 	PG_RETURN_FLOAT4(Abs(r));

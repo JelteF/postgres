@@ -494,10 +494,9 @@ moresubs(struct vars *v,
 		 int wanted)			/* want enough room for this one */
 {
 	struct subre **p;
-	size_t		n;
 
 	assert(wanted > 0 && (size_t) wanted >= v->nsubs);
-	n = (size_t) wanted * 3 / 2 + 1;
+	size_t		n = (size_t) wanted * 3 / 2 + 1;
 
 	if (v->subs == v->sub10)
 	{
@@ -564,7 +563,6 @@ makesearch(struct vars *v,
 	struct state *pre = nfa->pre;
 	struct state *s;
 	struct state *s2;
-	struct state *slist;
 
 	/* no loops are needed if it's anchored */
 	for (a = pre->outs; a != NULL; a = a->outchain)
@@ -593,7 +591,7 @@ makesearch(struct vars *v,
 	 */
 
 	/* first, make a list of the states reachable from pre and elsewhere */
-	slist = NULL;
+	struct state *slist = NULL;
 	for (a = pre->outs; a != NULL; a = a->outchain)
 	{
 		s = a->to;
@@ -733,11 +731,10 @@ parsebranch(struct vars *v,
 {
 	struct state *lp;			/* left end of current construct */
 	int			seencontent;	/* is there anything in this branch yet? */
-	struct subre *t;
 
 	lp = left;
 	seencontent = 0;
-	t = subre(v, '=', 0, left, right);	/* op '=' is tentative */
+	struct subre *t = subre(v, '=', 0, left, right);	/* op '=' is tentative */
 	NOERRN();
 	while (!SEE('|') && !SEE(stopper) && !SEE(EOS))
 	{
@@ -791,9 +788,7 @@ parseqatom(struct vars *v,
 	int			cap;			/* capturing parens? */
 	int			latype;			/* lookaround constraint type */
 	int			subno;			/* capturing-parens or backref number */
-	int			atomtype;
 	int			qprefer;		/* quantifier short/long preference */
-	int			f;
 	struct subre **atomp;		/* where the pointer to atom is */
 
 	/* initial bookkeeping */
@@ -803,7 +798,7 @@ parseqatom(struct vars *v,
 	subno = 0;					/* just to shut lint up */
 
 	/* an atom or constraint... */
-	atomtype = v->nexttype;
+	int			atomtype = v->nexttype;
 	switch (atomtype)
 	{
 			/* first, constraints, which end by returning */
@@ -1052,7 +1047,7 @@ parseqatom(struct vars *v,
 
 	/* if not a messy case, avoid hard part */
 	assert(!MESSY(top->flags));
-	f = top->flags | qprefer | ((atom != NULL) ? atom->flags : 0);
+	int			f = top->flags | qprefer | ((atom != NULL) ? atom->flags : 0);
 	if (atomtype != '(' && atomtype != BACKREF && !MESSY(UP(f)))
 	{
 		if (!(m == 1 && n == 1))
@@ -1538,12 +1533,11 @@ brackpart(struct vars *v,
 static const chr *				/* just after end of sequence */
 scanplain(struct vars *v)
 {
-	const chr  *endp;
 
 	assert(SEE(COLLEL) || SEE(ECLASS) || SEE(CCLASS));
 	NEXT();
 
-	endp = v->now;
+	const chr  *endp = v->now;
 	while (SEE(PLAIN))
 	{
 		endp = v->now;
@@ -1590,8 +1584,6 @@ onechr(struct vars *v,
 static void
 wordchrs(struct vars *v)
 {
-	struct state *left;
-	struct state *right;
 
 	if (v->wordchrs != NULL)
 	{
@@ -1599,8 +1591,8 @@ wordchrs(struct vars *v)
 		return;
 	}
 
-	left = newstate(v->nfa);
-	right = newstate(v->nfa);
+	struct state *left = newstate(v->nfa);
+	struct state *right = newstate(v->nfa);
 	NOERR();
 	/* fine point:	implemented with [::], and lexer will set REG_ULOCALE */
 	lexword(v);
@@ -1627,14 +1619,12 @@ processlacon(struct vars *v,
 			 struct state *lp,	/* left state to hang it on */
 			 struct state *rp)	/* right state to hang it on */
 {
-	struct state *s1;
-	int			n;
 
 	/*
 	 * Check for lookaround RE consisting of a single plain color arc (or set
 	 * of arcs); this would typically be a simple chr or a bracket expression.
 	 */
-	s1 = single_color_transition(begin, end);
+	struct state *s1 = single_color_transition(begin, end);
 	switch (latype)
 	{
 		case LATYPE_AHEAD_POS:
@@ -1678,7 +1668,7 @@ processlacon(struct vars *v,
 	}
 
 	/* General case: we need a LACON subre and arc */
-	n = newlacon(v, begin, end, latype);
+	int			n = newlacon(v, begin, end, latype);
 	newarc(v->nfa, LACON, n, lp, rp);
 }
 
@@ -1799,11 +1789,10 @@ static int						/* next number */
 numst(struct subre *t,
 	  int start)				/* starting point for subtree numbers */
 {
-	int			i;
 
 	assert(t != NULL);
 
-	i = start;
+	int			i = start;
 	t->id = (short) i++;
 	if (t->left != NULL)
 		i = numst(t->left, i);
@@ -1930,7 +1919,6 @@ newlacon(struct vars *v,
 {
 	int			n;
 	struct subre *newlacons;
-	struct subre *sub;
 
 	if (v->nlacons == 0)
 	{
@@ -1950,7 +1938,7 @@ newlacon(struct vars *v,
 	}
 	v->lacons = newlacons;
 	v->nlacons = n + 1;
-	sub = &v->lacons[n];
+	struct subre *sub = &v->lacons[n];
 	sub->begin = begin;
 	sub->end = end;
 	sub->subno = latype;
@@ -1981,13 +1969,12 @@ freelacons(struct subre *subs,
 static void
 rfree(regex_t *re)
 {
-	struct guts *g;
 
 	if (re == NULL || re->re_magic != REMAGIC)
 		return;
 
 	re->re_magic = 0;			/* invalidate RE */
-	g = (struct guts *) re->re_guts;
+	struct guts *g = (struct guts *) re->re_guts;
 	re->re_guts = NULL;
 	re->re_fns = NULL;
 	if (g != NULL)
@@ -2045,7 +2032,6 @@ static void
 dump(regex_t *re,
 	 FILE *f)
 {
-	struct guts *g;
 	int			i;
 
 	if (re->re_magic != REMAGIC)
@@ -2056,7 +2042,7 @@ dump(regex_t *re,
 		fprintf(f, "NULL guts!!!\n");
 		return;
 	}
-	g = (struct guts *) re->re_guts;
+	struct guts *g = (struct guts *) re->re_guts;
 	if (g->magic != GUTSMAGIC)
 		fprintf(f, "bad guts magic number (0x%x not 0x%x)\n", g->magic,
 				GUTSMAGIC);

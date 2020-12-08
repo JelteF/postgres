@@ -191,13 +191,12 @@ calculateDigestFromBuffer(const uint8 *b, uint32 len, uint8 sum[16])
 				j,
 				k,
 				newI;
-	uint32		l;
 	uint8	   *input;
 	register uint32 *wbp;
 	uint32		workBuff[16],
 				state[4];
 
-	l = len;
+	uint32		l = len;
 
 	state[0] = 0x67452301;
 	state[1] = 0xEFCDAB89;
@@ -327,7 +326,6 @@ pg_md5_encrypt(const char *passwd, const char *salt, size_t salt_len,
 
 	/* +1 here is just to avoid risk of unportable malloc(0) */
 	char	   *crypt_buf = malloc(passwd_len + salt_len + 1);
-	bool		ret;
 
 	if (!crypt_buf)
 		return false;
@@ -340,7 +338,7 @@ pg_md5_encrypt(const char *passwd, const char *salt, size_t salt_len,
 	memcpy(crypt_buf + passwd_len, salt, salt_len);
 
 	strcpy(buf, "md5");
-	ret = pg_md5_hash(crypt_buf, passwd_len + salt_len, buf + 3);
+	bool		ret = pg_md5_hash(crypt_buf, passwd_len + salt_len, buf + 3);
 
 	free(crypt_buf);
 

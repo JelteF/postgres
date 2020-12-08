@@ -895,7 +895,6 @@ getGaussianRand(RandomState *random_state, int64 min, int64 max,
 				double parameter)
 {
 	double		stdev;
-	double		rand;
 
 	/* abort if parameter is too low, but must really be checked beforehand */
 	Assert(parameter >= MIN_GAUSSIAN_PARAM);
@@ -937,7 +936,7 @@ getGaussianRand(RandomState *random_state, int64 min, int64 max,
 	while (stdev < -parameter || stdev >= parameter);
 
 	/* stdev is in [-parameter, parameter), normalization to [0,1) */
-	rand = (stdev + parameter) / (parameter * 2.0);
+	double		rand = (stdev + parameter) / (parameter * 2.0);
 
 	/* return int64 random number within between min and max */
 	return min + (int64) ((max - min + 1) * rand);
@@ -957,10 +956,9 @@ getPoissonRand(RandomState *random_state, double center)
 	 * Use inverse transform sampling to generate a value > 0, such that the
 	 * expected (i.e. average) value is the given argument.
 	 */
-	double		uniform;
 
 	/* erand in [0, 1), uniform in (0, 1] */
-	uniform = 1.0 - pg_erand48(random_state->xseed);
+	double		uniform = 1.0 - pg_erand48(random_state->xseed);
 
 	return (int64) (-log(uniform) * center + 0.5);
 }
@@ -1019,10 +1017,9 @@ getZipfianRand(RandomState *random_state, int64 min, int64 max, double s)
 static int64
 getHashFnv1a(int64 val, uint64 seed)
 {
-	int64		result;
 	int			i;
 
-	result = FNV_OFFSET_BASIS ^ seed;
+	int64		result = FNV_OFFSET_BASIS ^ seed;
 	for (i = 0; i < 8; ++i)
 	{
 		int32		octet = val & 0xff;
@@ -1141,9 +1138,8 @@ accumStats(StatsData *stats, bool skipped, double lat, double lag)
 static void
 executeStatement(PGconn *con, const char *sql)
 {
-	PGresult   *res;
 
-	res = PQexec(con, sql);
+	PGresult   *res = PQexec(con, sql);
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
 		pg_log_fatal("query failed: %s", PQerrorMessage(con));
@@ -1157,9 +1153,8 @@ executeStatement(PGconn *con, const char *sql)
 static void
 tryExecuteStatement(PGconn *con, const char *sql)
 {
-	PGresult   *res;
 
-	res = PQexec(con, sql);
+	PGresult   *res = PQexec(con, sql);
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
 		pg_log_error("%s", PQerrorMessage(con));
@@ -1273,10 +1268,9 @@ lookupVariable(CState *st, char *name)
 static char *
 getVariable(CState *st, char *name)
 {
-	Variable   *var;
 	char		stringform[64];
 
-	var = lookupVariable(st, name);
+	Variable   *var = lookupVariable(st, name);
 	if (var == NULL)
 		return NULL;			/* not found */
 
@@ -1306,12 +1300,11 @@ getVariable(CState *st, char *name)
 static bool
 makeVariableValue(Variable *var)
 {
-	size_t		slen;
 
 	if (var->value.type != PGBT_NO_VALUE)
 		return true;			/* no work */
 
-	slen = strlen(var->svalue);
+	size_t		slen = strlen(var->svalue);
 
 	if (slen == 0)
 		/* what should it do on ""? */
@@ -1406,9 +1399,8 @@ valid_variable_name(const char *name)
 static Variable *
 lookupCreateVariable(CState *st, const char *context, char *name)
 {
-	Variable   *var;
 
-	var = lookupVariable(st, name);
+	Variable   *var = lookupVariable(st, name);
 	if (var == NULL)
 	{
 		Variable   *newvars;
@@ -1451,15 +1443,13 @@ lookupCreateVariable(CState *st, const char *context, char *name)
 static bool
 putVariable(CState *st, const char *context, char *name, const char *value)
 {
-	Variable   *var;
-	char	   *val;
 
-	var = lookupCreateVariable(st, context, name);
+	Variable   *var = lookupCreateVariable(st, context, name);
 	if (!var)
 		return false;
 
 	/* dup then free, in case value is pointing at this variable */
-	val = pg_strdup(value);
+	char	   *val = pg_strdup(value);
 
 	if (var->svalue)
 		free(var->svalue);
@@ -1475,9 +1465,8 @@ static bool
 putVariableValue(CState *st, const char *context, char *name,
 				 const PgBenchValue *value)
 {
-	Variable   *var;
 
-	var = lookupCreateVariable(st, context, name);
+	Variable   *var = lookupCreateVariable(st, context, name);
 	if (!var)
 		return false;
 
@@ -1512,7 +1501,6 @@ static char *
 parseVariable(const char *sql, int *eaten)
 {
 	int			i = 0;
-	char	   *name;
 
 	do
 	{
@@ -1523,7 +1511,7 @@ parseVariable(const char *sql, int *eaten)
 	if (i == 1)
 		return NULL;			/* no valid variable name chars */
 
-	name = pg_malloc(i);
+	char	   *name = pg_malloc(i);
 	memcpy(name, &sql[1], i - 1);
 	name[i - 1] = '\0';
 
@@ -2199,13 +2187,12 @@ evalStandardFunc(CState *st,
 		case PGBENCH_LEAST:
 		case PGBENCH_GREATEST:
 			{
-				bool		havedouble;
 				int			i;
 
 				Assert(nargs >= 1);
 
 				/* need double result if any input is double */
-				havedouble = false;
+				bool		havedouble = false;
 				for (i = 0; i < nargs; i++)
 				{
 					if (vargs[i].type == PGBT_DOUBLE)
@@ -2510,7 +2497,6 @@ runShellCommand(CState *st, char *variable, char **argv, int argc)
 	FILE	   *fp;
 	char		res[64];
 	char	   *endptr;
-	int			retval;
 
 	/*----------
 	 * Join arguments with whitespace separators. Arguments starting with
@@ -2523,7 +2509,6 @@ runShellCommand(CState *st, char *variable, char **argv, int argc)
 	for (i = 0; i < argc; i++)
 	{
 		char	   *arg;
-		int			arglen;
 
 		if (argv[i][0] != ':')
 		{
@@ -2539,7 +2524,7 @@ runShellCommand(CState *st, char *variable, char **argv, int argc)
 			return false;
 		}
 
-		arglen = strlen(arg);
+		int			arglen = strlen(arg);
 		if (len + arglen + (i > 0 ? 1 : 0) >= SHELL_COMMAND_SIZE - 1)
 		{
 			pg_log_error("%s: shell command is too long", argv[0]);
@@ -2586,7 +2571,7 @@ runShellCommand(CState *st, char *variable, char **argv, int argc)
 	}
 
 	/* Check whether the result is an integer and assign it to the variable */
-	retval = (int) strtol(res, &endptr, 10);
+	int			retval = (int) strtol(res, &endptr, 10);
 	while (*endptr != '\0' && isspace((unsigned char) *endptr))
 		endptr++;
 	if (*res == '\0' || *endptr != '\0')
@@ -2621,12 +2606,11 @@ static int
 chooseScript(TState *thread)
 {
 	int			i = 0;
-	int64		w;
 
 	if (num_scripts == 1)
 		return 0;
 
-	w = getrand(&thread->ts_choose_rs, 0, total_weight - 1);
+	int64		w = getrand(&thread->ts_choose_rs, 0, total_weight - 1);
 	do
 	{
 		w -= sql_script[i++].weight;
@@ -2643,9 +2627,8 @@ sendCommand(CState *st, Command *command)
 
 	if (querymode == QUERY_SIMPLE)
 	{
-		char	   *sql;
 
-		sql = pg_strdup(command->argv[0]);
+		char	   *sql = pg_strdup(command->argv[0]);
 		sql = assignVariables(st, sql);
 
 		pg_log_debug("client %d sending %s", st->id, sql);
@@ -2675,13 +2658,12 @@ sendCommand(CState *st, Command *command)
 
 			for (j = 0; commands[j] != NULL; j++)
 			{
-				PGresult   *res;
 				char		name[MAX_PREPARE_NAME];
 
 				if (commands[j]->type != SQL_COMMAND)
 					continue;
 				preparedStatementName(name, st->use_file, j);
-				res = PQprepare(st->con, name,
+				PGresult   *res = PQprepare(st->con, name,
 								commands[j]->argv[0], commands[j]->argc - 1, NULL);
 				if (PQresultStatus(res) != PGRES_COMMAND_OK)
 					pg_log_error("%s", PQerrorMessage(st->con));
@@ -2722,7 +2704,6 @@ sendCommand(CState *st, Command *command)
 static bool
 readCommandResponse(CState *st, MetaCommand meta, char *varprefix)
 {
-	PGresult   *res;
 	PGresult   *next_res;
 	int			qrynum = 0;
 
@@ -2733,15 +2714,14 @@ readCommandResponse(CState *st, MetaCommand meta, char *varprefix)
 	Assert((meta == META_NONE && varprefix == NULL) ||
 		   ((meta == META_GSET || meta == META_ASET) && varprefix != NULL));
 
-	res = PQgetResult(st->con);
+	PGresult   *res = PQgetResult(st->con);
 
 	while (res != NULL)
 	{
-		bool		is_last;
 
 		/* peek at the next result to know whether the current is last */
 		next_res = PQgetResult(st->con);
-		is_last = (next_res == NULL);
+		bool		is_last = (next_res == NULL);
 
 		switch (PQresultStatus(res))
 		{
@@ -2925,10 +2905,9 @@ advanceConnectionState(TState *thread, CState *st, StatsData *agg)
 				/* establish connection if needed, i.e. under --connect */
 				if (st->con == NULL)
 				{
-					instr_time	start;
 
 					INSTR_TIME_SET_CURRENT_LAZY(now);
-					start = now;
+					instr_time	start = now;
 					if ((st->con = doConnect()) == NULL)
 					{
 						pg_log_error("client %d aborted while establishing connection", st->id);
@@ -2987,10 +2966,9 @@ advanceConnectionState(TState *thread, CState *st, StatsData *agg)
 				 */
 				if (latency_limit)
 				{
-					int64		now_us;
 
 					INSTR_TIME_SET_CURRENT_LAZY(now);
-					now_us = INSTR_TIME_GET_MICROSEC(now);
+					int64		now_us = INSTR_TIME_GET_MICROSEC(now);
 
 					while (thread->throttle_trigger < now_us - latency_limit &&
 						   (nxacts <= 0 || st->cnt < nxacts))
@@ -3095,9 +3073,8 @@ advanceConnectionState(TState *thread, CState *st, StatsData *agg)
 				/* quickly skip commands until something to do... */
 				while (true)
 				{
-					Command    *command;
 
-					command = sql_script[st->use_file].commands[st->command];
+					Command    *command = sql_script[st->use_file].commands[st->command];
 
 					/* cannot reach end of script in that state */
 					Assert(command != NULL);
@@ -3234,11 +3211,10 @@ advanceConnectionState(TState *thread, CState *st, StatsData *agg)
 				 */
 				if (report_per_command)
 				{
-					Command    *command;
 
 					INSTR_TIME_SET_CURRENT_LAZY(now);
 
-					command = sql_script[st->use_file].commands[st->command];
+					Command    *command = sql_script[st->use_file].commands[st->command];
 					/* XXX could use a mutex here, but we choose not to */
 					addToSimpleStats(&command->stats,
 									 INSTR_TIME_GET_DOUBLE(now) -
@@ -3309,13 +3285,11 @@ static ConnectionStateEnum
 executeMetaCommand(CState *st, instr_time *now)
 {
 	Command    *command = sql_script[st->use_file].commands[st->command];
-	int			argc;
-	char	  **argv;
 
 	Assert(command != NULL && command->type == META_COMMAND);
 
-	argc = command->argc;
-	argv = command->argv;
+	int			argc = command->argc;
+	char	  **argv = command->argv;
 
 	if (unlikely(__pg_log_level <= PG_LOG_DEBUG))
 	{
@@ -3374,7 +3348,6 @@ executeMetaCommand(CState *st, instr_time *now)
 		/* backslash commands with an expression to evaluate */
 		PgBenchExpr *expr = command->expr;
 		PgBenchValue result;
-		bool		cond;
 
 		if (!evaluateExpr(st, expr, &result))
 		{
@@ -3382,7 +3355,7 @@ executeMetaCommand(CState *st, instr_time *now)
 			return CSTATE_ABORTED;
 		}
 
-		cond = valueTruth(&result);
+		bool		cond = valueTruth(&result);
 		conditional_stack_push(st->cstack, cond ? IFSTATE_TRUE : IFSTATE_FALSE);
 	}
 	else if (command->meta == META_ELIF)
@@ -3390,7 +3363,6 @@ executeMetaCommand(CState *st, instr_time *now)
 		/* backslash commands with an expression to evaluate */
 		PgBenchExpr *expr = command->expr;
 		PgBenchValue result;
-		bool		cond;
 
 		if (conditional_stack_peek(st->cstack) == IFSTATE_TRUE)
 		{
@@ -3405,7 +3377,7 @@ executeMetaCommand(CState *st, instr_time *now)
 			return CSTATE_ABORTED;
 		}
 
-		cond = valueTruth(&result);
+		bool		cond = valueTruth(&result);
 		Assert(conditional_stack_peek(st->cstack) == IFSTATE_FALSE);
 		conditional_stack_poke(st->cstack, cond ? IFSTATE_TRUE : IFSTATE_FALSE);
 	}
@@ -3771,9 +3743,8 @@ initCreateTables(PGconn *con)
 
 		if (tablespace != NULL)
 		{
-			char	   *escape_tablespace;
 
-			escape_tablespace = PQescapeIdentifier(con, tablespace, strlen(tablespace));
+			char	   *escape_tablespace = PQescapeIdentifier(con, tablespace, strlen(tablespace));
 			appendPQExpBuffer(&query, " tablespace %s", escape_tablespace);
 			PQfreemem(escape_tablespace);
 		}
@@ -3807,7 +3778,6 @@ static void
 initGenerateDataClientSide(PGconn *con)
 {
 	PQExpBufferData sql;
-	PGresult   *res;
 	int			i;
 	int64		k;
 
@@ -3859,7 +3829,7 @@ initGenerateDataClientSide(PGconn *con)
 	/*
 	 * accounts is big enough to be worth using COPY and tracking runtime
 	 */
-	res = PQexec(con, "copy pgbench_accounts from stdin");
+	PGresult   *res = PQexec(con, "copy pgbench_accounts from stdin");
 	if (PQresultStatus(res) != PGRES_COPY_IN)
 	{
 		pg_log_fatal("unexpected copy in result: %s", PQerrorMessage(con));
@@ -4030,9 +4000,8 @@ initCreatePKeys(PGconn *con)
 
 		if (index_tablespace != NULL)
 		{
-			char	   *escape_tablespace;
 
-			escape_tablespace = PQescapeIdentifier(con, index_tablespace,
+			char	   *escape_tablespace = PQescapeIdentifier(con, index_tablespace,
 												   strlen(index_tablespace));
 			appendPQExpBuffer(&query, " using index tablespace %s", escape_tablespace);
 			PQfreemem(escape_tablespace);
@@ -4161,11 +4130,10 @@ runInitSteps(const char *initialize_steps)
 		if (op != NULL)
 		{
 			instr_time	diff;
-			double		elapsed_sec;
 
 			INSTR_TIME_SET_CURRENT(diff);
 			INSTR_TIME_SUBTRACT(diff, start);
-			elapsed_sec = INSTR_TIME_GET_DOUBLE(diff);
+			double		elapsed_sec = INSTR_TIME_GET_DOUBLE(diff);
 
 			if (!first)
 				appendPQExpBufferStr(&stats, ", ");
@@ -4191,13 +4159,12 @@ runInitSteps(const char *initialize_steps)
 static void
 GetTableInfo(PGconn *con, bool scale_given)
 {
-	PGresult   *res;
 
 	/*
 	 * get the scaling factor that should be same as count(*) from
 	 * pgbench_branches if this is not a custom query
 	 */
-	res = PQexec(con, "select count(*) from pgbench_branches");
+	PGresult   *res = PQexec(con, "select count(*) from pgbench_branches");
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		char	   *sqlState = PQresultErrorField(res, PG_DIAG_SQLSTATE);
@@ -4313,10 +4280,9 @@ parseQuery(Command *cmd)
 	while ((p = strchr(p, ':')) != NULL)
 	{
 		char		var[13];
-		char	   *name;
 		int			eaten;
 
-		name = parseVariable(p, &eaten);
+		char	   *name = parseVariable(p, &eaten);
 		if (name == NULL)
 		{
 			while (*p == ':')
@@ -4436,14 +4402,13 @@ skip_sql_comments(char *sql_command)
 static Command *
 create_sql_command(PQExpBuffer buf, const char *source)
 {
-	Command    *my_command;
 	char	   *p = skip_sql_comments(buf->data);
 
 	if (p == NULL)
 		return NULL;
 
 	/* Allocate and initialize Command structure */
-	my_command = (Command *) pg_malloc(sizeof(Command));
+	Command    *my_command = (Command *) pg_malloc(sizeof(Command));
 	initPQExpBuffer(&my_command->lines);
 	appendPQExpBufferStr(&my_command->lines, p);
 	my_command->first_line = NULL;	/* this is set later */
@@ -4518,19 +4483,15 @@ postprocess_sql_command(Command *my_command)
 static Command *
 process_backslash_command(PsqlScanState sstate, const char *source)
 {
-	Command    *my_command;
 	PQExpBufferData word_buf;
 	int			word_offset;
 	int			offsets[MAX_ARGS];	/* offsets of argument words */
-	int			start_offset;
-	int			lineno;
-	int			j;
 
 	initPQExpBuffer(&word_buf);
 
 	/* Remember location of the backslash */
-	start_offset = expr_scanner_offset(sstate) - 1;
-	lineno = expr_scanner_get_lineno(sstate, start_offset);
+	int			start_offset = expr_scanner_offset(sstate) - 1;
+	int			lineno = expr_scanner_get_lineno(sstate, start_offset);
 
 	/* Collect first word of command */
 	if (!expr_lex_one_word(sstate, &word_buf, &word_offset))
@@ -4540,13 +4501,13 @@ process_backslash_command(PsqlScanState sstate, const char *source)
 	}
 
 	/* Allocate and initialize Command structure */
-	my_command = (Command *) pg_malloc0(sizeof(Command));
+	Command    *my_command = (Command *) pg_malloc0(sizeof(Command));
 	my_command->type = META_COMMAND;
 	my_command->argc = 0;
 	initSimpleStats(&my_command->stats);
 
 	/* Save first word (command name) */
-	j = 0;
+	int			j = 0;
 	offsets[j] = word_offset;
 	my_command->argv[j++] = pg_strdup(word_buf.data);
 	my_command->argc++;
@@ -4558,7 +4519,6 @@ process_backslash_command(PsqlScanState sstate, const char *source)
 		my_command->meta == META_IF ||
 		my_command->meta == META_ELIF)
 	{
-		yyscan_t	yyscanner;
 
 		/* For \set, collect var name */
 		if (my_command->meta == META_SET)
@@ -4573,7 +4533,7 @@ process_backslash_command(PsqlScanState sstate, const char *source)
 		}
 
 		/* then for all parse the expression */
-		yyscanner = expr_scanner_init(sstate, source, lineno, start_offset,
+		yyscan_t	yyscanner = expr_scanner_init(sstate, source, lineno, start_offset,
 									  my_command->argv[0]);
 
 		if (expr_yyparse(yyscanner) != 0)
@@ -4800,17 +4760,15 @@ ParseScript(const char *script, const char *desc, int weight)
 
 	for (;;)
 	{
-		PsqlScanResult sr;
 		promptStatus_t prompt;
-		Command    *command = NULL;
 
 		resetPQExpBuffer(&line_buf);
 		lineno = expr_scanner_get_lineno(sstate, start_offset);
 
-		sr = psql_scan(sstate, &line_buf, &prompt);
+		PsqlScanResult sr = psql_scan(sstate, &line_buf, &prompt);
 
 		/* If we collected a new SQL command, process that */
-		command = create_sql_command(&line_buf, desc);
+		Command    *command = create_sql_command(&line_buf, desc);
 
 		/* store new command */
 		if (command)
@@ -4829,14 +4787,13 @@ ParseScript(const char *script, const char *desc, int weight)
 				 */
 				if (command->meta == META_GSET || command->meta == META_ASET)
 				{
-					Command    *cmd;
 
 					if (index == 0)
 						syntax_error(desc, lineno, NULL, NULL,
 									 "\\gset must follow a SQL command",
 									 NULL, -1);
 
-					cmd = ps.commands[index - 1];
+					Command    *cmd = ps.commands[index - 1];
 
 					if (cmd->type != SQL_COMMAND ||
 						cmd->varprefix != NULL)
@@ -4899,17 +4856,15 @@ ParseScript(const char *script, const char *desc, int weight)
 static char *
 read_file_contents(FILE *fd)
 {
-	char	   *buf;
 	size_t		buflen = BUFSIZ;
 	size_t		used = 0;
 
-	buf = (char *) pg_malloc(buflen);
+	char	   *buf = (char *) pg_malloc(buflen);
 
 	for (;;)
 	{
-		size_t		nread;
 
-		nread = fread(buf + used, 1, BUFSIZ, fd);
+		size_t		nread = fread(buf + used, 1, BUFSIZ, fd);
 		used += nread;
 		/* If fread() read less than requested, must be EOF or error */
 		if (nread < BUFSIZ)
@@ -4933,7 +4888,6 @@ static void
 process_file(const char *filename, int weight)
 {
 	FILE	   *fd;
-	char	   *buf;
 
 	/* Slurp the file contents into "buf" */
 	if (strcmp(filename, "-") == 0)
@@ -4944,7 +4898,7 @@ process_file(const char *filename, int weight)
 		exit(1);
 	}
 
-	buf = read_file_contents(fd);
+	char	   *buf = read_file_contents(fd);
 
 	if (ferror(fd))
 	{
@@ -5025,7 +4979,6 @@ parseScriptWeight(const char *option, char **script)
 	if ((sep = strrchr(option, WSEP)))
 	{
 		int			namelen = sep - option;
-		long		wtmp;
 		char	   *badp;
 
 		/* generate the script name */
@@ -5035,7 +4988,7 @@ parseScriptWeight(const char *option, char **script)
 
 		/* process digits of the weight spec */
 		errno = 0;
-		wtmp = strtol(sep + 1, &badp, 10);
+		long		wtmp = strtol(sep + 1, &badp, 10);
 		if (errno != 0 || badp == sep + 1 || *badp != '\0')
 		{
 			pg_log_fatal("invalid weight specification: %s", sep);
@@ -6297,7 +6250,6 @@ threadRun(void *arg)
 	while (remains > 0)
 	{
 		int			nsocks;		/* number of sockets to be waited for */
-		int64		min_usec;
 		int64		now_usec = 0;	/* set this only if needed */
 
 		/*
@@ -6306,7 +6258,7 @@ threadRun(void *arg)
 		 */
 		clear_socket_set(sockets);
 		nsocks = 0;
-		min_usec = PG_INT64_MAX;
+		int64		min_usec = PG_INT64_MAX;
 		for (i = 0; i < nstate; i++)
 		{
 			CState	   *st = &state[i];
@@ -6314,7 +6266,6 @@ threadRun(void *arg)
 			if (st->state == CSTATE_SLEEP || st->state == CSTATE_THROTTLE)
 			{
 				/* a nap from the script, or under throttling */
-				int64		this_usec;
 
 				/* get current time if needed */
 				if (now_usec == 0)
@@ -6326,7 +6277,7 @@ threadRun(void *arg)
 				}
 
 				/* min_usec should be the minimum delay across all clients */
-				this_usec = (st->state == CSTATE_SLEEP ?
+				int64		this_usec = (st->state == CSTATE_SLEEP ?
 							 st->sleep_until : st->txn_scheduled) - now_usec;
 				if (min_usec > this_usec)
 					min_usec = this_usec;
@@ -6462,10 +6413,9 @@ threadRun(void *arg)
 		if (progress && thread->tid == 0)
 		{
 			instr_time	now_time;
-			int64		now;
 
 			INSTR_TIME_SET_CURRENT(now_time);
-			now = INSTR_TIME_GET_MICROSEC(now_time);
+			int64		now = INSTR_TIME_GET_MICROSEC(now_time);
 			if (now >= next_report)
 			{
 				/*
@@ -6548,11 +6498,10 @@ win32_timer_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 static void
 setalarm(int seconds)
 {
-	HANDLE		queue;
 	HANDLE		timer;
 
 	/* This function will be called at most once, so we can cheat a bit. */
-	queue = CreateTimerQueue();
+	HANDLE		queue = CreateTimerQueue();
 	if (seconds > ((DWORD) -1) / 1000 ||
 		!CreateTimerQueueTimer(&timer, queue,
 							   win32_timer_callback, NULL, seconds * 1000, 0,
@@ -6606,9 +6555,8 @@ setalarm(int seconds)
 static socket_set *
 alloc_socket_set(int count)
 {
-	socket_set *sa;
 
-	sa = (socket_set *) pg_malloc0(offsetof(socket_set, pollfds) +
+	socket_set *sa = (socket_set *) pg_malloc0(offsetof(socket_set, pollfds) +
 								   sizeof(struct pollfd) * count);
 	sa->maxfds = count;
 	sa->curfds = 0;
@@ -6767,9 +6715,8 @@ pthread_create(pthread_t *thread,
 			   void *arg)
 {
 	int			save_errno;
-	win32_pthread *th;
 
-	th = (win32_pthread *) pg_malloc(sizeof(win32_pthread));
+	win32_pthread *th = (win32_pthread *) pg_malloc(sizeof(win32_pthread));
 	th->routine = start_routine;
 	th->arg = arg;
 	th->result = NULL;

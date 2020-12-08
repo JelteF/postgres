@@ -94,9 +94,6 @@ static void process_settings(Oid databaseid, Oid roleid);
 static HeapTuple
 GetDatabaseTuple(const char *dbname)
 {
-	HeapTuple	tuple;
-	Relation	relation;
-	SysScanDesc scan;
 	ScanKeyData key[1];
 
 	/*
@@ -112,13 +109,13 @@ GetDatabaseTuple(const char *dbname)
 	 * built the critical shared relcache entries (i.e., we're starting up
 	 * without a shared relcache cache file).
 	 */
-	relation = table_open(DatabaseRelationId, AccessShareLock);
-	scan = systable_beginscan(relation, DatabaseNameIndexId,
+	Relation	relation = table_open(DatabaseRelationId, AccessShareLock);
+	SysScanDesc scan = systable_beginscan(relation, DatabaseNameIndexId,
 							  criticalSharedRelcachesBuilt,
 							  NULL,
 							  1, key);
 
-	tuple = systable_getnext(scan);
+	HeapTuple	tuple = systable_getnext(scan);
 
 	/* Must copy tuple before releasing buffer */
 	if (HeapTupleIsValid(tuple))
@@ -137,9 +134,6 @@ GetDatabaseTuple(const char *dbname)
 static HeapTuple
 GetDatabaseTupleByOid(Oid dboid)
 {
-	HeapTuple	tuple;
-	Relation	relation;
-	SysScanDesc scan;
 	ScanKeyData key[1];
 
 	/*
@@ -155,13 +149,13 @@ GetDatabaseTupleByOid(Oid dboid)
 	 * built the critical shared relcache entries (i.e., we're starting up
 	 * without a shared relcache cache file).
 	 */
-	relation = table_open(DatabaseRelationId, AccessShareLock);
-	scan = systable_beginscan(relation, DatabaseOidIndexId,
+	Relation	relation = table_open(DatabaseRelationId, AccessShareLock);
+	SysScanDesc scan = systable_beginscan(relation, DatabaseOidIndexId,
 							  criticalSharedRelcachesBuilt,
 							  NULL,
 							  1, key);
 
-	tuple = systable_getnext(scan);
+	HeapTuple	tuple = systable_getnext(scan);
 
 	/* Must copy tuple before releasing buffer */
 	if (HeapTupleIsValid(tuple))
@@ -293,16 +287,12 @@ PerformAuthentication(Port *port)
 static void
 CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connections)
 {
-	HeapTuple	tup;
-	Form_pg_database dbform;
-	char	   *collate;
-	char	   *ctype;
 
 	/* Fetch our pg_database row normally, via syscache */
-	tup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
+	HeapTuple	tup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for database %u", MyDatabaseId);
-	dbform = (Form_pg_database) GETSTRUCT(tup);
+	Form_pg_database dbform = (Form_pg_database) GETSTRUCT(tup);
 
 	/* This recheck is strictly paranoia */
 	if (strcmp(name, NameStr(dbform->datname)) != 0)
@@ -378,8 +368,8 @@ CheckMyDatabase(const char *name, bool am_superuser, bool override_allow_connect
 					PGC_BACKEND, PGC_S_DYNAMIC_DEFAULT);
 
 	/* assign locale variables */
-	collate = NameStr(dbform->datcollate);
-	ctype = NameStr(dbform->datctype);
+	char	   *collate = NameStr(dbform->datcollate);
+	char	   *ctype = NameStr(dbform->datctype);
 
 	if (pg_perm_setlocale(LC_COLLATE, collate) == NULL)
 		ereport(FATAL,
@@ -569,7 +559,6 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 {
 	bool		bootstrap = IsBootstrapProcessingMode();
 	bool		am_superuser;
-	char	   *fullpath;
 	char		dbname[NAMEDATALEN];
 
 	elog(DEBUG3, "InitPostgres");
@@ -859,15 +848,13 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	}
 	else if (in_dbname != NULL)
 	{
-		HeapTuple	tuple;
-		Form_pg_database dbform;
 
-		tuple = GetDatabaseTuple(in_dbname);
+		HeapTuple	tuple = GetDatabaseTuple(in_dbname);
 		if (!HeapTupleIsValid(tuple))
 			ereport(FATAL,
 					(errcode(ERRCODE_UNDEFINED_DATABASE),
 					 errmsg("database \"%s\" does not exist", in_dbname)));
-		dbform = (Form_pg_database) GETSTRUCT(tuple);
+		Form_pg_database dbform = (Form_pg_database) GETSTRUCT(tuple);
 		MyDatabaseId = dbform->oid;
 		MyDatabaseTableSpace = dbform->dattablespace;
 		/* take database name from the caller, just for paranoia */
@@ -876,15 +863,13 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	else if (OidIsValid(dboid))
 	{
 		/* caller specified database by OID */
-		HeapTuple	tuple;
-		Form_pg_database dbform;
 
-		tuple = GetDatabaseTupleByOid(dboid);
+		HeapTuple	tuple = GetDatabaseTupleByOid(dboid);
 		if (!HeapTupleIsValid(tuple))
 			ereport(FATAL,
 					(errcode(ERRCODE_UNDEFINED_DATABASE),
 					 errmsg("database %u does not exist", dboid)));
-		dbform = (Form_pg_database) GETSTRUCT(tuple);
+		Form_pg_database dbform = (Form_pg_database) GETSTRUCT(tuple);
 		MyDatabaseId = dbform->oid;
 		MyDatabaseTableSpace = dbform->dattablespace;
 		Assert(MyDatabaseId == dboid);
@@ -963,9 +948,8 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 */
 	if (!bootstrap)
 	{
-		HeapTuple	tuple;
 
-		tuple = GetDatabaseTuple(dbname);
+		HeapTuple	tuple = GetDatabaseTuple(dbname);
 		if (!HeapTupleIsValid(tuple) ||
 			MyDatabaseId != ((Form_pg_database) GETSTRUCT(tuple))->oid ||
 			MyDatabaseTableSpace != ((Form_pg_database) GETSTRUCT(tuple))->dattablespace)
@@ -979,7 +963,7 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 	 * Now we should be able to access the database directory safely. Verify
 	 * it's there and looks reasonable.
 	 */
-	fullpath = GetDatabasePath(MyDatabaseId, MyDatabaseTableSpace);
+	char	   *fullpath = GetDatabasePath(MyDatabaseId, MyDatabaseTableSpace);
 
 	if (!bootstrap)
 	{
@@ -1069,10 +1053,8 @@ InitPostgres(const char *in_dbname, Oid dboid, const char *username,
 static void
 process_startup_options(Port *port, bool am_superuser)
 {
-	GucContext	gucctx;
-	ListCell   *gucopts;
 
-	gucctx = am_superuser ? PGC_SU_BACKEND : PGC_BACKEND;
+	GucContext	gucctx = am_superuser ? PGC_SU_BACKEND : PGC_BACKEND;
 
 	/*
 	 * First process any command-line switches that were included in the
@@ -1085,14 +1067,11 @@ process_startup_options(Port *port, bool am_superuser)
 		 * come from port->cmdline_options is (strlen + 1) / 2; see
 		 * pg_split_opts().
 		 */
-		char	  **av;
-		int			maxac;
-		int			ac;
 
-		maxac = 2 + (strlen(port->cmdline_options) + 1) / 2;
+		int			maxac = 2 + (strlen(port->cmdline_options) + 1) / 2;
 
-		av = (char **) palloc(maxac * sizeof(char *));
-		ac = 0;
+		char	  **av = (char **) palloc(maxac * sizeof(char *));
+		int			ac = 0;
 
 		av[ac++] = "postgres";
 
@@ -1109,16 +1088,14 @@ process_startup_options(Port *port, bool am_superuser)
 	 * Process any additional GUC variable settings passed in startup packet.
 	 * These are handled exactly like command-line variables.
 	 */
-	gucopts = list_head(port->guc_options);
+	ListCell   *gucopts = list_head(port->guc_options);
 	while (gucopts)
 	{
-		char	   *name;
-		char	   *value;
 
-		name = lfirst(gucopts);
+		char	   *name = lfirst(gucopts);
 		gucopts = lnext(port->guc_options, gucopts);
 
-		value = lfirst(gucopts);
+		char	   *value = lfirst(gucopts);
 		gucopts = lnext(port->guc_options, gucopts);
 
 		SetConfigOption(name, value, gucctx, PGC_S_CLIENT);
@@ -1134,16 +1111,14 @@ process_startup_options(Port *port, bool am_superuser)
 static void
 process_settings(Oid databaseid, Oid roleid)
 {
-	Relation	relsetting;
-	Snapshot	snapshot;
 
 	if (!IsUnderPostmaster)
 		return;
 
-	relsetting = table_open(DbRoleSettingRelationId, AccessShareLock);
+	Relation	relsetting = table_open(DbRoleSettingRelationId, AccessShareLock);
 
 	/* read all the settings under the same snapshot for efficiency */
-	snapshot = RegisterSnapshot(GetCatalogSnapshot(DbRoleSettingRelationId));
+	Snapshot	snapshot = RegisterSnapshot(GetCatalogSnapshot(DbRoleSettingRelationId));
 
 	/* Later settings are ignored if set earlier. */
 	ApplySetting(snapshot, databaseid, roleid, relsetting, PGC_S_DATABASE_USER);
@@ -1228,14 +1203,11 @@ IdleInTransactionSessionTimeoutHandler(void)
 static bool
 ThereIsAtLeastOneRole(void)
 {
-	Relation	pg_authid_rel;
-	TableScanDesc scan;
-	bool		result;
 
-	pg_authid_rel = table_open(AuthIdRelationId, AccessShareLock);
+	Relation	pg_authid_rel = table_open(AuthIdRelationId, AccessShareLock);
 
-	scan = table_beginscan_catalog(pg_authid_rel, 0, NULL);
-	result = (heap_getnext(scan, ForwardScanDirection) != NULL);
+	TableScanDesc scan = table_beginscan_catalog(pg_authid_rel, 0, NULL);
+	bool		result = (heap_getnext(scan, ForwardScanDirection) != NULL);
 
 	table_endscan(scan);
 	table_close(pg_authid_rel, AccessShareLock);

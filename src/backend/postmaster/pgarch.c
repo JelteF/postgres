@@ -123,7 +123,6 @@ static void pgarch_archiveDone(char *xlog);
 int
 pgarch_start(void)
 {
-	time_t		curtime;
 	pid_t		pgArchPid;
 
 	/*
@@ -138,7 +137,7 @@ pgarch_start(void)
 	 * dying immediately at launch. Note that since we will be re-called from
 	 * the postmaster main loop, we will get another chance later.
 	 */
-	curtime = time(NULL);
+	time_t		curtime = time(NULL);
 	if ((unsigned int) (curtime - last_pgarch_start_time) <
 		(unsigned int) PGARCH_RESTART_INTERVAL)
 		return 0;
@@ -343,14 +342,12 @@ pgarch_MainLoop(void)
 		if (!time_to_stop)		/* Don't wait during last iteration */
 		{
 			pg_time_t	curtime = (pg_time_t) time(NULL);
-			int			timeout;
 
-			timeout = PGARCH_AUTOWAKE_INTERVAL - (curtime - last_copy_time);
+			int			timeout = PGARCH_AUTOWAKE_INTERVAL - (curtime - last_copy_time);
 			if (timeout > 0)
 			{
-				int			rc;
 
-				rc = WaitLatch(MyLatch,
+				int			rc = WaitLatch(MyLatch,
 							   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
 							   timeout * 1000L,
 							   WAIT_EVENT_ARCHIVER_MAIN);
@@ -513,18 +510,15 @@ pgarch_archiveXlog(char *xlog)
 	char		xlogarchcmd[MAXPGPATH];
 	char		pathname[MAXPGPATH];
 	char		activitymsg[MAXFNAMELEN + 16];
-	char	   *dp;
-	char	   *endp;
 	const char *sp;
-	int			rc;
 
 	snprintf(pathname, MAXPGPATH, XLOGDIR "/%s", xlog);
 
 	/*
 	 * construct the command to be executed
 	 */
-	dp = xlogarchcmd;
-	endp = xlogarchcmd + MAXPGPATH - 1;
+	char	   *dp = xlogarchcmd;
+	char	   *endp = xlogarchcmd + MAXPGPATH - 1;
 	*endp = '\0';
 
 	for (sp = XLogArchiveCommand; *sp; sp++)
@@ -575,7 +569,7 @@ pgarch_archiveXlog(char *xlog)
 	snprintf(activitymsg, sizeof(activitymsg), "archiving %s", xlog);
 	set_ps_display(activitymsg);
 
-	rc = system(xlogarchcmd);
+	int			rc = system(xlogarchcmd);
 	if (rc != 0)
 	{
 		/*
@@ -667,19 +661,17 @@ pgarch_readyXlog(char *xlog)
 	 * of calls, so....
 	 */
 	char		XLogArchiveStatusDir[MAXPGPATH];
-	DIR		   *rldir;
 	struct dirent *rlde;
 	bool		found = false;
 	bool		historyFound = false;
 
 	snprintf(XLogArchiveStatusDir, MAXPGPATH, XLOGDIR "/archive_status");
-	rldir = AllocateDir(XLogArchiveStatusDir);
+	DIR		   *rldir = AllocateDir(XLogArchiveStatusDir);
 
 	while ((rlde = ReadDir(rldir, XLogArchiveStatusDir)) != NULL)
 	{
 		int			basenamelen = (int) strlen(rlde->d_name) - 6;
 		char		basename[MAX_XFN_CHARS + 1];
-		bool		ishistory;
 
 		/* Ignore entries with unexpected number of characters */
 		if (basenamelen < MIN_XFN_CHARS ||
@@ -699,7 +691,7 @@ pgarch_readyXlog(char *xlog)
 		basename[basenamelen] = '\0';
 
 		/* Is this a history file? */
-		ishistory = IsTLHistoryFileName(basename);
+		bool		ishistory = IsTLHistoryFileName(basename);
 
 		/*
 		 * Consume the file to archive.  History files have the highest

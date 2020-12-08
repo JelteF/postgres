@@ -66,16 +66,13 @@ static void
 RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 						  void *arg)
 {
-	HeapTuple	tuple;
-	Form_pg_class classform;
-	char		relkind;
 
-	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tuple))
 		return;
 
-	classform = (Form_pg_class) GETSTRUCT(tuple);
-	relkind = classform->relkind;
+	Form_pg_class classform = (Form_pg_class) GETSTRUCT(tuple);
+	char		relkind = classform->relkind;
 
 	/* Must own relation. */
 	if (!pg_class_ownercheck(relid, GetUserId()))
@@ -194,12 +191,8 @@ policy_role_list_to_array(List *roles, int *num_roles)
 void
 RelationBuildRowSecurity(Relation relation)
 {
-	MemoryContext rscxt;
 	MemoryContext oldcxt = CurrentMemoryContext;
-	RowSecurityDesc *rsdesc;
-	Relation	catalog;
 	ScanKeyData skey;
-	SysScanDesc sscan;
 	HeapTuple	tuple;
 
 	/*
@@ -208,13 +201,13 @@ RelationBuildRowSecurity(Relation relation)
 	 * a relcache flush.  However, to cover the possibility of an error
 	 * partway through, we don't make the context long-lived till we're done.
 	 */
-	rscxt = AllocSetContextCreate(CurrentMemoryContext,
+	MemoryContext rscxt = AllocSetContextCreate(CurrentMemoryContext,
 								  "row security descriptor",
 								  ALLOCSET_SMALL_SIZES);
 	MemoryContextCopyAndSetIdentifier(rscxt,
 									  RelationGetRelationName(relation));
 
-	rsdesc = MemoryContextAllocZero(rscxt, sizeof(RowSecurityDesc));
+	RowSecurityDesc *rsdesc = MemoryContextAllocZero(rscxt, sizeof(RowSecurityDesc));
 	rsdesc->rscxt = rscxt;
 
 	/*
@@ -223,25 +216,23 @@ RelationBuildRowSecurity(Relation relation)
 	 * visit the rel's policies in name order, at least when system indexes
 	 * aren't disabled.  This simplifies equalRSDesc().
 	 */
-	catalog = table_open(PolicyRelationId, AccessShareLock);
+	Relation	catalog = table_open(PolicyRelationId, AccessShareLock);
 
 	ScanKeyInit(&skey,
 				Anum_pg_policy_polrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(relation)));
 
-	sscan = systable_beginscan(catalog, PolicyPolrelidPolnameIndexId, true,
+	SysScanDesc sscan = systable_beginscan(catalog, PolicyPolrelidPolnameIndexId, true,
 							   NULL, 1, &skey);
 
 	while (HeapTupleIsValid(tuple = systable_getnext(sscan)))
 	{
 		Form_pg_policy policy_form = (Form_pg_policy) GETSTRUCT(tuple);
-		RowSecurityPolicy *policy;
-		Datum		datum;
 		bool		isnull;
 		char	   *str_value;
 
-		policy = MemoryContextAllocZero(rscxt, sizeof(RowSecurityPolicy));
+		RowSecurityPolicy *policy = MemoryContextAllocZero(rscxt, sizeof(RowSecurityPolicy));
 
 		/*
 		 * Note: we must be sure that pass-by-reference data gets copied into
@@ -260,7 +251,7 @@ RelationBuildRowSecurity(Relation relation)
 			MemoryContextStrdup(rscxt, NameStr(policy_form->polname));
 
 		/* Get policy roles */
-		datum = heap_getattr(tuple, Anum_pg_policy_polroles,
+		Datum		datum = heap_getattr(tuple, Anum_pg_policy_polroles,
 							 RelationGetDescr(catalog), &isnull);
 		/* shouldn't be null, but let's check for luck */
 		if (isnull)
@@ -333,14 +324,9 @@ RelationBuildRowSecurity(Relation relation)
 void
 RemovePolicyById(Oid policy_id)
 {
-	Relation	pg_policy_rel;
-	SysScanDesc sscan;
 	ScanKeyData skey[1];
-	HeapTuple	tuple;
-	Oid			relid;
-	Relation	rel;
 
-	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
 
 	/*
 	 * Find the policy to delete.
@@ -350,10 +336,10 @@ RemovePolicyById(Oid policy_id)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(policy_id));
 
-	sscan = systable_beginscan(pg_policy_rel, PolicyOidIndexId, true,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel, PolicyOidIndexId, true,
 							   NULL, 1, skey);
 
-	tuple = systable_getnext(sscan);
+	HeapTuple	tuple = systable_getnext(sscan);
 
 	/* If the policy exists, then remove it, otherwise raise an error. */
 	if (!HeapTupleIsValid(tuple))
@@ -365,9 +351,9 @@ RemovePolicyById(Oid policy_id)
 	 * set of policies the rel has; furthermore we've got to hold the lock
 	 * till commit.)
 	 */
-	relid = ((Form_pg_policy) GETSTRUCT(tuple))->polrelid;
+	Oid			relid = ((Form_pg_policy) GETSTRUCT(tuple))->polrelid;
 
-	rel = table_open(relid, AccessExclusiveLock);
+	Relation	rel = table_open(relid, AccessExclusiveLock);
 	if (rel->rd_rel->relkind != RELKIND_RELATION &&
 		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
 		ereport(ERROR,
@@ -418,21 +404,13 @@ RemovePolicyById(Oid policy_id)
 bool
 RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 {
-	Relation	pg_policy_rel;
-	SysScanDesc sscan;
 	ScanKeyData skey[1];
-	HeapTuple	tuple;
-	Oid			relid;
-	Relation	rel;
-	ArrayType  *policy_roles;
-	int			num_roles;
-	Datum		roles_datum;
 	bool		attr_isnull;
 	bool		noperm = true;
 
 	Assert(classid == PolicyRelationId);
 
-	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
 
 	/*
 	 * Find the policy to update.
@@ -442,10 +420,10 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(policy_id));
 
-	sscan = systable_beginscan(pg_policy_rel, PolicyOidIndexId, true,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel, PolicyOidIndexId, true,
 							   NULL, 1, skey);
 
-	tuple = systable_getnext(sscan);
+	HeapTuple	tuple = systable_getnext(sscan);
 
 	/* Raise an error if we don't find the policy. */
 	if (!HeapTupleIsValid(tuple))
@@ -454,9 +432,9 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 	/*
 	 * Open and exclusive-lock the relation the policy belongs to.
 	 */
-	relid = ((Form_pg_policy) GETSTRUCT(tuple))->polrelid;
+	Oid			relid = ((Form_pg_policy) GETSTRUCT(tuple))->polrelid;
 
-	rel = relation_open(relid, AccessExclusiveLock);
+	Relation	rel = relation_open(relid, AccessExclusiveLock);
 
 	if (rel->rd_rel->relkind != RELKIND_RELATION &&
 		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
@@ -472,17 +450,17 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 						RelationGetRelationName(rel))));
 
 	/* Get the current set of roles */
-	roles_datum = heap_getattr(tuple,
+	Datum		roles_datum = heap_getattr(tuple,
 							   Anum_pg_policy_polroles,
 							   RelationGetDescr(pg_policy_rel),
 							   &attr_isnull);
 
 	Assert(!attr_isnull);
 
-	policy_roles = DatumGetArrayTypePCopy(roles_datum);
+	ArrayType  *policy_roles = DatumGetArrayTypePCopy(roles_datum);
 
 	/* We should be removing exactly one entry from the roles array */
-	num_roles = ARR_DIMS(policy_roles)[0] - 1;
+	int			num_roles = ARR_DIMS(policy_roles)[0] - 1;
 
 	Assert(num_roles >= 0);
 
@@ -506,7 +484,6 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 		int			i,
 					j;
 		Oid		   *roles = (Oid *) ARR_DATA_PTR(policy_roles);
-		Datum	   *role_oids;
 		char	   *qual_value;
 		Node	   *qual_expr;
 		List	   *qual_parse_rtable = NIL;
@@ -516,9 +493,6 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 		Datum		values[Natts_pg_policy];
 		bool		isnull[Natts_pg_policy];
 		bool		replaces[Natts_pg_policy];
-		Datum		value_datum;
-		ArrayType  *role_ids;
-		HeapTuple	new_tuple;
 		ObjectAddress target;
 		ObjectAddress myself;
 
@@ -535,14 +509,13 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 		 */
 
 		/* Get policy qual, to update dependencies */
-		value_datum = heap_getattr(tuple, Anum_pg_policy_polqual,
+		Datum		value_datum = heap_getattr(tuple, Anum_pg_policy_polqual,
 								   RelationGetDescr(pg_policy_rel), &attr_isnull);
 		if (!attr_isnull)
 		{
-			ParseState *qual_pstate;
 
 			/* parsestate is built just to build the range table */
-			qual_pstate = make_parsestate(NULL);
+			ParseState *qual_pstate = make_parsestate(NULL);
 
 			qual_value = TextDatumGetCString(value_datum);
 			qual_expr = stringToNode(qual_value);
@@ -563,10 +536,9 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 								   RelationGetDescr(pg_policy_rel), &attr_isnull);
 		if (!attr_isnull)
 		{
-			ParseState *with_check_pstate;
 
 			/* parsestate is built just to build the range table */
-			with_check_pstate = make_parsestate(NULL);
+			ParseState *with_check_pstate = make_parsestate(NULL);
 
 			with_check_value = TextDatumGetCString(value_datum);
 			with_check_qual = stringToNode(with_check_value);
@@ -583,7 +555,7 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 			with_check_qual = NULL;
 
 		/* Rebuild the roles array to then update the pg_policy tuple with */
-		role_oids = (Datum *) palloc(num_roles * sizeof(Datum));
+		Datum	   *role_oids = (Datum *) palloc(num_roles * sizeof(Datum));
 		for (i = 0, j = 0; i < ARR_DIMS(policy_roles)[0]; i++)
 			/* Copy over all of the roles which are not the one being removed */
 			if (roles[i] != roleid)
@@ -593,13 +565,13 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 		Assert(j == num_roles);
 
 		/* This is the array for the new tuple */
-		role_ids = construct_array(role_oids, num_roles, OIDOID,
+		ArrayType  *role_ids = construct_array(role_oids, num_roles, OIDOID,
 								   sizeof(Oid), true, TYPALIGN_INT);
 
 		replaces[Anum_pg_policy_polroles - 1] = true;
 		values[Anum_pg_policy_polroles - 1] = PointerGetDatum(role_ids);
 
-		new_tuple = heap_modify_tuple(tuple,
+		HeapTuple	new_tuple = heap_modify_tuple(tuple,
 									  RelationGetDescr(pg_policy_rel),
 									  values, isnull, replaces);
 		CatalogTupleUpdate(pg_policy_rel, &new_tuple->t_self, new_tuple);
@@ -669,22 +641,9 @@ RemoveRoleFromObjectPolicy(Oid roleid, Oid classid, Oid policy_id)
 ObjectAddress
 CreatePolicy(CreatePolicyStmt *stmt)
 {
-	Relation	pg_policy_rel;
-	Oid			policy_id;
-	Relation	target_table;
-	Oid			table_id;
-	char		polcmd;
-	Datum	   *role_oids;
 	int			nitems = 0;
-	ArrayType  *role_ids;
-	ParseState *qual_pstate;
-	ParseState *with_check_pstate;
-	ParseNamespaceItem *nsitem;
 	Node	   *qual;
-	Node	   *with_check_qual;
 	ScanKeyData skey[2];
-	SysScanDesc sscan;
-	HeapTuple	policy_tuple;
 	Datum		values[Natts_pg_policy];
 	bool		isnull[Natts_pg_policy];
 	ObjectAddress target;
@@ -692,7 +651,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	int			i;
 
 	/* Parse command */
-	polcmd = parse_policy_command(stmt->cmd_name);
+	char		polcmd = parse_policy_command(stmt->cmd_name);
 
 	/*
 	 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
@@ -713,29 +672,29 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				 errmsg("only WITH CHECK expression allowed for INSERT")));
 
 	/* Collect role ids */
-	role_oids = policy_role_list_to_array(stmt->roles, &nitems);
-	role_ids = construct_array(role_oids, nitems, OIDOID,
+	Datum	   *role_oids = policy_role_list_to_array(stmt->roles, &nitems);
+	ArrayType  *role_ids = construct_array(role_oids, nitems, OIDOID,
 							   sizeof(Oid), true, TYPALIGN_INT);
 
 	/* Parse the supplied clause */
-	qual_pstate = make_parsestate(NULL);
-	with_check_pstate = make_parsestate(NULL);
+	ParseState *qual_pstate = make_parsestate(NULL);
+	ParseState *with_check_pstate = make_parsestate(NULL);
 
 	/* zero-clear */
 	memset(values, 0, sizeof(values));
 	memset(isnull, 0, sizeof(isnull));
 
 	/* Get id of table.  Also handles permissions checks. */
-	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
+	Oid			table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										0,
 										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
 	/* Open target_table to build quals. No additional lock is necessary. */
-	target_table = relation_open(table_id, NoLock);
+	Relation	target_table = relation_open(table_id, NoLock);
 
 	/* Add for the regular security quals */
-	nsitem = addRangeTableEntryForRelation(qual_pstate, target_table,
+	ParseNamespaceItem *nsitem = addRangeTableEntryForRelation(qual_pstate, target_table,
 										   AccessShareLock,
 										   NULL, false, false);
 	addNSItemToQuery(qual_pstate, nsitem, false, true, true);
@@ -751,7 +710,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 								EXPR_KIND_POLICY,
 								"POLICY");
 
-	with_check_qual = transformWhereClause(with_check_pstate,
+	Node	   *with_check_qual = transformWhereClause(with_check_pstate,
 										   copyObject(stmt->with_check),
 										   EXPR_KIND_POLICY,
 										   "POLICY");
@@ -761,7 +720,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	assign_expr_collations(with_check_pstate, with_check_qual);
 
 	/* Open pg_policy catalog */
-	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
 
 	/* Set key - policy's relation id. */
 	ScanKeyInit(&skey[0],
@@ -775,11 +734,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->policy_name));
 
-	sscan = systable_beginscan(pg_policy_rel,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel,
 							   PolicyPolrelidPolnameIndexId, true, NULL, 2,
 							   skey);
 
-	policy_tuple = systable_getnext(sscan);
+	HeapTuple	policy_tuple = systable_getnext(sscan);
 
 	/* Complain if the policy name already exists for the table */
 	if (HeapTupleIsValid(policy_tuple))
@@ -788,7 +747,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				 errmsg("policy \"%s\" for table \"%s\" already exists",
 						stmt->policy_name, RelationGetRelationName(target_table))));
 
-	policy_id = GetNewOidWithIndex(pg_policy_rel, PolicyOidIndexId,
+	Oid			policy_id = GetNewOidWithIndex(pg_policy_rel, PolicyOidIndexId,
 								   Anum_pg_policy_oid);
 	values[Anum_pg_policy_oid - 1] = ObjectIdGetDatum(policy_id);
 	values[Anum_pg_policy_polrelid - 1] = ObjectIdGetDatum(table_id);
@@ -869,10 +828,6 @@ CreatePolicy(CreatePolicyStmt *stmt)
 ObjectAddress
 AlterPolicy(AlterPolicyStmt *stmt)
 {
-	Relation	pg_policy_rel;
-	Oid			policy_id;
-	Relation	target_table;
-	Oid			table_id;
 	Datum	   *role_oids = NULL;
 	int			nitems = 0;
 	ArrayType  *role_ids = NULL;
@@ -881,16 +836,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Node	   *qual = NULL;
 	Node	   *with_check_qual = NULL;
 	ScanKeyData skey[2];
-	SysScanDesc sscan;
-	HeapTuple	policy_tuple;
-	HeapTuple	new_tuple;
 	Datum		values[Natts_pg_policy];
 	bool		isnull[Natts_pg_policy];
 	bool		replaces[Natts_pg_policy];
 	ObjectAddress target;
 	ObjectAddress myself;
-	Datum		polcmd_datum;
-	char		polcmd;
 	bool		polcmd_isnull;
 	int			i;
 
@@ -903,20 +853,19 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	}
 
 	/* Get id of table.  Also handles permissions checks. */
-	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
+	Oid			table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										0,
 										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
-	target_table = relation_open(table_id, NoLock);
+	Relation	target_table = relation_open(table_id, NoLock);
 
 	/* Parse the using policy clause */
 	if (stmt->qual)
 	{
-		ParseNamespaceItem *nsitem;
 		ParseState *qual_pstate = make_parsestate(NULL);
 
-		nsitem = addRangeTableEntryForRelation(qual_pstate, target_table,
+		ParseNamespaceItem *nsitem = addRangeTableEntryForRelation(qual_pstate, target_table,
 											   AccessShareLock,
 											   NULL, false, false);
 
@@ -936,10 +885,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* Parse the with-check policy clause */
 	if (stmt->with_check)
 	{
-		ParseNamespaceItem *nsitem;
 		ParseState *with_check_pstate = make_parsestate(NULL);
 
-		nsitem = addRangeTableEntryForRelation(with_check_pstate, target_table,
+		ParseNamespaceItem *nsitem = addRangeTableEntryForRelation(with_check_pstate, target_table,
 											   AccessShareLock,
 											   NULL, false, false);
 
@@ -963,7 +911,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	memset(isnull, 0, sizeof(isnull));
 
 	/* Find policy to update. */
-	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
 
 	/* Set key - policy's relation id. */
 	ScanKeyInit(&skey[0],
@@ -977,11 +925,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->policy_name));
 
-	sscan = systable_beginscan(pg_policy_rel,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel,
 							   PolicyPolrelidPolnameIndexId, true, NULL, 2,
 							   skey);
 
-	policy_tuple = systable_getnext(sscan);
+	HeapTuple	policy_tuple = systable_getnext(sscan);
 
 	/* Check that the policy is found, raise an error if not. */
 	if (!HeapTupleIsValid(policy_tuple))
@@ -992,11 +940,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 						RelationGetRelationName(target_table))));
 
 	/* Get policy command */
-	polcmd_datum = heap_getattr(policy_tuple, Anum_pg_policy_polcmd,
+	Datum		polcmd_datum = heap_getattr(policy_tuple, Anum_pg_policy_polcmd,
 								RelationGetDescr(pg_policy_rel),
 								&polcmd_isnull);
 	Assert(!polcmd_isnull);
-	polcmd = DatumGetChar(polcmd_datum);
+	char		polcmd = DatumGetChar(polcmd_datum);
 
 	/*
 	 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
@@ -1017,7 +965,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 				(errcode(ERRCODE_SYNTAX_ERROR),
 				 errmsg("only WITH CHECK expression allowed for INSERT")));
 
-	policy_id = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
+	Oid			policy_id = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
 
 	if (role_ids != NULL)
 	{
@@ -1026,10 +974,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	}
 	else
 	{
-		Oid		   *roles;
-		Datum		roles_datum;
 		bool		attr_isnull;
-		ArrayType  *policy_roles;
 
 		/*
 		 * We need to pull the set of roles this policy applies to from what's
@@ -1037,14 +982,14 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		 * for the policy.
 		 */
 
-		roles_datum = heap_getattr(policy_tuple, Anum_pg_policy_polroles,
+		Datum		roles_datum = heap_getattr(policy_tuple, Anum_pg_policy_polroles,
 								   RelationGetDescr(pg_policy_rel),
 								   &attr_isnull);
 		Assert(!attr_isnull);
 
-		policy_roles = DatumGetArrayTypePCopy(roles_datum);
+		ArrayType  *policy_roles = DatumGetArrayTypePCopy(roles_datum);
 
-		roles = (Oid *) ARR_DATA_PTR(policy_roles);
+		Oid		   *roles = (Oid *) ARR_DATA_PTR(policy_roles);
 
 		nitems = ARR_DIMS(policy_roles)[0];
 
@@ -1062,7 +1007,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	}
 	else
 	{
-		Datum		value_datum;
 		bool		attr_isnull;
 
 		/*
@@ -1072,18 +1016,16 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		 */
 
 		/* Check if the policy has a USING expr */
-		value_datum = heap_getattr(policy_tuple, Anum_pg_policy_polqual,
+		Datum		value_datum = heap_getattr(policy_tuple, Anum_pg_policy_polqual,
 								   RelationGetDescr(pg_policy_rel),
 								   &attr_isnull);
 		if (!attr_isnull)
 		{
-			char	   *qual_value;
-			ParseState *qual_pstate;
 
 			/* parsestate is built just to build the range table */
-			qual_pstate = make_parsestate(NULL);
+			ParseState *qual_pstate = make_parsestate(NULL);
 
-			qual_value = TextDatumGetCString(value_datum);
+			char	   *qual_value = TextDatumGetCString(value_datum);
 			qual = stringToNode(qual_value);
 
 			/* Add this rel to the parsestate's rangetable, for dependencies */
@@ -1104,7 +1046,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	}
 	else
 	{
-		Datum		value_datum;
 		bool		attr_isnull;
 
 		/*
@@ -1114,18 +1055,16 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		 */
 
 		/* Check if the policy has a WITH CHECK expr */
-		value_datum = heap_getattr(policy_tuple, Anum_pg_policy_polwithcheck,
+		Datum		value_datum = heap_getattr(policy_tuple, Anum_pg_policy_polwithcheck,
 								   RelationGetDescr(pg_policy_rel),
 								   &attr_isnull);
 		if (!attr_isnull)
 		{
-			char	   *with_check_value;
-			ParseState *with_check_pstate;
 
 			/* parsestate is built just to build the range table */
-			with_check_pstate = make_parsestate(NULL);
+			ParseState *with_check_pstate = make_parsestate(NULL);
 
-			with_check_value = TextDatumGetCString(value_datum);
+			char	   *with_check_value = TextDatumGetCString(value_datum);
 			with_check_qual = stringToNode(with_check_value);
 
 			/* Add this rel to the parsestate's rangetable, for dependencies */
@@ -1139,7 +1078,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		}
 	}
 
-	new_tuple = heap_modify_tuple(policy_tuple,
+	HeapTuple	new_tuple = heap_modify_tuple(policy_tuple,
 								  RelationGetDescr(pg_policy_rel),
 								  values, isnull, replaces);
 	CatalogTupleUpdate(pg_policy_rel, &new_tuple->t_self, new_tuple);
@@ -1198,24 +1137,18 @@ AlterPolicy(AlterPolicyStmt *stmt)
 ObjectAddress
 rename_policy(RenameStmt *stmt)
 {
-	Relation	pg_policy_rel;
-	Relation	target_table;
-	Oid			table_id;
-	Oid			opoloid;
 	ScanKeyData skey[2];
-	SysScanDesc sscan;
-	HeapTuple	policy_tuple;
 	ObjectAddress address;
 
 	/* Get id of table.  Also handles permissions checks. */
-	table_id = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
+	Oid			table_id = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
 										0,
 										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
-	target_table = relation_open(table_id, NoLock);
+	Relation	target_table = relation_open(table_id, NoLock);
 
-	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, RowExclusiveLock);
 
 	/* First pass -- check for conflict */
 
@@ -1231,7 +1164,7 @@ rename_policy(RenameStmt *stmt)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->newname));
 
-	sscan = systable_beginscan(pg_policy_rel,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel,
 							   PolicyPolrelidPolnameIndexId, true, NULL, 2,
 							   skey);
 
@@ -1260,7 +1193,7 @@ rename_policy(RenameStmt *stmt)
 							   PolicyPolrelidPolnameIndexId, true, NULL, 2,
 							   skey);
 
-	policy_tuple = systable_getnext(sscan);
+	HeapTuple	policy_tuple = systable_getnext(sscan);
 
 	/* Complain if we did not find the policy */
 	if (!HeapTupleIsValid(policy_tuple))
@@ -1269,7 +1202,7 @@ rename_policy(RenameStmt *stmt)
 				 errmsg("policy \"%s\" for table \"%s\" does not exist",
 						stmt->subname, RelationGetRelationName(target_table))));
 
-	opoloid = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
+	Oid			opoloid = ((Form_pg_policy) GETSTRUCT(policy_tuple))->oid;
 
 	policy_tuple = heap_copytuple(policy_tuple);
 
@@ -1306,13 +1239,10 @@ rename_policy(RenameStmt *stmt)
 Oid
 get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 {
-	Relation	pg_policy_rel;
 	ScanKeyData skey[2];
-	SysScanDesc sscan;
-	HeapTuple	policy_tuple;
 	Oid			policy_oid;
 
-	pg_policy_rel = table_open(PolicyRelationId, AccessShareLock);
+	Relation	pg_policy_rel = table_open(PolicyRelationId, AccessShareLock);
 
 	/* Add key - policy's relation id. */
 	ScanKeyInit(&skey[0],
@@ -1326,11 +1256,11 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(policy_name));
 
-	sscan = systable_beginscan(pg_policy_rel,
+	SysScanDesc sscan = systable_beginscan(pg_policy_rel,
 							   PolicyPolrelidPolnameIndexId, true, NULL, 2,
 							   skey);
 
-	policy_tuple = systable_getnext(sscan);
+	HeapTuple	policy_tuple = systable_getnext(sscan);
 
 	if (!HeapTupleIsValid(policy_tuple))
 	{
@@ -1358,20 +1288,17 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 bool
 relation_has_policies(Relation rel)
 {
-	Relation	catalog;
 	ScanKeyData skey;
-	SysScanDesc sscan;
-	HeapTuple	policy_tuple;
 	bool		ret = false;
 
-	catalog = table_open(PolicyRelationId, AccessShareLock);
+	Relation	catalog = table_open(PolicyRelationId, AccessShareLock);
 	ScanKeyInit(&skey,
 				Anum_pg_policy_polrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(rel)));
-	sscan = systable_beginscan(catalog, PolicyPolrelidPolnameIndexId, true,
+	SysScanDesc sscan = systable_beginscan(catalog, PolicyPolrelidPolnameIndexId, true,
 							   NULL, 1, &skey);
-	policy_tuple = systable_getnext(sscan);
+	HeapTuple	policy_tuple = systable_getnext(sscan);
 	if (HeapTupleIsValid(policy_tuple))
 		ret = true;
 

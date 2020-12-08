@@ -408,9 +408,8 @@ buildDefaultACLCommands(const char *type, const char *nspname,
 						int remoteVersion,
 						PQExpBuffer sql)
 {
-	PQExpBuffer prefix;
 
-	prefix = createPQExpBuffer();
+	PQExpBuffer prefix = createPQExpBuffer();
 
 	/*
 	 * We incorporate the target role directly into the command, rather than
@@ -474,17 +473,14 @@ parseAclItem(const char *item, const char *type,
 			 PQExpBuffer grantee, PQExpBuffer grantor,
 			 PQExpBuffer privs, PQExpBuffer privswgo)
 {
-	char	   *buf;
 	bool		all_with_go = true;
 	bool		all_without_go = true;
-	char	   *eqpos;
-	char	   *slpos;
 	char	   *pos;
 
-	buf = pg_strdup(item);
+	char	   *buf = pg_strdup(item);
 
 	/* user or group name is string up to = */
-	eqpos = copyAclUserName(grantee, buf);
+	char	   *eqpos = copyAclUserName(grantee, buf);
 	if (*eqpos != '=')
 	{
 		pg_free(buf);
@@ -492,7 +488,7 @@ parseAclItem(const char *item, const char *type,
 	}
 
 	/* grantor should appear after / */
-	slpos = strchr(eqpos + 1, '/');
+	char	   *slpos = strchr(eqpos + 1, '/');
 	if (slpos)
 	{
 		*slpos++ = '\0';
@@ -1002,12 +998,10 @@ makeAlterConfigCommand(PGconn *conn, const char *configitem,
 					   const char *type2, const char *name2,
 					   PQExpBuffer buf)
 {
-	char	   *mine;
-	char	   *pos;
 
 	/* Parse the configitem.  If we can't find an "=", silently do nothing. */
-	mine = pg_strdup(configitem);
-	pos = strchr(mine, '=');
+	char	   *mine = pg_strdup(configitem);
+	char	   *pos = strchr(mine, '=');
 	if (pos == NULL)
 	{
 		pg_free(mine);

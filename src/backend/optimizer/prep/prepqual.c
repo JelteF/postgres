@@ -291,7 +291,6 @@ negate_clause(Node *node)
 Expr *
 canonicalize_qual(Expr *qual, bool is_check)
 {
-	Expr	   *newqual;
 
 	/* Quick exit for empty qual */
 	if (qual == NULL)
@@ -305,7 +304,7 @@ canonicalize_qual(Expr *qual, bool is_check)
 	 * within the top-level AND/OR structure; there's no point in looking
 	 * deeper.  Also remove any NULL constants in the top-level structure.
 	 */
-	newqual = find_duplicate_ors(qual, is_check);
+	Expr	   *newqual = find_duplicate_ors(qual, is_check);
 
 	return newqual;
 }
@@ -517,8 +516,6 @@ process_duplicate_ors(List *orlist)
 {
 	List	   *reference = NIL;
 	int			num_subclauses = 0;
-	List	   *winners;
-	List	   *neworlist;
 	ListCell   *temp;
 
 	/* OR of no inputs reduces to FALSE */
@@ -566,7 +563,7 @@ process_duplicate_ors(List *orlist)
 	 * Check each element of the reference list to see if it's in all the OR
 	 * clauses.  Build a new list of winning clauses.
 	 */
-	winners = NIL;
+	List	   *winners = NIL;
 	foreach(temp, reference)
 	{
 		Expr	   *refclause = (Expr *) lfirst(temp);
@@ -615,7 +612,7 @@ process_duplicate_ors(List *orlist)
 	 * Note that because we use list_difference, any multiple occurrences of a
 	 * winning clause in an AND sub-clause will be removed automatically.
 	 */
-	neworlist = NIL;
+	List	   *neworlist = NIL;
 	foreach(temp, orlist)
 	{
 		Expr	   *clause = (Expr *) lfirst(temp);

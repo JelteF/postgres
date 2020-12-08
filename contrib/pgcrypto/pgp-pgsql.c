@@ -67,15 +67,13 @@ static text *
 convert_charset(text *src, int cset_from, int cset_to)
 {
 	int			src_len = VARSIZE_ANY_EXHDR(src);
-	unsigned char *dst;
 	unsigned char *csrc = (unsigned char *) VARDATA_ANY(src);
-	text	   *res;
 
-	dst = pg_do_encoding_conversion(csrc, src_len, cset_from, cset_to);
+	unsigned char *dst = pg_do_encoding_conversion(csrc, src_len, cset_from, cset_to);
 	if (dst == csrc)
 		return src;
 
-	res = cstring_to_text((char *) dst);
+	text	   *res = cstring_to_text((char *) dst);
 	pfree(dst);
 	return res;
 }
@@ -388,8 +386,6 @@ encrypt_internal(int is_pubenc, int is_text,
 			   *dst;
 	uint8		tmp[VARHDRSZ];
 	uint8	   *restmp;
-	bytea	   *res;
-	int			res_len;
 	PGP_Context *ctx;
 	int			err;
 	struct debug_expect ex;
@@ -451,8 +447,8 @@ encrypt_internal(int is_pubenc, int is_text,
 	}
 
 	/* res_len includes VARHDRSZ */
-	res_len = mbuf_steal_data(dst, &restmp);
-	res = (bytea *) restmp;
+	int			res_len = mbuf_steal_data(dst, &restmp);
+	bytea	   *res = (bytea *) restmp;
 	SET_VARSIZE(res, res_len);
 
 	if (tmp_data)
@@ -475,8 +471,6 @@ decrypt_internal(int is_pubenc, int need_text, text *data,
 			   *dst = NULL;
 	uint8		tmp[VARHDRSZ];
 	uint8	   *restmp;
-	bytea	   *res;
-	int			res_len;
 	PGP_Context *ctx = NULL;
 	struct debug_expect ex;
 	int			got_unicode = 0;
@@ -500,14 +494,13 @@ decrypt_internal(int is_pubenc, int need_text, text *data,
 	{
 		uint8	   *psw = NULL;
 		int			psw_len = 0;
-		MBuf	   *kbuf;
 
 		if (keypsw)
 		{
 			psw = (uint8 *) VARDATA_ANY(keypsw);
 			psw_len = VARSIZE_ANY_EXHDR(keypsw);
 		}
-		kbuf = create_mbuf_from_vardata(key);
+		MBuf	   *kbuf = create_mbuf_from_vardata(key);
 		err = pgp_set_pubkey(ctx, kbuf, psw, psw_len, 1);
 		mbuf_free(kbuf);
 	}
@@ -537,11 +530,11 @@ decrypt_internal(int is_pubenc, int need_text, text *data,
 		px_THROW_ERROR(err);
 	}
 
-	res_len = mbuf_steal_data(dst, &restmp);
+	int			res_len = mbuf_steal_data(dst, &restmp);
 	mbuf_free(dst);
 
 	/* res_len includes VARHDRSZ */
-	res = (bytea *) restmp;
+	bytea	   *res = (bytea *) restmp;
 	SET_VARSIZE(res, res_len);
 
 	if (need_text && got_unicode)
@@ -568,14 +561,13 @@ pgp_sym_encrypt_bytea(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = encrypt_internal(0, 0, data, key, arg);
+	text	   *res = encrypt_internal(0, 0, data, key, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -590,14 +582,13 @@ pgp_sym_encrypt_text(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = encrypt_internal(0, 1, data, key, arg);
+	text	   *res = encrypt_internal(0, 1, data, key, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -613,14 +604,13 @@ pgp_sym_decrypt_bytea(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = decrypt_internal(0, 0, data, key, NULL, arg);
+	text	   *res = decrypt_internal(0, 0, data, key, NULL, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -635,14 +625,13 @@ pgp_sym_decrypt_text(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = decrypt_internal(0, 1, data, key, NULL, arg);
+	text	   *res = decrypt_internal(0, 1, data, key, NULL, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -661,14 +650,13 @@ pgp_pub_encrypt_bytea(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = encrypt_internal(1, 0, data, key, arg);
+	text	   *res = encrypt_internal(1, 0, data, key, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -683,14 +671,13 @@ pgp_pub_encrypt_text(PG_FUNCTION_ARGS)
 	bytea	   *data,
 			   *key;
 	text	   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
 	if (PG_NARGS() > 2)
 		arg = PG_GETARG_BYTEA_PP(2);
 
-	res = encrypt_internal(1, 1, data, key, arg);
+	text	   *res = encrypt_internal(1, 1, data, key, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -707,7 +694,6 @@ pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
 			   *key;
 	text	   *psw = NULL,
 			   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
@@ -716,7 +702,7 @@ pgp_pub_decrypt_bytea(PG_FUNCTION_ARGS)
 	if (PG_NARGS() > 3)
 		arg = PG_GETARG_BYTEA_PP(3);
 
-	res = decrypt_internal(1, 0, data, key, psw, arg);
+	text	   *res = decrypt_internal(1, 0, data, key, psw, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -734,7 +720,6 @@ pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
 			   *key;
 	text	   *psw = NULL,
 			   *arg = NULL;
-	text	   *res;
 
 	data = PG_GETARG_BYTEA_PP(0);
 	key = PG_GETARG_BYTEA_PP(1);
@@ -743,7 +728,7 @@ pgp_pub_decrypt_text(PG_FUNCTION_ARGS)
 	if (PG_NARGS() > 3)
 		arg = PG_GETARG_BYTEA_PP(3);
 
-	res = decrypt_internal(1, 1, data, key, psw, arg);
+	text	   *res = decrypt_internal(1, 1, data, key, psw, arg);
 
 	PG_FREE_IF_COPY(data, 0);
 	PG_FREE_IF_COPY(key, 1);
@@ -804,7 +789,6 @@ parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
 
 	for (i = 0; i < key_count; i++)
 	{
-		char	   *v;
 
 		/* Check that the key doesn't contain anything funny */
 		if (key_nulls[i])
@@ -812,7 +796,7 @@ parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
 					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
 					 errmsg("null value not allowed for header key")));
 
-		v = TextDatumGetCString(key_datums[i]);
+		char	   *v = TextDatumGetCString(key_datums[i]);
 
 		if (!string_is_ascii(v))
 			ereport(ERROR,
@@ -856,16 +840,13 @@ parse_key_value_arrays(ArrayType *key_array, ArrayType *val_array,
 Datum
 pg_armor(PG_FUNCTION_ARGS)
 {
-	bytea	   *data;
-	text	   *res;
-	int			data_len;
 	StringInfoData buf;
 	int			num_headers;
 	char	  **keys = NULL,
 			  **values = NULL;
 
-	data = PG_GETARG_BYTEA_PP(0);
-	data_len = VARSIZE_ANY_EXHDR(data);
+	bytea	   *data = PG_GETARG_BYTEA_PP(0);
+	int			data_len = VARSIZE_ANY_EXHDR(data);
 	if (PG_NARGS() == 3)
 	{
 		num_headers = parse_key_value_arrays(PG_GETARG_ARRAYTYPE_P(1),
@@ -882,7 +863,7 @@ pg_armor(PG_FUNCTION_ARGS)
 	pgp_armor_encode((uint8 *) VARDATA_ANY(data), data_len, &buf,
 					 num_headers, keys, values);
 
-	res = palloc(VARHDRSZ + buf.len);
+	text	   *res = palloc(VARHDRSZ + buf.len);
 	SET_VARSIZE(res, VARHDRSZ + buf.len);
 	memcpy(VARDATA(res), buf.data, buf.len);
 	pfree(buf.data);
@@ -894,21 +875,17 @@ pg_armor(PG_FUNCTION_ARGS)
 Datum
 pg_dearmor(PG_FUNCTION_ARGS)
 {
-	text	   *data;
-	bytea	   *res;
-	int			data_len;
-	int			ret;
 	StringInfoData buf;
 
-	data = PG_GETARG_TEXT_PP(0);
-	data_len = VARSIZE_ANY_EXHDR(data);
+	text	   *data = PG_GETARG_TEXT_PP(0);
+	int			data_len = VARSIZE_ANY_EXHDR(data);
 
 	initStringInfo(&buf);
 
-	ret = pgp_armor_decode((uint8 *) VARDATA_ANY(data), data_len, &buf);
+	int			ret = pgp_armor_decode((uint8 *) VARDATA_ANY(data), data_len, &buf);
 	if (ret < 0)
 		px_THROW_ERROR(ret);
-	res = palloc(VARHDRSZ + buf.len);
+	bytea	   *res = palloc(VARHDRSZ + buf.len);
 	SET_VARSIZE(res, VARHDRSZ + buf.len);
 	memcpy(VARDATA(res), buf.data, buf.len);
 	pfree(buf.data);
@@ -939,13 +916,11 @@ pgp_armor_headers(PG_FUNCTION_ARGS)
 	if (SRF_IS_FIRSTCALL())
 	{
 		text	   *data = PG_GETARG_TEXT_PP(0);
-		int			res;
-		MemoryContext oldcontext;
 
 		funcctx = SRF_FIRSTCALL_INIT();
 
 		/* we need the state allocated in the multi call context */
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
 		/* Build a tuple descriptor for our result type */
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -956,7 +931,7 @@ pgp_armor_headers(PG_FUNCTION_ARGS)
 
 		state = (pgp_armor_headers_state *) palloc(sizeof(pgp_armor_headers_state));
 
-		res = pgp_extract_armor_headers((uint8 *) VARDATA_ANY(data),
+		int			res = pgp_extract_armor_headers((uint8 *) VARDATA_ANY(data),
 										VARSIZE_ANY_EXHDR(data),
 										&state->nheaders, &state->keys,
 										&state->values);
@@ -998,16 +973,12 @@ pgp_armor_headers(PG_FUNCTION_ARGS)
 Datum
 pgp_key_id_w(PG_FUNCTION_ARGS)
 {
-	bytea	   *data;
-	text	   *res;
-	int			res_len;
-	MBuf	   *buf;
 
-	data = PG_GETARG_BYTEA_PP(0);
-	buf = create_mbuf_from_vardata(data);
-	res = palloc(VARHDRSZ + 17);
+	bytea	   *data = PG_GETARG_BYTEA_PP(0);
+	MBuf	   *buf = create_mbuf_from_vardata(data);
+	text	   *res = palloc(VARHDRSZ + 17);
 
-	res_len = pgp_get_keyid(buf, VARDATA(res));
+	int			res_len = pgp_get_keyid(buf, VARDATA(res));
 	mbuf_free(buf);
 	if (res_len < 0)
 		px_THROW_ERROR(res_len);

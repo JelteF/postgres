@@ -110,8 +110,6 @@ GetConnection(UserMapping *user, bool will_prep_stmt)
 {
 	bool		found;
 	bool		retry = false;
-	ConnCacheEntry *entry;
-	ConnCacheKey key;
 	MemoryContext ccxt = CurrentMemoryContext;
 
 	/* First time through, initialize connection cache hashtable */
@@ -144,12 +142,12 @@ GetConnection(UserMapping *user, bool will_prep_stmt)
 	xact_got_connection = true;
 
 	/* Create hash key for the entry.  Assume no pad bytes in key struct */
-	key = user->umid;
+	ConnCacheKey key = user->umid;
 
 	/*
 	 * Find or create cached entry for requested connection.
 	 */
-	entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
+	ConnCacheEntry *entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
 	if (!found)
 	{
 		/*
@@ -303,9 +301,6 @@ connect_pg_server(ForeignServer *server, UserMapping *user)
 	 */
 	PG_TRY();
 	{
-		const char **keywords;
-		const char **values;
-		int			n;
 
 		/*
 		 * Construct connection params from generic options of ForeignServer
@@ -313,9 +308,9 @@ connect_pg_server(ForeignServer *server, UserMapping *user)
 		 * which case we'll just waste a few array slots.)  Add 3 extra slots
 		 * for fallback_application_name, client_encoding, end marker.
 		 */
-		n = list_length(server->options) + list_length(user->options) + 3;
-		keywords = (const char **) palloc(n * sizeof(char *));
-		values = (const char **) palloc(n * sizeof(char *));
+		int			n = list_length(server->options) + list_length(user->options) + 3;
+		const char **keywords = (const char **) palloc(n * sizeof(char *));
+		const char **values = (const char **) palloc(n * sizeof(char *));
 
 		n = 0;
 		n += ExtractConnectionOptions(server->options,
@@ -527,11 +522,10 @@ configure_remote_session(PGconn *conn)
 static void
 do_sql_command(PGconn *conn, const char *sql)
 {
-	PGresult   *res;
 
 	if (!PQsendQuery(conn, sql))
 		pgfdw_report_error(ERROR, NULL, conn, false, sql);
-	res = pgfdw_get_result(conn, sql);
+	PGresult   *res = pgfdw_get_result(conn, sql);
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		pgfdw_report_error(ERROR, res, conn, true, sql);
 	PQclear(res);
@@ -672,14 +666,12 @@ pgfdw_get_result(PGconn *conn, const char *query)
 	{
 		for (;;)
 		{
-			PGresult   *res;
 
 			while (PQisBusy(conn))
 			{
-				int			wc;
 
 				/* Sleep until there's something to do */
-				wc = WaitLatchOrSocket(MyLatch,
+				int			wc = WaitLatchOrSocket(MyLatch,
 									   WL_LATCH_SET | WL_SOCKET_READABLE |
 									   WL_EXIT_ON_PM_DEATH,
 									   PQsocket(conn),
@@ -696,7 +688,7 @@ pgfdw_get_result(PGconn *conn, const char *query)
 				}
 			}
 
-			res = PQgetResult(conn);
+			PGresult   *res = PQgetResult(conn);
 			if (res == NULL)
 				break;			/* query is complete */
 
@@ -975,7 +967,6 @@ pgfdw_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
 {
 	HASH_SEQ_STATUS scan;
 	ConnCacheEntry *entry;
-	int			curlevel;
 
 	/* Nothing to do at subxact start, nor after commit. */
 	if (!(event == SUBXACT_EVENT_PRE_COMMIT_SUB ||
@@ -990,7 +981,7 @@ pgfdw_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
 	 * Scan all connection cache entries to find open remote subtransactions
 	 * of the current level, and close them.
 	 */
-	curlevel = GetCurrentTransactionNestLevel();
+	int			curlevel = GetCurrentTransactionNestLevel();
 	hash_seq_init(&scan, ConnectionHash);
 	while ((entry = (ConnCacheEntry *) hash_seq_search(&scan)))
 	{
@@ -1122,9 +1113,6 @@ pgfdw_inval_callback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 pgfdw_reject_incomplete_xact_state_change(ConnCacheEntry *entry)
 {
-	HeapTuple	tup;
-	Form_pg_user_mapping umform;
-	ForeignServer *server;
 
 	/* nothing to do for inactive entries and entries of sane state */
 	if (entry->conn == NULL || !entry->changing_xact_state)
@@ -1134,12 +1122,12 @@ pgfdw_reject_incomplete_xact_state_change(ConnCacheEntry *entry)
 	disconnect_pg_server(entry);
 
 	/* find server name to be shown in the message below */
-	tup = SearchSysCache1(USERMAPPINGOID,
+	HeapTuple	tup = SearchSysCache1(USERMAPPINGOID,
 						  ObjectIdGetDatum(entry->key));
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for user mapping %u", entry->key);
-	umform = (Form_pg_user_mapping) GETSTRUCT(tup);
-	server = GetForeignServer(umform->umserver);
+	Form_pg_user_mapping umform = (Form_pg_user_mapping) GETSTRUCT(tup);
+	ForeignServer *server = GetForeignServer(umform->umserver);
 	ReleaseSysCache(tup);
 
 	ereport(ERROR,
@@ -1159,13 +1147,12 @@ pgfdw_cancel_query(PGconn *conn)
 	PGcancel   *cancel;
 	char		errbuf[256];
 	PGresult   *result = NULL;
-	TimestampTz endtime;
 
 	/*
 	 * If it takes too long to cancel the query and discard the result, assume
 	 * the connection is dead.
 	 */
-	endtime = TimestampTzPlusMilliseconds(GetCurrentTimestamp(), 30000);
+	TimestampTz endtime = TimestampTzPlusMilliseconds(GetCurrentTimestamp(), 30000);
 
 	/*
 	 * Issue cancel request.  Unfortunately, there's no good way to limit the
@@ -1204,7 +1191,6 @@ static bool
 pgfdw_exec_cleanup_query(PGconn *conn, const char *query, bool ignore_errors)
 {
 	PGresult   *result = NULL;
-	TimestampTz endtime;
 
 	/*
 	 * If it takes too long to execute a cleanup query, assume the connection
@@ -1212,7 +1198,7 @@ pgfdw_exec_cleanup_query(PGconn *conn, const char *query, bool ignore_errors)
 	 * place (e.g. statement timeout, user cancel), so the timeout shouldn't
 	 * be too long.
 	 */
-	endtime = TimestampTzPlusMilliseconds(GetCurrentTimestamp(), 30000);
+	TimestampTz endtime = TimestampTzPlusMilliseconds(GetCurrentTimestamp(), 30000);
 
 	/*
 	 * Submit a query.  Since we don't use non-blocking mode, this also can
@@ -1271,10 +1257,9 @@ pgfdw_get_cleanup_result(PGconn *conn, TimestampTz endtime, PGresult **result)
 			{
 				int			wc;
 				TimestampTz now = GetCurrentTimestamp();
-				long		cur_timeout;
 
 				/* If timeout has expired, give up, else get sleep time. */
-				cur_timeout = TimestampDifferenceMilliseconds(now, endtime);
+				long		cur_timeout = TimestampDifferenceMilliseconds(now, endtime);
 				if (cur_timeout <= 0)
 				{
 					timed_out = true;

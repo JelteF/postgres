@@ -195,9 +195,8 @@ SyncPreCheckpoint(void)
 void
 SyncPostCheckpoint(void)
 {
-	int			absorb_counter;
 
-	absorb_counter = UNLINKS_PER_ABSORB;
+	int			absorb_counter = UNLINKS_PER_ABSORB;
 	while (pendingUnlinks != NIL)
 	{
 		PendingUnlinkEntry *entry = (PendingUnlinkEntry *) linitial(pendingUnlinks);
@@ -261,7 +260,6 @@ ProcessSyncRequests(void)
 
 	HASH_SEQ_STATUS hstat;
 	PendingFsyncEntry *entry;
-	int			absorb_counter;
 
 	/* Statistics on sync times */
 	int			processed = 0;
@@ -331,7 +329,7 @@ ProcessSyncRequests(void)
 	sync_in_progress = true;
 
 	/* Now scan the hashtable for fsync requests to process */
-	absorb_counter = FSYNCS_PER_ABSORB;
+	int			absorb_counter = FSYNCS_PER_ABSORB;
 	hash_seq_init(&hstat, pendingOps);
 	while ((entry = (PendingFsyncEntry *) hash_seq_search(&hstat)) != NULL)
 	{
@@ -462,10 +460,9 @@ RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 
 	if (type == SYNC_FORGET_REQUEST)
 	{
-		PendingFsyncEntry *entry;
 
 		/* Cancel previously entered request */
-		entry = (PendingFsyncEntry *) hash_search(pendingOps,
+		PendingFsyncEntry *entry = (PendingFsyncEntry *) hash_search(pendingOps,
 												  (void *) ftag,
 												  HASH_FIND,
 												  NULL);
@@ -504,9 +501,8 @@ RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 	{
 		/* Unlink request: put it in the linked list */
 		MemoryContext oldcxt = MemoryContextSwitchTo(pendingOpsCxt);
-		PendingUnlinkEntry *entry;
 
-		entry = palloc(sizeof(PendingUnlinkEntry));
+		PendingUnlinkEntry *entry = palloc(sizeof(PendingUnlinkEntry));
 		entry->tag = *ftag;
 		entry->cycle_ctr = checkpoint_cycle_ctr;
 
@@ -518,12 +514,11 @@ RememberSyncRequest(const FileTag *ftag, SyncRequestType type)
 	{
 		/* Normal case: enter a request to fsync this segment */
 		MemoryContext oldcxt = MemoryContextSwitchTo(pendingOpsCxt);
-		PendingFsyncEntry *entry;
 		bool		found;
 
 		Assert(type == SYNC_REQUEST);
 
-		entry = (PendingFsyncEntry *) hash_search(pendingOps,
+		PendingFsyncEntry *entry = (PendingFsyncEntry *) hash_search(pendingOps,
 												  (void *) ftag,
 												  HASH_ENTER,
 												  &found);

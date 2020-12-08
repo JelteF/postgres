@@ -75,9 +75,8 @@ XLogReaderState *
 XLogReaderAllocate(int wal_segment_size, const char *waldir,
 				   XLogReaderRoutine *routine, void *private_data)
 {
-	XLogReaderState *state;
 
-	state = (XLogReaderState *)
+	XLogReaderState *state = (XLogReaderState *)
 		palloc_extended(sizeof(XLogReaderState),
 						MCXT_ALLOC_NO_OOM | MCXT_ALLOC_ZERO);
 	if (!state)
@@ -267,23 +266,18 @@ XLogBeginRead(XLogReaderState *state, XLogRecPtr RecPtr)
 XLogRecord *
 XLogReadRecord(XLogReaderState *state, char **errormsg)
 {
-	XLogRecPtr	RecPtr;
 	XLogRecord *record;
-	XLogRecPtr	targetPagePtr;
-	bool		randAccess;
 	uint32		len,
 				total_len;
-	uint32		targetRecOff;
 	uint32		pageHeaderSize;
 	bool		gotheader;
-	int			readOff;
 
 	/*
 	 * randAccess indicates whether to verify the previous-record pointer of
 	 * the record we're reading.  We only do this if we're reading
 	 * sequentially, which is what we initially assume.
 	 */
-	randAccess = false;
+	bool		randAccess = false;
 
 	/* reset error state */
 	*errormsg = NULL;
@@ -291,7 +285,7 @@ XLogReadRecord(XLogReaderState *state, char **errormsg)
 
 	ResetDecoder(state);
 
-	RecPtr = state->EndRecPtr;
+	XLogRecPtr	RecPtr = state->EndRecPtr;
 
 	if (state->ReadRecPtr != InvalidXLogRecPtr)
 	{
@@ -318,15 +312,15 @@ XLogReadRecord(XLogReaderState *state, char **errormsg)
 
 	state->currRecPtr = RecPtr;
 
-	targetPagePtr = RecPtr - (RecPtr % XLOG_BLCKSZ);
-	targetRecOff = RecPtr % XLOG_BLCKSZ;
+	XLogRecPtr	targetPagePtr = RecPtr - (RecPtr % XLOG_BLCKSZ);
+	uint32		targetRecOff = RecPtr % XLOG_BLCKSZ;
 
 	/*
 	 * Read the page containing the record into state->readBuf. Request enough
 	 * byte to cover the whole record header, or at least the part of it that
 	 * fits on the same page.
 	 */
-	readOff = ReadPageInternal(state, targetPagePtr,
+	int			readOff = ReadPageInternal(state, targetPagePtr,
 							   Min(targetRecOff + SizeOfXLogRecord, XLOG_BLCKSZ));
 	if (readOff < 0)
 		goto err;
@@ -576,14 +570,13 @@ static int
 ReadPageInternal(XLogReaderState *state, XLogRecPtr pageptr, int reqLen)
 {
 	int			readLen;
-	uint32		targetPageOff;
 	XLogSegNo	targetSegNo;
 	XLogPageHeader hdr;
 
 	Assert((pageptr % XLOG_BLCKSZ) == 0);
 
 	XLByteToSeg(pageptr, targetSegNo, state->segcxt.ws_segsize);
-	targetPageOff = XLogSegmentOffset(pageptr, state->segcxt.ws_segsize);
+	uint32		targetPageOff = XLogSegmentOffset(pageptr, state->segcxt.ws_segsize);
 
 	/* check whether we have all the requested data already */
 	if (targetSegNo == state->seg.ws_segno &&
@@ -789,13 +782,12 @@ XLogReaderValidatePageHeader(XLogReaderState *state, XLogRecPtr recptr,
 {
 	XLogRecPtr	recaddr;
 	XLogSegNo	segno;
-	int32		offset;
 	XLogPageHeader hdr = (XLogPageHeader) phdr;
 
 	Assert((recptr % XLOG_BLCKSZ) == 0);
 
 	XLByteToSeg(recptr, segno, state->segcxt.ws_segsize);
-	offset = XLogSegmentOffset(recptr, state->segcxt.ws_segsize);
+	int32		offset = XLogSegmentOffset(recptr, state->segcxt.ws_segsize);
 
 	XLogSegNoOffsetToRecPtr(segno, offset, state->segcxt.ws_segsize, recaddr);
 
@@ -940,7 +932,6 @@ XLogReaderValidatePageHeader(XLogReaderState *state, XLogRecPtr recptr,
 XLogRecPtr
 XLogFindNextRecord(XLogReaderState *state, XLogRecPtr RecPtr)
 {
-	XLogRecPtr	tmpRecPtr;
 	XLogRecPtr	found = InvalidXLogRecPtr;
 	XLogPageHeader header;
 	char	   *errormsg;
@@ -951,13 +942,10 @@ XLogFindNextRecord(XLogReaderState *state, XLogRecPtr RecPtr)
 	 * skip over potential continuation data, keeping in mind that it may span
 	 * multiple pages
 	 */
-	tmpRecPtr = RecPtr;
+	XLogRecPtr	tmpRecPtr = RecPtr;
 	while (true)
 	{
-		XLogRecPtr	targetPagePtr;
-		int			targetRecOff;
 		uint32		pageHeaderSize;
-		int			readLen;
 
 		/*
 		 * Compute targetRecOff. It should typically be equal or greater than
@@ -968,13 +956,13 @@ XLogFindNextRecord(XLogReaderState *state, XLogRecPtr RecPtr)
 		 * ReadPageInternal() is prepared to handle that and will read at
 		 * least short page-header worth of data
 		 */
-		targetRecOff = tmpRecPtr % XLOG_BLCKSZ;
+		int			targetRecOff = tmpRecPtr % XLOG_BLCKSZ;
 
 		/* scroll back to page boundary */
-		targetPagePtr = tmpRecPtr - targetRecOff;
+		XLogRecPtr	targetPagePtr = tmpRecPtr - targetRecOff;
 
 		/* Read the page containing the record */
-		readLen = ReadPageInternal(state, targetPagePtr, targetRecOff);
+		int			readLen = ReadPageInternal(state, targetPagePtr, targetRecOff);
 		if (readLen < 0)
 			goto err;
 
@@ -1064,21 +1052,17 @@ WALRead(XLogReaderState *state,
 		char *buf, XLogRecPtr startptr, Size count, TimeLineID tli,
 		WALReadError *errinfo)
 {
-	char	   *p;
-	XLogRecPtr	recptr;
-	Size		nbytes;
 
-	p = buf;
-	recptr = startptr;
-	nbytes = count;
+	char	   *p = buf;
+	XLogRecPtr	recptr = startptr;
+	Size		nbytes = count;
 
 	while (nbytes > 0)
 	{
-		uint32		startoff;
 		int			segbytes;
 		int			readbytes;
 
-		startoff = XLogSegmentOffset(recptr, state->segcxt.ws_segsize);
+		uint32		startoff = XLogSegmentOffset(recptr, state->segcxt.ws_segsize);
 
 		/*
 		 * If the data we want is not in a segment we have open, close what we
@@ -1188,9 +1172,6 @@ DecodeXLogRecord(XLogReaderState *state, XLogRecord *record, char **errormsg)
 		remaining -= _size;						\
 	} while(0)
 
-	char	   *ptr;
-	uint32		remaining;
-	uint32		datatotal;
 	RelFileNode *rnode = NULL;
 	uint8		block_id;
 
@@ -1200,12 +1181,12 @@ DecodeXLogRecord(XLogReaderState *state, XLogRecord *record, char **errormsg)
 	state->record_origin = InvalidRepOriginId;
 	state->toplevel_xid = InvalidTransactionId;
 
-	ptr = (char *) record;
+	char	   *ptr = (char *) record;
 	ptr += SizeOfXLogRecord;
-	remaining = record->xl_tot_len - SizeOfXLogRecord;
+	uint32		remaining = record->xl_tot_len - SizeOfXLogRecord;
 
 	/* Decode the headers */
-	datatotal = 0;
+	uint32		datatotal = 0;
 	while (remaining > datatotal)
 	{
 		COPY_HEADER_FIELD(&block_id, sizeof(uint8));
@@ -1498,12 +1479,11 @@ bool
 XLogRecGetBlockTag(XLogReaderState *record, uint8 block_id,
 				   RelFileNode *rnode, ForkNumber *forknum, BlockNumber *blknum)
 {
-	DecodedBkpBlock *bkpb;
 
 	if (!record->blocks[block_id].in_use)
 		return false;
 
-	bkpb = &record->blocks[block_id];
+	DecodedBkpBlock *bkpb = &record->blocks[block_id];
 	if (rnode)
 		*rnode = bkpb->rnode;
 	if (forknum)
@@ -1521,12 +1501,11 @@ XLogRecGetBlockTag(XLogReaderState *record, uint8 block_id,
 char *
 XLogRecGetBlockData(XLogReaderState *record, uint8 block_id, Size *len)
 {
-	DecodedBkpBlock *bkpb;
 
 	if (!record->blocks[block_id].in_use)
 		return NULL;
 
-	bkpb = &record->blocks[block_id];
+	DecodedBkpBlock *bkpb = &record->blocks[block_id];
 
 	if (!bkpb->has_data)
 	{
@@ -1550,8 +1529,6 @@ XLogRecGetBlockData(XLogReaderState *record, uint8 block_id, Size *len)
 bool
 RestoreBlockImage(XLogReaderState *record, uint8 block_id, char *page)
 {
-	DecodedBkpBlock *bkpb;
-	char	   *ptr;
 	PGAlignedBlock tmp;
 
 	if (!record->blocks[block_id].in_use)
@@ -1559,8 +1536,8 @@ RestoreBlockImage(XLogReaderState *record, uint8 block_id, char *page)
 	if (!record->blocks[block_id].has_image)
 		return false;
 
-	bkpb = &record->blocks[block_id];
-	ptr = bkpb->bkp_image;
+	DecodedBkpBlock *bkpb = &record->blocks[block_id];
+	char	   *ptr = bkpb->bkp_image;
 
 	if (bkpb->bimg_info & BKPIMAGE_IS_COMPRESSED)
 	{
@@ -1605,7 +1582,6 @@ XLogRecGetFullXid(XLogReaderState *record)
 {
 	TransactionId xid,
 				next_xid;
-	uint32		epoch;
 
 	/*
 	 * This function is only safe during replay, because it depends on the
@@ -1615,7 +1591,7 @@ XLogRecGetFullXid(XLogReaderState *record)
 
 	xid = XLogRecGetXid(record);
 	next_xid = XidFromFullTransactionId(ShmemVariableCache->nextXid);
-	epoch = EpochFromFullTransactionId(ShmemVariableCache->nextXid);
+	uint32		epoch = EpochFromFullTransactionId(ShmemVariableCache->nextXid);
 
 	/*
 	 * If xid is numerically greater than next_xid, it has to be from the last

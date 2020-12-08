@@ -734,13 +734,12 @@ AcceptInvalidationMessages(void)
 static void
 PrepareInvalidationState(void)
 {
-	TransInvalidationInfo *myInfo;
 
 	if (transInvalInfo != NULL &&
 		transInvalInfo->my_level == GetCurrentTransactionNestLevel())
 		return;
 
-	myInfo = (TransInvalidationInfo *)
+	TransInvalidationInfo *myInfo = (TransInvalidationInfo *)
 		MemoryContextAllocZero(TopTransactionContext,
 							   sizeof(TransInvalidationInfo));
 	myInfo->parent = transInvalInfo;
@@ -831,7 +830,6 @@ int
 xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 									 bool *RelcacheInitFileInval)
 {
-	MemoryContext oldcontext;
 
 	/* Quick exit if we haven't done anything with invalidation messages. */
 	if (transInvalInfo == NULL)
@@ -859,7 +857,7 @@ xactGetCommittedInvalidationMessages(SharedInvalidationMessage **msgs,
 	 * in redo is as similar as possible to original. We want the same bugs,
 	 * if any, not new ones.
 	 */
-	oldcontext = MemoryContextSwitchTo(CurTransactionContext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(CurTransactionContext);
 
 	ProcessInvalidationMessagesMulti(&transInvalInfo->CurrentCmdInvalidMsgs,
 									 MakeSharedInvalidMessagesArray);
@@ -1010,7 +1008,6 @@ AtEOXact_Inval(bool isCommit)
 void
 AtEOSubXact_Inval(bool isCommit)
 {
-	int			my_level;
 	TransInvalidationInfo *myInfo = transInvalInfo;
 
 	/* Quick exit if no messages. */
@@ -1018,7 +1015,7 @@ AtEOSubXact_Inval(bool isCommit)
 		return;
 
 	/* Also bail out quickly if messages are not for this level. */
-	my_level = GetCurrentTransactionNestLevel();
+	int			my_level = GetCurrentTransactionNestLevel();
 	if (myInfo->my_level != my_level)
 	{
 		Assert(myInfo->my_level < my_level);
@@ -1123,7 +1120,6 @@ CacheInvalidateHeapTuple(Relation relation,
 						 HeapTuple tuple,
 						 HeapTuple newtuple)
 {
-	Oid			tupleRelId;
 	Oid			databaseId;
 	Oid			relationId;
 
@@ -1155,7 +1151,7 @@ CacheInvalidateHeapTuple(Relation relation,
 	/*
 	 * First let the catcache do its thing
 	 */
-	tupleRelId = RelationGetRelid(relation);
+	Oid			tupleRelId = RelationGetRelid(relation);
 	if (RelationInvalidatesSnapshotsOnly(tupleRelId))
 	{
 		databaseId = IsSharedRelation(tupleRelId) ? InvalidOid : MyDatabaseId;
@@ -1278,11 +1274,10 @@ void
 CacheInvalidateRelcache(Relation relation)
 {
 	Oid			databaseId;
-	Oid			relationId;
 
 	PrepareInvalidationState();
 
-	relationId = RelationGetRelid(relation);
+	Oid			relationId = RelationGetRelid(relation);
 	if (relation->rd_rel->relisshared)
 		databaseId = InvalidOid;
 	else
@@ -1315,11 +1310,10 @@ CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
 {
 	Form_pg_class classtup = (Form_pg_class) GETSTRUCT(classTuple);
 	Oid			databaseId;
-	Oid			relationId;
 
 	PrepareInvalidationState();
 
-	relationId = classtup->oid;
+	Oid			relationId = classtup->oid;
 	if (classtup->relisshared)
 		databaseId = InvalidOid;
 	else
@@ -1336,11 +1330,10 @@ CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
 void
 CacheInvalidateRelcacheByRelid(Oid relid)
 {
-	HeapTuple	tup;
 
 	PrepareInvalidationState();
 
-	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	HeapTuple	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 	CacheInvalidateRelcacheByTuple(tup);
@@ -1494,12 +1487,11 @@ CacheRegisterRelcacheCallback(RelcacheCallbackFunction func,
 void
 CallSyscacheCallbacks(int cacheid, uint32 hashvalue)
 {
-	int			i;
 
 	if (cacheid < 0 || cacheid >= SysCacheSize)
 		elog(ERROR, "invalid cache ID: %d", cacheid);
 
-	i = syscache_callback_links[cacheid] - 1;
+	int			i = syscache_callback_links[cacheid] - 1;
 	while (i >= 0)
 	{
 		struct SYSCACHECALLBACK *ccitem = syscache_callback_list + i;
@@ -1521,8 +1513,6 @@ void
 LogLogicalInvalidations()
 {
 	xl_xact_invals xlrec;
-	SharedInvalidationMessage *invalMessages;
-	int			nmsgs = 0;
 
 	/* Quick exit if we haven't done anything with invalidation messages. */
 	if (transInvalInfo == NULL)
@@ -1534,8 +1524,8 @@ LogLogicalInvalidations()
 	Assert(!(numSharedInvalidMessagesArray > 0 &&
 			 SharedInvalidMessagesArray == NULL));
 
-	invalMessages = SharedInvalidMessagesArray;
-	nmsgs = numSharedInvalidMessagesArray;
+	SharedInvalidationMessage *invalMessages = SharedInvalidMessagesArray;
+	int			nmsgs = numSharedInvalidMessagesArray;
 	SharedInvalidMessagesArray = NULL;
 	numSharedInvalidMessagesArray = 0;
 

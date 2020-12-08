@@ -263,7 +263,6 @@ stop_postmaster(void)
 	{
 		/* We use pg_ctl to issue the kill and wait for stop */
 		char		buf[MAXPGPATH * 2];
-		int			r;
 
 		/* On Windows, system() seems not to force fflush, so... */
 		fflush(stdout);
@@ -274,7 +273,7 @@ stop_postmaster(void)
 				 bindir ? bindir : "",
 				 bindir ? "/" : "",
 				 temp_instance);
-		r = system(buf);
+		int			r = system(buf);
 		if (r != 0)
 		{
 			fprintf(stderr, _("\n%s: could not stop postmaster: exit code was %d\n"),
@@ -479,7 +478,6 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 	char		indir[MAXPGPATH];
 	char		outdir_sub[MAXPGPATH];
 	char	  **name;
-	char	  **names;
 	int			count = 0;
 
 	snprintf(indir, MAXPGPATH, "%s/%s", inputdir, source_subdir);
@@ -494,7 +492,7 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 		return;
 	}
 
-	names = pgfnames(indir);
+	char	  **names = pgfnames(indir);
 	if (!names)
 		/* Error logged in pgfnames */
 		exit(2);
@@ -620,11 +618,10 @@ static void
 load_resultmap(void)
 {
 	char		buf[MAXPGPATH];
-	FILE	   *f;
 
 	/* scan the file ... */
 	snprintf(buf, sizeof(buf), "%s/resultmap", inputdir);
-	f = fopen(buf, "r");
+	FILE	   *f = fopen(buf, "r");
 	if (!f)
 	{
 		/* OK if it doesn't exist, else complain */
@@ -637,18 +634,14 @@ load_resultmap(void)
 
 	while (fgets(buf, sizeof(buf), f))
 	{
-		char	   *platform;
-		char	   *file_type;
-		char	   *expected;
-		int			i;
 
 		/* strip trailing whitespace, especially the newline */
-		i = strlen(buf);
+		int			i = strlen(buf);
 		while (i > 0 && isspace((unsigned char) buf[i - 1]))
 			buf[--i] = '\0';
 
 		/* parse out the line fields */
-		file_type = strchr(buf, ':');
+		char	   *file_type = strchr(buf, ':');
 		if (!file_type)
 		{
 			fprintf(stderr, _("incorrectly formatted resultmap entry: %s\n"),
@@ -657,7 +650,7 @@ load_resultmap(void)
 		}
 		*file_type++ = '\0';
 
-		platform = strchr(file_type, ':');
+		char	   *platform = strchr(file_type, ':');
 		if (!platform)
 		{
 			fprintf(stderr, _("incorrectly formatted resultmap entry: %s\n"),
@@ -665,7 +658,7 @@ load_resultmap(void)
 			exit(2);
 		}
 		*platform++ = '\0';
-		expected = strchr(platform, '=');
+		char	   *expected = strchr(platform, '=');
 		if (!expected)
 		{
 			fprintf(stderr, _("incorrectly formatted resultmap entry: %s\n"),
@@ -805,11 +798,10 @@ initialize_environment(void)
 	{
 		const char *my_pgoptions = "-c intervalstyle=postgres_verbose";
 		const char *old_pgoptions = getenv("PGOPTIONS");
-		char	   *new_pgoptions;
 
 		if (!old_pgoptions)
 			old_pgoptions = "";
-		new_pgoptions = psprintf("PGOPTIONS=%s %s",
+		char	   *new_pgoptions = psprintf("PGOPTIONS=%s %s",
 								 old_pgoptions, my_pgoptions);
 		putenv(new_pgoptions);
 	}
@@ -855,8 +847,6 @@ initialize_environment(void)
 	}
 	else
 	{
-		const char *pghost;
-		const char *pgport;
 
 		/*
 		 * When testing an existing install, we honor existing environment
@@ -888,8 +878,8 @@ initialize_environment(void)
 		/*
 		 * Report what we're connecting to
 		 */
-		pghost = getenv("PGHOST");
-		pgport = getenv("PGPORT");
+		const char *pghost = getenv("PGHOST");
+		const char *pgport = getenv("PGPORT");
 #ifndef HAVE_UNIX_SOCKETS
 		if (!pghost)
 			pghost = "localhost";
@@ -917,9 +907,8 @@ fmtHba(const char *raw)
 {
 	static char *ret;
 	const char *rp;
-	char	   *wp;
 
-	wp = ret = realloc(ret, 3 + strlen(raw) * 2);
+	char	   *wp = ret = realloc(ret, 3 + strlen(raw) * 2);
 
 	*wp++ = '"';
 	for (rp = raw; *rp; rp++)
@@ -944,7 +933,6 @@ current_windows_user(const char **acct, const char **dom)
 	static char accountname[MAXPGPATH];
 	static char domainname[MAXPGPATH];
 	HANDLE		token;
-	TOKEN_USER *tokenuser;
 	DWORD		retlen;
 	DWORD		accountnamesize = sizeof(accountname);
 	DWORD		domainnamesize = sizeof(domainname);
@@ -965,7 +953,7 @@ current_windows_user(const char **acct, const char **dom)
 				progname, GetLastError());
 		exit(2);
 	}
-	tokenuser = pg_malloc(retlen);
+	TOKEN_USER *tokenuser = pg_malloc(retlen);
 	if (!GetTokenInformation(token, TokenUser, tokenuser, retlen, &retlen))
 	{
 		fprintf(stderr,
@@ -1127,7 +1115,6 @@ psql_command(const char *database, const char *query,...)
 	char		psql_cmd[MAXPGPATH + 2048];
 	va_list		args;
 	char	   *s;
-	char	   *d;
 
 	/* Generate the query with insertion of sprintf arguments */
 	va_start(args, query);
@@ -1135,7 +1122,7 @@ psql_command(const char *database, const char *query,...)
 	va_end(args);
 
 	/* Now escape any shell double-quote metacharacters */
-	d = query_escaped;
+	char	   *d = query_escaped;
 	for (s = query_formatted; *s; s++)
 	{
 		if (strchr("\\\"$`", *s))
@@ -1169,7 +1156,6 @@ PID_TYPE
 spawn_process(const char *cmdline)
 {
 #ifndef WIN32
-	pid_t		pid;
 
 	/*
 	 * Must flush I/O buffers before fork.  Ideally we'd use fflush(NULL) here
@@ -1180,7 +1166,7 @@ spawn_process(const char *cmdline)
 	if (logfile)
 		fflush(logfile);
 
-	pid = fork();
+	pid_t		pid = fork();
 	if (pid == -1)
 	{
 		fprintf(stderr, _("%s: could not fork: %s\n"),
@@ -1196,9 +1182,8 @@ spawn_process(const char *cmdline)
 		 * "exec" the command too.  This saves two useless processes per
 		 * parallel test case.
 		 */
-		char	   *cmdline2;
 
-		cmdline2 = psprintf("exec %s", cmdline);
+		char	   *cmdline2 = psprintf("exec %s", cmdline);
 		execl(shellprog, shellprog, "-c", cmdline2, (char *) NULL);
 		fprintf(stderr, _("%s: could not exec \"%s\": %s\n"),
 				progname, shellprog, strerror(errno));
@@ -1208,17 +1193,15 @@ spawn_process(const char *cmdline)
 	return pid;
 #else
 	PROCESS_INFORMATION pi;
-	char	   *cmdline2;
 	HANDLE		restrictedToken;
-	const char *comspec;
 
 	/* Find CMD.EXE location using COMSPEC, if it's set */
-	comspec = getenv("COMSPEC");
+	const char *comspec = getenv("COMSPEC");
 	if (comspec == NULL)
 		comspec = "CMD";
 
 	memset(&pi, 0, sizeof(pi));
-	cmdline2 = psprintf("\"%s\" /c \"%s\"", comspec, cmdline);
+	char	   *cmdline2 = psprintf("\"%s\" /c \"%s\"", comspec, cmdline);
 
 	if ((restrictedToken =
 		 CreateRestrictedProcess(cmdline2, &pi)) == 0)
@@ -1235,7 +1218,6 @@ spawn_process(const char *cmdline)
 static long
 file_size(const char *file)
 {
-	long		r;
 	FILE	   *f = fopen(file, "r");
 
 	if (!f)
@@ -1245,7 +1227,7 @@ file_size(const char *file)
 		return -1;
 	}
 	fseek(f, 0, SEEK_END);
-	r = ftell(f);
+	long		r = ftell(f);
 	fclose(f);
 	return r;
 }
@@ -1316,7 +1298,6 @@ make_directory(const char *dir)
 static char *
 get_alternative_expectfile(const char *expectfile, int i)
 {
-	char	   *last_dot;
 	int			ssize = strlen(expectfile) + 2 + 1;
 	char	   *tmp;
 	char	   *s;
@@ -1331,7 +1312,7 @@ get_alternative_expectfile(const char *expectfile, int i)
 	}
 
 	strcpy(tmp, expectfile);
-	last_dot = strrchr(tmp, '.');
+	char	   *last_dot = strrchr(tmp, '.');
 	if (!last_dot)
 	{
 		free(tmp);
@@ -1350,9 +1331,8 @@ get_alternative_expectfile(const char *expectfile, int i)
 static int
 run_diff(const char *cmd, const char *filename)
 {
-	int			r;
 
-	r = system(cmd);
+	int			r = system(cmd);
 	if (!WIFEXITED(r) || WEXITSTATUS(r) > 1)
 	{
 		fprintf(stderr, _("diff command failed with status %d: %s\n"), r, cmd);
@@ -1387,17 +1367,14 @@ results_differ(const char *testname, const char *resultsfile, const char *defaul
 	char		diff[MAXPGPATH];
 	char		cmd[MAXPGPATH * 3];
 	char		best_expect_file[MAXPGPATH];
-	FILE	   *difffile;
-	int			best_line_count;
 	int			i;
 	int			l;
-	const char *platform_expectfile;
 
 	/*
 	 * We can pass either the resultsfile or the expectfile, they should have
 	 * the same type (filename.type) anyway.
 	 */
-	platform_expectfile = get_expectfile(testname, resultsfile);
+	const char *platform_expectfile = get_expectfile(testname, resultsfile);
 
 	strlcpy(expectfile, default_expectfile, sizeof(expectfile));
 	if (platform_expectfile)
@@ -1428,14 +1405,13 @@ results_differ(const char *testname, const char *resultsfile, const char *defaul
 	}
 
 	/* There may be secondary comparison files that match better */
-	best_line_count = file_line_count(diff);
+	int			best_line_count = file_line_count(diff);
 	strcpy(best_expect_file, expectfile);
 
 	for (i = 0; i <= 9; i++)
 	{
-		char	   *alt_expectfile;
 
-		alt_expectfile = get_alternative_expectfile(expectfile, i);
+		char	   *alt_expectfile = get_alternative_expectfile(expectfile, i);
 		if (!alt_expectfile)
 		{
 			fprintf(stderr, _("Unable to check secondary comparison files: %s\n"),
@@ -1503,7 +1479,7 @@ results_differ(const char *testname, const char *resultsfile, const char *defaul
 	 */
 
 	/* Write diff header */
-	difffile = fopen(difffilename, "a");
+	FILE	   *difffile = fopen(difffilename, "a");
 	if (difffile)
 	{
 		fprintf(difffile,
@@ -1561,9 +1537,8 @@ wait_for_tests(PID_TYPE * pids, int *statuses, instr_time *stoptimes,
 		}
 #else
 		DWORD		exit_status;
-		int			r;
 
-		r = WaitForMultipleObjects(tests_left, active_pids, FALSE, INFINITE);
+		int			r = WaitForMultipleObjects(tests_left, active_pids, FALSE, INFINITE);
 		if (r < WAIT_OBJECT_0 || r >= WAIT_OBJECT_0 + tests_left)
 		{
 			fprintf(stderr, _("failed to wait for subprocesses: error code %lu\n"),
@@ -1640,7 +1615,6 @@ run_schedule(const char *schedule, test_function tfunc)
 	int			statuses[MAX_PARALLEL_TESTS];
 	_stringlist *ignorelist = NULL;
 	char		scbuf[1024];
-	FILE	   *scf;
 	int			line_num = 0;
 
 	memset(tests, 0, sizeof(tests));
@@ -1648,7 +1622,7 @@ run_schedule(const char *schedule, test_function tfunc)
 	memset(expectfiles, 0, sizeof(expectfiles));
 	memset(tags, 0, sizeof(tags));
 
-	scf = fopen(schedule, "r");
+	FILE	   *scf = fopen(schedule, "r");
 	if (!scf)
 	{
 		fprintf(stderr, _("%s: could not open file \"%s\" for reading: %s\n"),
@@ -1662,12 +1636,11 @@ run_schedule(const char *schedule, test_function tfunc)
 		char	   *c;
 		int			num_tests;
 		bool		inword;
-		int			i;
 
 		line_num++;
 
 		/* strip trailing whitespace, especially the newline */
-		i = strlen(scbuf);
+		int			i = strlen(scbuf);
 		while (i > 0 && isspace((unsigned char) scbuf[i - 1]))
 			scbuf[--i] = '\0';
 
@@ -1705,7 +1678,6 @@ run_schedule(const char *schedule, test_function tfunc)
 				if (inword)
 				{
 					/* Reached end of a test name */
-					char		sav;
 
 					if (num_tests >= MAX_PARALLEL_TESTS)
 					{
@@ -1713,7 +1685,7 @@ run_schedule(const char *schedule, test_function tfunc)
 								MAX_PARALLEL_TESTS, schedule, line_num, scbuf);
 						exit(2);
 					}
-					sav = *c;
+					char		sav = *c;
 					*c = '\0';
 					tests[num_tests] = pg_strdup(test);
 					num_tests++;
@@ -1810,9 +1782,8 @@ run_schedule(const char *schedule, test_function tfunc)
 				 rl = rl->next, el = el->next,
 				 tl = tl ? tl->next : NULL)
 			{
-				bool		newdiff;
 
-				newdiff = results_differ(tests[i], rl->str, el->str);
+				bool		newdiff = results_differ(tests[i], rl->str, el->str);
 				if (newdiff && tl)
 				{
 					printf("%s ", tl->str);
@@ -1880,7 +1851,6 @@ run_schedule(const char *schedule, test_function tfunc)
 static void
 run_single_test(const char *test, test_function tfunc)
 {
-	PID_TYPE	pid;
 	instr_time	starttime;
 	instr_time	stoptime;
 	int			exit_status;
@@ -1893,7 +1863,7 @@ run_single_test(const char *test, test_function tfunc)
 	bool		differ = false;
 
 	status(_("test %-28s ... "), test);
-	pid = (tfunc) (test, &resultfiles, &expectfiles, &tags);
+	PID_TYPE	pid = (tfunc) (test, &resultfiles, &expectfiles, &tags);
 	INSTR_TIME_SET_CURRENT(starttime);
 	wait_for_tests(&pid, &exit_status, &stoptime, NULL, 1);
 
@@ -1909,9 +1879,8 @@ run_single_test(const char *test, test_function tfunc)
 		 rl = rl->next, el = el->next,
 		 tl = tl ? tl->next : NULL)
 	{
-		bool		newdiff;
 
-		newdiff = results_differ(test, rl->str, el->str);
+		bool		newdiff = results_differ(test, rl->str, el->str);
 		if (newdiff && tl)
 		{
 			printf("%s ", tl->str);
@@ -1946,7 +1915,6 @@ static void
 open_result_files(void)
 {
 	char		file[MAXPGPATH];
-	FILE	   *difffile;
 
 	/* create outputdir directory if not present */
 	if (!directory_exists(outputdir))
@@ -1966,7 +1934,7 @@ open_result_files(void)
 	/* create the diffs file as empty */
 	snprintf(file, sizeof(file), "%s/regression.diffs", outputdir);
 	difffilename = pg_strdup(file);
-	difffile = fopen(difffilename, "w");
+	FILE	   *difffile = fopen(difffilename, "w");
 	if (!difffile)
 	{
 		fprintf(stderr, _("%s: could not open file \"%s\" for writing: %s\n"),
@@ -2303,7 +2271,6 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
 
 	if (temp_instance)
 	{
-		FILE	   *pg_conf;
 		const char *env_wait;
 		int			wait_seconds;
 
@@ -2357,7 +2324,7 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
 		 * actually needed by the prepared_xacts regression test.)
 		 */
 		snprintf(buf, sizeof(buf), "%s/data/postgresql.conf", temp_instance);
-		pg_conf = fopen(buf, "a");
+		FILE	   *pg_conf = fopen(buf, "a");
 		if (pg_conf == NULL)
 		{
 			fprintf(stderr, _("\n%s: could not open \"%s\" for adding extra config: %s\n"), progname, buf, strerror(errno));
@@ -2374,10 +2341,9 @@ regression_main(int argc, char *argv[], init_function ifunc, test_function tfunc
 		for (sl = temp_configs; sl != NULL; sl = sl->next)
 		{
 			char	   *temp_config = sl->str;
-			FILE	   *extra_conf;
 			char		line_buf[1024];
 
-			extra_conf = fopen(temp_config, "r");
+			FILE	   *extra_conf = fopen(temp_config, "r");
 			if (extra_conf == NULL)
 			{
 				fprintf(stderr, _("\n%s: could not open \"%s\" to read extra config: %s\n"), progname, temp_config, strerror(errno));

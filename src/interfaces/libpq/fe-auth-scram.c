@@ -76,13 +76,11 @@ pg_fe_scram_init(PGconn *conn,
 				 const char *password,
 				 const char *sasl_mechanism)
 {
-	fe_scram_state *state;
 	char	   *prep_password;
-	pg_saslprep_rc rc;
 
 	Assert(sasl_mechanism != NULL);
 
-	state = (fe_scram_state *) malloc(sizeof(fe_scram_state));
+	fe_scram_state *state = (fe_scram_state *) malloc(sizeof(fe_scram_state));
 	if (!state)
 		return NULL;
 	memset(state, 0, sizeof(fe_scram_state));
@@ -97,7 +95,7 @@ pg_fe_scram_init(PGconn *conn,
 	}
 
 	/* Normalize the password with SASLprep, if possible */
-	rc = pg_saslprep(password, &prep_password);
+	pg_saslprep_rc rc = pg_saslprep(password, &prep_password);
 	if (rc == SASLPREP_OOM)
 	{
 		free(state->sasl_mechanism);
@@ -292,7 +290,6 @@ static char *
 read_attr_value(char **input, char attr, PQExpBuffer errorMessage)
 {
 	char	   *begin = *input;
-	char	   *end;
 
 	if (*begin != attr)
 	{
@@ -312,7 +309,7 @@ read_attr_value(char **input, char attr, PQExpBuffer errorMessage)
 	}
 	begin++;
 
-	end = begin;
+	char	   *end = begin;
 	while (*end && *end != ',')
 		end++;
 
@@ -337,7 +334,6 @@ build_client_first_message(fe_scram_state *state)
 	char		raw_nonce[SCRAM_RAW_NONCE_LEN + 1];
 	char	   *result;
 	int			channel_info_len;
-	int			encoded_len;
 	PQExpBufferData buf;
 
 	/*
@@ -351,7 +347,7 @@ build_client_first_message(fe_scram_state *state)
 		return NULL;
 	}
 
-	encoded_len = pg_b64_enc_len(SCRAM_RAW_NONCE_LEN);
+	int			encoded_len = pg_b64_enc_len(SCRAM_RAW_NONCE_LEN);
 	/* don't forget the zero-terminator */
 	state->client_nonce = malloc(encoded_len + 1);
 	if (state->client_nonce == NULL)
@@ -461,15 +457,11 @@ build_client_final_message(fe_scram_state *state)
 	if (strcmp(state->sasl_mechanism, SCRAM_SHA_256_PLUS_NAME) == 0)
 	{
 #ifdef HAVE_PGTLS_GET_PEER_CERTIFICATE_HASH
-		char	   *cbind_data = NULL;
 		size_t		cbind_data_len = 0;
-		size_t		cbind_header_len;
-		char	   *cbind_input;
-		size_t		cbind_input_len;
 		int			encoded_cbind_len;
 
 		/* Fetch hash data of server's SSL certificate */
-		cbind_data =
+		char	   *cbind_data =
 			pgtls_get_peer_certificate_hash(state->conn,
 											&cbind_data_len);
 		if (cbind_data == NULL)
@@ -482,9 +474,9 @@ build_client_final_message(fe_scram_state *state)
 		appendPQExpBufferStr(&buf, "c=");
 
 		/* p=type,, */
-		cbind_header_len = strlen("p=tls-server-end-point,,");
-		cbind_input_len = cbind_header_len + cbind_data_len;
-		cbind_input = malloc(cbind_input_len);
+		size_t		cbind_header_len = strlen("p=tls-server-end-point,,");
+		size_t		cbind_input_len = cbind_header_len + cbind_data_len;
+		char	   *cbind_input = malloc(cbind_input_len);
 		if (!cbind_input)
 		{
 			free(cbind_data);
@@ -597,11 +589,7 @@ static bool
 read_server_first_message(fe_scram_state *state, char *input)
 {
 	PGconn	   *conn = state->conn;
-	char	   *iterations_str;
 	char	   *endptr;
-	char	   *encoded_salt;
-	char	   *nonce;
-	int			decoded_salt_len;
 
 	state->server_first_message = strdup(input);
 	if (state->server_first_message == NULL)
@@ -612,7 +600,7 @@ read_server_first_message(fe_scram_state *state, char *input)
 	}
 
 	/* parse the message */
-	nonce = read_attr_value(&input, 'r',
+	char	   *nonce = read_attr_value(&input, 'r',
 							&conn->errorMessage);
 	if (nonce == NULL)
 	{
@@ -637,13 +625,13 @@ read_server_first_message(fe_scram_state *state, char *input)
 		return false;
 	}
 
-	encoded_salt = read_attr_value(&input, 's', &conn->errorMessage);
+	char	   *encoded_salt = read_attr_value(&input, 's', &conn->errorMessage);
 	if (encoded_salt == NULL)
 	{
 		/* read_attr_value() has generated an error string */
 		return false;
 	}
-	decoded_salt_len = pg_b64_dec_len(strlen(encoded_salt));
+	int			decoded_salt_len = pg_b64_dec_len(strlen(encoded_salt));
 	state->salt = malloc(decoded_salt_len);
 	if (state->salt == NULL)
 	{
@@ -662,7 +650,7 @@ read_server_first_message(fe_scram_state *state, char *input)
 		return false;
 	}
 
-	iterations_str = read_attr_value(&input, 'i', &conn->errorMessage);
+	char	   *iterations_str = read_attr_value(&input, 'i', &conn->errorMessage);
 	if (iterations_str == NULL)
 	{
 		/* read_attr_value() has generated an error string */
@@ -690,9 +678,6 @@ static bool
 read_server_final_message(fe_scram_state *state, char *input)
 {
 	PGconn	   *conn = state->conn;
-	char	   *encoded_server_signature;
-	char	   *decoded_server_signature;
-	int			server_signature_len;
 
 	state->server_final_message = strdup(input);
 	if (!state->server_final_message)
@@ -715,7 +700,7 @@ read_server_final_message(fe_scram_state *state, char *input)
 	}
 
 	/* Parse the message. */
-	encoded_server_signature = read_attr_value(&input, 'v',
+	char	   *encoded_server_signature = read_attr_value(&input, 'v',
 											   &conn->errorMessage);
 	if (encoded_server_signature == NULL)
 	{
@@ -727,8 +712,8 @@ read_server_final_message(fe_scram_state *state, char *input)
 		printfPQExpBuffer(&conn->errorMessage,
 						  libpq_gettext("malformed SCRAM message (garbage at end of server-final-message)\n"));
 
-	server_signature_len = pg_b64_dec_len(strlen(encoded_server_signature));
-	decoded_server_signature = malloc(server_signature_len);
+	int			server_signature_len = pg_b64_dec_len(strlen(encoded_server_signature));
+	char	   *decoded_server_signature = malloc(server_signature_len);
 	if (!decoded_server_signature)
 	{
 		printfPQExpBuffer(&conn->errorMessage,
@@ -847,16 +832,14 @@ char *
 pg_fe_scram_build_secret(const char *password)
 {
 	char	   *prep_password;
-	pg_saslprep_rc rc;
 	char		saltbuf[SCRAM_DEFAULT_SALT_LEN];
-	char	   *result;
 
 	/*
 	 * Normalize the password with SASLprep.  If that doesn't work, because
 	 * the password isn't valid UTF-8 or contains prohibited characters, just
 	 * proceed with the original password.  (See comments at top of file.)
 	 */
-	rc = pg_saslprep(password, &prep_password);
+	pg_saslprep_rc rc = pg_saslprep(password, &prep_password);
 	if (rc == SASLPREP_OOM)
 		return NULL;
 	if (rc == SASLPREP_SUCCESS)
@@ -870,7 +853,7 @@ pg_fe_scram_build_secret(const char *password)
 		return NULL;
 	}
 
-	result = scram_build_secret(saltbuf, SCRAM_DEFAULT_SALT_LEN,
+	char	   *result = scram_build_secret(saltbuf, SCRAM_DEFAULT_SALT_LEN,
 								SCRAM_DEFAULT_ITERATIONS, password);
 
 	if (prep_password)

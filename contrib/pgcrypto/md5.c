@@ -176,10 +176,9 @@ md5_loop(md5_ctxt *ctxt, const uint8 *input, unsigned len)
 void
 md5_pad(md5_ctxt *ctxt)
 {
-	unsigned int gap;
 
 	/* Don't count up padding. Keep md5_n. */
-	gap = MD5_BUFLEN - ctxt->md5_i;
+	unsigned int gap = MD5_BUFLEN - ctxt->md5_i;
 	if (gap > 8)
 	{
 		memmove(ctxt->md5_buf + ctxt->md5_i, md5_paddat,

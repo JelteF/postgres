@@ -90,9 +90,7 @@ RelationGetPartitionDesc(Relation rel)
 static void
 RelationBuildPartitionDesc(Relation rel)
 {
-	PartitionDesc partdesc;
 	PartitionBoundInfo boundinfo = NULL;
-	List	   *inhoids;
 	PartitionBoundSpec **boundspecs = NULL;
 	Oid		   *oids = NULL;
 	bool	   *is_leaf = NULL;
@@ -100,7 +98,6 @@ RelationBuildPartitionDesc(Relation rel)
 	int			i,
 				nparts;
 	PartitionKey key = RelationGetPartitionKey(rel);
-	MemoryContext new_pdcxt;
 	MemoryContext oldcxt;
 	int		   *mapping;
 
@@ -110,7 +107,7 @@ RelationBuildPartitionDesc(Relation rel)
 	 * concurrently, whatever this function returns will be accurate as of
 	 * some well-defined point in time.
 	 */
-	inhoids = find_inheritance_children(RelationGetRelid(rel), NoLock);
+	List	   *inhoids = find_inheritance_children(RelationGetRelid(rel), NoLock);
 	nparts = list_length(inhoids);
 
 	/* Allocate working arrays for OIDs, leaf flags, and boundspecs. */
@@ -126,17 +123,15 @@ RelationBuildPartitionDesc(Relation rel)
 	foreach(cell, inhoids)
 	{
 		Oid			inhrelid = lfirst_oid(cell);
-		HeapTuple	tuple;
 		PartitionBoundSpec *boundspec = NULL;
 
 		/* Try fetching the tuple from the catcache, for speed. */
-		tuple = SearchSysCache1(RELOID, inhrelid);
+		HeapTuple	tuple = SearchSysCache1(RELOID, inhrelid);
 		if (HeapTupleIsValid(tuple))
 		{
-			Datum		datum;
 			bool		isnull;
 
-			datum = SysCacheGetAttr(RELOID, tuple,
+			Datum		datum = SysCacheGetAttr(RELOID, tuple,
 									Anum_pg_class_relpartbound,
 									&isnull);
 			if (!isnull)
@@ -160,21 +155,18 @@ RelationBuildPartitionDesc(Relation rel)
 		 */
 		if (boundspec == NULL)
 		{
-			Relation	pg_class;
-			SysScanDesc scan;
 			ScanKeyData key[1];
-			Datum		datum;
 			bool		isnull;
 
-			pg_class = table_open(RelationRelationId, AccessShareLock);
+			Relation	pg_class = table_open(RelationRelationId, AccessShareLock);
 			ScanKeyInit(&key[0],
 						Anum_pg_class_oid,
 						BTEqualStrategyNumber, F_OIDEQ,
 						ObjectIdGetDatum(inhrelid));
-			scan = systable_beginscan(pg_class, ClassOidIndexId, true,
+			SysScanDesc scan = systable_beginscan(pg_class, ClassOidIndexId, true,
 									  NULL, 1, key);
 			tuple = systable_getnext(scan);
-			datum = heap_getattr(tuple, Anum_pg_class_relpartbound,
+			Datum		datum = heap_getattr(tuple, Anum_pg_class_relpartbound,
 								 RelationGetDescr(pg_class), &isnull);
 			if (!isnull)
 				boundspec = stringToNode(TextDatumGetCString(datum));
@@ -195,9 +187,8 @@ RelationBuildPartitionDesc(Relation rel)
 		 */
 		if (boundspec->is_default)
 		{
-			Oid			partdefid;
 
-			partdefid = get_default_partition_oid(RelationGetRelid(rel));
+			Oid			partdefid = get_default_partition_oid(RelationGetRelid(rel));
 			if (partdefid != inhrelid)
 				elog(ERROR, "expected partdefid %u, but got %u",
 					 inhrelid, partdefid);
@@ -222,13 +213,13 @@ RelationBuildPartitionDesc(Relation rel)
 	 * data into a new, small context.  As per above comment, we don't make
 	 * this a long-lived context until it's finished.
 	 */
-	new_pdcxt = AllocSetContextCreate(CurTransactionContext,
+	MemoryContext new_pdcxt = AllocSetContextCreate(CurTransactionContext,
 									  "partition descriptor",
 									  ALLOCSET_SMALL_SIZES);
 	MemoryContextCopyAndSetIdentifier(new_pdcxt,
 									  RelationGetRelationName(rel));
 
-	partdesc = (PartitionDescData *)
+	PartitionDesc partdesc = (PartitionDescData *)
 		MemoryContextAllocZero(new_pdcxt, sizeof(PartitionDescData));
 	partdesc->nparts = nparts;
 	/* If there are no partitions, the rest of the partdesc can stay zero */
@@ -283,7 +274,6 @@ PartitionDirectory
 CreatePartitionDirectory(MemoryContext mcxt)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(mcxt);
-	PartitionDirectory pdir;
 	HASHCTL		ctl;
 
 	MemSet(&ctl, 0, sizeof(HASHCTL));
@@ -291,7 +281,7 @@ CreatePartitionDirectory(MemoryContext mcxt)
 	ctl.entrysize = sizeof(PartitionDirectoryEntry);
 	ctl.hcxt = mcxt;
 
-	pdir = palloc(sizeof(PartitionDirectoryData));
+	PartitionDirectory pdir = palloc(sizeof(PartitionDirectoryData));
 	pdir->pdir_mcxt = mcxt;
 	pdir->pdir_hash = hash_create("partition directory", 256, &ctl,
 								  HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
@@ -314,11 +304,10 @@ CreatePartitionDirectory(MemoryContext mcxt)
 PartitionDesc
 PartitionDirectoryLookup(PartitionDirectory pdir, Relation rel)
 {
-	PartitionDirectoryEntry *pde;
 	Oid			relid = RelationGetRelid(rel);
 	bool		found;
 
-	pde = hash_search(pdir->pdir_hash, &relid, HASH_ENTER, &found);
+	PartitionDirectoryEntry *pde = hash_search(pdir->pdir_hash, &relid, HASH_ENTER, &found);
 	if (!found)
 	{
 		/*

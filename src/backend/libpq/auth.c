@@ -257,7 +257,6 @@ static void
 auth_failed(Port *port, int status, char *logdetail)
 {
 	const char *errstr;
-	char	   *cdetail;
 	int			errcode_return = ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION;
 
 	/*
@@ -321,7 +320,7 @@ auth_failed(Port *port, int status, char *logdetail)
 			break;
 	}
 
-	cdetail = psprintf(_("Connection matched pg_hba.conf line %d: \"%s\""),
+	char	   *cdetail = psprintf(_("Connection matched pg_hba.conf line %d: \"%s\""),
 					   port->hba->linenumber, port->hba->rawline);
 	if (logdetail)
 		logdetail = psprintf("%s\n%s", logdetail, cdetail);
@@ -671,9 +670,8 @@ recv_password_packet(Port *port)
 	if (PG_PROTOCOL_MAJOR(port->proto) >= 3)
 	{
 		/* Expect 'p' message type */
-		int			mtype;
 
-		mtype = pq_getbyte();
+		int			mtype = pq_getbyte();
 		if (mtype != 'p')
 		{
 			/*
@@ -756,17 +754,15 @@ recv_password_packet(Port *port)
 static int
 CheckPasswordAuth(Port *port, char **logdetail)
 {
-	char	   *passwd;
 	int			result;
-	char	   *shadow_pass;
 
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
-	passwd = recv_password_packet(port);
+	char	   *passwd = recv_password_packet(port);
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
-	shadow_pass = get_role_password(port->user_name, logdetail);
+	char	   *shadow_pass = get_role_password(port->user_name, logdetail);
 	if (shadow_pass)
 	{
 		result = plain_crypt_verify(port->user_name, shadow_pass, passwd,
@@ -789,14 +785,13 @@ static int
 CheckPWChallengeAuth(Port *port, char **logdetail)
 {
 	int			auth_result;
-	char	   *shadow_pass;
 	PasswordType pwtype;
 
 	Assert(port->hba->auth_method == uaSCRAM ||
 		   port->hba->auth_method == uaMD5);
 
 	/* First look up the user's password. */
-	shadow_pass = get_role_password(port->user_name, logdetail);
+	char	   *shadow_pass = get_role_password(port->user_name, logdetail);
 
 	/*
 	 * If the user does not exist, or has no password or it's expired, we
@@ -845,7 +840,6 @@ static int
 CheckMD5Auth(Port *port, char *shadow_pass, char **logdetail)
 {
 	char		md5Salt[4];		/* Password salt */
-	char	   *passwd;
 	int			result;
 
 	if (Db_user_namespace)
@@ -863,7 +857,7 @@ CheckMD5Auth(Port *port, char *shadow_pass, char **logdetail)
 
 	sendAuthRequest(port, AUTH_REQ_MD5, md5Salt, 4);
 
-	passwd = recv_password_packet(port);
+	char	   *passwd = recv_password_packet(port);
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
@@ -890,7 +884,6 @@ CheckSCRAMAuth(Port *port, char *shadow_pass, char **logdetail)
 	const char *input;
 	int			inputlen;
 	int			result;
-	bool		initial;
 
 	/*
 	 * SASL auth is not supported for protocol versions before 3, because it
@@ -924,7 +917,7 @@ CheckSCRAMAuth(Port *port, char *shadow_pass, char **logdetail)
 	 * from the client.  All messages from client to server are password
 	 * packets (type 'p').
 	 */
-	initial = true;
+	bool		initial = true;
 	do
 	{
 		pq_startmsgread();
@@ -962,9 +955,8 @@ CheckSCRAMAuth(Port *port, char *shadow_pass, char **logdetail)
 		 */
 		if (initial)
 		{
-			const char *selected_mech;
 
-			selected_mech = pq_getmsgrawstring(&buf);
+			const char *selected_mech = pq_getmsgrawstring(&buf);
 
 			/*
 			 * Initialize the status tracker for message exchanges.
@@ -1323,7 +1315,6 @@ pg_SSPI_recvauth(Port *port)
 {
 	int			mtype;
 	StringInfoData buf;
-	SECURITY_STATUS r;
 	CredHandle	sspicred;
 	CtxtHandle *sspictx = NULL,
 				newctx;
@@ -1334,16 +1325,13 @@ pg_SSPI_recvauth(Port *port)
 	SecBuffer	OutBuffers[1];
 	SecBuffer	InBuffers[1];
 	HANDLE		token;
-	TOKEN_USER *tokenuser;
 	DWORD		retlen;
 	char		accountname[MAXPGPATH];
 	char		domainname[MAXPGPATH];
 	DWORD		accountnamesize = sizeof(accountname);
 	DWORD		domainnamesize = sizeof(domainname);
 	SID_NAME_USE accountnameuse;
-	HMODULE		secur32;
 
-	QUERY_SECURITY_CONTEXT_TOKEN_FN _QuerySecurityContextToken;
 
 	/*
 	 * SSPI auth is not supported for protocol versions before 3, because it
@@ -1361,7 +1349,7 @@ pg_SSPI_recvauth(Port *port)
 	/*
 	 * Acquire a handle to the server credentials.
 	 */
-	r = AcquireCredentialsHandle(NULL,
+	SECURITY_STATUS r = AcquireCredentialsHandle(NULL,
 								 "negotiate",
 								 SECPKG_CRED_INBOUND,
 								 NULL,
@@ -1515,13 +1503,13 @@ pg_SSPI_recvauth(Port *port)
 	 * secur32 library, so we have to load it dynamically.
 	 */
 
-	secur32 = LoadLibrary("SECUR32.DLL");
+	HMODULE		secur32 = LoadLibrary("SECUR32.DLL");
 	if (secur32 == NULL)
 		ereport(ERROR,
 				(errmsg("could not load library \"%s\": error code %lu",
 						"SECUR32.DLL", GetLastError())));
 
-	_QuerySecurityContextToken = (QUERY_SECURITY_CONTEXT_TOKEN_FN) (pg_funcptr_t)
+	QUERY_SECURITY_CONTEXT_TOKEN_FN _QuerySecurityContextToken = (QUERY_SECURITY_CONTEXT_TOKEN_FN) (pg_funcptr_t)
 		GetProcAddress(secur32, "QuerySecurityContextToken");
 	if (_QuerySecurityContextToken == NULL)
 	{
@@ -1553,7 +1541,7 @@ pg_SSPI_recvauth(Port *port)
 				(errmsg_internal("could not get token information buffer size: error code %lu",
 								 GetLastError())));
 
-	tokenuser = malloc(retlen);
+	TOKEN_USER *tokenuser = malloc(retlen);
 	if (tokenuser == NULL)
 		ereport(ERROR,
 				(errmsg("out of memory")));
@@ -1608,11 +1596,9 @@ pg_SSPI_recvauth(Port *port)
 	 */
 	if (port->hba->include_realm)
 	{
-		char	   *namebuf;
-		int			retval;
 
-		namebuf = psprintf("%s@%s", accountname, domainname);
-		retval = check_usermap(port->hba->usermap, port->user_name, namebuf, true);
+		char	   *namebuf = psprintf("%s@%s", accountname, domainname);
+		int			retval = check_usermap(port->hba->usermap, port->user_name, namebuf, true);
 		pfree(namebuf);
 		return retval;
 	}
@@ -1631,12 +1617,8 @@ pg_SSPI_make_upn(char *accountname,
 				 size_t domainnamesize,
 				 bool update_accountname)
 {
-	char	   *samname;
-	char	   *upname = NULL;
 	char	   *p = NULL;
 	ULONG		upnamesize = 0;
-	size_t		upnamerealmsize;
-	BOOLEAN		res;
 
 	/*
 	 * Build SAM name (DOMAIN\user), then translate to UPN
@@ -1645,8 +1627,8 @@ pg_SSPI_make_upn(char *accountname,
 	 * case-insensitive.
 	 */
 
-	samname = psprintf("%s\\%s", domainname, accountname);
-	res = TranslateName(samname, NameSamCompatible, NameUserPrincipal,
+	char	   *samname = psprintf("%s\\%s", domainname, accountname);
+	BOOLEAN		res = TranslateName(samname, NameSamCompatible, NameUserPrincipal,
 						NULL, &upnamesize);
 
 	if ((!res && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
@@ -1660,7 +1642,7 @@ pg_SSPI_make_upn(char *accountname,
 	}
 
 	/* upnamesize includes the terminating NUL. */
-	upname = palloc(upnamesize);
+	char	   *upname = palloc(upnamesize);
 
 	res = TranslateName(samname, NameSamCompatible, NameUserPrincipal,
 						upname, &upnamesize);
@@ -1679,7 +1661,7 @@ pg_SSPI_make_upn(char *accountname,
 	}
 
 	/* Length of realm name after the '@', including the NUL. */
-	upnamerealmsize = upnamesize - (p - upname + 1);
+	size_t		upnamerealmsize = upnamesize - (p - upname + 1);
 
 	/* Replace domainname with realm name. */
 	if (upnamerealmsize > domainnamesize)
@@ -2303,13 +2285,11 @@ CheckPAMAuth(Port *port, const char *user, const char *password)
 static int
 CheckBSDAuth(Port *port, char *user)
 {
-	char	   *passwd;
-	int			retval;
 
 	/* Send regular password request to client, and get the response */
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
-	passwd = recv_password_packet(port);
+	char	   *passwd = recv_password_packet(port);
 	if (passwd == NULL)
 		return STATUS_EOF;
 
@@ -2318,7 +2298,7 @@ CheckBSDAuth(Port *port, char *user)
 	 * will overwrite the password string with zeroes, but it's just a
 	 * temporary string so we don't care.
 	 */
-	retval = auth_userokay(user, NULL, "auth-postgresql", passwd);
+	int			retval = auth_userokay(user, NULL, "auth-postgresql", passwd);
 
 	pfree(passwd);
 
@@ -2345,11 +2325,10 @@ static int	errdetail_for_ldap(LDAP *ldap);
 static int
 InitializeLDAPConnection(Port *port, LDAP **ldap)
 {
-	const char *scheme;
 	int			ldapversion = LDAP_VERSION3;
 	int			r;
 
-	scheme = port->hba->ldapscheme;
+	const char *scheme = port->hba->ldapscheme;
 	if (scheme == NULL)
 		scheme = "ldap";
 #ifdef WIN32
@@ -2427,10 +2406,9 @@ InitializeLDAPConnection(Port *port, LDAP **ldap)
 		/* Convert the list of host[:port] entries to full URIs */
 		do
 		{
-			size_t		size;
 
 			/* Find the span of the next entry */
-			size = strcspn(p, " ");
+			size_t		size = strcspn(p, " ");
 
 			/* Append a space separator if this isn't the first URI */
 			if (uris.len > 0)
@@ -2508,9 +2486,8 @@ InitializeLDAPConnection(Port *port, LDAP **ldap)
 			 * on Windows, and causes a load error for the whole exe if
 			 * referenced.
 			 */
-			HANDLE		ldaphandle;
 
-			ldaphandle = LoadLibrary("WLDAP32.DLL");
+			HANDLE		ldaphandle = LoadLibrary("WLDAP32.DLL");
 			if (ldaphandle == NULL)
 			{
 				/*
@@ -2663,11 +2640,8 @@ CheckLDAPAuth(Port *port)
 		 */
 		char	   *filter;
 		LDAPMessage *search_message;
-		LDAPMessage *entry;
 		char	   *attributes[] = {LDAP_NO_ATTRS, NULL};
-		char	   *dn;
 		char	   *c;
-		int			count;
 
 		/*
 		 * Disallow any characters that we would otherwise need to escape,
@@ -2739,7 +2713,7 @@ CheckLDAPAuth(Port *port)
 			return STATUS_ERROR;
 		}
 
-		count = ldap_count_entries(ldap, search_message);
+		int			count = ldap_count_entries(ldap, search_message);
 		if (count != 1)
 		{
 			if (count == 0)
@@ -2762,8 +2736,8 @@ CheckLDAPAuth(Port *port)
 			return STATUS_ERROR;
 		}
 
-		entry = ldap_first_entry(ldap, search_message);
-		dn = ldap_get_dn(ldap, entry);
+		LDAPMessage *entry = ldap_first_entry(ldap, search_message);
+		char	   *dn = ldap_get_dn(ldap, entry);
 		if (dn == NULL)
 		{
 			int			error;
@@ -2846,9 +2820,8 @@ static int
 errdetail_for_ldap(LDAP *ldap)
 {
 	char	   *message;
-	int			rc;
 
-	rc = ldap_get_option(ldap, LDAP_OPT_DIAGNOSTIC_MESSAGE, &message);
+	int			rc = ldap_get_option(ldap, LDAP_OPT_DIAGNOSTIC_MESSAGE, &message);
 	if (rc == LDAP_SUCCESS && message != NULL)
 	{
 		errdetail("LDAP diagnostics: %s", message);
@@ -2869,7 +2842,6 @@ errdetail_for_ldap(LDAP *ldap)
 static int
 CheckCertAuth(Port *port)
 {
-	int			status_check_usermap = STATUS_ERROR;
 
 	Assert(port->ssl);
 
@@ -2884,7 +2856,7 @@ CheckCertAuth(Port *port)
 	}
 
 	/* Just pass the certificate cn to the usermap check */
-	status_check_usermap = check_usermap(port->hba->usermap, port->user_name, port->peer_cn, false);
+	int			status_check_usermap = check_usermap(port->hba->usermap, port->user_name, port->peer_cn, false);
 	if (status_check_usermap != STATUS_OK)
 	{
 		/*
@@ -2957,7 +2929,6 @@ typedef struct
 static void
 radius_add_attribute(radius_packet *packet, uint8 type, const unsigned char *data, int len)
 {
-	radius_attribute *attr;
 
 	if (packet->length + len > RADIUS_BUFFER_SIZE)
 	{
@@ -2973,7 +2944,7 @@ radius_add_attribute(radius_packet *packet, uint8 type, const unsigned char *dat
 		return;
 	}
 
-	attr = (radius_attribute *) ((unsigned char *) packet + packet->length);
+	radius_attribute *attr = (radius_attribute *) ((unsigned char *) packet + packet->length);
 	attr->attribute = type;
 	attr->length = len + 2;		/* total size includes type and length */
 	memcpy(attr->data, data, len);
@@ -2983,7 +2954,6 @@ radius_add_attribute(radius_packet *packet, uint8 type, const unsigned char *dat
 static int
 CheckRADIUSAuth(Port *port)
 {
-	char	   *passwd;
 	ListCell   *server,
 			   *secrets,
 			   *radiusports,
@@ -3010,7 +2980,7 @@ CheckRADIUSAuth(Port *port)
 	/* Send regular password request to client, and get the response */
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
-	passwd = recv_password_packet(port);
+	char	   *passwd = recv_password_packet(port);
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
@@ -3099,7 +3069,6 @@ PerformRadiusTransaction(const char *server, const char *secret, const char *por
 #endif
 	struct addrinfo hint;
 	struct addrinfo *serveraddrs;
-	int			port;
 	ACCEPT_TYPE_ARG3 addrsize;
 	fd_set		fdset;
 	struct timeval endtime;
@@ -3116,7 +3085,7 @@ PerformRadiusTransaction(const char *server, const char *secret, const char *por
 	MemSet(&hint, 0, sizeof(hint));
 	hint.ai_socktype = SOCK_DGRAM;
 	hint.ai_family = AF_UNSPEC;
-	port = atoi(portstr);
+	int			port = atoi(portstr);
 
 	r = pg_getaddrinfo_all(server, portstr, &hint, &serveraddrs);
 	if (r || !serveraddrs)
@@ -3254,10 +3223,9 @@ PerformRadiusTransaction(const char *server, const char *secret, const char *por
 	{
 		struct timeval timeout;
 		struct timeval now;
-		int64		timeoutval;
 
 		gettimeofday(&now, NULL);
-		timeoutval = (endtime.tv_sec * 1000000 + endtime.tv_usec) - (now.tv_sec * 1000000 + now.tv_usec);
+		int64		timeoutval = (endtime.tv_sec * 1000000 + endtime.tv_usec) - (now.tv_sec * 1000000 + now.tv_usec);
 		if (timeoutval <= 0)
 		{
 			ereport(LOG,

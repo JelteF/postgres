@@ -42,9 +42,8 @@ static void pcb_error_callback(void *arg);
 ParseState *
 make_parsestate(ParseState *parentParseState)
 {
-	ParseState *pstate;
 
-	pstate = palloc0(sizeof(ParseState));
+	ParseState *pstate = palloc0(sizeof(ParseState));
 
 	pstate->parentParseState = parentParseState;
 
@@ -109,7 +108,6 @@ free_parsestate(ParseState *pstate)
 int
 parser_errposition(ParseState *pstate, int location)
 {
-	int			pos;
 
 	/* No-op if location was not provided */
 	if (location < 0)
@@ -118,7 +116,7 @@ parser_errposition(ParseState *pstate, int location)
 	if (pstate == NULL || pstate->p_sourcetext == NULL)
 		return 0;
 	/* Convert offset to character number */
-	pos = pg_mbstrlen_with_len(pstate->p_sourcetext, location) + 1;
+	int			pos = pg_mbstrlen_with_len(pstate->p_sourcetext, location) + 1;
 	/* And pass it to the ereport mechanism */
 	return errposition(pos);
 }
@@ -195,9 +193,6 @@ Oid
 transformContainerType(Oid *containerType, int32 *containerTypmod)
 {
 	Oid			origContainerType = *containerType;
-	Oid			elementType;
-	HeapTuple	type_tuple_container;
-	Form_pg_type type_struct_container;
 
 	/*
 	 * If the input is a domain, smash to base type, and extract the actual
@@ -221,14 +216,14 @@ transformContainerType(Oid *containerType, int32 *containerTypmod)
 		*containerType = OIDARRAYOID;
 
 	/* Get the type tuple for the container */
-	type_tuple_container = SearchSysCache1(TYPEOID, ObjectIdGetDatum(*containerType));
+	HeapTuple	type_tuple_container = SearchSysCache1(TYPEOID, ObjectIdGetDatum(*containerType));
 	if (!HeapTupleIsValid(type_tuple_container))
 		elog(ERROR, "cache lookup failed for type %u", *containerType);
-	type_struct_container = (Form_pg_type) GETSTRUCT(type_tuple_container);
+	Form_pg_type type_struct_container = (Form_pg_type) GETSTRUCT(type_tuple_container);
 
 	/* needn't check typisdefined since this will fail anyway */
 
-	elementType = type_struct_container->typelem;
+	Oid			elementType = type_struct_container->typelem;
 	if (elementType == InvalidOid)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -285,7 +280,6 @@ transformContainerSubscripts(ParseState *pstate,
 	List	   *upperIndexpr = NIL;
 	List	   *lowerIndexpr = NIL;
 	ListCell   *idx;
-	SubscriptingRef *sbsref;
 
 	/*
 	 * Caller may or may not have bothered to determine elementType.  Note
@@ -394,9 +388,8 @@ transformContainerSubscripts(ParseState *pstate,
 	{
 		Oid			typesource = exprType(assignFrom);
 		Oid			typeneeded = isSlice ? containerType : elementType;
-		Node	   *newFrom;
 
-		newFrom = coerce_to_target_type(pstate,
+		Node	   *newFrom = coerce_to_target_type(pstate,
 										assignFrom, typesource,
 										typeneeded, containerTypMod,
 										COERCION_ASSIGNMENT,
@@ -417,7 +410,7 @@ transformContainerSubscripts(ParseState *pstate,
 	/*
 	 * Ready to build the SubscriptingRef node.
 	 */
-	sbsref = (SubscriptingRef *) makeNode(SubscriptingRef);
+	SubscriptingRef *sbsref = (SubscriptingRef *) makeNode(SubscriptingRef);
 	if (assignFrom != NULL)
 		sbsref->refassgnexpr = (Expr *) assignFrom;
 

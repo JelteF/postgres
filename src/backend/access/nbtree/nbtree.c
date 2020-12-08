@@ -162,10 +162,9 @@ bthandler(PG_FUNCTION_ARGS)
 void
 btbuildempty(Relation index)
 {
-	Page		metapage;
 
 	/* Construct metapage. */
-	metapage = (Page) palloc(BLCKSZ);
+	Page		metapage = (Page) palloc(BLCKSZ);
 	_bt_initmetapage(metapage, P_NONE, 0, _bt_allequalimage(index, false));
 
 	/*
@@ -201,14 +200,12 @@ btinsert(Relation rel, Datum *values, bool *isnull,
 		 IndexUniqueCheck checkUnique,
 		 IndexInfo *indexInfo)
 {
-	bool		result;
-	IndexTuple	itup;
 
 	/* generate an index tuple */
-	itup = index_form_tuple(RelationGetDescr(rel), values, isnull);
+	IndexTuple	itup = index_form_tuple(RelationGetDescr(rel), values, isnull);
 	itup->t_tid = *ht_ctid;
 
-	result = _bt_doinsert(rel, itup, checkUnique, heapRel);
+	bool		result = _bt_doinsert(rel, itup, checkUnique, heapRel);
 
 	pfree(itup);
 
@@ -353,17 +350,15 @@ btgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 IndexScanDesc
 btbeginscan(Relation rel, int nkeys, int norderbys)
 {
-	IndexScanDesc scan;
-	BTScanOpaque so;
 
 	/* no order by operators allowed */
 	Assert(norderbys == 0);
 
 	/* get the scan */
-	scan = RelationGetIndexScan(rel, nkeys, norderbys);
+	IndexScanDesc scan = RelationGetIndexScan(rel, nkeys, norderbys);
 
 	/* allocate private workspace */
-	so = (BTScanOpaque) palloc(sizeof(BTScanOpaqueData));
+	BTScanOpaque so = (BTScanOpaque) palloc(sizeof(BTScanOpaqueData));
 	BTScanPosInvalidate(so->currPos);
 	BTScanPosInvalidate(so->markPos);
 	if (scan->numberOfKeys > 0)
@@ -605,12 +600,11 @@ btinitparallelscan(void *target)
 void
 btparallelrescan(IndexScanDesc scan)
 {
-	BTParallelScanDesc btscan;
 	ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
 
 	Assert(parallel_scan);
 
-	btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
+	BTParallelScanDesc btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
 												  parallel_scan->ps_offset);
 
 	/*
@@ -651,11 +645,10 @@ _bt_parallel_seize(IndexScanDesc scan, BlockNumber *pageno)
 	bool		exit_loop = false;
 	bool		status = true;
 	ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
-	BTParallelScanDesc btscan;
 
 	*pageno = P_NONE;
 
-	btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
+	BTParallelScanDesc btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
 												  parallel_scan->ps_offset);
 
 	while (1)
@@ -705,9 +698,8 @@ void
 _bt_parallel_release(IndexScanDesc scan, BlockNumber scan_page)
 {
 	ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
-	BTParallelScanDesc btscan;
 
-	btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
+	BTParallelScanDesc btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
 												  parallel_scan->ps_offset);
 
 	SpinLockAcquire(&btscan->btps_mutex);
@@ -729,14 +721,13 @@ _bt_parallel_done(IndexScanDesc scan)
 {
 	BTScanOpaque so = (BTScanOpaque) scan->opaque;
 	ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
-	BTParallelScanDesc btscan;
 	bool		status_changed = false;
 
 	/* Do nothing, for non-parallel scans */
 	if (parallel_scan == NULL)
 		return;
 
-	btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
+	BTParallelScanDesc btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
 												  parallel_scan->ps_offset);
 
 	/*
@@ -770,9 +761,8 @@ _bt_parallel_advance_array_keys(IndexScanDesc scan)
 {
 	BTScanOpaque so = (BTScanOpaque) scan->opaque;
 	ParallelIndexScanDesc parallel_scan = scan->parallel_scan;
-	BTParallelScanDesc btscan;
 
-	btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
+	BTParallelScanDesc btscan = (BTParallelScanDesc) OffsetToPointer((void *) parallel_scan,
 												  parallel_scan->ps_offset);
 
 	so->arrayKeyCount++;
@@ -799,14 +789,11 @@ _bt_parallel_advance_array_keys(IndexScanDesc scan)
 static bool
 _bt_vacuum_needs_cleanup(IndexVacuumInfo *info)
 {
-	Buffer		metabuf;
-	Page		metapg;
-	BTMetaPageData *metad;
 	bool		result = false;
 
-	metabuf = _bt_getbuf(info->index, BTREE_METAPAGE, BT_READ);
-	metapg = BufferGetPage(metabuf);
-	metad = BTPageGetMeta(metapg);
+	Buffer		metabuf = _bt_getbuf(info->index, BTREE_METAPAGE, BT_READ);
+	Page		metapg = BufferGetPage(metabuf);
+	BTMetaPageData *metad = BTPageGetMeta(metapg);
 
 	/*
 	 * XXX: If IndexVacuumInfo contained the heap relation, we could be more
@@ -834,9 +821,6 @@ _bt_vacuum_needs_cleanup(IndexVacuumInfo *info)
 	}
 	else
 	{
-		BTOptions  *relopts;
-		float8		cleanup_scale_factor;
-		float8		prev_num_heap_tuples;
 
 		/*
 		 * If table receives enough insertions and no cleanup was performed,
@@ -845,12 +829,12 @@ _bt_vacuum_needs_cleanup(IndexVacuumInfo *info)
 		 * tuples exceeds vacuum_cleanup_index_scale_factor fraction of
 		 * original tuples count.
 		 */
-		relopts = (BTOptions *) info->index->rd_options;
-		cleanup_scale_factor = (relopts &&
+		BTOptions  *relopts = (BTOptions *) info->index->rd_options;
+		float8		cleanup_scale_factor = (relopts &&
 								relopts->vacuum_cleanup_index_scale_factor >= 0)
 			? relopts->vacuum_cleanup_index_scale_factor
 			: vacuum_cleanup_index_scale_factor;
-		prev_num_heap_tuples = metad->btm_last_cleanup_num_heap_tuples;
+		float8		prev_num_heap_tuples = metad->btm_last_cleanup_num_heap_tuples;
 
 		if (cleanup_scale_factor <= 0 ||
 			info->num_heap_tuples < 0 ||
@@ -971,8 +955,6 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	Relation	rel = info->index;
 	BTVacState	vstate;
 	BlockNumber num_pages;
-	BlockNumber scanblkno;
-	bool		needLock;
 
 	/*
 	 * Reset counts that will be incremented during the scan; needed in case
@@ -1019,9 +1001,9 @@ btvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	 * We can skip locking for new or temp relations, however, since no one
 	 * else could be accessing them.
 	 */
-	needLock = !RELATION_IS_LOCAL(rel);
+	bool		needLock = !RELATION_IS_LOCAL(rel);
 
-	scanblkno = BTREE_METAPAGE + 1;
+	BlockNumber scanblkno = BTREE_METAPAGE + 1;
 	for (;;)
 	{
 		/* Get the current relation length */
@@ -1103,18 +1085,14 @@ btvacuumpage(BTVacState *vstate, BlockNumber scanblkno)
 	IndexBulkDeleteCallback callback = vstate->callback;
 	void	   *callback_state = vstate->callback_state;
 	Relation	rel = info->index;
-	bool		attempt_pagedel;
 	BlockNumber blkno,
 				backtrack_to;
-	Buffer		buf;
-	Page		page;
-	BTPageOpaque opaque;
 
 	blkno = scanblkno;
 
 backtrack:
 
-	attempt_pagedel = false;
+	bool		attempt_pagedel = false;
 	backtrack_to = P_NONE;
 
 	/* call vacuum_delay_point while not holding any buffer lock */
@@ -1126,11 +1104,11 @@ backtrack:
 	 * recycle all-zero pages, not fail.  Also, we want to use a nondefault
 	 * buffer access strategy.
 	 */
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
+	Buffer		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
 							 info->strategy);
 	_bt_lockbuf(rel, buf, BT_READ);
-	page = BufferGetPage(buf);
-	opaque = NULL;
+	Page		page = BufferGetPage(buf);
+	BTPageOpaque opaque = NULL;
 	if (!PageIsNew(page))
 	{
 		_bt_checkpage(rel, buf);
@@ -1220,9 +1198,7 @@ backtrack:
 	else if (P_ISLEAF(opaque))
 	{
 		OffsetNumber deletable[MaxIndexTuplesPerPage];
-		int			ndeletable;
 		BTVacuumPosting updatable[MaxIndexTuplesPerPage];
-		int			nupdatable;
 		OffsetNumber offnum,
 					minoff,
 					maxoff;
@@ -1259,8 +1235,8 @@ backtrack:
 		 * items to see which ones need to be deleted according to cutoff
 		 * point using callback.
 		 */
-		ndeletable = 0;
-		nupdatable = 0;
+		int			ndeletable = 0;
+		int			nupdatable = 0;
 		minoff = P_FIRSTDATAKEY(opaque);
 		maxoff = PageGetMaxOffsetNumber(page);
 		nhtidsdead = 0;
@@ -1271,9 +1247,8 @@ backtrack:
 				 offnum <= maxoff;
 				 offnum = OffsetNumberNext(offnum))
 			{
-				IndexTuple	itup;
 
-				itup = (IndexTuple) PageGetItem(page,
+				IndexTuple	itup = (IndexTuple) PageGetItem(page,
 												PageGetItemId(page, offnum));
 
 				/*
@@ -1310,11 +1285,10 @@ backtrack:
 				}
 				else
 				{
-					BTVacuumPosting vacposting;
 					int			nremaining;
 
 					/* Posting list tuple */
-					vacposting = btreevacuumposting(vstate, itup, offnum,
+					BTVacuumPosting vacposting = btreevacuumposting(vstate, itup, offnum,
 													&nremaining);
 					if (vacposting == NULL)
 					{
@@ -1418,11 +1392,10 @@ backtrack:
 
 	if (attempt_pagedel)
 	{
-		MemoryContext oldcontext;
 
 		/* Run pagedel in a temp context to avoid memory leakage */
 		MemoryContextReset(vstate->pagedelcontext);
-		oldcontext = MemoryContextSwitchTo(vstate->pagedelcontext);
+		MemoryContext oldcontext = MemoryContextSwitchTo(vstate->pagedelcontext);
 
 		/*
 		 * We trust the _bt_pagedel return value because it does not include

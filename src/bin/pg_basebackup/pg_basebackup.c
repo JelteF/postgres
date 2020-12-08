@@ -288,10 +288,9 @@ tablespace_list_append(const char *arg)
 {
 	TablespaceListCell *cell = (TablespaceListCell *) pg_malloc0(sizeof(TablespaceListCell));
 	char	   *dst;
-	char	   *dst_ptr;
 	const char *arg_ptr;
 
-	dst_ptr = dst = cell->old_dir;
+	char	   *dst_ptr = dst = cell->old_dir;
 	for (arg_ptr = arg; *arg_ptr; arg_ptr++)
 	{
 		if (dst_ptr - dst >= MAXPGPATH)
@@ -363,9 +362,8 @@ static const char *
 get_gz_error(gzFile gzf)
 {
 	int			errnum;
-	const char *errmsg;
 
-	errmsg = gzerror(gzf, &errnum);
+	const char *errmsg = gzerror(gzf, &errnum);
 	if (errnum == Z_ERRNO)
 		return strerror(errno);
 	else
@@ -446,7 +444,6 @@ reached_end_position(XLogRecPtr segendpos, uint32 timeline,
 #ifndef WIN32
 		fd_set		fds;
 		struct timeval tv;
-		int			r;
 
 		/*
 		 * Don't have the end pointer yet - check our pipe to see if it has
@@ -457,7 +454,7 @@ reached_end_position(XLogRecPtr segendpos, uint32 timeline,
 
 		MemSet(&tv, 0, sizeof(tv));
 
-		r = select(bgpipe[0] + 1, &fds, NULL, NULL, &tv);
+		int			r = select(bgpipe[0] + 1, &fds, NULL, NULL, &tv);
 		if (r == 1)
 		{
 			char		xlogend[64];
@@ -593,12 +590,11 @@ LogStreamerMain(logstreamer_param *param)
 static void
 StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier)
 {
-	logstreamer_param *param;
 	uint32		hi,
 				lo;
 	char		statusdir[MAXPGPATH];
 
-	param = pg_malloc0(sizeof(logstreamer_param));
+	logstreamer_param *param = pg_malloc0(sizeof(logstreamer_param));
 	param->timeline = timeline;
 	param->sysidentifier = sysidentifier;
 
@@ -776,20 +772,18 @@ static void
 progress_report(int tablespacenum, const char *filename,
 				bool force, bool finished)
 {
-	int			percent;
 	char		totaldone_str[32];
 	char		totalsize_str[32];
-	pg_time_t	now;
 
 	if (!showprogress)
 		return;
 
-	now = time(NULL);
+	pg_time_t	now = time(NULL);
 	if (now == last_progress_report && !force && !finished)
 		return;					/* Max once per second */
 
 	last_progress_report = now;
-	percent = totalsize_kb ? (int) ((totaldone / 1024) * 100 / totalsize_kb) : 0;
+	int			percent = totalsize_kb ? (int) ((totaldone / 1024) * 100 / totalsize_kb) : 0;
 
 	/*
 	 * Avoid overflowing past 100% or the full size. This may make the total
@@ -866,12 +860,11 @@ progress_report(int tablespacenum, const char *filename,
 static int32
 parse_max_rate(char *src)
 {
-	double		result;
 	char	   *after_num;
 	char	   *suffix = NULL;
 
 	errno = 0;
-	result = strtod(src, &after_num);
+	double		result = strtod(src, &after_num);
 	if (src == after_num)
 	{
 		pg_log_error("transfer rate \"%s\" is not a valid value", src);
@@ -952,10 +945,9 @@ static void
 ReceiveCopyData(PGconn *conn, WriteDataCallback callback,
 				void *callback_data)
 {
-	PGresult   *res;
 
 	/* Get the COPY data stream. */
-	res = PQgetResult(conn);
+	PGresult   *res = PQgetResult(conn);
 	if (PQresultStatus(res) != PGRES_COPY_OUT)
 	{
 		pg_log_error("could not get COPY data stream: %s",
@@ -967,10 +959,9 @@ ReceiveCopyData(PGconn *conn, WriteDataCallback callback,
 	/* Loop over chunks until done. */
 	while (1)
 	{
-		int			r;
 		char	   *copybuf;
 
-		r = PQgetCopyData(conn, &copybuf, 0);
+		int			r = PQgetCopyData(conn, &copybuf, 0);
 		if (r == -1)
 		{
 			/* End of chunk. */
@@ -1193,7 +1184,6 @@ ReceiveTarFile(PGconn *conn, PGresult *res, int rownum)
 		 */
 		if (!state.found_postgresql_auto_conf || !state.is_recovery_guc_supported)
 		{
-			int			padding;
 
 			tarCreateHeader(header,
 							state.is_recovery_guc_supported ? "postgresql.auto.conf" : "recovery.conf",
@@ -1202,7 +1192,7 @@ ReceiveTarFile(PGconn *conn, PGresult *res, int rownum)
 							pg_file_create_mode, 04000, 02000,
 							time(NULL));
 
-			padding = tarPaddingBytesRequired(recoveryconfcontents->len);
+			int			padding = tarPaddingBytesRequired(recoveryconfcontents->len);
 
 			writeTarData(&state, header, sizeof(header));
 			writeTarData(&state, recoveryconfcontents->data,
@@ -1339,11 +1329,9 @@ ReceiveTarCopyChunk(size_t r, char *copybuf, void *callback_data)
 					 * header is not aligned properly or it's not returned in
 					 * whole by the last PQgetCopyData call.
 					 */
-					int			hdrleft;
-					int			bytes2copy;
 
-					hdrleft = TAR_BLOCK_SIZE - state->tarhdrsz;
-					bytes2copy = (rr > hdrleft ? hdrleft : rr);
+					int			hdrleft = TAR_BLOCK_SIZE - state->tarhdrsz;
+					int			bytes2copy = (rr > hdrleft ? hdrleft : rr);
 
 					memcpy(&state->tarhdr[state->tarhdrsz], copybuf + pos,
 						   bytes2copy);
@@ -1420,9 +1408,8 @@ ReceiveTarCopyChunk(size_t r, char *copybuf, void *callback_data)
 					/*
 					 * We still have data to read (and possibly write).
 					 */
-					int			bytes2write;
 
-					bytes2write = (state->filesz > rr ? rr : state->filesz);
+					int			bytes2write = (state->filesz > rr ? rr : state->filesz);
 
 					if (!state->skip_file)
 						writeTarData(state, copybuf + pos, bytes2write);
@@ -1436,11 +1423,9 @@ ReceiveTarCopyChunk(size_t r, char *copybuf, void *callback_data)
 						 writerecoveryconf)
 				{
 					/* append recovery config to postgresql.auto.conf */
-					int			padding;
-					int			tailsize;
 
-					tailsize = (TAR_BLOCK_SIZE - state->file_padding_len) + recoveryconfcontents->len;
-					padding = tarPaddingBytesRequired(tailsize);
+					int			tailsize = (TAR_BLOCK_SIZE - state->file_padding_len) + recoveryconfcontents->len;
+					int			padding = tarPaddingBytesRequired(tailsize);
 
 					writeTarData(state, recoveryconfcontents->data,
 								 recoveryconfcontents->len);
@@ -1515,12 +1500,11 @@ static void
 ReceiveAndUnpackTarFile(PGconn *conn, PGresult *res, int rownum)
 {
 	UnpackTarState state;
-	bool		basetablespace;
 
 	memset(&state, 0, sizeof(state));
 	state.tablespacenum = rownum;
 
-	basetablespace = PQgetisnull(res, rownum, 0);
+	bool		basetablespace = PQgetisnull(res, rownum, 0);
 	if (basetablespace)
 		strlcpy(state.current_path, basedir, sizeof(state.current_path));
 	else
@@ -1796,11 +1780,9 @@ ReceiveBackupManifestInMemoryChunk(size_t r, char *copybuf,
 static void
 BaseBackup(void)
 {
-	PGresult   *res;
 	char	   *sysidentifier;
 	TimeLineID	latesttli;
 	TimeLineID	starttli;
-	char	   *basebkp;
 	char		escaped_label[MAXPGPATH];
 	char	   *maxrate_clause = NULL;
 	char	   *manifest_clause = NULL;
@@ -1812,7 +1794,6 @@ BaseBackup(void)
 				maxServerMajor;
 	int			serverVersion,
 				serverMajor;
-	int			writing_to_stdout;
 
 	Assert(conn != NULL);
 
@@ -1890,7 +1871,7 @@ BaseBackup(void)
 			fprintf(stderr, "\n");
 	}
 
-	basebkp =
+	char	   *basebkp =
 		psprintf("BASE_BACKUP LABEL '%s' %s %s %s %s %s %s %s %s %s",
 				 escaped_label,
 				 estimatesize ? "PROGRESS" : "",
@@ -1913,7 +1894,7 @@ BaseBackup(void)
 	/*
 	 * Get the starting WAL location
 	 */
-	res = PQgetResult(conn);
+	PGresult   *res = PQgetResult(conn);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		pg_log_error("could not initiate base backup: %s",
@@ -1989,7 +1970,7 @@ BaseBackup(void)
 	/*
 	 * When writing to stdout, require a single tablespace
 	 */
-	writing_to_stdout = format == 't' && strcmp(basedir, "-") == 0;
+	int			writing_to_stdout = format == 't' && strcmp(basedir, "-") == 0;
 	if (writing_to_stdout && PQntuples(res) > 1)
 	{
 		pg_log_error("can only write single tablespace to stdout, database has %d",
@@ -2625,7 +2606,6 @@ main(int argc, char **argv)
 	/* Create pg_wal symlink, if required */
 	if (xlog_dir)
 	{
-		char	   *linkloc;
 
 		verify_dir_is_empty_or_create(xlog_dir, &made_new_xlogdir, &found_existing_xlogdir);
 
@@ -2633,7 +2613,7 @@ main(int argc, char **argv)
 		 * Form name of the place where the symlink must go. pg_xlog has been
 		 * renamed to pg_wal in post-10 clusters.
 		 */
-		linkloc = psprintf("%s/%s", basedir,
+		char	   *linkloc = psprintf("%s/%s", basedir,
 						   PQserverVersion(conn) < MINIMUM_VERSION_FOR_PG_WAL ?
 						   "pg_xlog" : "pg_wal");
 

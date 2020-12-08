@@ -151,12 +151,9 @@ void
 ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 {
 	Relation	resultRelation = resultRelInfo->ri_RelationDesc;
-	List	   *indexoidlist;
 	ListCell   *l;
 	int			len,
 				i;
-	RelationPtr relationDescs;
-	IndexInfo **indexInfoArray;
 
 	resultRelInfo->ri_NumIndices = 0;
 
@@ -167,7 +164,7 @@ ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 	/*
 	 * Get cached list of index OIDs
 	 */
-	indexoidlist = RelationGetIndexList(resultRelation);
+	List	   *indexoidlist = RelationGetIndexList(resultRelation);
 	len = list_length(indexoidlist);
 	if (len == 0)
 		return;
@@ -175,8 +172,8 @@ ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 	/*
 	 * allocate space for result arrays
 	 */
-	relationDescs = (RelationPtr) palloc(len * sizeof(Relation));
-	indexInfoArray = (IndexInfo **) palloc(len * sizeof(IndexInfo *));
+	RelationPtr relationDescs = (RelationPtr) palloc(len * sizeof(Relation));
+	IndexInfo **indexInfoArray = (IndexInfo **) palloc(len * sizeof(IndexInfo *));
 
 	resultRelInfo->ri_NumIndices = len;
 	resultRelInfo->ri_IndexRelationDescs = relationDescs;
@@ -193,13 +190,11 @@ ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 	foreach(l, indexoidlist)
 	{
 		Oid			indexOid = lfirst_oid(l);
-		Relation	indexDesc;
-		IndexInfo  *ii;
 
-		indexDesc = index_open(indexOid, RowExclusiveLock);
+		Relation	indexDesc = index_open(indexOid, RowExclusiveLock);
 
 		/* extract index key information from the index's pg_index info */
-		ii = BuildIndexInfo(indexDesc);
+		IndexInfo  *ii = BuildIndexInfo(indexDesc);
 
 		/*
 		 * If the indexes are to be used for speculative insertion, add extra
@@ -226,11 +221,9 @@ void
 ExecCloseIndices(ResultRelInfo *resultRelInfo)
 {
 	int			i;
-	int			numIndices;
-	RelationPtr indexDescs;
 
-	numIndices = resultRelInfo->ri_NumIndices;
-	indexDescs = resultRelInfo->ri_IndexRelationDescs;
+	int			numIndices = resultRelInfo->ri_NumIndices;
+	RelationPtr indexDescs = resultRelInfo->ri_IndexRelationDescs;
 
 	for (i = 0; i < numIndices; i++)
 	{
@@ -280,11 +273,6 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 	ItemPointer tupleid = &slot->tts_tid;
 	List	   *result = NIL;
 	int			i;
-	int			numIndices;
-	RelationPtr relationDescs;
-	Relation	heapRelation;
-	IndexInfo **indexInfoArray;
-	ExprContext *econtext;
 	Datum		values[INDEX_MAX_KEYS];
 	bool		isnull[INDEX_MAX_KEYS];
 
@@ -293,10 +281,10 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 	/*
 	 * Get information from the result relation info structure.
 	 */
-	numIndices = resultRelInfo->ri_NumIndices;
-	relationDescs = resultRelInfo->ri_IndexRelationDescs;
-	indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
-	heapRelation = resultRelInfo->ri_RelationDesc;
+	int			numIndices = resultRelInfo->ri_NumIndices;
+	RelationPtr relationDescs = resultRelInfo->ri_IndexRelationDescs;
+	IndexInfo **indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
+	Relation	heapRelation = resultRelInfo->ri_RelationDesc;
 
 	/* Sanity check: slot must belong to the same rel as the resultRelInfo. */
 	Assert(slot->tts_tableOid == RelationGetRelid(heapRelation));
@@ -305,7 +293,7 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 	 * We will use the EState's per-tuple context for evaluating predicates
 	 * and index expressions (creating it if it's not already there).
 	 */
-	econtext = GetPerTupleExprContext(estate);
+	ExprContext *econtext = GetPerTupleExprContext(estate);
 
 	/* Arrange for econtext's scan tuple to be the tuple under test */
 	econtext->ecxt_scantuple = slot;
@@ -316,15 +304,12 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 	for (i = 0; i < numIndices; i++)
 	{
 		Relation	indexRelation = relationDescs[i];
-		IndexInfo  *indexInfo;
-		bool		applyNoDupErr;
 		IndexUniqueCheck checkUnique;
-		bool		satisfiesConstraint;
 
 		if (indexRelation == NULL)
 			continue;
 
-		indexInfo = indexInfoArray[i];
+		IndexInfo  *indexInfo = indexInfoArray[i];
 
 		/* If the index is marked as read-only, ignore it */
 		if (!indexInfo->ii_ReadyForInserts)
@@ -333,13 +318,12 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 		/* Check for partial index */
 		if (indexInfo->ii_Predicate != NIL)
 		{
-			ExprState  *predicate;
 
 			/*
 			 * If predicate state not set up yet, create it (in the estate's
 			 * per-query context)
 			 */
-			predicate = indexInfo->ii_PredicateState;
+			ExprState  *predicate = indexInfo->ii_PredicateState;
 			if (predicate == NULL)
 			{
 				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
@@ -362,7 +346,7 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 					   isnull);
 
 		/* Check whether to apply noDupErr to this index */
-		applyNoDupErr = noDupErr &&
+		bool		applyNoDupErr = noDupErr &&
 			(arbiterIndexes == NIL ||
 			 list_member_oid(arbiterIndexes,
 							 indexRelation->rd_index->indexrelid));
@@ -389,7 +373,7 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 		else
 			checkUnique = UNIQUE_CHECK_PARTIAL;
 
-		satisfiesConstraint =
+		bool		satisfiesConstraint =
 			index_insert(indexRelation, /* index relation */
 						 values,	/* array of index Datums */
 						 isnull,	/* null flags */
@@ -483,11 +467,6 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 						  List *arbiterIndexes)
 {
 	int			i;
-	int			numIndices;
-	RelationPtr relationDescs;
-	Relation	heapRelation;
-	IndexInfo **indexInfoArray;
-	ExprContext *econtext;
 	Datum		values[INDEX_MAX_KEYS];
 	bool		isnull[INDEX_MAX_KEYS];
 	ItemPointerData invalidItemPtr;
@@ -499,16 +478,16 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 	/*
 	 * Get information from the result relation info structure.
 	 */
-	numIndices = resultRelInfo->ri_NumIndices;
-	relationDescs = resultRelInfo->ri_IndexRelationDescs;
-	indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
-	heapRelation = resultRelInfo->ri_RelationDesc;
+	int			numIndices = resultRelInfo->ri_NumIndices;
+	RelationPtr relationDescs = resultRelInfo->ri_IndexRelationDescs;
+	IndexInfo **indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
+	Relation	heapRelation = resultRelInfo->ri_RelationDesc;
 
 	/*
 	 * We will use the EState's per-tuple context for evaluating predicates
 	 * and index expressions (creating it if it's not already there).
 	 */
-	econtext = GetPerTupleExprContext(estate);
+	ExprContext *econtext = GetPerTupleExprContext(estate);
 
 	/* Arrange for econtext's scan tuple to be the tuple under test */
 	econtext->ecxt_scantuple = slot;
@@ -520,13 +499,11 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 	for (i = 0; i < numIndices; i++)
 	{
 		Relation	indexRelation = relationDescs[i];
-		IndexInfo  *indexInfo;
-		bool		satisfiesConstraint;
 
 		if (indexRelation == NULL)
 			continue;
 
-		indexInfo = indexInfoArray[i];
+		IndexInfo  *indexInfo = indexInfoArray[i];
 
 		if (!indexInfo->ii_Unique && !indexInfo->ii_ExclusionOps)
 			continue;
@@ -553,13 +530,12 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 		/* Check for partial index */
 		if (indexInfo->ii_Predicate != NIL)
 		{
-			ExprState  *predicate;
 
 			/*
 			 * If predicate state not set up yet, create it (in the estate's
 			 * per-query context)
 			 */
-			predicate = indexInfo->ii_PredicateState;
+			ExprState  *predicate = indexInfo->ii_PredicateState;
 			if (predicate == NULL)
 			{
 				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
@@ -581,7 +557,7 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 					   values,
 					   isnull);
 
-		satisfiesConstraint =
+		bool		satisfiesConstraint =
 			check_exclusion_or_unique_constraint(heapRelation, indexRelation,
 												 indexInfo, &invalidItemPtr,
 												 values, isnull, estate, false,
@@ -653,15 +629,10 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
 	uint16	   *constr_strats;
 	Oid		   *index_collations = index->rd_indcollation;
 	int			indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
-	IndexScanDesc index_scan;
 	ScanKeyData scankeys[INDEX_MAX_KEYS];
 	SnapshotData DirtySnapshot;
 	int			i;
 	bool		conflict;
-	bool		found_self;
-	ExprContext *econtext;
-	TupleTableSlot *existing_slot;
-	TupleTableSlot *save_scantuple;
 
 	if (indexInfo->ii_ExclusionOps)
 	{
@@ -709,10 +680,10 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
 	 * to this slot.  Be sure to save and restore caller's value for
 	 * scantuple.
 	 */
-	existing_slot = table_slot_create(heap, NULL);
+	TupleTableSlot *existing_slot = table_slot_create(heap, NULL);
 
-	econtext = GetPerTupleExprContext(estate);
-	save_scantuple = econtext->ecxt_scantuple;
+	ExprContext *econtext = GetPerTupleExprContext(estate);
+	TupleTableSlot *save_scantuple = econtext->ecxt_scantuple;
 	econtext->ecxt_scantuple = existing_slot;
 
 	/*
@@ -721,13 +692,12 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
 	 */
 retry:
 	conflict = false;
-	found_self = false;
-	index_scan = index_beginscan(heap, index, &DirtySnapshot, indnkeyatts, 0);
+	bool		found_self = false;
+	IndexScanDesc index_scan = index_beginscan(heap, index, &DirtySnapshot, indnkeyatts, 0);
 	index_rescan(index_scan, scankeys, indnkeyatts, NULL, 0);
 
 	while (index_getnext_slot(index_scan, ForwardScanDirection, existing_slot))
 	{
-		TransactionId xwait;
 		XLTW_Oper	reason_wait;
 		Datum		existing_values[INDEX_MAX_KEYS];
 		bool		existing_isnull[INDEX_MAX_KEYS];
@@ -776,7 +746,7 @@ retry:
 		 * happen often enough to be worth trying harder, and anyway we don't
 		 * want to hold any index internal locks while waiting.
 		 */
-		xwait = TransactionIdIsValid(DirtySnapshot.xmin) ?
+		TransactionId xwait = TransactionIdIsValid(DirtySnapshot.xmin) ?
 			DirtySnapshot.xmin : DirtySnapshot.xmax;
 
 		if (TransactionIdIsValid(xwait) &&

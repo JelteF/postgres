@@ -44,11 +44,6 @@ PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo pa
 				  bool isTopLevel)
 {
 	Query	   *query = castNode(Query, cstmt->query);
-	List	   *rewritten;
-	PlannedStmt *plan;
-	Portal		portal;
-	MemoryContext oldContext;
-	char	   *queryString;
 
 	/*
 	 * Disallow empty-string cursor name (conflicts with protocol-level
@@ -83,7 +78,7 @@ PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo pa
 	 * is executed repeatedly.  (See also the same hack in EXPLAIN and
 	 * PREPARE.)  XXX FIXME someday.
 	 */
-	rewritten = QueryRewrite((Query *) copyObject(query));
+	List	   *rewritten = QueryRewrite((Query *) copyObject(query));
 
 	/* SELECT should never rewrite to more or less than one query */
 	if (list_length(rewritten) != 1)
@@ -95,18 +90,18 @@ PerformCursorOpen(ParseState *pstate, DeclareCursorStmt *cstmt, ParamListInfo pa
 		elog(ERROR, "non-SELECT statement in DECLARE CURSOR");
 
 	/* Plan the query, applying the specified options */
-	plan = pg_plan_query(query, pstate->p_sourcetext, cstmt->options, params);
+	PlannedStmt *plan = pg_plan_query(query, pstate->p_sourcetext, cstmt->options, params);
 
 	/*
 	 * Create a portal and copy the plan and query string into its memory.
 	 */
-	portal = CreatePortal(cstmt->portalname, false, false);
+	Portal		portal = CreatePortal(cstmt->portalname, false, false);
 
-	oldContext = MemoryContextSwitchTo(portal->portalContext);
+	MemoryContext oldContext = MemoryContextSwitchTo(portal->portalContext);
 
 	plan = copyObject(plan);
 
-	queryString = pstrdup(pstate->p_sourcetext);
+	char	   *queryString = pstrdup(pstate->p_sourcetext);
 
 	PortalDefineQuery(portal,
 					  NULL,
@@ -174,8 +169,6 @@ PerformPortalFetch(FetchStmt *stmt,
 				   DestReceiver *dest,
 				   QueryCompletion *qc)
 {
-	Portal		portal;
-	uint64		nprocessed;
 
 	/*
 	 * Disallow empty-string cursor name (conflicts with protocol-level
@@ -187,7 +180,7 @@ PerformPortalFetch(FetchStmt *stmt,
 				 errmsg("invalid cursor name: must not be empty")));
 
 	/* get the portal from the portal name */
-	portal = GetPortalByName(stmt->portalname);
+	Portal		portal = GetPortalByName(stmt->portalname);
 	if (!PortalIsValid(portal))
 	{
 		ereport(ERROR,
@@ -201,7 +194,7 @@ PerformPortalFetch(FetchStmt *stmt,
 		dest = None_Receiver;
 
 	/* Do it */
-	nprocessed = PortalRunFetch(portal,
+	uint64		nprocessed = PortalRunFetch(portal,
 								stmt->direction,
 								stmt->howMany,
 								dest);
@@ -219,7 +212,6 @@ PerformPortalFetch(FetchStmt *stmt,
 void
 PerformPortalClose(const char *name)
 {
-	Portal		portal;
 
 	/* NULL means CLOSE ALL */
 	if (name == NULL)
@@ -240,7 +232,7 @@ PerformPortalClose(const char *name)
 	/*
 	 * get the portal from the portal name
 	 */
-	portal = GetPortalByName(name);
+	Portal		portal = GetPortalByName(name);
 	if (!PortalIsValid(portal))
 	{
 		ereport(ERROR,
@@ -268,7 +260,6 @@ PerformPortalClose(const char *name)
 void
 PortalCleanup(Portal portal)
 {
-	QueryDesc  *queryDesc;
 
 	/*
 	 * sanity checks
@@ -281,7 +272,7 @@ PortalCleanup(Portal portal)
 	 * since other mechanisms will take care of releasing executor resources,
 	 * and we can't be sure that ExecutorEnd itself wouldn't fail.
 	 */
-	queryDesc = portal->queryDesc;
+	QueryDesc  *queryDesc = portal->queryDesc;
 	if (queryDesc)
 	{
 		/*
@@ -294,10 +285,9 @@ PortalCleanup(Portal portal)
 
 		if (portal->status != PORTAL_FAILED)
 		{
-			ResourceOwner saveResourceOwner;
 
 			/* We must make the portal's resource owner current */
-			saveResourceOwner = CurrentResourceOwner;
+			ResourceOwner saveResourceOwner = CurrentResourceOwner;
 			if (portal->resowner)
 				CurrentResourceOwner = portal->resowner;
 
@@ -322,10 +312,6 @@ void
 PersistHoldablePortal(Portal portal)
 {
 	QueryDesc  *queryDesc = portal->queryDesc;
-	Portal		saveActivePortal;
-	ResourceOwner saveResourceOwner;
-	MemoryContext savePortalContext;
-	MemoryContext oldcxt;
 
 	/*
 	 * If we're preserving a holdable portal, we had better be inside the
@@ -345,7 +331,7 @@ PersistHoldablePortal(Portal portal)
 	 * Before closing down the executor, we must copy the tupdesc into
 	 * long-term memory, since it was created in executor memory.
 	 */
-	oldcxt = MemoryContextSwitchTo(portal->holdContext);
+	MemoryContext oldcxt = MemoryContextSwitchTo(portal->holdContext);
 
 	portal->tupDesc = CreateTupleDescCopy(portal->tupDesc);
 
@@ -359,9 +345,9 @@ PersistHoldablePortal(Portal portal)
 	/*
 	 * Set up global portal context pointers.
 	 */
-	saveActivePortal = ActivePortal;
-	saveResourceOwner = CurrentResourceOwner;
-	savePortalContext = PortalContext;
+	Portal		saveActivePortal = ActivePortal;
+	ResourceOwner saveResourceOwner = CurrentResourceOwner;
+	MemoryContext savePortalContext = PortalContext;
 	PG_TRY();
 	{
 		ActivePortal = portal;

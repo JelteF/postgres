@@ -18,11 +18,7 @@
 int
 main(int argc, char **argv)
 {
-	PGconn	   *conn;
 	PQExpBufferData sql;
-	PGresult   *res;
-	PGresult   *pkrel_res;
-	PGresult   *fkrel_res;
 	char	   *fk_relname;
 	char	   *fk_nspname;
 	char	   *fk_attname;
@@ -41,14 +37,14 @@ main(int argc, char **argv)
 
 	appendPQExpBuffer(&sql, "dbname=%s", argv[1]);
 
-	conn = PQconnectdb(sql.data);
+	PGconn	   *conn = PQconnectdb(sql.data);
 	if (PQstatus(conn) == CONNECTION_BAD)
 	{
 		fprintf(stderr, "connection error:  %s\n", PQerrorMessage(conn));
 		exit(EXIT_FAILURE);
 	}
 
-	res = PQexec(conn, ALWAYS_SECURE_SEARCH_PATH_SQL);
+	PGresult   *res = PQexec(conn, ALWAYS_SECURE_SEARCH_PATH_SQL);
 	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		fprintf(stderr, "sql error:  %s\n", PQerrorMessage(conn));
@@ -77,7 +73,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "sql error:  %s\n", PQerrorMessage(conn));
 		exit(EXIT_FAILURE);
 	}
-	pkrel_res = res;
+	PGresult   *pkrel_res = res;
 
 	/* Get a list of system columns of OID type (or any OID-alias type) */
 
@@ -110,7 +106,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "sql error:  %s\n", PQerrorMessage(conn));
 		exit(EXIT_FAILURE);
 	}
-	fkrel_res = res;
+	PGresult   *fkrel_res = res;
 
 	/*
 	 * For each column and each relation-having-OIDs, look to see if the

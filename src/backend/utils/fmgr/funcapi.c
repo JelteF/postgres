@@ -77,12 +77,11 @@ init_MultiFuncCall(PG_FUNCTION_ARGS)
 		 * First call
 		 */
 		ReturnSetInfo *rsi = (ReturnSetInfo *) fcinfo->resultinfo;
-		MemoryContext multi_call_ctx;
 
 		/*
 		 * Create a suitably long-lived context to hold cross-call data
 		 */
-		multi_call_ctx = AllocSetContextCreate(fcinfo->flinfo->fn_mcxt,
+		MemoryContext multi_call_ctx = AllocSetContextCreate(fcinfo->flinfo->fn_mcxt,
 											   "SRF multi-call context",
 											   ALLOCSET_SMALL_SIZES);
 
@@ -241,12 +240,11 @@ get_expr_result_type(Node *expr,
 	{
 		/* We can resolve the record type by generating the tupdesc directly */
 		RowExpr    *rexpr = (RowExpr *) expr;
-		TupleDesc	tupdesc;
 		AttrNumber	i = 1;
 		ListCell   *lcc,
 				   *lcn;
 
-		tupdesc = CreateTemplateTupleDesc(list_length(rexpr->args));
+		TupleDesc	tupdesc = CreateTemplateTupleDesc(list_length(rexpr->args));
 		Assert(list_length(rexpr->args) == list_length(rexpr->colnames));
 		forboth(lcc, rexpr->args, lcn, rexpr->colnames)
 		{
@@ -322,22 +320,18 @@ internal_get_result_type(Oid funcid,
 						 TupleDesc *resultTupleDesc)
 {
 	TypeFuncClass result;
-	HeapTuple	tp;
-	Form_pg_proc procform;
-	Oid			rettype;
 	Oid			base_rettype;
-	TupleDesc	tupdesc;
 
 	/* First fetch the function's pg_proc row to inspect its rettype */
-	tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+	HeapTuple	tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
 	if (!HeapTupleIsValid(tp))
 		elog(ERROR, "cache lookup failed for function %u", funcid);
-	procform = (Form_pg_proc) GETSTRUCT(tp);
+	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(tp);
 
-	rettype = procform->prorettype;
+	Oid			rettype = procform->prorettype;
 
 	/* Check for OUT parameters defining a RECORD result */
-	tupdesc = build_function_result_tupdesc_t(tp);
+	TupleDesc	tupdesc = build_function_result_tupdesc_t(tp);
 	if (tupdesc)
 	{
 		/*
@@ -438,9 +432,8 @@ TupleDesc
 get_expr_result_tupdesc(Node *expr, bool noError)
 {
 	TupleDesc	tupleDesc;
-	TypeFuncClass functypclass;
 
-	functypclass = get_expr_result_type(expr, NULL, &tupleDesc);
+	TypeFuncClass functypclass = get_expr_result_type(expr, NULL, &tupleDesc);
 
 	if (functypclass == TYPEFUNC_COMPOSITE ||
 		functypclass == TYPEFUNC_COMPOSITE_DOMAIN)
@@ -839,7 +832,6 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, char *argmodes,
 	bool		have_anycompatible_range_result = false;
 	polymorphic_actuals poly_actuals;
 	polymorphic_actuals anyc_actuals;
-	int			inargno;
 	int			i;
 
 	/*
@@ -849,7 +841,7 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, char *argmodes,
 	 */
 	memset(&poly_actuals, 0, sizeof(poly_actuals));
 	memset(&anyc_actuals, 0, sizeof(anyc_actuals));
-	inargno = 0;
+	int			inargno = 0;
 	for (i = 0; i < numargs; i++)
 	{
 		char		argmode = argmodes ? argmodes[i] : PROARGMODE_IN;
@@ -1095,9 +1087,6 @@ get_func_arg_info(HeapTuple procTup,
 				  Oid **p_argtypes, char ***p_argnames, char **p_argmodes)
 {
 	Form_pg_proc procStruct = (Form_pg_proc) GETSTRUCT(procTup);
-	Datum		proallargtypes;
-	Datum		proargmodes;
-	Datum		proargnames;
 	bool		isNull;
 	ArrayType  *arr;
 	int			numargs;
@@ -1106,7 +1095,7 @@ get_func_arg_info(HeapTuple procTup,
 	int			i;
 
 	/* First discover the total number of parameters and get their types */
-	proallargtypes = SysCacheGetAttr(PROCOID, procTup,
+	Datum		proallargtypes = SysCacheGetAttr(PROCOID, procTup,
 									 Anum_pg_proc_proallargtypes,
 									 &isNull);
 	if (!isNull)
@@ -1140,7 +1129,7 @@ get_func_arg_info(HeapTuple procTup,
 	}
 
 	/* Get argument names, if available */
-	proargnames = SysCacheGetAttr(PROCOID, procTup,
+	Datum		proargnames = SysCacheGetAttr(PROCOID, procTup,
 								  Anum_pg_proc_proargnames,
 								  &isNull);
 	if (isNull)
@@ -1158,7 +1147,7 @@ get_func_arg_info(HeapTuple procTup,
 	}
 
 	/* Get argument modes, if available */
-	proargmodes = SysCacheGetAttr(PROCOID, procTup,
+	Datum		proargmodes = SysCacheGetAttr(PROCOID, procTup,
 								  Anum_pg_proc_proargmodes,
 								  &isNull);
 	if (isNull)
@@ -1189,12 +1178,11 @@ int
 get_func_trftypes(HeapTuple procTup,
 				  Oid **p_trftypes)
 {
-	Datum		protrftypes;
 	ArrayType  *arr;
 	int			nelems;
 	bool		isNull;
 
-	protrftypes = SysCacheGetAttr(PROCOID, procTup,
+	Datum		protrftypes = SysCacheGetAttr(PROCOID, procTup,
 								  Anum_pg_proc_protrftypes,
 								  &isNull);
 	if (!isNull)
@@ -1238,12 +1226,9 @@ get_func_input_arg_names(char prokind,
 						 Datum proargnames, Datum proargmodes,
 						 char ***arg_names)
 {
-	ArrayType  *arr;
 	int			numargs;
 	Datum	   *argnames;
 	char	   *argmodes;
-	char	  **inargnames;
-	int			numinargs;
 	int			i;
 
 	/* Do nothing if null proargnames */
@@ -1258,7 +1243,7 @@ get_func_input_arg_names(char prokind,
 	 * For proargmodes, we don't need to use deconstruct_array() since the
 	 * array data is just going to look like a C array of values.
 	 */
-	arr = DatumGetArrayTypeP(proargnames);	/* ensure not toasted */
+	ArrayType  *arr = DatumGetArrayTypeP(proargnames);	/* ensure not toasted */
 	if (ARR_NDIM(arr) != 1 ||
 		ARR_HASNULL(arr) ||
 		ARR_ELEMTYPE(arr) != TEXTOID)
@@ -1287,8 +1272,8 @@ get_func_input_arg_names(char prokind,
 	}
 
 	/* extract input-argument names */
-	inargnames = (char **) palloc(numargs * sizeof(char *));
-	numinargs = 0;
+	char	  **inargnames = (char **) palloc(numargs * sizeof(char *));
+	int			numinargs = 0;
 	for (i = 0; i < numargs; i++)
 	{
 		if (argmodes == NULL ||
@@ -1325,7 +1310,6 @@ char *
 get_func_result_name(Oid functionId)
 {
 	char	   *result;
-	HeapTuple	procTuple;
 	Datum		proargmodes;
 	Datum		proargnames;
 	bool		isnull;
@@ -1338,7 +1322,7 @@ get_func_result_name(Oid functionId)
 	int			i;
 
 	/* First fetch the function's pg_proc row */
-	procTuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(functionId));
+	HeapTuple	procTuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(functionId));
 	if (!HeapTupleIsValid(procTuple))
 		elog(ERROR, "cache lookup failed for function %u", functionId);
 
@@ -1429,9 +1413,6 @@ TupleDesc
 build_function_result_tupdesc_t(HeapTuple procTuple)
 {
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(procTuple);
-	Datum		proallargtypes;
-	Datum		proargmodes;
-	Datum		proargnames;
 	bool		isnull;
 
 	/* Return NULL if the function isn't declared to return RECORD */
@@ -1444,15 +1425,15 @@ build_function_result_tupdesc_t(HeapTuple procTuple)
 		return NULL;
 
 	/* Get the data out of the tuple */
-	proallargtypes = SysCacheGetAttr(PROCOID, procTuple,
+	Datum		proallargtypes = SysCacheGetAttr(PROCOID, procTuple,
 									 Anum_pg_proc_proallargtypes,
 									 &isnull);
 	Assert(!isnull);
-	proargmodes = SysCacheGetAttr(PROCOID, procTuple,
+	Datum		proargmodes = SysCacheGetAttr(PROCOID, procTuple,
 								  Anum_pg_proc_proargmodes,
 								  &isnull);
 	Assert(!isnull);
-	proargnames = SysCacheGetAttr(PROCOID, procTuple,
+	Datum		proargnames = SysCacheGetAttr(PROCOID, procTuple,
 								  Anum_pg_proc_proargnames,
 								  &isnull);
 	if (isnull)
@@ -1481,15 +1462,7 @@ build_function_result_tupdesc_d(char prokind,
 								Datum proargmodes,
 								Datum proargnames)
 {
-	TupleDesc	desc;
-	ArrayType  *arr;
-	int			numargs;
-	Oid		   *argtypes;
-	char	   *argmodes;
 	Datum	   *argnames = NULL;
-	Oid		   *outargtypes;
-	char	  **outargnames;
-	int			numoutargs;
 	int			nargnames;
 	int			i;
 
@@ -1503,14 +1476,14 @@ build_function_result_tupdesc_d(char prokind,
 	 * For the OID and char arrays, we don't need to use deconstruct_array()
 	 * since the array data is just going to look like a C array of values.
 	 */
-	arr = DatumGetArrayTypeP(proallargtypes);	/* ensure not toasted */
-	numargs = ARR_DIMS(arr)[0];
+	ArrayType  *arr = DatumGetArrayTypeP(proallargtypes);	/* ensure not toasted */
+	int			numargs = ARR_DIMS(arr)[0];
 	if (ARR_NDIM(arr) != 1 ||
 		numargs < 0 ||
 		ARR_HASNULL(arr) ||
 		ARR_ELEMTYPE(arr) != OIDOID)
 		elog(ERROR, "proallargtypes is not a 1-D Oid array or it contains nulls");
-	argtypes = (Oid *) ARR_DATA_PTR(arr);
+	Oid		   *argtypes = (Oid *) ARR_DATA_PTR(arr);
 	arr = DatumGetArrayTypeP(proargmodes);	/* ensure not toasted */
 	if (ARR_NDIM(arr) != 1 ||
 		ARR_DIMS(arr)[0] != numargs ||
@@ -1518,7 +1491,7 @@ build_function_result_tupdesc_d(char prokind,
 		ARR_ELEMTYPE(arr) != CHAROID)
 		elog(ERROR, "proargmodes is not a 1-D char array of length %d or it contains nulls",
 			 numargs);
-	argmodes = (char *) ARR_DATA_PTR(arr);
+	char	   *argmodes = (char *) ARR_DATA_PTR(arr);
 	if (proargnames != PointerGetDatum(NULL))
 	{
 		arr = DatumGetArrayTypeP(proargnames);	/* ensure not toasted */
@@ -1538,9 +1511,9 @@ build_function_result_tupdesc_d(char prokind,
 		return NULL;
 
 	/* extract output-argument types and names */
-	outargtypes = (Oid *) palloc(numargs * sizeof(Oid));
-	outargnames = (char **) palloc(numargs * sizeof(char *));
-	numoutargs = 0;
+	Oid		   *outargtypes = (Oid *) palloc(numargs * sizeof(Oid));
+	char	  **outargnames = (char **) palloc(numargs * sizeof(char *));
+	int			numoutargs = 0;
 	for (i = 0; i < numargs; i++)
 	{
 		char	   *pname;
@@ -1572,7 +1545,7 @@ build_function_result_tupdesc_d(char prokind,
 	if (numoutargs < 2 && prokind != PROKIND_PROCEDURE)
 		return NULL;
 
-	desc = CreateTemplateTupleDesc(numoutargs);
+	TupleDesc	desc = CreateTemplateTupleDesc(numoutargs);
 	for (i = 0; i < numoutargs; i++)
 	{
 		TupleDescInitEntry(desc, i + 1,
@@ -1598,16 +1571,12 @@ build_function_result_tupdesc_d(char prokind,
 TupleDesc
 RelationNameGetTupleDesc(const char *relname)
 {
-	RangeVar   *relvar;
-	Relation	rel;
-	TupleDesc	tupdesc;
-	List	   *relname_list;
 
 	/* Open relation and copy the tuple description */
-	relname_list = stringToQualifiedNameList(relname);
-	relvar = makeRangeVarFromNameList(relname_list);
-	rel = relation_openrv(relvar, AccessShareLock);
-	tupdesc = CreateTupleDescCopy(RelationGetDescr(rel));
+	List	   *relname_list = stringToQualifiedNameList(relname);
+	RangeVar   *relvar = makeRangeVarFromNameList(relname_list);
+	Relation	rel = relation_openrv(relvar, AccessShareLock);
+	TupleDesc	tupdesc = CreateTupleDescCopy(RelationGetDescr(rel));
 	relation_close(rel, AccessShareLock);
 
 	return tupdesc;
@@ -1675,7 +1644,6 @@ TypeGetTupleDesc(Oid typeoid, List *colaliases)
 	else if (functypclass == TYPEFUNC_SCALAR)
 	{
 		/* Base data type, i.e. scalar */
-		char	   *attname;
 
 		/* the alias list is required for base types */
 		if (colaliases == NIL)
@@ -1690,7 +1658,7 @@ TypeGetTupleDesc(Oid typeoid, List *colaliases)
 					 errmsg("number of aliases does not match number of columns")));
 
 		/* OK, get the column alias */
-		attname = strVal(linitial(colaliases));
+		char	   *attname = strVal(linitial(colaliases));
 
 		tupdesc = CreateTemplateTupleDesc(1);
 		TupleDescInitEntry(tupdesc,
@@ -1748,8 +1716,6 @@ extract_variadic_args(FunctionCallInfo fcinfo, int variadic_start,
 
 	if (variadic)
 	{
-		ArrayType  *array_in;
-		Oid			element_type;
 		bool		typbyval;
 		char		typalign;
 		int16		typlen;
@@ -1759,8 +1725,8 @@ extract_variadic_args(FunctionCallInfo fcinfo, int variadic_start,
 		if (PG_ARGISNULL(variadic_start))
 			return -1;
 
-		array_in = PG_GETARG_ARRAYTYPE_P(variadic_start);
-		element_type = ARR_ELEMTYPE(array_in);
+		ArrayType  *array_in = PG_GETARG_ARRAYTYPE_P(variadic_start);
+		Oid			element_type = ARR_ELEMTYPE(array_in);
 
 		get_typlenbyvalalign(element_type,
 							 &typlen, &typbyval, &typalign);

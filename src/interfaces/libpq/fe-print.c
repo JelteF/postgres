@@ -67,9 +67,8 @@ static void fill(int length, int max, char filler, FILE *fp);
 void
 PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 {
-	int			nFields;
 
-	nFields = PQnfields(res);
+	int			nFields = PQnfields(res);
 
 	if (nFields > 0)
 	{							/* only print rows with at least 1 field.  */
@@ -129,12 +128,11 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 			;
 		for (j = 0; j < nFields; j++)
 		{
-			int			len;
 			const char *s = (j < numFieldName && po->fieldName[j][0]) ?
 			po->fieldName[j] : PQfname(res, j);
 
 			fieldNames[j] = s;
-			len = s ? strlen(s) : 0;
+			int			len = s ? strlen(s) : 0;
 			fieldMax[j] = len;
 			len += fs_len;
 			if (len > fieldMaxLen)
@@ -339,10 +337,9 @@ do_field(const PQprintOpt *po, const PGresult *res,
 {
 	const char *pval,
 			   *p;
-	int			plen;
 	bool		skipit;
 
-	plen = PQgetlength(res, i, j);
+	int			plen = PQgetlength(res, i, j);
 	pval = PQgetvalue(res, i, j);
 
 	if (plen < 1 || !pval || !*pval)
@@ -457,7 +454,6 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 	{
 		int			tot = 0;
 		int			n = 0;
-		char	   *p = NULL;
 
 		for (; n < nFields; n++)
 			tot += fieldMax[n] + fs_len + (po->standard ? 2 : 0);
@@ -469,7 +465,7 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 			fprintf(stderr, libpq_gettext("out of memory\n"));
 			abort();
 		}
-		p = border;
+		char	   *p = border;
 		if (po->standard)
 		{
 			char	   *fs = po->fieldSep;
@@ -587,16 +583,14 @@ PQdisplayTuples(const PGresult *res,
 
 	int			i,
 				j;
-	int			nFields;
-	int			nTuples;
 	int		   *fLength = NULL;
 
 	if (fieldSep == NULL)
 		fieldSep = DEFAULT_FIELD_SEP;
 
 	/* Get some useful info about the results */
-	nFields = PQnfields(res);
-	nTuples = PQntuples(res);
+	int			nFields = PQnfields(res);
+	int			nTuples = PQntuples(res);
 
 	if (fp == NULL)
 		fp = stdout;
@@ -680,15 +674,13 @@ PQprintTuples(const PGresult *res,
 			  int colWidth		/* width of column, if 0, use variable width */
 )
 {
-	int			nFields;
-	int			nTups;
 	int			i,
 				j;
 	char		formatString[80];
 	char	   *tborder = NULL;
 
-	nFields = PQnfields(res);
-	nTups = PQntuples(res);
+	int			nFields = PQnfields(res);
+	int			nTups = PQntuples(res);
 
 	if (colWidth > 0)
 		sprintf(formatString, "%%s %%-%ds", colWidth);
@@ -700,9 +692,8 @@ PQprintTuples(const PGresult *res,
 
 		if (!TerseOutput)
 		{
-			int			width;
 
-			width = nFields * 14;
+			int			width = nFields * 14;
 			tborder = (char *) malloc(width + 1);
 			if (!tborder)
 			{
@@ -760,9 +751,8 @@ PQprintTuples(const PGresult *res,
 static void
 fill(int length, int max, char filler, FILE *fp)
 {
-	int			count;
 
-	count = max - length;
+	int			count = max - length;
 	while (count-- >= 0)
 		putc(filler, fp);
 }

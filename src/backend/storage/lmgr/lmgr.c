@@ -109,11 +109,10 @@ LockRelationOid(Oid relid, LOCKMODE lockmode)
 {
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
-	LockAcquireResult res;
 
 	SetLocktagRelationOid(&tag, relid);
 
-	res = LockAcquireExtended(&tag, lockmode, false, false, true, &locallock);
+	LockAcquireResult res = LockAcquireExtended(&tag, lockmode, false, false, true, &locallock);
 
 	/*
 	 * Now that we have the lock, check for invalidation messages, so that we
@@ -152,11 +151,10 @@ ConditionalLockRelationOid(Oid relid, LOCKMODE lockmode)
 {
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
-	LockAcquireResult res;
 
 	SetLocktagRelationOid(&tag, relid);
 
-	res = LockAcquireExtended(&tag, lockmode, false, true, true, &locallock);
+	LockAcquireResult res = LockAcquireExtended(&tag, lockmode, false, true, true, &locallock);
 
 	if (res == LOCKACQUIRE_NOT_AVAIL)
 		return false;
@@ -217,13 +215,12 @@ LockRelation(Relation relation, LOCKMODE lockmode)
 {
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
-	LockAcquireResult res;
 
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,
 						 relation->rd_lockInfo.lockRelId.relId);
 
-	res = LockAcquireExtended(&tag, lockmode, false, false, true, &locallock);
+	LockAcquireResult res = LockAcquireExtended(&tag, lockmode, false, false, true, &locallock);
 
 	/*
 	 * Now that we have the lock, check for invalidation messages; see notes
@@ -248,13 +245,12 @@ ConditionalLockRelation(Relation relation, LOCKMODE lockmode)
 {
 	LOCKTAG		tag;
 	LOCALLOCK  *locallock;
-	LockAcquireResult res;
 
 	SET_LOCKTAG_RELATION(tag,
 						 relation->rd_lockInfo.lockRelId.dbId,
 						 relation->rd_lockInfo.lockRelId.relId);
 
-	res = LockAcquireExtended(&tag, lockmode, false, true, true, &locallock);
+	LockAcquireResult res = LockAcquireExtended(&tag, lockmode, false, true, true, &locallock);
 
 	if (res == LOCKACQUIRE_NOT_AVAIL)
 		return false;
@@ -956,9 +952,8 @@ WaitForLockersMultiple(List *locktags, LOCKMODE lockmode, bool progress)
 void
 WaitForLockers(LOCKTAG heaplocktag, LOCKMODE lockmode, bool progress)
 {
-	List	   *l;
 
-	l = list_make1(&heaplocktag);
+	List	   *l = list_make1(&heaplocktag);
 	WaitForLockersMultiple(l, lockmode, progress);
 	list_free(l);
 }

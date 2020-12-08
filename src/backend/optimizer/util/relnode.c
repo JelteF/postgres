@@ -82,12 +82,10 @@ static void build_child_join_reltarget(PlannerInfo *root,
 void
 setup_simple_rel_arrays(PlannerInfo *root)
 {
-	int			size;
-	Index		rti;
 	ListCell   *lc;
 
 	/* Arrays are accessed using RT indexes (1..N) */
-	size = list_length(root->parse->rtable) + 1;
+	int			size = list_length(root->parse->rtable) + 1;
 	root->simple_rel_array_size = size;
 
 	/*
@@ -100,7 +98,7 @@ setup_simple_rel_arrays(PlannerInfo *root)
 	/* simple_rte_array is an array equivalent of the rtable list */
 	root->simple_rte_array = (RangeTblEntry **)
 		palloc0(size * sizeof(RangeTblEntry *));
-	rti = 1;
+	Index		rti = 1;
 	foreach(lc, root->parse->rtable)
 	{
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
@@ -151,11 +149,10 @@ setup_simple_rel_arrays(PlannerInfo *root)
 void
 expand_planner_arrays(PlannerInfo *root, int add_size)
 {
-	int			new_size;
 
 	Assert(add_size > 0);
 
-	new_size = root->simple_rel_array_size + add_size;
+	int			new_size = root->simple_rel_array_size + add_size;
 
 	root->simple_rel_array = (RelOptInfo **)
 		repalloc(root->simple_rel_array,
@@ -193,8 +190,6 @@ expand_planner_arrays(PlannerInfo *root, int add_size)
 RelOptInfo *
 build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 {
-	RelOptInfo *rel;
-	RangeTblEntry *rte;
 
 	/* Rel should not exist already */
 	Assert(relid > 0 && relid < root->simple_rel_array_size);
@@ -202,10 +197,10 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 		elog(ERROR, "rel %d already exists", relid);
 
 	/* Fetch RTE for relation */
-	rte = root->simple_rte_array[relid];
+	RangeTblEntry *rte = root->simple_rte_array[relid];
 	Assert(rte != NULL);
 
-	rel = makeNode(RelOptInfo);
+	RelOptInfo *rel = makeNode(RelOptInfo);
 	rel->reloptkind = parent ? RELOPT_OTHER_MEMBER_REL : RELOPT_BASEREL;
 	rel->relids = bms_make_singleton(relid);
 	rel->rows = 0;
@@ -395,7 +390,6 @@ find_base_rel(PlannerInfo *root, int relid)
 static void
 build_join_rel_hash(PlannerInfo *root)
 {
-	HTAB	   *hashtab;
 	HASHCTL		hash_ctl;
 	ListCell   *l;
 
@@ -406,7 +400,7 @@ build_join_rel_hash(PlannerInfo *root)
 	hash_ctl.hash = bitmap_hash;
 	hash_ctl.match = bitmap_match;
 	hash_ctl.hcxt = CurrentMemoryContext;
-	hashtab = hash_create("JoinRelHashTable",
+	HTAB	   *hashtab = hash_create("JoinRelHashTable",
 						  256L,
 						  &hash_ctl,
 						  HASH_ELEM | HASH_FUNCTION | HASH_COMPARE | HASH_CONTEXT);
@@ -415,10 +409,9 @@ build_join_rel_hash(PlannerInfo *root)
 	foreach(l, root->join_rel_list)
 	{
 		RelOptInfo *rel = (RelOptInfo *) lfirst(l);
-		JoinHashEntry *hentry;
 		bool		found;
 
-		hentry = (JoinHashEntry *) hash_search(hashtab,
+		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(hashtab,
 											   &(rel->relids),
 											   HASH_ENTER,
 											   &found);
@@ -455,9 +448,8 @@ find_join_rel(PlannerInfo *root, Relids relids)
 	if (root->join_rel_hash)
 	{
 		Relids		hashkey = relids;
-		JoinHashEntry *hentry;
 
-		hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
+		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
 											   &hashkey,
 											   HASH_FIND,
 											   NULL);
@@ -544,10 +536,9 @@ add_join_rel(PlannerInfo *root, RelOptInfo *joinrel)
 	/* store it into the auxiliary hashtable if there is one. */
 	if (root->join_rel_hash)
 	{
-		JoinHashEntry *hentry;
 		bool		found;
 
-		hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
+		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
 											   &(joinrel->relids),
 											   HASH_ENTER,
 											   &found);
@@ -580,8 +571,6 @@ build_join_rel(PlannerInfo *root,
 			   SpecialJoinInfo *sjinfo,
 			   List **restrictlist_ptr)
 {
-	RelOptInfo *joinrel;
-	List	   *restrictlist;
 
 	/* This function should be used only for join between parents. */
 	Assert(!IS_OTHER_REL(outer_rel) && !IS_OTHER_REL(inner_rel));
@@ -589,7 +578,7 @@ build_join_rel(PlannerInfo *root,
 	/*
 	 * See if we already have a joinrel for this set of base rels.
 	 */
-	joinrel = find_join_rel(root, joinrelids);
+	RelOptInfo *joinrel = find_join_rel(root, joinrelids);
 
 	if (joinrel)
 	{
@@ -704,7 +693,7 @@ build_join_rel(PlannerInfo *root,
 	 * caller might or might not need the restrictlist, but I need it anyway
 	 * for set_joinrel_size_estimates().)
 	 */
-	restrictlist = build_joinrel_restrictlist(root, joinrel,
+	List	   *restrictlist = build_joinrel_restrictlist(root, joinrel,
 											  outer_rel, inner_rel);
 	if (restrictlist_ptr)
 		*restrictlist_ptr = restrictlist;
@@ -786,7 +775,6 @@ build_child_join_rel(PlannerInfo *root, RelOptInfo *outer_rel,
 					 JoinType jointype)
 {
 	RelOptInfo *joinrel = makeNode(RelOptInfo);
-	AppendRelInfo **appinfos;
 	int			nappinfos;
 
 	/* Only joins between "other" relations land here. */
@@ -856,7 +844,7 @@ build_child_join_rel(PlannerInfo *root, RelOptInfo *outer_rel,
 	set_foreign_rel_properties(joinrel, outer_rel, inner_rel);
 
 	/* Compute information needed for mapping Vars to the child rel */
-	appinfos = find_appinfos_by_relids(root, joinrel->relids, &nappinfos);
+	AppendRelInfo **appinfos = find_appinfos_by_relids(root, joinrel->relids, &nappinfos);
 
 	/* Set up reltarget struct */
 	build_child_join_reltarget(root, parent_joinrel, joinrel,
@@ -928,7 +916,6 @@ min_join_parameterization(PlannerInfo *root,
 						  RelOptInfo *outer_rel,
 						  RelOptInfo *inner_rel)
 {
-	Relids		result;
 
 	/*
 	 * Basically we just need the union of the inputs' lateral_relids, less
@@ -943,7 +930,7 @@ min_join_parameterization(PlannerInfo *root,
 	 * do not need to worry about doing transitive closure here, because that
 	 * was already accounted for in the original baserel lateral_relids.
 	 */
-	result = bms_union(outer_rel->lateral_relids, inner_rel->lateral_relids);
+	Relids		result = bms_union(outer_rel->lateral_relids, inner_rel->lateral_relids);
 	result = bms_del_members(result, joinrelids);
 
 	/* Maintain invariant that result is exactly NULL if empty */
@@ -975,8 +962,6 @@ build_joinrel_tlist(PlannerInfo *root, RelOptInfo *joinrel,
 	foreach(vars, input_rel->reltarget->exprs)
 	{
 		Var		   *var = (Var *) lfirst(vars);
-		RelOptInfo *baserel;
-		int			ndx;
 
 		/*
 		 * Ignore PlaceHolderVars in the input tlists; we'll make our own
@@ -995,10 +980,10 @@ build_joinrel_tlist(PlannerInfo *root, RelOptInfo *joinrel,
 				 (int) nodeTag(var));
 
 		/* Get the Var's original base rel */
-		baserel = find_base_rel(root, var->varno);
+		RelOptInfo *baserel = find_base_rel(root, var->varno);
 
 		/* Is it still needed above this joinrel? */
-		ndx = var->varattno - baserel->min_attr;
+		int			ndx = var->varattno - baserel->min_attr;
 		if (bms_nonempty_difference(baserel->attr_needed[ndx], relids))
 		{
 			/* Yup, add it to the output */
@@ -1057,14 +1042,13 @@ build_joinrel_restrictlist(PlannerInfo *root,
 						   RelOptInfo *outer_rel,
 						   RelOptInfo *inner_rel)
 {
-	List	   *result;
 
 	/*
 	 * Collect all the clauses that syntactically belong at this level,
 	 * eliminating any duplicates (important since we will see many of the
 	 * same clauses arriving from both input relations).
 	 */
-	result = subbuild_joinrel_restrictlist(joinrel, outer_rel->joininfo, NIL);
+	List	   *result = subbuild_joinrel_restrictlist(joinrel, outer_rel->joininfo, NIL);
 	result = subbuild_joinrel_restrictlist(joinrel, inner_rel->joininfo, result);
 
 	/*
@@ -1086,14 +1070,13 @@ build_joinrel_joinlist(RelOptInfo *joinrel,
 					   RelOptInfo *outer_rel,
 					   RelOptInfo *inner_rel)
 {
-	List	   *result;
 
 	/*
 	 * Collect all the clauses that syntactically belong above this level,
 	 * eliminating any duplicates (important since we will see many of the
 	 * same clauses arriving from both input relations).
 	 */
-	result = subbuild_joinrel_joinlist(joinrel, outer_rel->joininfo, NIL);
+	List	   *result = subbuild_joinrel_joinlist(joinrel, outer_rel->joininfo, NIL);
 	result = subbuild_joinrel_joinlist(joinrel, inner_rel->joininfo, result);
 
 	joinrel->joininfo = result;
@@ -1277,9 +1260,6 @@ get_baserel_parampathinfo(PlannerInfo *root, RelOptInfo *baserel,
 						  Relids required_outer)
 {
 	ParamPathInfo *ppi;
-	Relids		joinrelids;
-	List	   *pclauses;
-	double		rows;
 	ListCell   *lc;
 
 	/* If rel has LATERAL refs, every path for it should account for them */
@@ -1299,8 +1279,8 @@ get_baserel_parampathinfo(PlannerInfo *root, RelOptInfo *baserel,
 	 * Identify all joinclauses that are movable to this base rel given this
 	 * parameterization.
 	 */
-	joinrelids = bms_union(baserel->relids, required_outer);
-	pclauses = NIL;
+	Relids		joinrelids = bms_union(baserel->relids, required_outer);
+	List	   *pclauses = NIL;
 	foreach(lc, baserel->joininfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1322,7 +1302,7 @@ get_baserel_parampathinfo(PlannerInfo *root, RelOptInfo *baserel,
 															baserel));
 
 	/* Estimate the number of rows returned by the parameterized scan */
-	rows = get_parameterized_baserel_size(root, baserel, pclauses);
+	double		rows = get_parameterized_baserel_size(root, baserel, pclauses);
 
 	/* And now we can build the ParamPathInfo */
 	ppi = makeNode(ParamPathInfo);
@@ -1371,12 +1351,8 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 						  List **restrict_clauses)
 {
 	ParamPathInfo *ppi;
-	Relids		join_and_req;
 	Relids		outer_and_req;
 	Relids		inner_and_req;
-	List	   *pclauses;
-	List	   *eclauses;
-	List	   *dropped_ecs;
 	double		rows;
 	ListCell   *lc;
 
@@ -1398,7 +1374,7 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	 * might allow the same clauses to be moved into a parameterized path for
 	 * that rel.
 	 */
-	join_and_req = bms_union(joinrel->relids, required_outer);
+	Relids		join_and_req = bms_union(joinrel->relids, required_outer);
 	if (outer_path->param_info)
 		outer_and_req = bms_union(outer_path->parent->relids,
 								  PATH_REQ_OUTER(outer_path));
@@ -1410,7 +1386,7 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	else
 		inner_and_req = NULL;	/* inner path does not accept parameters */
 
-	pclauses = NIL;
+	List	   *pclauses = NIL;
 	foreach(lc, joinrel->joininfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1428,12 +1404,12 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	}
 
 	/* Consider joinclauses generated by EquivalenceClasses, too */
-	eclauses = generate_join_implied_equalities(root,
+	List	   *eclauses = generate_join_implied_equalities(root,
 												join_and_req,
 												required_outer,
 												joinrel);
 	/* We only want ones that aren't movable to lower levels */
-	dropped_ecs = NIL;
+	List	   *dropped_ecs = NIL;
 	foreach(lc, eclauses)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1498,9 +1474,8 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	 */
 	if (dropped_ecs)
 	{
-		Relids		real_outer_and_req;
 
-		real_outer_and_req = bms_union(outer_path->parent->relids,
+		Relids		real_outer_and_req = bms_union(outer_path->parent->relids,
 									   required_outer);
 		eclauses =
 			generate_join_implied_equalities_for_ecs(root,
@@ -1716,11 +1691,8 @@ have_partkey_equi_join(RelOptInfo *joinrel,
 	foreach(lc, restrictlist)
 	{
 		RestrictInfo *rinfo = lfirst_node(RestrictInfo, lc);
-		OpExpr	   *opexpr;
 		Expr	   *expr1;
 		Expr	   *expr2;
-		int			ipk1;
-		int			ipk2;
 
 		/* If processing an outer join, only use its own join clauses. */
 		if (IS_OUTER_JOIN(jointype) &&
@@ -1736,7 +1708,7 @@ have_partkey_equi_join(RelOptInfo *joinrel,
 			continue;
 
 		/* Should be OK to assume it's an OpExpr. */
-		opexpr = castNode(OpExpr, rinfo->clause);
+		OpExpr	   *opexpr = castNode(OpExpr, rinfo->clause);
 
 		/* Match the operands to the relation. */
 		if (bms_is_subset(rinfo->left_relids, rel1->relids) &&
@@ -1764,10 +1736,10 @@ have_partkey_equi_join(RelOptInfo *joinrel,
 		 * Only clauses referencing the partition keys are useful for
 		 * partitionwise join.
 		 */
-		ipk1 = match_expr_to_partition_keys(expr1, rel1, strict_op);
+		int			ipk1 = match_expr_to_partition_keys(expr1, rel1, strict_op);
 		if (ipk1 < 0)
 			continue;
-		ipk2 = match_expr_to_partition_keys(expr2, rel2, strict_op);
+		int			ipk2 = match_expr_to_partition_keys(expr2, rel2, strict_op);
 		if (ipk2 < 0)
 			continue;
 

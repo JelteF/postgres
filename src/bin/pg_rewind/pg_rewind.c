@@ -340,7 +340,6 @@ main(int argc, char **argv)
 	}
 	else
 	{
-		XLogRecPtr	chkptendrec;
 
 		findCommonAncestorTimeline(&divergerec, &lastcommontliIndex);
 		pg_log_info("servers diverged at WAL location %X/%X on timeline %u",
@@ -357,7 +356,7 @@ main(int argc, char **argv)
 		 */
 
 		/* read the checkpoint record on the target to see where it ends. */
-		chkptendrec = readOneRecord(datadir_target,
+		XLogRecPtr	chkptendrec = readOneRecord(datadir_target,
 									ControlFile_target.checkPoint,
 									targetNentries - 1,
 									restore_command);
@@ -500,7 +499,6 @@ perform_rewind(filemap_t *filemap, rewind_source *source,
 	TimeLineID	endtli;
 	ControlFileData ControlFile_new;
 	size_t		size;
-	char	   *buffer;
 
 	/*
 	 * Execute the actions in the file map, fetching data from the source
@@ -517,11 +515,10 @@ perform_rewind(filemap_t *filemap, rewind_source *source,
 		 */
 		if (entry->target_pages_to_overwrite.bitmapsize > 0)
 		{
-			datapagemap_iterator_t *iter;
 			BlockNumber blkno;
 			off_t		offset;
 
-			iter = datapagemap_iterate(&entry->target_pages_to_overwrite);
+			datapagemap_iterator_t *iter = datapagemap_iterate(&entry->target_pages_to_overwrite);
 			while (datapagemap_next(iter, &blkno))
 			{
 				offset = blkno * BLCKSZ;
@@ -578,7 +575,7 @@ perform_rewind(filemap_t *filemap, rewind_source *source,
 	 * Fetch the control file from the source last. This ensures that the
 	 * minRecoveryPoint is up-to-date.
 	 */
-	buffer = source->fetch_file(source, "global/pg_control", &size);
+	char	   *buffer = source->fetch_file(source, "global/pg_control", &size);
 	digestControlFile(&ControlFile_source_after, buffer, size);
 	pg_free(buffer);
 
@@ -734,20 +731,18 @@ void
 progress_report(bool finished)
 {
 	static pg_time_t last_progress_report = 0;
-	int			percent;
 	char		fetch_done_str[32];
 	char		fetch_size_str[32];
-	pg_time_t	now;
 
 	if (!showprogress)
 		return;
 
-	now = time(NULL);
+	pg_time_t	now = time(NULL);
 	if (now == last_progress_report && !finished)
 		return;					/* Max once per second */
 
 	last_progress_report = now;
-	percent = fetch_size ? (int) ((fetch_done) * 100 / fetch_size) : 0;
+	int			percent = fetch_size ? (int) ((fetch_done) * 100 / fetch_size) : 0;
 
 	/*
 	 * Avoid overflowing past 100% or the full size. This may make the total
@@ -805,9 +800,8 @@ static TimeLineHistoryEntry *
 getTimelineHistory(ControlFileData *controlFile, int *nentries)
 {
 	TimeLineHistoryEntry *history;
-	TimeLineID	tli;
 
-	tli = controlFile->checkPointCopy.ThisTimeLineID;
+	TimeLineID	tli = controlFile->checkPointCopy.ThisTimeLineID;
 
 	/*
 	 * Timeline 1 does not have a history file, so there is no need to check
@@ -855,9 +849,8 @@ getTimelineHistory(ControlFileData *controlFile, int *nentries)
 		 */
 		for (i = 0; i < targetNentries; i++)
 		{
-			TimeLineHistoryEntry *entry;
 
-			entry = &history[i];
+			TimeLineHistoryEntry *entry = &history[i];
 			pg_log_debug("%d: %X/%X - %X/%X", entry->tli,
 						 (uint32) (entry->begin >> 32), (uint32) (entry->begin),
 						 (uint32) (entry->end >> 32), (uint32) (entry->end));
@@ -881,13 +874,12 @@ getTimelineHistory(ControlFileData *controlFile, int *nentries)
 static void
 findCommonAncestorTimeline(XLogRecPtr *recptr, int *tliIndex)
 {
-	TimeLineHistoryEntry *sourceHistory;
 	int			sourceNentries;
 	int			i,
 				n;
 
 	/* Retrieve timelines for both source and target */
-	sourceHistory = getTimelineHistory(&ControlFile_source, &sourceNentries);
+	TimeLineHistoryEntry *sourceHistory = getTimelineHistory(&ControlFile_source, &sourceNentries);
 	targetHistory = getTimelineHistory(&ControlFile_target, &targetNentries);
 
 	/*
@@ -930,12 +922,9 @@ static void
 createBackupLabel(XLogRecPtr startpoint, TimeLineID starttli, XLogRecPtr checkpointloc)
 {
 	XLogSegNo	startsegno;
-	time_t		stamp_time;
 	char		strfbuf[128];
 	char		xlogfilename[MAXFNAMELEN];
-	struct tm  *tmp;
 	char		buf[1000];
-	int			len;
 
 	XLByteToSeg(startpoint, startsegno, WalSegSz);
 	XLogFileName(xlogfilename, starttli, startsegno, WalSegSz);
@@ -943,11 +932,11 @@ createBackupLabel(XLogRecPtr startpoint, TimeLineID starttli, XLogRecPtr checkpo
 	/*
 	 * Construct backup label file
 	 */
-	stamp_time = time(NULL);
-	tmp = localtime(&stamp_time);
+	time_t		stamp_time = time(NULL);
+	struct tm  *tmp = localtime(&stamp_time);
 	strftime(strfbuf, sizeof(strfbuf), "%Y-%m-%d %H:%M:%S %Z", tmp);
 
-	len = snprintf(buf, sizeof(buf),
+	int			len = snprintf(buf, sizeof(buf),
 				   "START WAL LOCATION: %X/%X (file %s)\n"
 				   "CHECKPOINT LOCATION: %X/%X\n"
 				   "BACKUP METHOD: pg_rewind\n"
@@ -1020,7 +1009,6 @@ digestControlFile(ControlFileData *ControlFile, const char *content,
 static void
 getRestoreCommand(const char *argv0)
 {
-	int			rc;
 	char		postgres_exec_path[MAXPGPATH],
 				postgres_cmd[MAXPGPATH],
 				cmd_output[MAXPGPATH];
@@ -1029,7 +1017,7 @@ getRestoreCommand(const char *argv0)
 		return;
 
 	/* find postgres executable */
-	rc = find_other_exec(argv0, "postgres",
+	int			rc = find_other_exec(argv0, "postgres",
 						 PG_BACKEND_VERSIONSTR,
 						 postgres_exec_path);
 

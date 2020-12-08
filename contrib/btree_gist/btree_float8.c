@@ -73,9 +73,8 @@ gbt_float8_dist(const void *a, const void *b, FmgrInfo *flinfo)
 {
 	float8		arg1 = *(const float8 *) a;
 	float8		arg2 = *(const float8 *) b;
-	float8		r;
 
-	r = arg1 - arg2;
+	float8		r = arg1 - arg2;
 	CHECKFLOATVAL(r, isinf(arg1) || isinf(arg2), true);
 
 	return Abs(r);
@@ -103,9 +102,8 @@ float8_dist(PG_FUNCTION_ARGS)
 {
 	float8		a = PG_GETARG_FLOAT8(0);
 	float8		b = PG_GETARG_FLOAT8(1);
-	float8		r;
 
-	r = a - b;
+	float8		r = a - b;
 	CHECKFLOATVAL(r, isinf(a) || isinf(b), true);
 
 	PG_RETURN_FLOAT8(Abs(r));

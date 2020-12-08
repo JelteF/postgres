@@ -44,13 +44,12 @@ gistRedoClearFollowRight(XLogReaderState *record, uint8 block_id)
 	XLogRecPtr	lsn = record->EndRecPtr;
 	Buffer		buffer;
 	Page		page;
-	XLogRedoAction action;
 
 	/*
 	 * Note that we still update the page even if it was restored from a full
 	 * page image, because the updated NSN is not included in the image.
 	 */
-	action = XLogReadBufferForRedo(record, block_id, &buffer);
+	XLogRedoAction action = XLogReadBufferForRedo(record, block_id, &buffer);
 	if (action == BLK_NEEDS_REDO || action == BLK_RESTORED)
 	{
 		page = BufferGetPage(buffer);
@@ -79,11 +78,10 @@ gistRedoPageUpdateRecord(XLogReaderState *record)
 	if (XLogReadBufferForRedo(record, 0, &buffer) == BLK_NEEDS_REDO)
 	{
 		char	   *begin;
-		char	   *data;
 		Size		datalen;
 		int			ninserted = 0;
 
-		data = begin = XLogRecGetBlockData(record, 0, &datalen);
+		char	   *data = begin = XLogRecGetBlockData(record, 0, &datalen);
 
 		page = (Page) BufferGetPage(buffer);
 
@@ -94,12 +92,10 @@ gistRedoPageUpdateRecord(XLogReaderState *record)
 			 * PageIndexTupleOverwrite for consistency with gistplacetopage.
 			 */
 			OffsetNumber offnum = *((OffsetNumber *) data);
-			IndexTuple	itup;
-			Size		itupsize;
 
 			data += sizeof(OffsetNumber);
-			itup = (IndexTuple) data;
-			itupsize = IndexTupleSize(itup);
+			IndexTuple	itup = (IndexTuple) data;
+			Size		itupsize = IndexTupleSize(itup);
 			if (!PageIndexTupleOverwrite(page, offnum, (Item) itup, itupsize))
 				elog(ERROR, "failed to add item to GiST index page, size %d bytes",
 					 (int) itupsize);
@@ -131,11 +127,10 @@ gistRedoPageUpdateRecord(XLogReaderState *record)
 			{
 				IndexTuple	itup = (IndexTuple) data;
 				Size		sz = IndexTupleSize(itup);
-				OffsetNumber l;
 
 				data += sz;
 
-				l = PageAddItem(page, (Item) itup, sz, off, false, false);
+				OffsetNumber l = PageAddItem(page, (Item) itup, sz, off, false, false);
 				if (l == InvalidOffsetNumber)
 					elog(ERROR, "failed to add item to GiST index page, size %d bytes",
 						 (int) sz);
@@ -204,9 +199,8 @@ gistRedoDeleteRecord(XLogReaderState *record)
 
 		if (XLogRecGetDataLen(record) > SizeOfGistxlogDelete)
 		{
-			OffsetNumber *todelete;
 
-			todelete = (OffsetNumber *) ((char *) xldata + SizeOfGistxlogDelete);
+			OffsetNumber *todelete = (OffsetNumber *) ((char *) xldata + SizeOfGistxlogDelete);
 
 			PageIndexMultiDelete(page, todelete, xldata->ntodelete);
 		}
@@ -228,15 +222,13 @@ gistRedoDeleteRecord(XLogReaderState *record)
 static IndexTuple *
 decodePageSplitRecord(char *begin, int len, int *n)
 {
-	char	   *ptr;
 	int			i = 0;
-	IndexTuple *tuples;
 
 	/* extract the number of tuples */
 	memcpy(n, begin, sizeof(int));
-	ptr = begin + sizeof(int);
+	char	   *ptr = begin + sizeof(int);
 
-	tuples = palloc(*n * sizeof(IndexTuple));
+	IndexTuple *tuples = palloc(*n * sizeof(IndexTuple));
 
 	for (i = 0; i < *n; i++)
 	{
@@ -272,11 +264,9 @@ gistRedoPageSplitRecord(XLogReaderState *record)
 	for (i = 0; i < xldata->npage; i++)
 	{
 		int			flags;
-		char	   *data;
 		Size		datalen;
 		int			num;
 		BlockNumber blkno;
-		IndexTuple *tuples;
 
 		XLogRecGetBlockTag(record, i + 1, NULL, NULL, &blkno);
 		if (blkno == GIST_ROOT_BLKNO)
@@ -287,9 +277,9 @@ gistRedoPageSplitRecord(XLogReaderState *record)
 
 		buffer = XLogInitBufferForRedo(record, i + 1);
 		page = (Page) BufferGetPage(buffer);
-		data = XLogRecGetBlockData(record, i + 1, &datalen);
+		char	   *data = XLogRecGetBlockData(record, i + 1, &datalen);
 
-		tuples = decodePageSplitRecord(data, datalen, &num);
+		IndexTuple *tuples = decodePageSplitRecord(data, datalen, &num);
 
 		/* ok, clear buffer */
 		if (xldata->origleaf && blkno != GIST_ROOT_BLKNO)
@@ -397,7 +387,6 @@ gistRedoPageReuse(XLogReaderState *record)
 	{
 		FullTransactionId latestRemovedFullXid = xlrec->latestRemovedFullXid;
 		FullTransactionId nextXid = ReadNextFullTransactionId();
-		uint64		diff;
 
 		/*
 		 * ResolveRecoveryConflictWithSnapshot operates on 32-bit
@@ -405,13 +394,12 @@ gistRedoPageReuse(XLogReaderState *record)
 		 * logged value is very old, so that XID wrap-around already happened
 		 * on it, there can't be any snapshots that still see it.
 		 */
-		diff = U64FromFullTransactionId(nextXid) -
+		uint64		diff = U64FromFullTransactionId(nextXid) -
 			U64FromFullTransactionId(latestRemovedFullXid);
 		if (diff < MaxTransactionId / 2)
 		{
-			TransactionId latestRemovedXid;
 
-			latestRemovedXid = XidFromFullTransactionId(latestRemovedFullXid);
+			TransactionId latestRemovedXid = XidFromFullTransactionId(latestRemovedFullXid);
 			ResolveRecoveryConflictWithSnapshot(latestRemovedXid,
 												xlrec->node);
 		}
@@ -422,7 +410,6 @@ void
 gist_redo(XLogReaderState *record)
 {
 	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
-	MemoryContext oldCxt;
 
 	/*
 	 * GiST indexes do not require any conflict processing. NB: If we ever
@@ -430,7 +417,7 @@ gist_redo(XLogReaderState *record)
 	 * tuples outside VACUUM, we'll need to handle that here.
 	 */
 
-	oldCxt = MemoryContextSwitchTo(opCtx);
+	MemoryContext oldCxt = MemoryContextSwitchTo(opCtx);
 	switch (info)
 	{
 		case XLOG_GIST_PAGE_UPDATE:
@@ -525,8 +512,6 @@ gistXLogSplit(bool page_is_leaf,
 	gistxlogPageSplit xlrec;
 	SplitedPageLayout *ptr;
 	int			npage = 0;
-	XLogRecPtr	recptr;
-	int			i;
 
 	for (ptr = dist; ptr; ptr = ptr->next)
 		npage++;
@@ -555,7 +540,7 @@ gistXLogSplit(bool page_is_leaf,
 	 */
 	XLogRegisterData((char *) &xlrec, sizeof(gistxlogPageSplit));
 
-	i = 1;
+	int			i = 1;
 	for (ptr = dist; ptr; ptr = ptr->next)
 	{
 		XLogRegisterBuffer(i, ptr->buffer, REGBUF_WILL_INIT);
@@ -564,7 +549,7 @@ gistXLogSplit(bool page_is_leaf,
 		i++;
 	}
 
-	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_SPLIT);
+	XLogRecPtr	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_SPLIT);
 
 	return recptr;
 }
@@ -578,7 +563,6 @@ gistXLogPageDelete(Buffer buffer, FullTransactionId xid,
 				   Buffer parentBuffer, OffsetNumber downlinkOffset)
 {
 	gistxlogPageDelete xlrec;
-	XLogRecPtr	recptr;
 
 	xlrec.deleteXid = xid;
 	xlrec.downlinkOffset = downlinkOffset;
@@ -589,7 +573,7 @@ gistXLogPageDelete(Buffer buffer, FullTransactionId xid,
 	XLogRegisterBuffer(0, buffer, REGBUF_STANDARD);
 	XLogRegisterBuffer(1, parentBuffer, REGBUF_STANDARD);
 
-	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_DELETE);
+	XLogRecPtr	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_DELETE);
 
 	return recptr;
 }
@@ -656,7 +640,6 @@ gistXLogUpdate(Buffer buffer,
 {
 	gistxlogPageUpdate xlrec;
 	int			i;
-	XLogRecPtr	recptr;
 
 	xlrec.ntodelete = ntodelete;
 	xlrec.ntoinsert = ituplen;
@@ -678,7 +661,7 @@ gistXLogUpdate(Buffer buffer,
 	if (BufferIsValid(leftchildbuf))
 		XLogRegisterBuffer(1, leftchildbuf, REGBUF_STANDARD);
 
-	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_UPDATE);
+	XLogRecPtr	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_PAGE_UPDATE);
 
 	return recptr;
 }
@@ -694,7 +677,6 @@ gistXLogDelete(Buffer buffer, OffsetNumber *todelete, int ntodelete,
 			   TransactionId latestRemovedXid)
 {
 	gistxlogDelete xlrec;
-	XLogRecPtr	recptr;
 
 	xlrec.latestRemovedXid = latestRemovedXid;
 	xlrec.ntodelete = ntodelete;
@@ -710,7 +692,7 @@ gistXLogDelete(Buffer buffer, OffsetNumber *todelete, int ntodelete,
 
 	XLogRegisterBuffer(0, buffer, REGBUF_STANDARD);
 
-	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_DELETE);
+	XLogRecPtr	recptr = XLogInsert(RM_GIST_ID, XLOG_GIST_DELETE);
 
 	return recptr;
 }

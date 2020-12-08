@@ -368,7 +368,6 @@ try_nestloop_path(PlannerInfo *root,
 				  JoinType jointype,
 				  JoinPathExtraData *extra)
 {
-	Relids		required_outer;
 	JoinCostWorkspace workspace;
 	RelOptInfo *innerrel = inner_path->parent;
 	RelOptInfo *outerrel = outer_path->parent;
@@ -398,7 +397,7 @@ try_nestloop_path(PlannerInfo *root,
 	 * doesn't like the look of it, which could only happen if the nestloop is
 	 * still parameterized.
 	 */
-	required_outer = calc_nestloop_required_outer(outerrelids, outer_paramrels,
+	Relids		required_outer = calc_nestloop_required_outer(outerrelids, outer_paramrels,
 												  innerrelids, inner_paramrels);
 	if (required_outer &&
 		((!bms_overlap(required_outer, extra->param_source_rels) &&
@@ -566,7 +565,6 @@ try_mergejoin_path(PlannerInfo *root,
 				   JoinPathExtraData *extra,
 				   bool is_partial)
 {
-	Relids		required_outer;
 	JoinCostWorkspace workspace;
 
 	if (is_partial)
@@ -588,7 +586,7 @@ try_mergejoin_path(PlannerInfo *root,
 	 * Check to see if proposed path is still parameterized, and reject if the
 	 * parameterization wouldn't be sensible.
 	 */
-	required_outer = calc_non_nestloop_required_outer(outer_path,
+	Relids		required_outer = calc_non_nestloop_required_outer(outer_path,
 													  inner_path);
 	if (required_outer &&
 		!bms_overlap(required_outer, extra->param_source_rels))
@@ -727,14 +725,13 @@ try_hashjoin_path(PlannerInfo *root,
 				  JoinType jointype,
 				  JoinPathExtraData *extra)
 {
-	Relids		required_outer;
 	JoinCostWorkspace workspace;
 
 	/*
 	 * Check to see if proposed path is still parameterized, and reject if the
 	 * parameterization wouldn't be sensible.
 	 */
-	required_outer = calc_non_nestloop_required_outer(outer_path,
+	Relids		required_outer = calc_non_nestloop_required_outer(outer_path,
 													  inner_path);
 	if (required_outer &&
 		!bms_overlap(required_outer, extra->param_source_rels))
@@ -886,11 +883,8 @@ sort_inner_and_outer(PlannerInfo *root,
 					 JoinPathExtraData *extra)
 {
 	JoinType	save_jointype = jointype;
-	Path	   *outer_path;
-	Path	   *inner_path;
 	Path	   *cheapest_partial_outer = NULL;
 	Path	   *cheapest_safe_inner = NULL;
-	List	   *all_pathkeys;
 	ListCell   *l;
 
 	/*
@@ -906,8 +900,8 @@ sort_inner_and_outer(PlannerInfo *root,
 	 * against mergejoins with parameterized inputs; see comments in
 	 * src/backend/optimizer/README.
 	 */
-	outer_path = outerrel->cheapest_total_path;
-	inner_path = innerrel->cheapest_total_path;
+	Path	   *outer_path = outerrel->cheapest_total_path;
+	Path	   *inner_path = innerrel->cheapest_total_path;
 
 	/*
 	 * If either cheapest-total path is parameterized by the other rel, we
@@ -990,17 +984,14 @@ sort_inner_and_outer(PlannerInfo *root,
 	 * some heuristics behind it (see that function), so be sure to try it
 	 * exactly as-is as well as making variants.
 	 */
-	all_pathkeys = select_outer_pathkeys_for_merge(root,
+	List	   *all_pathkeys = select_outer_pathkeys_for_merge(root,
 												   extra->mergeclause_list,
 												   joinrel);
 
 	foreach(l, all_pathkeys)
 	{
 		List	   *front_pathkey = (List *) lfirst(l);
-		List	   *cur_mergeclauses;
 		List	   *outerkeys;
-		List	   *innerkeys;
-		List	   *merge_pathkeys;
 
 		/* Make a pathkey list with this guy first */
 		if (l != list_head(all_pathkeys))
@@ -1011,7 +1002,7 @@ sort_inner_and_outer(PlannerInfo *root,
 			outerkeys = all_pathkeys;	/* no work at first one... */
 
 		/* Sort the mergeclauses into the corresponding ordering */
-		cur_mergeclauses =
+		List	   *cur_mergeclauses =
 			find_mergeclauses_for_outer_pathkeys(root,
 												 outerkeys,
 												 extra->mergeclause_list);
@@ -1020,12 +1011,12 @@ sort_inner_and_outer(PlannerInfo *root,
 		Assert(list_length(cur_mergeclauses) == list_length(extra->mergeclause_list));
 
 		/* Build sort pathkeys for the inner side */
-		innerkeys = make_inner_pathkeys_for_merge(root,
+		List	   *innerkeys = make_inner_pathkeys_for_merge(root,
 												  cur_mergeclauses,
 												  outerkeys);
 
 		/* Build pathkeys representing output sort order */
-		merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
+		List	   *merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
 											 outerkeys);
 
 		/*
@@ -1091,20 +1082,17 @@ generate_mergejoin_paths(PlannerInfo *root,
 						 List *merge_pathkeys,
 						 bool is_partial)
 {
-	List	   *mergeclauses;
-	List	   *innersortkeys;
 	List	   *trialsortkeys;
 	Path	   *cheapest_startup_inner;
 	Path	   *cheapest_total_inner;
 	JoinType	save_jointype = jointype;
-	int			num_sortkeys;
 	int			sortkeycnt;
 
 	if (jointype == JOIN_UNIQUE_OUTER || jointype == JOIN_UNIQUE_INNER)
 		jointype = JOIN_INNER;
 
 	/* Look for useful mergeclauses (if any) */
-	mergeclauses =
+	List	   *mergeclauses =
 		find_mergeclauses_for_outer_pathkeys(root,
 											 outerpath->pathkeys,
 											 extra->mergeclause_list);
@@ -1130,7 +1118,7 @@ generate_mergejoin_paths(PlannerInfo *root,
 		return;
 
 	/* Compute the required ordering of the inner path */
-	innersortkeys = make_inner_pathkeys_for_merge(root,
+	List	   *innersortkeys = make_inner_pathkeys_for_merge(root,
 												  mergeclauses,
 												  outerpath->pathkeys);
 
@@ -1198,7 +1186,7 @@ generate_mergejoin_paths(PlannerInfo *root,
 		cheapest_startup_inner = NULL;
 		cheapest_total_inner = NULL;
 	}
-	num_sortkeys = list_length(innersortkeys);
+	int			num_sortkeys = list_length(innersortkeys);
 	if (num_sortkeys > 1 && !useallclauses)
 		trialsortkeys = list_copy(innersortkeys);	/* need modifiable copy */
 	else
@@ -1206,7 +1194,6 @@ generate_mergejoin_paths(PlannerInfo *root,
 
 	for (sortkeycnt = num_sortkeys; sortkeycnt > 0; sortkeycnt--)
 	{
-		Path	   *innerpath;
 		List	   *newclauses = NIL;
 
 		/*
@@ -1215,7 +1202,7 @@ generate_mergejoin_paths(PlannerInfo *root,
 		 * destructively, which is why we made a copy...
 		 */
 		trialsortkeys = list_truncate(trialsortkeys, sortkeycnt);
-		innerpath = get_cheapest_path_for_pathkeys(innerrel->pathlist,
+		Path	   *innerpath = get_cheapest_path_for_pathkeys(innerrel->pathlist,
 												   trialsortkeys,
 												   NULL,
 												   TOTAL_COST,
@@ -1414,7 +1401,6 @@ match_unsorted_outer(PlannerInfo *root,
 	foreach(lc1, outerrel->pathlist)
 	{
 		Path	   *outerpath = (Path *) lfirst(lc1);
-		List	   *merge_pathkeys;
 
 		/*
 		 * We cannot use an outer path that is parameterized by the inner rel.
@@ -1441,7 +1427,7 @@ match_unsorted_outer(PlannerInfo *root,
 		 * a nestloop, and even if some of the mergeclauses are implemented by
 		 * qpquals rather than as true mergeclauses):
 		 */
-		merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
+		List	   *merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
 											 outerpath->pathkeys);
 
 		if (save_jointype == JOIN_UNIQUE_INNER)
@@ -1575,12 +1561,11 @@ consider_parallel_mergejoin(PlannerInfo *root,
 	foreach(lc1, outerrel->partial_pathlist)
 	{
 		Path	   *outerpath = (Path *) lfirst(lc1);
-		List	   *merge_pathkeys;
 
 		/*
 		 * Figure out what useful ordering any paths we create will have.
 		 */
-		merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
+		List	   *merge_pathkeys = build_join_pathkeys(root, joinrel, jointype,
 											 outerpath->pathkeys);
 
 		generate_mergejoin_paths(root, joinrel, innerrel, outerpath, jointype,
@@ -1617,11 +1602,10 @@ consider_parallel_nestloop(PlannerInfo *root,
 	foreach(lc1, outerrel->partial_pathlist)
 	{
 		Path	   *outerpath = (Path *) lfirst(lc1);
-		List	   *pathkeys;
 		ListCell   *lc2;
 
 		/* Figure out what useful ordering any paths we create will have. */
-		pathkeys = build_join_pathkeys(root, joinrel, jointype,
+		List	   *pathkeys = build_join_pathkeys(root, joinrel, jointype,
 									   outerpath->pathkeys);
 
 		/*
@@ -1682,7 +1666,6 @@ hash_inner_and_outer(PlannerInfo *root,
 {
 	JoinType	save_jointype = jointype;
 	bool		isouterjoin = IS_OUTER_JOIN(jointype);
-	List	   *hashclauses;
 	ListCell   *l;
 
 	/*
@@ -1692,7 +1675,7 @@ hash_inner_and_outer(PlannerInfo *root,
 	 * Scan the join's restrictinfo list to find hashjoinable clauses that are
 	 * usable with this pair of sub-relations.
 	 */
-	hashclauses = NIL;
+	List	   *hashclauses = NIL;
 	foreach(l, extra->restrictlist)
 	{
 		RestrictInfo *restrictinfo = (RestrictInfo *) lfirst(l);
@@ -1857,11 +1840,10 @@ hash_inner_and_outer(PlannerInfo *root,
 			outerrel->partial_pathlist != NIL &&
 			bms_is_empty(joinrel->lateral_relids))
 		{
-			Path	   *cheapest_partial_outer;
 			Path	   *cheapest_partial_inner = NULL;
 			Path	   *cheapest_safe_inner = NULL;
 
-			cheapest_partial_outer =
+			Path	   *cheapest_partial_outer =
 				(Path *) linitial(outerrel->partial_pathlist);
 
 			/*

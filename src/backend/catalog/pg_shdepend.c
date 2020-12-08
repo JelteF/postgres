@@ -121,7 +121,6 @@ recordSharedDependencyOn(ObjectAddress *depender,
 						 ObjectAddress *referenced,
 						 SharedDependencyType deptype)
 {
-	Relation	sdepRel;
 
 	/*
 	 * Objects in pg_shdepend can't have SubIds.
@@ -136,7 +135,7 @@ recordSharedDependencyOn(ObjectAddress *depender,
 	if (IsBootstrapProcessingMode())
 		return;
 
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	/* If the referenced object is pinned, do nothing. */
 	if (!isSharedObjectPinned(referenced->classId, referenced->objectId,
@@ -205,7 +204,6 @@ shdepChangeDep(Relation sdepRel,
 	HeapTuple	oldtup = NULL;
 	HeapTuple	scantup;
 	ScanKeyData key[4];
-	SysScanDesc scan;
 
 	/*
 	 * Make sure the new referenced object doesn't go away while we record the
@@ -233,7 +231,7 @@ shdepChangeDep(Relation sdepRel,
 				BTEqualStrategyNumber, F_INT4EQ,
 				Int32GetDatum(objsubid));
 
-	scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
+	SysScanDesc scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
 							  NULL, 4, key);
 
 	while ((scantup = systable_getnext(scan)) != NULL)
@@ -308,9 +306,8 @@ shdepChangeDep(Relation sdepRel,
 void
 changeDependencyOnOwner(Oid classId, Oid objectId, Oid newOwnerId)
 {
-	Relation	sdepRel;
 
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	/* Adjust the SHARED_DEPENDENCY_OWNER entry */
 	shdepChangeDep(sdepRel,
@@ -795,28 +792,23 @@ checkSharedDependencies(Oid classId, Oid objectId,
 void
 copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 {
-	Relation	sdepRel;
-	TupleDesc	sdepDesc;
 	ScanKeyData key[1];
-	SysScanDesc scan;
 	HeapTuple	tup;
-	CatalogIndexState indstate;
-	TupleTableSlot **slot;
 	int			max_slots,
 				slot_init_count,
 				slot_stored_count;
 
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
-	sdepDesc = RelationGetDescr(sdepRel);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	TupleDesc	sdepDesc = RelationGetDescr(sdepRel);
 
 	/*
 	 * Allocate the slots to use, but delay costly initialization until we
 	 * know that they will be used.
 	 */
 	max_slots = MAX_CATALOG_MULTI_INSERT_BYTES / sizeof(FormData_pg_shdepend);
-	slot = palloc(sizeof(TupleTableSlot *) * max_slots);
+	TupleTableSlot **slot = palloc(sizeof(TupleTableSlot *) * max_slots);
 
-	indstate = CatalogOpenIndexes(sdepRel);
+	CatalogIndexState indstate = CatalogOpenIndexes(sdepRel);
 
 	/* Scan all entries with dbid = templateDbId */
 	ScanKeyInit(&key[0],
@@ -824,7 +816,7 @@ copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(templateDbId));
 
-	scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
+	SysScanDesc scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
 							  NULL, 1, key);
 
 	/* number of slots currently storing tuples */
@@ -841,7 +833,6 @@ copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 	 */
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
-		Form_pg_shdepend shdep;
 
 		if (slot_init_count < max_slots)
 		{
@@ -851,7 +842,7 @@ copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 
 		ExecClearTuple(slot[slot_stored_count]);
 
-		shdep = (Form_pg_shdepend) GETSTRUCT(tup);
+		Form_pg_shdepend shdep = (Form_pg_shdepend) GETSTRUCT(tup);
 
 		slot[slot_stored_count]->tts_values[Anum_pg_shdepend_dbid] = ObjectIdGetDatum(newDbId);
 		slot[slot_stored_count]->tts_values[Anum_pg_shdepend_classid] = shdep->classid;
@@ -896,12 +887,10 @@ copyTemplateDependencies(Oid templateDbId, Oid newDbId)
 void
 dropDatabaseDependencies(Oid databaseId)
 {
-	Relation	sdepRel;
 	ScanKeyData key[1];
-	SysScanDesc scan;
 	HeapTuple	tup;
 
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	/*
 	 * First, delete all the entries that have the database Oid in the dbid
@@ -913,7 +902,7 @@ dropDatabaseDependencies(Oid databaseId)
 				ObjectIdGetDatum(databaseId));
 	/* We leave the other index fields unspecified */
 
-	scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
+	SysScanDesc scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
 							  NULL, 1, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
@@ -944,9 +933,8 @@ dropDatabaseDependencies(Oid databaseId)
 void
 deleteSharedDependencyRecordsFor(Oid classId, Oid objectId, int32 objectSubId)
 {
-	Relation	sdepRel;
 
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	shdepDropDependency(sdepRel, classId, objectId, objectSubId,
 						(objectSubId == 0),
@@ -969,7 +957,6 @@ shdepAddDependency(Relation sdepRel,
 				   Oid refclassId, Oid refobjId,
 				   SharedDependencyType deptype)
 {
-	HeapTuple	tup;
 	Datum		values[Natts_pg_shdepend];
 	bool		nulls[Natts_pg_shdepend];
 
@@ -994,7 +981,7 @@ shdepAddDependency(Relation sdepRel,
 	values[Anum_pg_shdepend_refobjid - 1] = ObjectIdGetDatum(refobjId);
 	values[Anum_pg_shdepend_deptype - 1] = CharGetDatum(deptype);
 
-	tup = heap_form_tuple(sdepRel->rd_att, values, nulls);
+	HeapTuple	tup = heap_form_tuple(sdepRel->rd_att, values, nulls);
 
 	CatalogTupleInsert(sdepRel, tup);
 
@@ -1027,7 +1014,6 @@ shdepDropDependency(Relation sdepRel,
 {
 	ScanKeyData key[4];
 	int			nkeys;
-	SysScanDesc scan;
 	HeapTuple	tup;
 
 	/* Scan for entries matching the dependent object */
@@ -1054,7 +1040,7 @@ shdepDropDependency(Relation sdepRel,
 		nkeys = 4;
 	}
 
-	scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
+	SysScanDesc scan = systable_beginscan(sdepRel, SharedDependDependerIndexId, true,
 							  NULL, nkeys, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
@@ -1234,8 +1220,6 @@ isSharedObjectPinned(Oid classId, Oid objectId, Relation sdepRel)
 {
 	bool		result = false;
 	ScanKeyData key[2];
-	SysScanDesc scan;
-	HeapTuple	tup;
 
 	ScanKeyInit(&key[0],
 				Anum_pg_shdepend_refclassid,
@@ -1246,7 +1230,7 @@ isSharedObjectPinned(Oid classId, Oid objectId, Relation sdepRel)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(objectId));
 
-	scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
+	SysScanDesc scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
 							  NULL, 2, key);
 
 	/*
@@ -1255,7 +1239,7 @@ isSharedObjectPinned(Oid classId, Oid objectId, Relation sdepRel)
 	 * Hence, it's sufficient to look at the first returned tuple; we don't
 	 * need to loop.
 	 */
-	tup = systable_getnext(scan);
+	HeapTuple	tup = systable_getnext(scan);
 	if (HeapTupleIsValid(tup))
 	{
 		Form_pg_shdepend shdepForm = (Form_pg_shdepend) GETSTRUCT(tup);
@@ -1284,18 +1268,16 @@ isSharedObjectPinned(Oid classId, Oid objectId, Relation sdepRel)
 void
 shdepDropOwned(List *roleids, DropBehavior behavior)
 {
-	Relation	sdepRel;
 	ListCell   *cell;
-	ObjectAddresses *deleteobjs;
 
-	deleteobjs = new_object_addresses();
+	ObjectAddresses *deleteobjs = new_object_addresses();
 
 	/*
 	 * We don't need this strong a lock here, but we'll call routines that
 	 * acquire RowExclusiveLock.  Better get that right now to avoid potential
 	 * deadlock failures.
 	 */
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	/*
 	 * For each role, find the dependent objects and drop them using the
@@ -1305,7 +1287,6 @@ shdepDropOwned(List *roleids, DropBehavior behavior)
 	{
 		Oid			roleid = lfirst_oid(cell);
 		ScanKeyData key[2];
-		SysScanDesc scan;
 		HeapTuple	tuple;
 
 		/* Doesn't work for pinned objects */
@@ -1333,7 +1314,7 @@ shdepDropOwned(List *roleids, DropBehavior behavior)
 					BTEqualStrategyNumber, F_OIDEQ,
 					ObjectIdGetDatum(roleid));
 
-		scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
+		SysScanDesc scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
 								  NULL, 2, key);
 
 		while ((tuple = systable_getnext(scan)) != NULL)
@@ -1438,7 +1419,6 @@ shdepDropOwned(List *roleids, DropBehavior behavior)
 void
 shdepReassignOwned(List *roleids, Oid newrole)
 {
-	Relation	sdepRel;
 	ListCell   *cell;
 
 	/*
@@ -1446,11 +1426,10 @@ shdepReassignOwned(List *roleids, Oid newrole)
 	 * acquire RowExclusiveLock.  Better get that right now to avoid potential
 	 * deadlock problems.
 	 */
-	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
+	Relation	sdepRel = table_open(SharedDependRelationId, RowExclusiveLock);
 
 	foreach(cell, roleids)
 	{
-		SysScanDesc scan;
 		ScanKeyData key[2];
 		HeapTuple	tuple;
 		Oid			roleid = lfirst_oid(cell);
@@ -1484,7 +1463,7 @@ shdepReassignOwned(List *roleids, Oid newrole)
 					BTEqualStrategyNumber, F_OIDEQ,
 					ObjectIdGetDatum(roleid));
 
-		scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
+		SysScanDesc scan = systable_beginscan(sdepRel, SharedDependReferenceIndexId, true,
 								  NULL, 2, key);
 
 		while ((tuple = systable_getnext(scan)) != NULL)
@@ -1577,12 +1556,11 @@ shdepReassignOwned(List *roleids, Oid newrole)
 				case TSDictionaryRelationId:
 					{
 						Oid			classId = sdepForm->classid;
-						Relation	catalog;
 
 						if (classId == LargeObjectRelationId)
 							classId = LargeObjectMetadataRelationId;
 
-						catalog = table_open(classId, RowExclusiveLock);
+						Relation	catalog = table_open(classId, RowExclusiveLock);
 
 						AlterObjectOwner_internal(catalog, sdepForm->objid,
 												  newrole);

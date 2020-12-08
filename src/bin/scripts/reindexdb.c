@@ -73,7 +73,6 @@ main(int argc, char *argv[])
 		{NULL, 0, NULL, 0}
 	};
 
-	const char *progname;
 	int			optindex;
 	int			c;
 
@@ -96,7 +95,7 @@ main(int argc, char *argv[])
 	int			concurrentCons = 1;
 
 	pg_logging_init(argv[0]);
-	progname = get_progname(argv[0]);
+	const char *progname = get_progname(argv[0]);
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pgscripts"));
 
 	handle_help_version_opts(argc, argv, "reindexdb", help);
@@ -327,16 +326,14 @@ reindex_one_database(const ConnParams *cparams, ReindexType type,
 					 const char *progname, bool echo,
 					 bool verbose, bool concurrently, int concurrentCons)
 {
-	PGconn	   *conn;
 	SimpleStringListCell *cell;
 	bool		parallel = concurrentCons > 1;
 	SimpleStringList *process_list = user_list;
 	ReindexType process_type = type;
-	ParallelSlot *slots;
 	bool		failed = false;
 	int			items_count = 0;
 
-	conn = connectDatabase(cparams, progname, echo, false, false);
+	PGconn	   *conn = connectDatabase(cparams, progname, echo, false, false);
 
 	if (concurrently && PQserverVersion(conn) < 120000)
 	{
@@ -443,7 +440,7 @@ reindex_one_database(const ConnParams *cparams, ReindexType type,
 
 	Assert(process_list != NULL);
 
-	slots = ParallelSlotsSetup(cparams, progname, echo, conn, concurrentCons);
+	ParallelSlot *slots = ParallelSlotsSetup(cparams, progname, echo, conn, concurrentCons);
 
 	cell = process_list->head;
 	do
@@ -605,8 +602,6 @@ get_parallel_object_list(PGconn *conn, ReindexType type,
 {
 	PQExpBufferData catalog_query;
 	PQExpBufferData buf;
-	PGresult   *res;
-	SimpleStringList *tables;
 	int			ntups,
 				i;
 
@@ -677,7 +672,7 @@ get_parallel_object_list(PGconn *conn, ReindexType type,
 			break;
 	}
 
-	res = executeQuery(conn, catalog_query.data, echo);
+	PGresult   *res = executeQuery(conn, catalog_query.data, echo);
 	termPQExpBuffer(&catalog_query);
 
 	/*
@@ -691,7 +686,7 @@ get_parallel_object_list(PGconn *conn, ReindexType type,
 		return NULL;
 	}
 
-	tables = pg_malloc0(sizeof(SimpleStringList));
+	SimpleStringList *tables = pg_malloc0(sizeof(SimpleStringList));
 
 	/* Build qualified identifiers for each table */
 	initPQExpBuffer(&buf);
@@ -715,12 +710,10 @@ reindex_all_databases(ConnParams *cparams,
 					  const char *progname, bool echo, bool quiet, bool verbose,
 					  bool concurrently, int concurrentCons)
 {
-	PGconn	   *conn;
-	PGresult   *result;
 	int			i;
 
-	conn = connectMaintenanceDatabase(cparams, progname, echo);
-	result = executeQuery(conn, "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", echo);
+	PGconn	   *conn = connectMaintenanceDatabase(cparams, progname, echo);
+	PGresult   *result = executeQuery(conn, "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", echo);
 	PQfinish(conn);
 
 	for (i = 0; i < PQntuples(result); i++)

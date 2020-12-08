@@ -41,12 +41,10 @@ static char *str_udeescape(const char *str, char escape,
 List *
 raw_parser(const char *str)
 {
-	core_yyscan_t yyscanner;
 	base_yy_extra_type yyextra;
-	int			yyresult;
 
 	/* initialize the flex scanner */
-	yyscanner = scanner_init(str, &yyextra.core_yy_extra,
+	core_yyscan_t yyscanner = scanner_init(str, &yyextra.core_yy_extra,
 							 &ScanKeywords, ScanKeywordTokens);
 
 	/* base_yylex() only needs this much initialization */
@@ -56,7 +54,7 @@ raw_parser(const char *str)
 	parser_init(&yyextra);
 
 	/* Parse! */
-	yyresult = base_yyparse(yyscanner);
+	int			yyresult = base_yyparse(yyscanner);
 
 	/* Clean up (release memory) */
 	scanner_finish(yyscanner);
@@ -94,9 +92,7 @@ base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp, core_yyscan_t yyscanner)
 {
 	base_yy_extra_type *yyextra = pg_yyget_extra(yyscanner);
 	int			cur_token;
-	int			next_token;
 	int			cur_token_length;
-	YYLTYPE		cur_yylloc;
 
 	/* Get next token --- we might already have it */
 	if (yyextra->have_lookahead)
@@ -151,10 +147,10 @@ base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp, core_yyscan_t yyscanner)
 	 * internally, and will use that for error reporting.  We need any error
 	 * reports to point to the current token, not the next one.
 	 */
-	cur_yylloc = *llocp;
+	YYLTYPE		cur_yylloc = *llocp;
 
 	/* Get next token, saving outputs into lookahead variables */
-	next_token = core_yylex(&(yyextra->lookahead_yylval), llocp, yyscanner);
+	int			next_token = core_yylex(&(yyextra->lookahead_yylval), llocp, yyscanner);
 	yyextra->lookahead_token = next_token;
 	yyextra->lookahead_yylloc = *llocp;
 
@@ -211,7 +207,6 @@ base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp, core_yyscan_t yyscanner)
 			if (next_token == UESCAPE)
 			{
 				/* Yup, so get third token, which had better be SCONST */
-				const char *escstr;
 
 				/* Again save and restore *llocp */
 				cur_yylloc = *llocp;
@@ -228,7 +223,7 @@ base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp, core_yyscan_t yyscanner)
 					scanner_yyerror("UESCAPE must be followed by a simple string literal",
 									yyscanner);
 
-				escstr = yyextra->lookahead_yylval.str;
+				const char *escstr = yyextra->lookahead_yylval.str;
 				if (strlen(escstr) != 1 || !check_uescapechar(escstr[0]))
 					scanner_yyerror("invalid Unicode escape character",
 									yyscanner);
@@ -327,10 +322,8 @@ static char *
 str_udeescape(const char *str, char escape,
 			  int position, core_yyscan_t yyscanner)
 {
-	const char *in;
 	char	   *new,
 			   *out;
-	size_t		new_len;
 	pg_wchar	pair_first = 0;
 	ScannerCallbackState scbstate;
 
@@ -338,10 +331,10 @@ str_udeescape(const char *str, char escape,
 	 * Guesstimate that result will be no longer than input, but allow enough
 	 * padding for Unicode conversion.
 	 */
-	new_len = strlen(str) + MAX_UNICODE_EQUIVALENT_STRING + 1;
+	size_t		new_len = strlen(str) + MAX_UNICODE_EQUIVALENT_STRING + 1;
 	new = palloc(new_len);
 
-	in = str;
+	const char *in = str;
 	out = new;
 	while (*in)
 	{
@@ -375,9 +368,8 @@ str_udeescape(const char *str, char escape,
 					 isxdigit((unsigned char) in[3]) &&
 					 isxdigit((unsigned char) in[4]))
 			{
-				pg_wchar	unicode;
 
-				unicode = (hexval(in[1]) << 12) +
+				pg_wchar	unicode = (hexval(in[1]) << 12) +
 					(hexval(in[2]) << 8) +
 					(hexval(in[3]) << 4) +
 					hexval(in[4]);
@@ -412,9 +404,8 @@ str_udeescape(const char *str, char escape,
 					 isxdigit((unsigned char) in[6]) &&
 					 isxdigit((unsigned char) in[7]))
 			{
-				pg_wchar	unicode;
 
-				unicode = (hexval(in[2]) << 20) +
+				pg_wchar	unicode = (hexval(in[2]) << 20) +
 					(hexval(in[3]) << 16) +
 					(hexval(in[4]) << 12) +
 					(hexval(in[5]) << 8) +

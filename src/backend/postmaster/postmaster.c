@@ -1125,13 +1125,12 @@ PostmasterMain(int argc, char *argv[])
 
 	if (ListenAddresses)
 	{
-		char	   *rawstring;
 		List	   *elemlist;
 		ListCell   *l;
 		int			success = 0;
 
 		/* Need a modifiable copy of ListenAddresses */
-		rawstring = pstrdup(ListenAddresses);
+		char	   *rawstring = pstrdup(ListenAddresses);
 
 		/* Parse string into list of hostnames */
 		if (!SplitGUCList(rawstring, ',', &elemlist))
@@ -1186,7 +1185,6 @@ PostmasterMain(int argc, char *argv[])
 	/* Register for Bonjour only if we opened TCP socket(s) */
 	if (enable_bonjour && ListenSocket[0] != PGINVALID_SOCKET)
 	{
-		DNSServiceErrorType err;
 
 		/*
 		 * We pass 0 for interface_index, which will result in registering on
@@ -1194,7 +1192,7 @@ PostmasterMain(int argc, char *argv[])
 		 * DNS-SD docs whether this would be appropriate if we have bound to
 		 * just a subset of the available network interfaces.
 		 */
-		err = DNSServiceRegister(&bonjour_sdref,
+		DNSServiceErrorType err = DNSServiceRegister(&bonjour_sdref,
 								 0,
 								 0,
 								 bonjour_name,
@@ -1224,13 +1222,12 @@ PostmasterMain(int argc, char *argv[])
 #ifdef HAVE_UNIX_SOCKETS
 	if (Unix_socket_directories)
 	{
-		char	   *rawstring;
 		List	   *elemlist;
 		ListCell   *l;
 		int			success = 0;
 
 		/* Need a modifiable copy of Unix_socket_directories */
-		rawstring = pstrdup(Unix_socket_directories);
+		char	   *rawstring = pstrdup(Unix_socket_directories);
 
 		/* Parse string into list of directories */
 		if (!SplitDirectoriesString(rawstring, ',', &elemlist))
@@ -1518,11 +1515,10 @@ static void
 checkControlFile(void)
 {
 	char		path[MAXPGPATH];
-	FILE	   *fp;
 
 	snprintf(path, sizeof(path), "%s/global/pg_control", DataDir);
 
-	fp = AllocateFile(path, PG_BINARY_R);
+	FILE	   *fp = AllocateFile(path, PG_BINARY_R);
 	if (fp == NULL)
 	{
 		write_stderr("%s: could not find the database system\n"
@@ -1590,10 +1586,8 @@ DetermineSleepTime(struct timeval *timeout)
 		 */
 		slist_foreach_modify(siter, &BackgroundWorkerList)
 		{
-			RegisteredBgWorker *rw;
-			TimestampTz this_wakeup;
 
-			rw = slist_container(RegisteredBgWorker, rw_lnode, siter.cur);
+			RegisteredBgWorker *rw = slist_container(RegisteredBgWorker, rw_lnode, siter.cur);
 
 			if (rw->rw_crashed_at == 0)
 				continue;
@@ -1605,7 +1599,7 @@ DetermineSleepTime(struct timeval *timeout)
 				continue;
 			}
 
-			this_wakeup = TimestampTzPlusMilliseconds(rw->rw_crashed_at,
+			TimestampTz this_wakeup = TimestampTzPlusMilliseconds(rw->rw_crashed_at,
 													  1000L * rw->rw_worker.bgw_restart_time);
 			if (next_wakeup == 0 || this_wakeup < next_wakeup)
 				next_wakeup = this_wakeup;
@@ -1645,13 +1639,12 @@ static int
 ServerLoop(void)
 {
 	fd_set		readmask;
-	int			nSockets;
 	time_t		last_lockfile_recheck_time,
 				last_touch_time;
 
 	last_lockfile_recheck_time = last_touch_time = time(NULL);
 
-	nSockets = initMasks(&readmask);
+	int			nSockets = initMasks(&readmask);
 
 	for (;;)
 	{
@@ -1721,9 +1714,8 @@ ServerLoop(void)
 					break;
 				if (FD_ISSET(ListenSocket[i], &rmask))
 				{
-					Port	   *port;
 
-					port = ConnCreate(ListenSocket[i]);
+					Port	   *port = ConnCreate(ListenSocket[i]);
 					if (port)
 					{
 						BackendStartup(port);
@@ -2124,15 +2116,13 @@ retry1:
 		while (offset < len)
 		{
 			char	   *nameptr = ((char *) buf) + offset;
-			int32		valoffset;
-			char	   *valptr;
 
 			if (*nameptr == '\0')
 				break;			/* found packet terminator */
-			valoffset = offset + strlen(nameptr) + 1;
+			int32		valoffset = offset + strlen(nameptr) + 1;
 			if (valoffset >= len)
 				break;			/* missing value, will complain below */
-			valptr = ((char *) buf) + valoffset;
+			char	   *valptr = ((char *) buf) + valoffset;
 
 			if (strcmp(nameptr, "database") == 0)
 				port->database_name = pstrdup(valptr);
@@ -3267,9 +3257,8 @@ CleanupBackgroundWorker(int pid,
 
 	slist_foreach_modify(iter, &BackgroundWorkerList)
 	{
-		RegisteredBgWorker *rw;
 
-		rw = slist_container(RegisteredBgWorker, rw_lnode, iter.cur);
+		RegisteredBgWorker *rw = slist_container(RegisteredBgWorker, rw_lnode, iter.cur);
 
 		if (rw->rw_pid != pid)
 			continue;
@@ -3448,7 +3437,6 @@ HandleChildCrash(int pid, int exitstatus, const char *procname)
 	dlist_mutable_iter iter;
 	slist_iter	siter;
 	Backend    *bp;
-	bool		take_action;
 
 	/*
 	 * We only log messages and send signals if this is the first process
@@ -3457,7 +3445,7 @@ HandleChildCrash(int pid, int exitstatus, const char *procname)
 	 * signaled children, nonzero exit status is to be expected, so don't
 	 * clutter log.
 	 */
-	take_action = !FatalError && Shutdown != ImmediateShutdown;
+	bool		take_action = !FatalError && Shutdown != ImmediateShutdown;
 
 	if (take_action)
 	{
@@ -3469,9 +3457,8 @@ HandleChildCrash(int pid, int exitstatus, const char *procname)
 	/* Process background workers. */
 	slist_foreach(siter, &BackgroundWorkerList)
 	{
-		RegisteredBgWorker *rw;
 
-		rw = slist_container(RegisteredBgWorker, rw_lnode, siter.cur);
+		RegisteredBgWorker *rw = slist_container(RegisteredBgWorker, rw_lnode, siter.cur);
 		if (rw->rw_pid == 0)
 			continue;			/* not running */
 		if (rw->rw_pid == pid)
@@ -4295,7 +4282,6 @@ report_fork_failure_to_client(Port *port, int errnum)
 static void
 BackendInitialize(Port *port)
 {
-	int			status;
 	int			ret;
 	char		remote_host[NI_MAXHOST];
 	char		remote_port[NI_MAXSERV];
@@ -4419,7 +4405,7 @@ BackendInitialize(Port *port)
 	 * Receive the startup packet (which might turn out to be a cancel request
 	 * packet).
 	 */
-	status = ProcessStartupPacket(port, false, false);
+	int			status = ProcessStartupPacket(port, false, false);
 
 	/*
 	 * Disable the timeout, and prevent SIGTERM again.
@@ -4555,7 +4541,6 @@ internal_forkexec(int argc, char *argv[], Port *port)
 	pid_t		pid;
 	char		tmpfilename[MAXPGPATH];
 	BackendParameters param;
-	FILE	   *fp;
 
 	if (!save_backend_variables(&param, port))
 		return -1;				/* log made by save_backend_variables */
@@ -4566,7 +4551,7 @@ internal_forkexec(int argc, char *argv[], Port *port)
 			 MyProcPid, ++tmpBackendFileNum);
 
 	/* Open file */
-	fp = AllocateFile(tmpfilename, PG_BINARY_W);
+	FILE	   *fp = AllocateFile(tmpfilename, PG_BINARY_W);
 	if (!fp)
 	{
 		/*
@@ -4649,8 +4634,6 @@ internal_forkexec(int argc, char *argv[], Port *port)
 	int			i;
 	int			j;
 	char		cmdLine[MAXPGPATH * 2];
-	HANDLE		paramHandle;
-	BackendParameters *param;
 	SECURITY_ATTRIBUTES sa;
 	char		paramHandleStr[32];
 	win32_deadchild_waitinfo *childinfo;
@@ -4668,7 +4651,7 @@ retry:
 	ZeroMemory(&sa, sizeof(sa));
 	sa.nLength = sizeof(sa);
 	sa.bInheritHandle = TRUE;
-	paramHandle = CreateFileMapping(INVALID_HANDLE_VALUE,
+	HANDLE		paramHandle = CreateFileMapping(INVALID_HANDLE_VALUE,
 									&sa,
 									PAGE_READWRITE,
 									0,
@@ -4682,7 +4665,7 @@ retry:
 		return -1;
 	}
 
-	param = MapViewOfFile(paramHandle, FILE_MAP_WRITE, 0, 0, sizeof(BackendParameters));
+	BackendParameters *param = MapViewOfFile(paramHandle, FILE_MAP_WRITE, 0, 0, sizeof(BackendParameters));
 	if (!param)
 	{
 		ereport(LOG,
@@ -5055,7 +5038,6 @@ SubPostmasterMain(int argc, char *argv[])
 	}
 	if (strncmp(argv[1], "--forkbgworker=", 15) == 0)
 	{
-		int			shmem_slot;
 
 		/* do this as early as possible; in particular, before InitProcess() */
 		IsBackgroundWorker = true;
@@ -5070,7 +5052,7 @@ SubPostmasterMain(int argc, char *argv[])
 		CreateSharedMemoryAndSemaphores();
 
 		/* Fetch MyBgworkerEntry from shared memory */
-		shmem_slot = atoi(argv[1] + 15);
+		int			shmem_slot = atoi(argv[1] + 15);
 		MyBgworkerEntry = BackgroundWorkerEntry(shmem_slot);
 
 		StartBackgroundWorker();
@@ -5917,7 +5899,6 @@ bgworker_should_start_now(BgWorkerStartTime start_time)
 static bool
 assign_backendlist_entry(RegisteredBgWorker *rw)
 {
-	Backend    *bn;
 
 	/*
 	 * Check that database state allows another connection.  Currently the
@@ -5946,7 +5927,7 @@ assign_backendlist_entry(RegisteredBgWorker *rw)
 		return false;
 	}
 
-	bn = malloc(sizeof(Backend));
+	Backend    *bn = malloc(sizeof(Backend));
 	if (bn == NULL)
 	{
 		ereport(LOG,
@@ -6003,9 +5984,8 @@ maybe_start_bgworkers(void)
 
 	slist_foreach_modify(iter, &BackgroundWorkerList)
 	{
-		RegisteredBgWorker *rw;
 
-		rw = slist_container(RegisteredBgWorker, rw_lnode, iter.cur);
+		RegisteredBgWorker *rw = slist_container(RegisteredBgWorker, rw_lnode, iter.cur);
 
 		/* ignore if already running */
 		if (rw->rw_pid != 0)
@@ -6029,9 +6009,8 @@ maybe_start_bgworkers(void)
 		{
 			if (rw->rw_worker.bgw_restart_time == BGW_NEVER_RESTART)
 			{
-				int			notify_pid;
 
-				notify_pid = rw->rw_worker.bgw_notify_pid;
+				int			notify_pid = rw->rw_worker.bgw_notify_pid;
 
 				ForgetBackgroundWorker(&iter);
 
@@ -6316,10 +6295,9 @@ read_backend_variables(char *id, Port *port)
 
 #ifndef WIN32
 	/* Non-win32 implementation reads from file */
-	FILE	   *fp;
 
 	/* Open file */
-	fp = AllocateFile(id, PG_BINARY_R);
+	FILE	   *fp = AllocateFile(id, PG_BINARY_R);
 	if (!fp)
 	{
 		write_stderr("could not open backend variables file \"%s\": %s\n",

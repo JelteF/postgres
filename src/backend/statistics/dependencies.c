@@ -172,12 +172,11 @@ generate_dependencies(DependencyGenerator state)
 static DependencyGenerator
 DependencyGenerator_init(int n, int k)
 {
-	DependencyGenerator state;
 
 	Assert((n >= k) && (k > 0));
 
 	/* allocate the DependencyGenerator state */
-	state = (DependencyGenerator) palloc0(sizeof(DependencyGeneratorData));
+	DependencyGenerator state = (DependencyGenerator) palloc0(sizeof(DependencyGeneratorData));
 	state->dependencies = (AttrNumber *) palloc(k * sizeof(AttrNumber));
 
 	state->ndependencies = 0;
@@ -224,14 +223,9 @@ dependency_degree(int numrows, HeapTuple *rows, int k, AttrNumber *dependency,
 {
 	int			i,
 				nitems;
-	MultiSortSupport mss;
-	SortItem   *items;
-	AttrNumber *attnums;
-	AttrNumber *attnums_dep;
 	int			numattrs;
 
 	/* counters valid within a group */
-	int			group_size = 0;
 	int			n_violations = 0;
 
 	/* total number of rows supporting (consistent with) the dependency */
@@ -241,16 +235,16 @@ dependency_degree(int numrows, HeapTuple *rows, int k, AttrNumber *dependency,
 	Assert(k >= 2);
 
 	/* sort info for all attributes columns */
-	mss = multi_sort_init(k);
+	MultiSortSupport mss = multi_sort_init(k);
 
 	/*
 	 * Transform the attrs from bitmap to an array to make accessing the i-th
 	 * member easier, and then construct a filtered version with only attnums
 	 * referenced by the dependency we validate.
 	 */
-	attnums = build_attnums_array(attrs, &numattrs);
+	AttrNumber *attnums = build_attnums_array(attrs, &numattrs);
 
-	attnums_dep = (AttrNumber *) palloc(k * sizeof(AttrNumber));
+	AttrNumber *attnums_dep = (AttrNumber *) palloc(k * sizeof(AttrNumber));
 	for (i = 0; i < k; i++)
 		attnums_dep[i] = attnums[dependency[i]];
 
@@ -271,9 +265,8 @@ dependency_degree(int numrows, HeapTuple *rows, int k, AttrNumber *dependency,
 	for (i = 0; i < k; i++)
 	{
 		VacAttrStats *colstat = stats[dependency[i]];
-		TypeCacheEntry *type;
 
-		type = lookup_type_cache(colstat->attrtypid, TYPECACHE_LT_OPR);
+		TypeCacheEntry *type = lookup_type_cache(colstat->attrtypid, TYPECACHE_LT_OPR);
 		if (type->lt_opr == InvalidOid) /* shouldn't happen */
 			elog(ERROR, "cache lookup failed for ordering operator for type %u",
 				 colstat->attrtypid);
@@ -289,7 +282,7 @@ dependency_degree(int numrows, HeapTuple *rows, int k, AttrNumber *dependency,
 	 * descriptor.  For now that assumption holds, but it might change in the
 	 * future for example if we support statistics on multiple tables.
 	 */
-	items = build_sorted_items(numrows, &nitems, rows, stats[0]->tupDesc,
+	SortItem   *items = build_sorted_items(numrows, &nitems, rows, stats[0]->tupDesc,
 							   mss, k, attnums_dep);
 
 	/*
@@ -300,7 +293,7 @@ dependency_degree(int numrows, HeapTuple *rows, int k, AttrNumber *dependency,
 	 */
 
 	/* start with the first row forming a group */
-	group_size = 1;
+	int			group_size = 1;
 
 	/* loop 1 beyond the end of the array so that we count the final group */
 	for (i = 1; i <= nitems; i++)
@@ -366,7 +359,6 @@ statext_dependencies_build(int numrows, HeapTuple *rows, Bitmapset *attrs,
 	int			i,
 				k;
 	int			numattrs;
-	AttrNumber *attnums;
 
 	/* result */
 	MVDependencies *dependencies = NULL;
@@ -374,7 +366,7 @@ statext_dependencies_build(int numrows, HeapTuple *rows, Bitmapset *attrs,
 	/*
 	 * Transform the bms into an array, to make accessing i-th member easier.
 	 */
-	attnums = build_attnums_array(attrs, &numattrs);
+	AttrNumber *attnums = build_attnums_array(attrs, &numattrs);
 
 	Assert(numattrs >= 2);
 
@@ -394,11 +386,9 @@ statext_dependencies_build(int numrows, HeapTuple *rows, Bitmapset *attrs,
 		/* generate all possible variations of k values (out of n) */
 		while ((dependency = DependencyGenerator_next(DependencyGenerator)))
 		{
-			double		degree;
-			MVDependency *d;
 
 			/* compute how valid the dependency seems */
-			degree = dependency_degree(numrows, rows, k, dependency, stats, attrs);
+			double		degree = dependency_degree(numrows, rows, k, dependency, stats, attrs);
 
 			/*
 			 * if the dependency seems entirely invalid, don't store it
@@ -406,7 +396,7 @@ statext_dependencies_build(int numrows, HeapTuple *rows, Bitmapset *attrs,
 			if (degree == 0.0)
 				continue;
 
-			d = (MVDependency *) palloc0(offsetof(MVDependency, attributes)
+			MVDependency *d = (MVDependency *) palloc0(offsetof(MVDependency, attributes)
 										 + k * sizeof(AttrNumber));
 
 			/* copy the dependency (and keep the indexes into stxkeys) */
@@ -452,21 +442,18 @@ bytea *
 statext_dependencies_serialize(MVDependencies *dependencies)
 {
 	int			i;
-	bytea	   *output;
-	char	   *tmp;
-	Size		len;
 
 	/* we need to store ndeps, with a number of attributes for each one */
-	len = VARHDRSZ + SizeOfHeader;
+	Size		len = VARHDRSZ + SizeOfHeader;
 
 	/* and also include space for the actual attribute numbers and degrees */
 	for (i = 0; i < dependencies->ndeps; i++)
 		len += SizeOfItem(dependencies->deps[i]->nattributes);
 
-	output = (bytea *) palloc0(len);
+	bytea	   *output = (bytea *) palloc0(len);
 	SET_VARSIZE(output, len);
 
-	tmp = VARDATA(output);
+	char	   *tmp = VARDATA(output);
 
 	/* Store the base struct values (magic, type, ndeps) */
 	memcpy(tmp, &dependencies->magic, sizeof(uint32));
@@ -507,9 +494,6 @@ MVDependencies *
 statext_dependencies_deserialize(bytea *data)
 {
 	int			i;
-	Size		min_expected_size;
-	MVDependencies *dependencies;
-	char	   *tmp;
 
 	if (data == NULL)
 		return NULL;
@@ -519,10 +503,10 @@ statext_dependencies_deserialize(bytea *data)
 			 VARSIZE_ANY_EXHDR(data), SizeOfHeader);
 
 	/* read the MVDependencies header */
-	dependencies = (MVDependencies *) palloc0(sizeof(MVDependencies));
+	MVDependencies *dependencies = (MVDependencies *) palloc0(sizeof(MVDependencies));
 
 	/* initialize pointer to the data part (skip the varlena header) */
-	tmp = VARDATA_ANY(data);
+	char	   *tmp = VARDATA_ANY(data);
 
 	/* read the header fields and perform basic sanity checks */
 	memcpy(&dependencies->magic, tmp, sizeof(uint32));
@@ -544,7 +528,7 @@ statext_dependencies_deserialize(bytea *data)
 		elog(ERROR, "invalid zero-length item array in MVDependencies");
 
 	/* what minimum bytea size do we expect for those parameters */
-	min_expected_size = SizeOfItem(dependencies->ndeps);
+	Size		min_expected_size = SizeOfItem(dependencies->ndeps);
 
 	if (VARSIZE_ANY_EXHDR(data) < min_expected_size)
 		elog(ERROR, "invalid dependencies size %zd (expected at least %zd)",
@@ -558,7 +542,6 @@ statext_dependencies_deserialize(bytea *data)
 	{
 		double		degree;
 		AttrNumber	k;
-		MVDependency *d;
 
 		/* degree of validity */
 		memcpy(&degree, tmp, sizeof(double));
@@ -572,7 +555,7 @@ statext_dependencies_deserialize(bytea *data)
 		Assert((k >= 2) && (k <= STATS_MAX_DIMENSIONS));
 
 		/* now that we know the number of attributes, allocate the dependency */
-		d = (MVDependency *) palloc0(offsetof(MVDependency, attributes)
+		MVDependency *d = (MVDependency *) palloc0(offsetof(MVDependency, attributes)
 									 + (k * sizeof(AttrNumber)));
 
 		d->degree = degree;
@@ -626,23 +609,20 @@ dependency_is_fully_matched(MVDependency *dependency, Bitmapset *attnums)
 MVDependencies *
 statext_dependencies_load(Oid mvoid)
 {
-	MVDependencies *result;
 	bool		isnull;
-	Datum		deps;
-	HeapTuple	htup;
 
-	htup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(mvoid));
+	HeapTuple	htup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(mvoid));
 	if (!HeapTupleIsValid(htup))
 		elog(ERROR, "cache lookup failed for statistics object %u", mvoid);
 
-	deps = SysCacheGetAttr(STATEXTDATASTXOID, htup,
+	Datum		deps = SysCacheGetAttr(STATEXTDATASTXOID, htup,
 						   Anum_pg_statistic_ext_data_stxddependencies, &isnull);
 	if (isnull)
 		elog(ERROR,
 			 "requested statistic kind \"%c\" is not yet built for statistics object %u",
 			 STATS_EXT_DEPENDENCIES, mvoid);
 
-	result = statext_dependencies_deserialize(DatumGetByteaPP(deps));
+	MVDependencies *result = statext_dependencies_deserialize(DatumGetByteaPP(deps));
 
 	ReleaseSysCache(htup);
 
@@ -1019,12 +999,8 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 							  AttrNumber *list_attnums,
 							  Bitmapset **estimatedclauses)
 {
-	Bitmapset  *attnums;
 	int			i;
 	int			j;
-	int			nattrs;
-	Selectivity *attr_sel;
-	int			attidx;
 	int			listidx;
 	ListCell   *l;
 	Selectivity s1;
@@ -1035,7 +1011,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 	 * least 1 not-already-estimated compatible clause that we will estimate
 	 * here.
 	 */
-	attnums = NULL;
+	Bitmapset  *attnums = NULL;
 	for (i = 0; i < ndependencies; i++)
 	{
 		for (j = 0; j < dependencies[i]->nattributes; j++)
@@ -1050,15 +1026,14 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 	 * Compute per-column selectivity estimates for each of these attributes,
 	 * and mark all the corresponding clauses as estimated.
 	 */
-	nattrs = bms_num_members(attnums);
-	attr_sel = (Selectivity *) palloc(sizeof(Selectivity) * nattrs);
+	int			nattrs = bms_num_members(attnums);
+	Selectivity *attr_sel = (Selectivity *) palloc(sizeof(Selectivity) * nattrs);
 
-	attidx = 0;
+	int			attidx = 0;
 	i = -1;
 	while ((i = bms_next_member(attnums, i)) >= 0)
 	{
 		List	   *attr_clauses = NIL;
-		Selectivity simple_sel;
 
 		listidx = -1;
 		foreach(l, clauses)
@@ -1073,7 +1048,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 			}
 		}
 
-		simple_sel = clauselist_selectivity_ext(root, attr_clauses, varRelid,
+		Selectivity simple_sel = clauselist_selectivity_ext(root, attr_clauses, varRelid,
 												jointype, sjinfo, false);
 		attr_sel[attidx++] = simple_sel;
 	}
@@ -1106,8 +1081,6 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 	{
 		MVDependency *dependency = dependencies[i];
 		AttrNumber	attnum;
-		Selectivity s2;
-		double		f;
 
 		/* Selectivity of all the implying attributes */
 		s1 = 1.0;
@@ -1121,7 +1094,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 		/* Original selectivity of the implied attribute */
 		attnum = dependency->attributes[j];
 		attidx = bms_member_index(attnums, attnum);
-		s2 = attr_sel[attidx];
+		Selectivity s2 = attr_sel[attidx];
 
 		/*
 		 * Replace s2 with the conditional probability s2 given s1, computed
@@ -1132,7 +1105,7 @@ clauselist_apply_dependencies(PlannerInfo *root, List *clauses,
 		 * where P(a) = s1, the selectivity of the implying attributes, and
 		 * P(b) = s2, the selectivity of the implied attribute.
 		 */
-		f = dependency->degree;
+		double		f = dependency->degree;
 
 		if (s1 <= s2)
 			attr_sel[attidx] = f + (1 - f) * s2;
@@ -1196,20 +1169,13 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 	Selectivity s1 = 1.0;
 	ListCell   *l;
 	Bitmapset  *clauses_attnums = NULL;
-	AttrNumber *list_attnums;
-	int			listidx;
-	MVDependencies **func_dependencies;
-	int			nfunc_dependencies;
-	int			total_ndeps;
-	MVDependency **dependencies;
-	int			ndependencies;
 	int			i;
 
 	/* check if there's any stats that might be useful for us. */
 	if (!has_stats_of_kind(rel->statlist, STATS_EXT_DEPENDENCIES))
 		return 1.0;
 
-	list_attnums = (AttrNumber *) palloc(sizeof(AttrNumber) *
+	AttrNumber *list_attnums = (AttrNumber *) palloc(sizeof(AttrNumber) *
 										 list_length(clauses));
 
 	/*
@@ -1223,7 +1189,7 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 	 * We also skip clauses that we already estimated using different types of
 	 * statistics (we treat them as incompatible).
 	 */
-	listidx = 0;
+	int			listidx = 0;
 	foreach(l, clauses)
 	{
 		Node	   *clause = (Node *) lfirst(l);
@@ -1264,23 +1230,21 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 	 * make it just the right size, but it's likely wasteful anyway thanks to
 	 * moving the freed chunks to freelists etc.
 	 */
-	func_dependencies = (MVDependencies **) palloc(sizeof(MVDependencies *) *
+	MVDependencies **func_dependencies = (MVDependencies **) palloc(sizeof(MVDependencies *) *
 												   list_length(rel->statlist));
-	nfunc_dependencies = 0;
-	total_ndeps = 0;
+	int			nfunc_dependencies = 0;
+	int			total_ndeps = 0;
 
 	foreach(l, rel->statlist)
 	{
 		StatisticExtInfo *stat = (StatisticExtInfo *) lfirst(l);
-		Bitmapset  *matched;
-		BMS_Membership membership;
 
 		/* skip statistics that are not of the correct type */
 		if (stat->kind != STATS_EXT_DEPENDENCIES)
 			continue;
 
-		matched = bms_intersect(clauses_attnums, stat->keys);
-		membership = bms_membership(matched);
+		Bitmapset  *matched = bms_intersect(clauses_attnums, stat->keys);
+		BMS_Membership membership = bms_membership(matched);
 		bms_free(matched);
 
 		/* skip objects matching fewer than two attributes from clauses */
@@ -1307,17 +1271,15 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 	 * Work out which dependencies we can apply, starting with the
 	 * widest/strongest ones, and proceeding to smaller/weaker ones.
 	 */
-	dependencies = (MVDependency **) palloc(sizeof(MVDependency *) *
+	MVDependency **dependencies = (MVDependency **) palloc(sizeof(MVDependency *) *
 											total_ndeps);
-	ndependencies = 0;
+	int			ndependencies = 0;
 
 	while (true)
 	{
-		MVDependency *dependency;
-		AttrNumber	attnum;
 
 		/* the widest/strongest dependency, fully matched by clauses */
-		dependency = find_strongest_dependency(func_dependencies,
+		MVDependency *dependency = find_strongest_dependency(func_dependencies,
 											   nfunc_dependencies,
 											   clauses_attnums);
 		if (!dependency)
@@ -1326,7 +1288,7 @@ dependencies_clauselist_selectivity(PlannerInfo *root,
 		dependencies[ndependencies++] = dependency;
 
 		/* Ignore dependencies using this implied attribute in later loops */
-		attnum = dependency->attributes[dependency->nattributes - 1];
+		AttrNumber	attnum = dependency->attributes[dependency->nattributes - 1];
 		clauses_attnums = bms_del_member(clauses_attnums, attnum);
 	}
 

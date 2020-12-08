@@ -4854,12 +4854,11 @@ static void replace_auto_config_value(ConfigVariable **head_p, ConfigVariable **
 static void *
 guc_malloc(int elevel, size_t size)
 {
-	void	   *data;
 
 	/* Avoid unportable behavior of malloc(0) */
 	if (size == 0)
 		size = 1;
-	data = malloc(size);
+	void	   *data = malloc(size);
 	if (data == NULL)
 		ereport(elevel,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -4870,12 +4869,11 @@ guc_malloc(int elevel, size_t size)
 static void *
 guc_realloc(int elevel, void *old, size_t size)
 {
-	void	   *data;
 
 	/* Avoid unportable behavior of realloc(NULL, 0) */
 	if (old == NULL && size == 0)
 		size = 1;
-	data = realloc(old, size);
+	void	   *data = realloc(old, size);
 	if (data == NULL)
 		ereport(elevel,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -4886,9 +4884,8 @@ guc_realloc(int elevel, void *old, size_t size)
 static char *
 guc_strdup(int elevel, const char *src)
 {
-	char	   *data;
 
-	data = strdup(src);
+	char	   *data = strdup(src);
 	if (data == NULL)
 		ereport(elevel,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -5077,9 +5074,7 @@ get_guc_variables(void)
 void
 build_guc_variables(void)
 {
-	int			size_vars;
 	int			num_vars = 0;
-	struct config_generic **guc_vars;
 	int			i;
 
 	for (i = 0; ConfigureNamesBool[i].gen.name; i++)
@@ -5126,9 +5121,9 @@ build_guc_variables(void)
 	/*
 	 * Create table with 20% slack
 	 */
-	size_vars = num_vars + num_vars / 4;
+	int			size_vars = num_vars + num_vars / 4;
 
-	guc_vars = (struct config_generic **)
+	struct config_generic **guc_vars = (struct config_generic **)
 		guc_malloc(FATAL, size_vars * sizeof(struct config_generic *));
 
 	num_vars = 0;
@@ -5203,14 +5198,12 @@ static struct config_generic *
 add_placeholder_variable(const char *name, int elevel)
 {
 	size_t		sz = sizeof(struct config_string) + sizeof(char *);
-	struct config_string *var;
-	struct config_generic *gen;
 
-	var = (struct config_string *) guc_malloc(elevel, sz);
+	struct config_string *var = (struct config_string *) guc_malloc(elevel, sz);
 	if (var == NULL)
 		return NULL;
 	memset(var, 0, sz);
-	gen = &var->gen;
+	struct config_generic *gen = &var->gen;
 
 	gen->name = guc_strdup(elevel, name);
 	if (gen->name == NULL)
@@ -5251,7 +5244,6 @@ static struct config_generic *
 find_option(const char *name, bool create_placeholders, int elevel)
 {
 	const char **key = &name;
-	struct config_generic **res;
 	int			i;
 
 	Assert(name);
@@ -5260,7 +5252,7 @@ find_option(const char *name, bool create_placeholders, int elevel)
 	 * By equating const char ** with struct config_generic *, we are assuming
 	 * the name field is first in config_generic.
 	 */
-	res = (struct config_generic **) bsearch((void *) &key,
+	struct config_generic **res = (struct config_generic **) bsearch((void *) &key,
 											 (void *) guc_variables,
 											 num_guc_variables,
 											 sizeof(struct config_generic *),
@@ -5401,10 +5393,8 @@ InitializeGUCOptions(void)
 static void
 InitializeGUCOptionsFromEnvironment(void)
 {
-	char	   *env;
-	long		stack_rlimit;
 
-	env = getenv("PGPORT");
+	char	   *env = getenv("PGPORT");
 	if (env != NULL)
 		SetConfigOption("port", env, PGC_POSTMASTER, PGC_S_ENV_VAR);
 
@@ -5421,7 +5411,7 @@ InitializeGUCOptionsFromEnvironment(void)
 	 * the same.  If we can identify the platform stack depth rlimit, increase
 	 * default stack depth setting up to whatever is safe (but at most 2MB).
 	 */
-	stack_rlimit = get_stack_depth_rlimit();
+	long		stack_rlimit = get_stack_depth_rlimit();
 	if (stack_rlimit > 0)
 	{
 		long		new_limit = (stack_rlimit - STACK_DEPTH_SLOP) / 1024L;
@@ -5846,14 +5836,13 @@ ResetAllOptions(void)
 static void
 push_old_value(struct config_generic *gconf, GucAction action)
 {
-	GucStack   *stack;
 
 	/* If we're not inside a nest level, do nothing */
 	if (GUCNestLevel == 0)
 		return;
 
 	/* Do we already have a stack entry of the current nest level? */
-	stack = gconf->stack;
+	GucStack   *stack = gconf->stack;
 	if (stack && stack->nest_level >= GUCNestLevel)
 	{
 		/* Yes, so adjust its state if necessary */
@@ -5961,7 +5950,6 @@ NewGUCNestLevel(void)
 void
 AtEOXact_GUC(bool isCommit, int nestLevel)
 {
-	bool		still_dirty;
 	int			i;
 
 	/*
@@ -5980,7 +5968,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
 		return;
 	}
 
-	still_dirty = false;
+	bool		still_dirty = false;
 	for (i = 0; i < num_guc_variables; i++)
 	{
 		struct config_generic *gconf = guc_variables[i];
@@ -5999,7 +5987,6 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
 			GucStack   *prev = stack->prev;
 			bool		restorePrior = false;
 			bool		restoreMasked = false;
-			bool		changed;
 
 			/*
 			 * In this next bit, if we don't set either restorePrior or
@@ -6079,7 +6066,7 @@ AtEOXact_GUC(bool isCommit, int nestLevel)
 				}
 			}
 
-			changed = false;
+			bool		changed = false;
 
 			if (restorePrior || restoreMasked)
 			{
@@ -6357,12 +6344,11 @@ convert_to_base_unit(double value, const char *unit,
 					 int base_unit, double *base_value)
 {
 	char		unitstr[MAX_UNIT_LEN + 1];
-	int			unitlen;
 	const unit_conversion *table;
 	int			i;
 
 	/* extract unit string to compare to table entries */
-	unitlen = 0;
+	int			unitlen = 0;
 	while (*unit != '\0' && !isspace((unsigned char) *unit) &&
 		   unitlen < MAX_UNIT_LEN)
 		unitstr[unitlen++] = *(unit++);
@@ -6559,7 +6545,6 @@ parse_int(const char *value, int *result, int flags, const char **hintmsg)
 	 * We assume here that double is wide enough to represent any integer
 	 * value with adequate precision.
 	 */
-	double		val;
 	char	   *endptr;
 
 	/* To suppress compiler warnings, always set output params */
@@ -6576,7 +6561,7 @@ parse_int(const char *value, int *result, int flags, const char **hintmsg)
 	 * sign or digit after 'e', but for now that's unnecessary.
 	 */
 	errno = 0;
-	val = strtol(value, &endptr, 0);
+	double		val = strtol(value, &endptr, 0);
 	if (*endptr == '.' || *endptr == 'e' || *endptr == 'E' ||
 		errno == ERANGE)
 	{
@@ -6645,7 +6630,6 @@ parse_int(const char *value, int *result, int flags, const char **hintmsg)
 bool
 parse_real(const char *value, double *result, int flags, const char **hintmsg)
 {
-	double		val;
 	char	   *endptr;
 
 	/* To suppress compiler warnings, always set output params */
@@ -6655,7 +6639,7 @@ parse_real(const char *value, double *result, int flags, const char **hintmsg)
 		*hintmsg = NULL;
 
 	errno = 0;
-	val = strtod(value, &endptr);
+	double		val = strtod(value, &endptr);
 
 	if (endptr == value || errno == ERANGE)
 		return false;			/* no HINT for these cases */
@@ -6759,12 +6743,11 @@ config_enum_get_options(struct config_enum *record, const char *prefix,
 {
 	const struct config_enum_entry *entry;
 	StringInfoData retstr;
-	int			seplen;
 
 	initStringInfo(&retstr);
 	appendStringInfoString(&retstr, prefix);
 
-	seplen = strlen(separator);
+	int			seplen = strlen(separator);
 	for (entry = record->options; entry && entry->name; entry++)
 	{
 		if (!entry->hidden)
@@ -6945,9 +6928,8 @@ parse_and_validate_value(struct config_generic *record,
 
 				if (!config_enum_lookup_by_name(conf, value, &newval->enumval))
 				{
-					char	   *hintmsg;
 
-					hintmsg = config_enum_get_options(conf,
+					char	   *hintmsg = config_enum_get_options(conf,
 													  "Available values: ",
 													  ".", ", ");
 
@@ -7014,11 +6996,9 @@ set_config_option(const char *name, const char *value,
 				  GucAction action, bool changeVal, int elevel,
 				  bool is_reload)
 {
-	struct config_generic *record;
 	union config_var_val newval_union;
 	void	   *newextra = NULL;
 	bool		prohibitValueChange = false;
-	bool		makeDefault;
 
 	if (elevel == 0)
 	{
@@ -7053,7 +7033,7 @@ set_config_option(const char *name, const char *value,
 				(errcode(ERRCODE_INVALID_TRANSACTION_STATE),
 				 errmsg("cannot set parameters during a parallel operation")));
 
-	record = find_option(name, true, elevel);
+	struct config_generic *record = find_option(name, true, elevel);
 	if (record == NULL)
 	{
 		ereport(elevel,
@@ -7229,7 +7209,7 @@ set_config_option(const char *name, const char *value,
 	 * the database's/user's/client's default settings or when we reset a
 	 * value to its default.
 	 */
-	makeDefault = changeVal && (source <= PGC_S_OVERRIDE) &&
+	bool		makeDefault = changeVal && (source <= PGC_S_OVERRIDE) &&
 		((value != NULL) || source == PGC_S_DEFAULT);
 
 	/*
@@ -7583,10 +7563,9 @@ set_config_option(const char *name, const char *value,
 
 				if (prohibitValueChange)
 				{
-					bool		newval_different;
 
 					/* newval shouldn't be NULL, so we're a bit sloppy here */
-					newval_different = (*conf->variable == NULL ||
+					bool		newval_different = (*conf->variable == NULL ||
 										newval == NULL ||
 										strcmp(*conf->variable, newval) != 0);
 
@@ -7773,16 +7752,14 @@ set_config_option(const char *name, const char *value,
 static void
 set_config_sourcefile(const char *name, char *sourcefile, int sourceline)
 {
-	struct config_generic *record;
-	int			elevel;
 
 	/*
 	 * To avoid cluttering the log, only the postmaster bleats loudly about
 	 * problems with the config file.
 	 */
-	elevel = IsUnderPostmaster ? DEBUG3 : LOG;
+	int			elevel = IsUnderPostmaster ? DEBUG3 : LOG;
 
-	record = find_option(name, true, elevel);
+	struct config_generic *record = find_option(name, true, elevel);
 	/* should not happen */
 	if (record == NULL)
 		elog(ERROR, "unrecognized configuration parameter \"%s\"", name);
@@ -7831,10 +7808,9 @@ SetConfigOption(const char *name, const char *value,
 const char *
 GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
 {
-	struct config_generic *record;
 	static char buffer[256];
 
-	record = find_option(name, false, ERROR);
+	struct config_generic *record = find_option(name, false, ERROR);
 	if (record == NULL)
 	{
 		if (missing_ok)
@@ -7887,10 +7863,9 @@ GetConfigOption(const char *name, bool missing_ok, bool restrict_privileged)
 const char *
 GetConfigOptionResetString(const char *name)
 {
-	struct config_generic *record;
 	static char buffer[256];
 
-	record = find_option(name, false, ERROR);
+	struct config_generic *record = find_option(name, false, ERROR);
 	if (record == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -7936,9 +7911,8 @@ GetConfigOptionResetString(const char *name)
 int
 GetConfigOptionFlags(const char *name, bool missing_ok)
 {
-	struct config_generic *record;
 
-	record = find_option(name, false, WARNING);
+	struct config_generic *record = find_option(name, false, WARNING);
 	if (record == NULL)
 	{
 		if (missing_ok)
@@ -7966,7 +7940,6 @@ GetConfigOptionFlags(const char *name, bool missing_ok)
 static char *
 flatten_set_variable_args(const char *name, List *args)
 {
-	struct config_generic *record;
 	int			flags;
 	StringInfoData buf;
 	ListCell   *l;
@@ -7979,7 +7952,7 @@ flatten_set_variable_args(const char *name, List *args)
 	 * Get flags for the variable; if it's not known, use default flags.
 	 * (Caller might throw error later, but not our business to do so here.)
 	 */
-	record = find_option(name, false, WARNING);
+	struct config_generic *record = find_option(name, false, WARNING);
 	if (record)
 		flags = record->flags;
 	else
@@ -8004,7 +7977,6 @@ flatten_set_variable_args(const char *name, List *args)
 		Node	   *arg = (Node *) lfirst(l);
 		char	   *val;
 		TypeName   *typeName = NULL;
-		A_Const    *con;
 
 		if (l != list_head(args))
 			appendStringInfoString(&buf, ", ");
@@ -8019,7 +7991,7 @@ flatten_set_variable_args(const char *name, List *args)
 
 		if (!IsA(arg, A_Const))
 			elog(ERROR, "unrecognized node type: %d", (int) nodeTag(arg));
-		con = (A_Const *) arg;
+		A_Const    *con = (A_Const *) arg;
 
 		switch (nodeTag(&con->val))
 		{
@@ -8041,19 +8013,17 @@ flatten_set_variable_args(const char *name, List *args)
 					 */
 					Oid			typoid;
 					int32		typmod;
-					Datum		interval;
-					char	   *intervalout;
 
 					typenameTypeIdAndMod(NULL, typeName, &typoid, &typmod);
 					Assert(typoid == INTERVALOID);
 
-					interval =
+					Datum		interval =
 						DirectFunctionCall3(interval_in,
 											CStringGetDatum(val),
 											ObjectIdGetDatum(InvalidOid),
 											Int32GetDatum(typmod));
 
-					intervalout =
+					char	   *intervalout =
 						DatumGetCString(DirectFunctionCall1(interval_out,
 															interval));
 					appendStringInfo(&buf, "INTERVAL '%s'", intervalout);
@@ -8111,14 +8081,13 @@ write_auto_conf_file(int fd, const char *filename, ConfigVariable *head)
 	/* Emit each parameter, properly quoting the value */
 	for (item = head; item != NULL; item = item->next)
 	{
-		char	   *escaped;
 
 		resetStringInfo(&buf);
 
 		appendStringInfoString(&buf, item->name);
 		appendStringInfoString(&buf, " = '");
 
-		escaped = escape_single_quotes_ascii(item->value);
+		char	   *escaped = escape_single_quotes_ascii(item->value);
 		if (!escaped)
 			ereport(ERROR,
 					(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -8226,12 +8195,10 @@ replace_auto_config_value(ConfigVariable **head_p, ConfigVariable **tail_p,
 void
 AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 {
-	char	   *name;
 	char	   *value;
 	bool		resetall = false;
 	ConfigVariable *head = NULL;
 	ConfigVariable *tail = NULL;
-	volatile int Tmpfd;
 	char		AutoConfFileName[MAXPGPATH];
 	char		AutoConfTmpFileName[MAXPGPATH];
 
@@ -8243,7 +8210,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	/*
 	 * Extract statement arguments
 	 */
-	name = altersysstmt->setstmt->name;
+	char	   *name = altersysstmt->setstmt->name;
 
 	switch (altersysstmt->setstmt->kind)
 	{
@@ -8272,9 +8239,8 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	 */
 	if (!resetall)
 	{
-		struct config_generic *record;
 
-		record = find_option(name, false, ERROR);
+		struct config_generic *record = find_option(name, false, ERROR);
 		if (record == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -8355,9 +8321,8 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 		if (stat(AutoConfFileName, &st) == 0)
 		{
 			/* open old file PG_AUTOCONF_FILENAME */
-			FILE	   *infile;
 
-			infile = AllocateFile(AutoConfFileName, "r");
+			FILE	   *infile = AllocateFile(AutoConfFileName, "r");
 			if (infile == NULL)
 				ereport(ERROR,
 						(errcode_for_file_access(),
@@ -8388,7 +8353,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	 * If there is a temp file left over due to a previous crash, it's okay to
 	 * truncate and reuse it.
 	 */
-	Tmpfd = BasicOpenFile(AutoConfTmpFileName,
+	volatile int Tmpfd = BasicOpenFile(AutoConfTmpFileName,
 						  O_CREAT | O_RDWR | O_TRUNC);
 	if (Tmpfd < 0)
 		ereport(ERROR,
@@ -8601,9 +8566,7 @@ SetPGVariable(const char *name, List *args, bool is_local)
 Datum
 set_config_by_name(PG_FUNCTION_ARGS)
 {
-	char	   *name;
 	char	   *value;
-	char	   *new_value;
 	bool		is_local;
 
 	if (PG_ARGISNULL(0))
@@ -8612,7 +8575,7 @@ set_config_by_name(PG_FUNCTION_ARGS)
 				 errmsg("SET requires parameter name")));
 
 	/* Get the GUC variable name */
-	name = TextDatumGetCString(PG_GETARG_DATUM(0));
+	char	   *name = TextDatumGetCString(PG_GETARG_DATUM(0));
 
 	/* Get the desired value or set to NULL for a reset request */
 	if (PG_ARGISNULL(1))
@@ -8638,7 +8601,7 @@ set_config_by_name(PG_FUNCTION_ARGS)
 							 true, 0, false);
 
 	/* get the new current value */
-	new_value = GetConfigOptionByName(name, NULL, false);
+	char	   *new_value = GetConfigOptionByName(name, NULL, false);
 
 	/* Convert return string to text */
 	PG_RETURN_TEXT_P(cstring_to_text(new_value));
@@ -8658,7 +8621,6 @@ init_custom_variable(const char *name,
 					 enum config_type type,
 					 size_t sz)
 {
-	struct config_generic *gen;
 
 	/*
 	 * Only allow custom PGC_POSTMASTER variables to be created during shared
@@ -8691,7 +8653,7 @@ init_custom_variable(const char *name,
 		 strcmp(name, "pljava.vmoptions") == 0))
 		context = PGC_SUSET;
 
-	gen = (struct config_generic *) guc_malloc(ERROR, sz);
+	struct config_generic *gen = (struct config_generic *) guc_malloc(ERROR, sz);
 	memset(gen, 0, sz);
 
 	gen->name = guc_strdup(ERROR, name);
@@ -8714,13 +8676,11 @@ define_custom_variable(struct config_generic *variable)
 {
 	const char *name = variable->name;
 	const char **nameAddr = &name;
-	struct config_string *pHolder;
-	struct config_generic **res;
 
 	/*
 	 * See if there's a placeholder by the same name.
 	 */
-	res = (struct config_generic **) bsearch((void *) &nameAddr,
+	struct config_generic **res = (struct config_generic **) bsearch((void *) &nameAddr,
 											 (void *) guc_variables,
 											 num_guc_variables,
 											 sizeof(struct config_generic *),
@@ -8745,7 +8705,7 @@ define_custom_variable(struct config_generic *variable)
 				 errmsg("attempt to redefine parameter \"%s\"", name)));
 
 	Assert((*res)->vartype == PGC_STRING);
-	pHolder = (struct config_string *) (*res);
+	struct config_string *pHolder = (struct config_string *) (*res);
 
 	/*
 	 * First, set the variable to its default value.  We must do this even
@@ -8902,9 +8862,8 @@ DefineCustomBoolVariable(const char *name,
 						 GucBoolAssignHook assign_hook,
 						 GucShowHook show_hook)
 {
-	struct config_bool *var;
 
-	var = (struct config_bool *)
+	struct config_bool *var = (struct config_bool *)
 		init_custom_variable(name, short_desc, long_desc, context, flags,
 							 PGC_BOOL, sizeof(struct config_bool));
 	var->variable = valueAddr;
@@ -8930,9 +8889,8 @@ DefineCustomIntVariable(const char *name,
 						GucIntAssignHook assign_hook,
 						GucShowHook show_hook)
 {
-	struct config_int *var;
 
-	var = (struct config_int *)
+	struct config_int *var = (struct config_int *)
 		init_custom_variable(name, short_desc, long_desc, context, flags,
 							 PGC_INT, sizeof(struct config_int));
 	var->variable = valueAddr;
@@ -8960,9 +8918,8 @@ DefineCustomRealVariable(const char *name,
 						 GucRealAssignHook assign_hook,
 						 GucShowHook show_hook)
 {
-	struct config_real *var;
 
-	var = (struct config_real *)
+	struct config_real *var = (struct config_real *)
 		init_custom_variable(name, short_desc, long_desc, context, flags,
 							 PGC_REAL, sizeof(struct config_real));
 	var->variable = valueAddr;
@@ -8988,9 +8945,8 @@ DefineCustomStringVariable(const char *name,
 						   GucStringAssignHook assign_hook,
 						   GucShowHook show_hook)
 {
-	struct config_string *var;
 
-	var = (struct config_string *)
+	struct config_string *var = (struct config_string *)
 		init_custom_variable(name, short_desc, long_desc, context, flags,
 							 PGC_STRING, sizeof(struct config_string));
 	var->variable = valueAddr;
@@ -9014,9 +8970,8 @@ DefineCustomEnumVariable(const char *name,
 						 GucEnumAssignHook assign_hook,
 						 GucShowHook show_hook)
 {
-	struct config_enum *var;
 
-	var = (struct config_enum *)
+	struct config_enum *var = (struct config_enum *)
 		init_custom_variable(name, short_desc, long_desc, context, flags,
 							 PGC_ENUM, sizeof(struct config_enum));
 	var->variable = valueAddr;
@@ -9102,21 +9057,18 @@ GetPGVariableResultDesc(const char *name)
 static void
 ShowGUCConfigOption(const char *name, DestReceiver *dest)
 {
-	TupOutputState *tstate;
-	TupleDesc	tupdesc;
 	const char *varname;
-	char	   *value;
 
 	/* Get the value and canonical spelling of name */
-	value = GetConfigOptionByName(name, &varname, false);
+	char	   *value = GetConfigOptionByName(name, &varname, false);
 
 	/* need a tuple descriptor representing a single TEXT column */
-	tupdesc = CreateTemplateTupleDesc(1);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(1);
 	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 1, varname,
 							  TEXTOID, -1, 0);
 
 	/* prepare for projection of tuples */
-	tstate = begin_tup_output_tupdesc(dest, tupdesc, &TTSOpsVirtual);
+	TupOutputState *tstate = begin_tup_output_tupdesc(dest, tupdesc, &TTSOpsVirtual);
 
 	/* Send it */
 	do_text_output_oneline(tstate, value);
@@ -9131,13 +9083,11 @@ static void
 ShowAllGUCConfig(DestReceiver *dest)
 {
 	int			i;
-	TupOutputState *tstate;
-	TupleDesc	tupdesc;
 	Datum		values[3];
 	bool		isnull[3] = {false, false, false};
 
 	/* need a tuple descriptor representing three TEXT columns */
-	tupdesc = CreateTemplateTupleDesc(3);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(3);
 	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 1, "name",
 							  TEXTOID, -1, 0);
 	TupleDescInitBuiltinEntry(tupdesc, (AttrNumber) 2, "setting",
@@ -9146,12 +9096,11 @@ ShowAllGUCConfig(DestReceiver *dest)
 							  TEXTOID, -1, 0);
 
 	/* prepare for projection of tuples */
-	tstate = begin_tup_output_tupdesc(dest, tupdesc, &TTSOpsVirtual);
+	TupOutputState *tstate = begin_tup_output_tupdesc(dest, tupdesc, &TTSOpsVirtual);
 
 	for (i = 0; i < num_guc_variables; i++)
 	{
 		struct config_generic *conf = guc_variables[i];
-		char	   *setting;
 
 		if ((conf->flags & GUC_NO_SHOW_ALL) ||
 			((conf->flags & GUC_SUPERUSER_ONLY) &&
@@ -9161,7 +9110,7 @@ ShowAllGUCConfig(DestReceiver *dest)
 		/* assign to the values array */
 		values[0] = PointerGetDatum(cstring_to_text(conf->name));
 
-		setting = _ShowOption(conf, true);
+		char	   *setting = _ShowOption(conf, true);
 		if (setting)
 		{
 			values[1] = PointerGetDatum(cstring_to_text(setting));
@@ -9200,7 +9149,6 @@ ShowAllGUCConfig(DestReceiver *dest)
 struct config_generic **
 get_explain_guc_options(int *num)
 {
-	struct config_generic **result;
 
 	*num = 0;
 
@@ -9208,11 +9156,10 @@ get_explain_guc_options(int *num)
 	 * While only a fraction of all the GUC variables are marked GUC_EXPLAIN,
 	 * it doesn't seem worth dynamically resizing this array.
 	 */
-	result = palloc(sizeof(struct config_generic *) * num_guc_variables);
+	struct config_generic **result = palloc(sizeof(struct config_generic *) * num_guc_variables);
 
 	for (int i = 0; i < num_guc_variables; i++)
 	{
-		bool		modified;
 		struct config_generic *conf = guc_variables[i];
 
 		/* return only parameters marked for inclusion in explain */
@@ -9226,7 +9173,7 @@ get_explain_guc_options(int *num)
 			continue;
 
 		/* return only options that are different from their boot values */
-		modified = false;
+		bool		modified = false;
 
 		switch (conf->vartype)
 		{
@@ -9293,9 +9240,8 @@ get_explain_guc_options(int *num)
 char *
 GetConfigOptionByName(const char *name, const char **varname, bool missing_ok)
 {
-	struct config_generic *record;
 
-	record = find_option(name, false, ERROR);
+	struct config_generic *record = find_option(name, false, ERROR);
 	if (record == NULL)
 	{
 		if (missing_ok)
@@ -9331,12 +9277,11 @@ void
 GetConfigOptionByNum(int varnum, const char **values, bool *noshow)
 {
 	char		buffer[256];
-	struct config_generic *conf;
 
 	/* check requested variable number valid */
 	Assert((varnum >= 0) && (varnum < num_guc_variables));
 
-	conf = guc_variables[varnum];
+	struct config_generic *conf = guc_variables[varnum];
 
 	if (noshow)
 	{
@@ -9569,10 +9514,9 @@ Datum
 show_config_by_name(PG_FUNCTION_ARGS)
 {
 	char	   *varname = TextDatumGetCString(PG_GETARG_DATUM(0));
-	char	   *varval;
 
 	/* Get the value */
-	varval = GetConfigOptionByName(varname, NULL, false);
+	char	   *varval = GetConfigOptionByName(varname, NULL, false);
 
 	/* Convert to text */
 	PG_RETURN_TEXT_P(cstring_to_text(varval));
@@ -9588,10 +9532,9 @@ show_config_by_name_missing_ok(PG_FUNCTION_ARGS)
 {
 	char	   *varname = TextDatumGetCString(PG_GETARG_DATUM(0));
 	bool		missing_ok = PG_GETARG_BOOL(1);
-	char	   *varval;
 
 	/* Get the value */
-	varval = GetConfigOptionByName(varname, NULL, missing_ok);
+	char	   *varval = GetConfigOptionByName(varname, NULL, missing_ok);
 
 	/* return NULL if no such variable */
 	if (varval == NULL)
@@ -9612,7 +9555,6 @@ show_all_settings(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
 	TupleDesc	tupdesc;
-	int			call_cntr;
 	int			max_calls;
 	AttInMetadata *attinmeta;
 	MemoryContext oldcontext;
@@ -9684,7 +9626,7 @@ show_all_settings(PG_FUNCTION_ARGS)
 	/* stuff done on every call of the function */
 	funcctx = SRF_PERCALL_SETUP();
 
-	call_cntr = funcctx->call_cntr;
+	int			call_cntr = funcctx->call_cntr;
 	max_calls = funcctx->max_calls;
 	attinmeta = funcctx->attinmeta;
 
@@ -9692,8 +9634,6 @@ show_all_settings(PG_FUNCTION_ARGS)
 	{
 		char	   *values[NUM_PG_SETTINGS_ATTS];
 		bool		noshow;
-		HeapTuple	tuple;
-		Datum		result;
 
 		/*
 		 * Get the next visible GUC variable name and value
@@ -9713,10 +9653,10 @@ show_all_settings(PG_FUNCTION_ARGS)
 		} while (noshow);
 
 		/* build a tuple */
-		tuple = BuildTupleFromCStrings(attinmeta, values);
+		HeapTuple	tuple = BuildTupleFromCStrings(attinmeta, values);
 
 		/* make the tuple into a datum */
-		result = HeapTupleGetDatum(tuple);
+		Datum		result = HeapTupleGetDatum(tuple);
 
 		SRF_RETURN_NEXT(funcctx, result);
 	}
@@ -9746,12 +9686,7 @@ show_all_file_settings(PG_FUNCTION_ARGS)
 {
 #define NUM_PG_FILE_SETTINGS_ATTS 7
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	TupleDesc	tupdesc;
-	Tuplestorestate *tupstore;
-	ConfigVariable *conf;
 	int			seqno;
-	MemoryContext per_query_ctx;
-	MemoryContext oldcontext;
 
 	/* Check to see if caller supports us returning a tuplestore */
 	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
@@ -9764,14 +9699,14 @@ show_all_file_settings(PG_FUNCTION_ARGS)
 				 errmsg("materialize mode required, but it is not allowed in this context")));
 
 	/* Scan the config files using current context as workspace */
-	conf = ProcessConfigFileInternal(PGC_SIGHUP, false, DEBUG3);
+	ConfigVariable *conf = ProcessConfigFileInternal(PGC_SIGHUP, false, DEBUG3);
 
 	/* Switch into long-lived context to construct returned data structures */
-	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	MemoryContext per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
 	/* Build a tuple descriptor for our result type */
-	tupdesc = CreateTemplateTupleDesc(NUM_PG_FILE_SETTINGS_ATTS);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(NUM_PG_FILE_SETTINGS_ATTS);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "sourcefile",
 					   TEXTOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "sourceline",
@@ -9788,7 +9723,7 @@ show_all_file_settings(PG_FUNCTION_ARGS)
 					   TEXTOID, -1, 0);
 
 	/* Build a tuplestore to return our results in */
-	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;
@@ -10040,18 +9975,16 @@ write_one_nondefault_variable(FILE *fp, struct config_generic *gconf)
 void
 write_nondefault_variables(GucContext context)
 {
-	int			elevel;
-	FILE	   *fp;
 	int			i;
 
 	Assert(context == PGC_POSTMASTER || context == PGC_SIGHUP);
 
-	elevel = (context == PGC_SIGHUP) ? LOG : ERROR;
+	int			elevel = (context == PGC_SIGHUP) ? LOG : ERROR;
 
 	/*
 	 * Open file
 	 */
-	fp = AllocateFile(CONFIG_EXEC_PARAMS_NEW, "w");
+	FILE	   *fp = AllocateFile(CONFIG_EXEC_PARAMS_NEW, "w");
 	if (!fp)
 	{
 		ereport(elevel,
@@ -10123,7 +10056,6 @@ read_string_with_null(FILE *fp)
 void
 read_nondefault_variables(void)
 {
-	FILE	   *fp;
 	char	   *varname,
 			   *varvalue,
 			   *varsourcefile;
@@ -10140,7 +10072,7 @@ read_nondefault_variables(void)
 	/*
 	 * Open file
 	 */
-	fp = AllocateFile(CONFIG_EXEC_PARAMS, "r");
+	FILE	   *fp = AllocateFile(CONFIG_EXEC_PARAMS, "r");
 	if (!fp)
 	{
 		/* File not found is fine */
@@ -10228,14 +10160,13 @@ can_skip_gucvar(struct config_generic *gconf)
 static Size
 estimate_variable_size(struct config_generic *gconf)
 {
-	Size		size;
 	Size		valsize = 0;
 
 	if (can_skip_gucvar(gconf))
 		return 0;
 
 	/* Name, plus trailing zero byte. */
-	size = strlen(gconf->name) + 1;
+	Size		size = strlen(gconf->name) + 1;
 
 	/* Get the maximum display length of the GUC value. */
 	switch (gconf->vartype)
@@ -10326,11 +10257,10 @@ estimate_variable_size(struct config_generic *gconf)
 Size
 EstimateGUCStateSpace(void)
 {
-	Size		size;
 	int			i;
 
 	/* Add space reqd for saving the data size of the guc state */
-	size = sizeof(Size);
+	Size		size = sizeof(Size);
 
 	/* Add up the space needed for each GUC variable */
 	for (i = 0; i < num_guc_variables; i++)
@@ -10350,13 +10280,12 @@ static void
 do_serialize(char **destptr, Size *maxbytes, const char *fmt,...)
 {
 	va_list		vargs;
-	int			n;
 
 	if (*maxbytes <= 0)
 		elog(ERROR, "not enough space to serialize GUC state");
 
 	va_start(vargs, fmt);
-	n = vsnprintf(*destptr, *maxbytes, fmt, vargs);
+	int			n = vsnprintf(*destptr, *maxbytes, fmt, vargs);
 	va_end(vargs);
 
 	if (n < 0)
@@ -10468,15 +10397,13 @@ serialize_variable(char **destptr, Size *maxbytes,
 void
 SerializeGUCState(Size maxsize, char *start_address)
 {
-	char	   *curptr;
 	Size		actual_size;
-	Size		bytes_left;
 	int			i;
 
 	/* Reserve space for saving the actual size of the guc state */
 	Assert(maxsize > sizeof(actual_size));
-	curptr = start_address + sizeof(actual_size);
-	bytes_left = maxsize - sizeof(actual_size);
+	char	   *curptr = start_address + sizeof(actual_size);
+	Size		bytes_left = maxsize - sizeof(actual_size);
 
 	for (i = 0; i < num_guc_variables; i++)
 		serialize_variable(&curptr, &bytes_left, guc_variables[i]);
@@ -10555,7 +10482,6 @@ RestoreGUCState(void *gucstate)
 	GucSource	varsource;
 	GucContext	varscontext;
 	char	   *srcptr = (char *) gucstate;
-	char	   *srcend;
 	Size		len;
 	int			i;
 	ErrorContextCallback error_context_callback;
@@ -10569,7 +10495,7 @@ RestoreGUCState(void *gucstate)
 	memcpy(&len, gucstate, sizeof(len));
 
 	srcptr += sizeof(len);
-	srcend = srcptr + len;
+	char	   *srcend = srcptr + len;
 
 	/* If the GUC value check fails, we want errors to show useful context. */
 	error_context_callback.callback = guc_restore_error_context_callback;
@@ -10579,7 +10505,6 @@ RestoreGUCState(void *gucstate)
 
 	while (srcptr < srcend)
 	{
-		int			result;
 		char	   *error_context_name_and_value[2];
 
 		varname = read_gucstate(&srcptr, srcend);
@@ -10598,7 +10523,7 @@ RestoreGUCState(void *gucstate)
 		error_context_name_and_value[0] = varname;
 		error_context_name_and_value[1] = varvalue;
 		error_context_callback.arg = &error_context_name_and_value[0];
-		result = set_config_option(varname, varvalue, varscontext, varsource,
+		int			result = set_config_option(varname, varvalue, varscontext, varsource,
 								   GUC_ACTION_SET, true, ERROR, true);
 		if (result <= 0)
 			ereport(ERROR,
@@ -10622,14 +10547,13 @@ RestoreGUCState(void *gucstate)
 void
 ParseLongOption(const char *string, char **name, char **value)
 {
-	size_t		equal_pos;
 	char	   *cp;
 
 	AssertArg(string);
 	AssertArg(name);
 	AssertArg(value);
 
-	equal_pos = strcspn(string, "=");
+	size_t		equal_pos = strcspn(string, "=");
 
 	if (string[equal_pos] == '=')
 	{
@@ -10670,13 +10594,11 @@ ProcessGUCArray(ArrayType *array,
 
 	for (i = 1; i <= ARR_DIMS(array)[0]; i++)
 	{
-		Datum		d;
 		bool		isnull;
-		char	   *s;
 		char	   *name;
 		char	   *value;
 
-		d = array_ref(array, 1, &i,
+		Datum		d = array_ref(array, 1, &i,
 					  -1 /* varlenarray */ ,
 					  -1 /* TEXT's typlen */ ,
 					  false /* TEXT's typbyval */ ,
@@ -10686,7 +10608,7 @@ ProcessGUCArray(ArrayType *array,
 		if (isnull)
 			continue;
 
-		s = TextDatumGetCString(d);
+		char	   *s = TextDatumGetCString(d);
 
 		ParseLongOption(s, &name, &value);
 		if (!value)
@@ -10718,9 +10640,6 @@ ProcessGUCArray(ArrayType *array,
 ArrayType *
 GUCArrayAdd(ArrayType *array, const char *name, const char *value)
 {
-	struct config_generic *record;
-	Datum		datum;
-	char	   *newval;
 	ArrayType  *a;
 
 	Assert(name);
@@ -10730,17 +10649,16 @@ GUCArrayAdd(ArrayType *array, const char *name, const char *value)
 	(void) validate_option_array_item(name, value, false);
 
 	/* normalize name (converts obsolete GUC names to modern spellings) */
-	record = find_option(name, false, WARNING);
+	struct config_generic *record = find_option(name, false, WARNING);
 	if (record)
 		name = record->name;
 
 	/* build new item for array */
-	newval = psprintf("%s=%s", name, value);
-	datum = CStringGetTextDatum(newval);
+	char	   *newval = psprintf("%s=%s", name, value);
+	Datum		datum = CStringGetTextDatum(newval);
 
 	if (array)
 	{
-		int			index;
 		bool		isnull;
 		int			i;
 
@@ -10748,14 +10666,12 @@ GUCArrayAdd(ArrayType *array, const char *name, const char *value)
 		Assert(ARR_NDIM(array) == 1);
 		Assert(ARR_LBOUND(array)[0] == 1);
 
-		index = ARR_DIMS(array)[0] + 1; /* add after end */
+		int			index = ARR_DIMS(array)[0] + 1; /* add after end */
 
 		for (i = 1; i <= ARR_DIMS(array)[0]; i++)
 		{
-			Datum		d;
-			char	   *current;
 
-			d = array_ref(array, 1, &i,
+			Datum		d = array_ref(array, 1, &i,
 						  -1 /* varlenarray */ ,
 						  -1 /* TEXT's typlen */ ,
 						  false /* TEXT's typbyval */ ,
@@ -10763,7 +10679,7 @@ GUCArrayAdd(ArrayType *array, const char *name, const char *value)
 						  &isnull);
 			if (isnull)
 				continue;
-			current = TextDatumGetCString(d);
+			char	   *current = TextDatumGetCString(d);
 
 			/* check for match up through and including '=' */
 			if (strncmp(current, newval, strlen(name) + 1) == 0)
@@ -10798,10 +10714,7 @@ GUCArrayAdd(ArrayType *array, const char *name, const char *value)
 ArrayType *
 GUCArrayDelete(ArrayType *array, const char *name)
 {
-	struct config_generic *record;
-	ArrayType  *newarray;
 	int			i;
-	int			index;
 
 	Assert(name);
 
@@ -10809,7 +10722,7 @@ GUCArrayDelete(ArrayType *array, const char *name)
 	(void) validate_option_array_item(name, NULL, false);
 
 	/* normalize name (converts obsolete GUC names to modern spellings) */
-	record = find_option(name, false, WARNING);
+	struct config_generic *record = find_option(name, false, WARNING);
 	if (record)
 		name = record->name;
 
@@ -10817,16 +10730,14 @@ GUCArrayDelete(ArrayType *array, const char *name)
 	if (!array)
 		return NULL;
 
-	newarray = NULL;
-	index = 1;
+	ArrayType  *newarray = NULL;
+	int			index = 1;
 
 	for (i = 1; i <= ARR_DIMS(array)[0]; i++)
 	{
-		Datum		d;
-		char	   *val;
 		bool		isnull;
 
-		d = array_ref(array, 1, &i,
+		Datum		d = array_ref(array, 1, &i,
 					  -1 /* varlenarray */ ,
 					  -1 /* TEXT's typlen */ ,
 					  false /* TEXT's typbyval */ ,
@@ -10834,7 +10745,7 @@ GUCArrayDelete(ArrayType *array, const char *name)
 					  &isnull);
 		if (isnull)
 			continue;
-		val = TextDatumGetCString(d);
+		char	   *val = TextDatumGetCString(d);
 
 		/* ignore entry if it's what we want to delete */
 		if (strncmp(val, name, strlen(name)) == 0
@@ -10870,9 +10781,7 @@ GUCArrayDelete(ArrayType *array, const char *name)
 ArrayType *
 GUCArrayReset(ArrayType *array)
 {
-	ArrayType  *newarray;
 	int			i;
-	int			index;
 
 	/* if array is currently null, nothing to do */
 	if (!array)
@@ -10882,17 +10791,14 @@ GUCArrayReset(ArrayType *array)
 	if (superuser())
 		return NULL;
 
-	newarray = NULL;
-	index = 1;
+	ArrayType  *newarray = NULL;
+	int			index = 1;
 
 	for (i = 1; i <= ARR_DIMS(array)[0]; i++)
 	{
-		Datum		d;
-		char	   *val;
-		char	   *eqsgn;
 		bool		isnull;
 
-		d = array_ref(array, 1, &i,
+		Datum		d = array_ref(array, 1, &i,
 					  -1 /* varlenarray */ ,
 					  -1 /* TEXT's typlen */ ,
 					  false /* TEXT's typbyval */ ,
@@ -10900,9 +10806,9 @@ GUCArrayReset(ArrayType *array)
 					  &isnull);
 		if (isnull)
 			continue;
-		val = TextDatumGetCString(d);
+		char	   *val = TextDatumGetCString(d);
 
-		eqsgn = strchr(val, '=');
+		char	   *eqsgn = strchr(val, '=');
 		*eqsgn = '\0';
 
 		/* skip if we have permission to delete it */
@@ -10946,7 +10852,6 @@ validate_option_array_item(const char *name, const char *value,
 						   bool skipIfNoPermissions)
 
 {
-	struct config_generic *gconf;
 
 	/*
 	 * There are three cases to consider:
@@ -10965,7 +10870,7 @@ validate_option_array_item(const char *name, const char *value,
 	 * name is not known and can't be created as a placeholder.  Throw error,
 	 * unless skipIfNoPermissions is true, in which case return false.
 	 */
-	gconf = find_option(name, true, WARNING);
+	struct config_generic *gconf = find_option(name, true, WARNING);
 	if (!gconf)
 	{
 		/* not known, failed to make a placeholder */
@@ -11210,7 +11115,6 @@ call_enum_check_hook(struct config_enum *conf, int *newval, void **extra,
 static bool
 check_wal_consistency_checking(char **newval, void **extra, GucSource source)
 {
-	char	   *rawstring;
 	List	   *elemlist;
 	ListCell   *l;
 	bool		newwalconsistency[RM_MAX_ID + 1];
@@ -11219,7 +11123,7 @@ check_wal_consistency_checking(char **newval, void **extra, GucSource source)
 	MemSet(newwalconsistency, 0, (RM_MAX_ID + 1) * sizeof(bool));
 
 	/* Need a modifiable copy of string */
-	rawstring = pstrdup(*newval);
+	char	   *rawstring = pstrdup(*newval);
 
 	/* Parse string into list of identifiers */
 	if (!SplitIdentifierString(rawstring, ',', &elemlist))
@@ -11290,14 +11194,13 @@ assign_wal_consistency_checking(const char *newval, void *extra)
 static bool
 check_log_destination(char **newval, void **extra, GucSource source)
 {
-	char	   *rawstring;
 	List	   *elemlist;
 	ListCell   *l;
 	int			newlogdest = 0;
 	int		   *myextra;
 
 	/* Need a modifiable copy of string */
-	rawstring = pstrdup(*newval);
+	char	   *rawstring = pstrdup(*newval);
 
 	/* Parse string into list of identifiers */
 	if (!SplitIdentifierString(rawstring, ',', &elemlist))
@@ -11706,18 +11609,15 @@ static void
 assign_pgstat_temp_directory(const char *newval, void *extra)
 {
 	/* check_canonical_path already canonicalized newval for us */
-	char	   *dname;
-	char	   *tname;
-	char	   *fname;
 
 	/* directory */
-	dname = guc_malloc(ERROR, strlen(newval) + 1);	/* runtime dir */
+	char	   *dname = guc_malloc(ERROR, strlen(newval) + 1);	/* runtime dir */
 	sprintf(dname, "%s", newval);
 
 	/* global stats */
-	tname = guc_malloc(ERROR, strlen(newval) + 12); /* /global.tmp */
+	char	   *tname = guc_malloc(ERROR, strlen(newval) + 12); /* /global.tmp */
 	sprintf(tname, "%s/global.tmp", newval);
-	fname = guc_malloc(ERROR, strlen(newval) + 13); /* /global.stat */
+	char	   *fname = guc_malloc(ERROR, strlen(newval) + 13); /* /global.stat */
 	sprintf(fname, "%s/global.stat", newval);
 
 	if (pgstat_stat_directory)
@@ -11795,8 +11695,6 @@ static bool
 check_backtrace_functions(char **newval, void **extra, GucSource source)
 {
 	int			newvallen = strlen(*newval);
-	char	   *someval;
-	int			validlen;
 	int			i;
 	int			j;
 
@@ -11804,7 +11702,7 @@ check_backtrace_functions(char **newval, void **extra, GucSource source)
 	 * Allow characters that can be C identifiers and commas as separators, as
 	 * well as some whitespace for readability.
 	 */
-	validlen = strspn(*newval,
+	int			validlen = strspn(*newval,
 					  "0123456789_"
 					  "abcdefghijklmnopqrstuvwxyz"
 					  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -11826,7 +11724,7 @@ check_backtrace_functions(char **newval, void **extra, GucSource source)
 	 * whitespace chars to save some memory, but it doesn't seem worth the
 	 * trouble.
 	 */
-	someval = guc_malloc(ERROR, newvallen + 1 + 1);
+	char	   *someval = guc_malloc(ERROR, newvallen + 1 + 1);
 	for (i = 0, j = 0; i < newvallen; i++)
 	{
 		if ((*newval)[i] == ',')
@@ -11857,7 +11755,6 @@ static bool
 check_recovery_target_timeline(char **newval, void **extra, GucSource source)
 {
 	RecoveryTargetTimeLineGoal rttg;
-	RecoveryTargetTimeLineGoal *myextra;
 
 	if (strcmp(*newval, "current") == 0)
 		rttg = RECOVERY_TARGET_TIMELINE_CONTROLFILE;
@@ -11876,7 +11773,7 @@ check_recovery_target_timeline(char **newval, void **extra, GucSource source)
 		}
 	}
 
-	myextra = (RecoveryTargetTimeLineGoal *) guc_malloc(ERROR, sizeof(RecoveryTargetTimeLineGoal));
+	RecoveryTargetTimeLineGoal *myextra = (RecoveryTargetTimeLineGoal *) guc_malloc(ERROR, sizeof(RecoveryTargetTimeLineGoal));
 	*myextra = rttg;
 	*extra = (void *) myextra;
 
@@ -11944,15 +11841,13 @@ check_recovery_target_xid(char **newval, void **extra, GucSource source)
 {
 	if (strcmp(*newval, "") != 0)
 	{
-		TransactionId xid;
-		TransactionId *myextra;
 
 		errno = 0;
-		xid = (TransactionId) strtoul(*newval, NULL, 0);
+		TransactionId xid = (TransactionId) strtoul(*newval, NULL, 0);
 		if (errno == EINVAL || errno == ERANGE)
 			return false;
 
-		myextra = (TransactionId *) guc_malloc(ERROR, sizeof(TransactionId));
+		TransactionId *myextra = (TransactionId *) guc_malloc(ERROR, sizeof(TransactionId));
 		*myextra = xid;
 		*extra = (void *) myextra;
 	}
@@ -12007,13 +11902,12 @@ check_recovery_target_time(char **newval, void **extra, GucSource source)
 			int			tz;
 			int			dtype;
 			int			nf;
-			int			dterr;
 			char	   *field[MAXDATEFIELDS];
 			int			ftype[MAXDATEFIELDS];
 			char		workbuf[MAXDATELEN + MAXDATEFIELDS];
 			TimestampTz timestamp;
 
-			dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
+			int			dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
 								  field, ftype, MAXDATEFIELDS, &nf);
 			if (dterr == 0)
 				dterr = DecodeDateTime(field, ftype, nf, &dtype, tm, &fsec, &tz);
@@ -12079,15 +11973,13 @@ check_recovery_target_lsn(char **newval, void **extra, GucSource source)
 {
 	if (strcmp(*newval, "") != 0)
 	{
-		XLogRecPtr	lsn;
-		XLogRecPtr *myextra;
 		bool		have_error = false;
 
-		lsn = pg_lsn_in_internal(*newval, &have_error);
+		XLogRecPtr	lsn = pg_lsn_in_internal(*newval, &have_error);
 		if (have_error)
 			return false;
 
-		myextra = (XLogRecPtr *) guc_malloc(ERROR, sizeof(XLogRecPtr));
+		XLogRecPtr *myextra = (XLogRecPtr *) guc_malloc(ERROR, sizeof(XLogRecPtr));
 		*myextra = lsn;
 		*extra = (void *) myextra;
 	}

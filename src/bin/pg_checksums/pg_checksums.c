@@ -127,14 +127,12 @@ static const struct exclude_list_item skip[] = {
 static void
 progress_report(bool finished)
 {
-	int			percent;
 	char		total_size_str[32];
 	char		current_size_str[32];
-	pg_time_t	now;
 
 	Assert(showprogress);
 
-	now = time(NULL);
+	pg_time_t	now = time(NULL);
 	if (now == last_progress_report && !finished)
 		return;					/* Max once per second */
 
@@ -146,7 +144,7 @@ progress_report(bool finished)
 		total_size = current_size;
 
 	/* Calculate current percentage of size done */
-	percent = total_size ? (int) ((current_size) * 100 / total_size) : 0;
+	int			percent = total_size ? (int) ((current_size) * 100 / total_size) : 0;
 
 	/*
 	 * Separate step to keep platform-dependent format code out of
@@ -192,15 +190,13 @@ scan_file(const char *fn, BlockNumber segmentno)
 {
 	PGAlignedBlock buf;
 	PageHeader	header = (PageHeader) buf.data;
-	int			f;
 	BlockNumber blockno;
-	int			flags;
 
 	Assert(mode == PG_MODE_ENABLE ||
 		   mode == PG_MODE_CHECK);
 
-	flags = (mode == PG_MODE_ENABLE) ? O_RDWR : O_RDONLY;
-	f = open(fn, PG_BINARY | flags, 0);
+	int			flags = (mode == PG_MODE_ENABLE) ? O_RDWR : O_RDONLY;
+	int			f = open(fn, PG_BINARY | flags, 0);
 
 	if (f < 0)
 	{
@@ -212,7 +208,6 @@ scan_file(const char *fn, BlockNumber segmentno)
 
 	for (blockno = 0;; blockno++)
 	{
-		uint16		csum;
 		int			r = read(f, buf.data, BLCKSZ);
 
 		if (r == 0)
@@ -233,7 +228,7 @@ scan_file(const char *fn, BlockNumber segmentno)
 		if (PageIsNew(header))
 			continue;
 
-		csum = pg_checksum_page(buf.data, blockno + segmentno * RELSEG_SIZE);
+		uint16		csum = pg_checksum_page(buf.data, blockno + segmentno * RELSEG_SIZE);
 		current_size += r;
 		if (mode == PG_MODE_CHECK)
 		{
@@ -247,7 +242,6 @@ scan_file(const char *fn, BlockNumber segmentno)
 		}
 		else if (mode == PG_MODE_ENABLE)
 		{
-			int			w;
 
 			/* Set checksum in page header */
 			header->pd_checksum = csum;
@@ -260,7 +254,7 @@ scan_file(const char *fn, BlockNumber segmentno)
 			}
 
 			/* Write block with checksum */
-			w = write(f, buf.data, BLCKSZ);
+			int			w = write(f, buf.data, BLCKSZ);
 			if (w != BLCKSZ)
 			{
 				if (w < 0)
@@ -300,11 +294,10 @@ scan_directory(const char *basedir, const char *subdir, bool sizeonly)
 {
 	int64		dirsize = 0;
 	char		path[MAXPGPATH];
-	DIR		   *dir;
 	struct dirent *de;
 
 	snprintf(path, sizeof(path), "%s/%s", basedir, subdir);
-	dir = opendir(path);
+	DIR		   *dir = opendir(path);
 	if (!dir)
 	{
 		pg_log_error("could not open directory \"%s\": %m", path);

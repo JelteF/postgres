@@ -82,7 +82,6 @@ log_invalid_page(RelFileNode node, ForkNumber forkno, BlockNumber blkno,
 				 bool present)
 {
 	xl_invalid_page_key key;
-	xl_invalid_page *hentry;
 	bool		found;
 
 	/*
@@ -127,7 +126,7 @@ log_invalid_page(RelFileNode node, ForkNumber forkno, BlockNumber blkno,
 	key.node = node;
 	key.forkno = forkno;
 	key.blkno = blkno;
-	hentry = (xl_invalid_page *)
+	xl_invalid_page *hentry = (xl_invalid_page *)
 		hash_search(invalid_page_tab, (void *) &key, HASH_ENTER, &found);
 
 	if (!found)
@@ -337,8 +336,6 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
 	ForkNumber	forknum;
 	BlockNumber blkno;
 	Page		page;
-	bool		zeromode;
-	bool		willinit;
 
 	if (!XLogRecGetBlockTag(record, block_id, &rnode, &forknum, &blkno))
 	{
@@ -350,8 +347,8 @@ XLogReadBufferForRedoExtended(XLogReaderState *record,
 	 * Make sure that if the block is marked with WILL_INIT, the caller is
 	 * going to initialize it. And vice versa.
 	 */
-	zeromode = (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK);
-	willinit = (record->blocks[block_id].flags & BKPBLOCK_WILL_INIT) != 0;
+	bool		zeromode = (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK);
+	bool		willinit = (record->blocks[block_id].flags & BKPBLOCK_WILL_INIT) != 0;
 	if (willinit && !zeromode)
 		elog(PANIC, "block with WILL_INIT flag in WAL record must be zeroed by redo routine");
 	if (!willinit && zeromode)
@@ -441,14 +438,12 @@ Buffer
 XLogReadBufferExtended(RelFileNode rnode, ForkNumber forknum,
 					   BlockNumber blkno, ReadBufferMode mode)
 {
-	BlockNumber lastblock;
 	Buffer		buffer;
-	SMgrRelation smgr;
 
 	Assert(blkno != P_NEW);
 
 	/* Open the relation at smgr level */
-	smgr = smgropen(rnode, InvalidBackendId);
+	SMgrRelation smgr = smgropen(rnode, InvalidBackendId);
 
 	/*
 	 * Create the target file if it doesn't already exist.  This lets us cope
@@ -460,7 +455,7 @@ XLogReadBufferExtended(RelFileNode rnode, ForkNumber forknum,
 	 */
 	smgrcreate(smgr, forknum, true);
 
-	lastblock = smgrnblocks(smgr, forknum);
+	BlockNumber lastblock = smgrnblocks(smgr, forknum);
 
 	if (blkno < lastblock)
 	{
@@ -555,12 +550,10 @@ typedef FakeRelCacheEntryData *FakeRelCacheEntry;
 Relation
 CreateFakeRelcacheEntry(RelFileNode rnode)
 {
-	FakeRelCacheEntry fakeentry;
-	Relation	rel;
 
 	/* Allocate the Relation struct and all related space in one block. */
-	fakeentry = palloc0(sizeof(FakeRelCacheEntryData));
-	rel = (Relation) fakeentry;
+	FakeRelCacheEntry fakeentry = palloc0(sizeof(FakeRelCacheEntryData));
+	Relation	rel = (Relation) fakeentry;
 
 	rel->rd_rel = &fakeentry->pgc;
 	rel->rd_node = rnode;
@@ -755,9 +748,8 @@ XLogReadDetermineTimeline(XLogReaderState *state, XLogRecPtr wantPage, uint32 wa
 		 * by a promotion or replay from a cascaded replica.
 		 */
 		List	   *timelineHistory = readTimeLineHistory(ThisTimeLineID);
-		XLogRecPtr	endOfSegment;
 
-		endOfSegment = ((wantPage / state->segcxt.ws_segsize) + 1) *
+		XLogRecPtr	endOfSegment = ((wantPage / state->segcxt.ws_segsize) + 1) *
 			state->segcxt.ws_segsize - 1;
 		Assert(wantPage / state->segcxt.ws_segsize ==
 			   endOfSegment / state->segcxt.ws_segsize);

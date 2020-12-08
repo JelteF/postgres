@@ -178,12 +178,11 @@ range_gist_consistent(PG_FUNCTION_ARGS)
 	/* Oid subtype = PG_GETARG_OID(3); */
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(4);
 	RangeType  *key = DatumGetRangeTypeP(entry->key);
-	TypeCacheEntry *typcache;
 
 	/* All operators served by this function are exact */
 	*recheck = false;
 
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(key));
+	TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(key));
 
 	if (GIST_LEAF(entry))
 		PG_RETURN_BOOL(range_gist_consistent_leaf(typcache, strategy,
@@ -199,13 +198,11 @@ range_gist_union(PG_FUNCTION_ARGS)
 {
 	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
 	GISTENTRY  *ent = entryvec->vector;
-	RangeType  *result_range;
-	TypeCacheEntry *typcache;
 	int			i;
 
-	result_range = DatumGetRangeTypeP(ent[0].key);
+	RangeType  *result_range = DatumGetRangeTypeP(ent[0].key);
 
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(result_range));
+	TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(result_range));
 
 	for (i = 1; i < entryvec->n; i++)
 	{
@@ -240,8 +237,6 @@ range_gist_penalty(PG_FUNCTION_ARGS)
 	float	   *penalty = (float *) PG_GETARG_POINTER(2);
 	RangeType  *orig = DatumGetRangeTypeP(origentry->key);
 	RangeType  *new = DatumGetRangeTypeP(newentry->key);
-	TypeCacheEntry *typcache;
-	bool		has_subtype_diff;
 	RangeBound	orig_lower,
 				new_lower,
 				orig_upper,
@@ -252,9 +247,9 @@ range_gist_penalty(PG_FUNCTION_ARGS)
 	if (RangeTypeGetOid(orig) != RangeTypeGetOid(new))
 		elog(ERROR, "range types do not match");
 
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(orig));
+	TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(orig));
 
-	has_subtype_diff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
+	bool		has_subtype_diff = OidIsValid(typcache->rng_subdiff_finfo.fn_oid);
 
 	range_deserialize(typcache, orig, &orig_lower, &orig_upper, &orig_empty);
 	range_deserialize(typcache, new, &new_lower, &new_upper, &new_empty);
@@ -494,24 +489,19 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
 {
 	GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
 	GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
-	TypeCacheEntry *typcache;
 	OffsetNumber i;
-	RangeType  *pred_left;
-	int			nbytes;
-	OffsetNumber maxoff;
 	int			count_in_classes[CLS_COUNT];
 	int			j;
 	int			non_empty_classes_count = 0;
 	int			biggest_class = -1;
 	int			biggest_class_count = 0;
-	int			total_count;
 
 	/* use first item to look up range type's info */
-	pred_left = DatumGetRangeTypeP(entryvec->vector[FirstOffsetNumber].key);
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(pred_left));
+	RangeType  *pred_left = DatumGetRangeTypeP(entryvec->vector[FirstOffsetNumber].key);
+	TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(pred_left));
 
-	maxoff = entryvec->n - 1;
-	nbytes = (maxoff + 1) * sizeof(OffsetNumber);
+	OffsetNumber maxoff = entryvec->n - 1;
+	int			nbytes = (maxoff + 1) * sizeof(OffsetNumber);
 	v->spl_left = (OffsetNumber *) palloc(nbytes);
 	v->spl_right = (OffsetNumber *) palloc(nbytes);
 
@@ -529,7 +519,7 @@ range_gist_picksplit(PG_FUNCTION_ARGS)
 	/*
 	 * Count non-empty classes and find biggest class.
 	 */
-	total_count = maxoff;
+	int			total_count = maxoff;
 	for (j = 0; j < CLS_COUNT; j++)
 	{
 		if (count_in_classes[j] > 0)
@@ -665,9 +655,8 @@ range_gist_same(PG_FUNCTION_ARGS)
 		*result = false;
 	else
 	{
-		TypeCacheEntry *typcache;
 
-		typcache = range_get_typcache(fcinfo, RangeTypeGetOid(r1));
+		TypeCacheEntry *typcache = range_get_typcache(fcinfo, RangeTypeGetOid(r1));
 
 		*result = range_eq_internal(typcache, r1, r2);
 	}
@@ -694,7 +683,6 @@ range_gist_same(PG_FUNCTION_ARGS)
 static RangeType *
 range_super_union(TypeCacheEntry *typcache, RangeType *r1, RangeType *r2)
 {
-	RangeType  *result;
 	RangeBound	lower1,
 				lower2;
 	RangeBound	upper1,
@@ -750,7 +738,7 @@ range_super_union(TypeCacheEntry *typcache, RangeType *r1, RangeType *r2)
 		((flags2 & RANGE_CONTAIN_EMPTY) || !(flags1 & RANGE_CONTAIN_EMPTY)))
 		return r2;
 
-	result = make_range(typcache, result_lower, result_upper, false);
+	RangeType  *result = make_range(typcache, result_lower, result_upper, false);
 
 	if ((flags1 & RANGE_CONTAIN_EMPTY) || (flags2 & RANGE_CONTAIN_EMPTY))
 		range_set_contain_empty(result);
@@ -933,10 +921,9 @@ range_gist_class_split(TypeCacheEntry *typcache,
 	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 	{
 		RangeType  *range = DatumGetRangeTypeP(entryvec->vector[i].key);
-		int			class;
 
 		/* Get class of range */
-		class = get_gist_range_class(range);
+		int			class = get_gist_range_class(range);
 
 		/* Place range to appropriate page */
 		if (classes_groups[class] == SPLIT_LEFT)
@@ -964,7 +951,6 @@ range_gist_single_sorting_split(TypeCacheEntry *typcache,
 								GIST_SPLITVEC *v,
 								bool use_upper_bound)
 {
-	SingleBoundSortItem *sortItems;
 	RangeType  *left_range = NULL;
 	RangeType  *right_range = NULL;
 	OffsetNumber i,
@@ -973,7 +959,7 @@ range_gist_single_sorting_split(TypeCacheEntry *typcache,
 
 	maxoff = entryvec->n - 1;
 
-	sortItems = (SingleBoundSortItem *)
+	SingleBoundSortItem *sortItems = (SingleBoundSortItem *)
 		palloc(maxoff * sizeof(SingleBoundSortItem));
 
 	/*
@@ -1058,10 +1044,8 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
 	RangeType  *range,
 			   *left_range = NULL,
 			   *right_range = NULL;
-	int			common_entries_count;
 	NonEmptyRange *by_lower,
 			   *by_upper;
-	CommonEntry *common_entries;
 	int			nentries,
 				i1,
 				i2;
@@ -1242,8 +1226,8 @@ range_gist_double_sorting_split(TypeCacheEntry *typcache,
 	 * Allocate an array for "common entries" - entries which can be placed to
 	 * either group without affecting overlap along selected axis.
 	 */
-	common_entries_count = 0;
-	common_entries = (CommonEntry *) palloc(nentries * sizeof(CommonEntry));
+	int			common_entries_count = 0;
+	CommonEntry *common_entries = (CommonEntry *) palloc(nentries * sizeof(CommonEntry));
 
 	/*
 	 * Distribute entries which can be distributed unambiguously, and collect
@@ -1436,9 +1420,8 @@ static int
 get_gist_range_class(RangeType *range)
 {
 	int			classNumber;
-	char		flags;
 
-	flags = range_get_flags(range);
+	char		flags = range_get_flags(range);
 	if (flags & RANGE_EMPTY)
 	{
 		classNumber = CLS_EMPTY;
@@ -1519,9 +1502,8 @@ common_entry_cmp(const void *i1, const void *i2)
 static float8
 call_subtype_diff(TypeCacheEntry *typcache, Datum val1, Datum val2)
 {
-	float8		value;
 
-	value = DatumGetFloat8(FunctionCall2Coll(&typcache->rng_subdiff_finfo,
+	float8		value = DatumGetFloat8(FunctionCall2Coll(&typcache->rng_subdiff_finfo,
 											 typcache->rng_collation,
 											 val1, val2));
 	/* Cope with buggy subtype_diff function by returning zero */

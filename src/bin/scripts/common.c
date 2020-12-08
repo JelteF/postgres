@@ -173,7 +173,6 @@ PGconn *
 connectMaintenanceDatabase(ConnParams *cparams,
 						   const char *progname, bool echo)
 {
-	PGconn	   *conn;
 
 	/* If a maintenance database name was specified, just connect to it. */
 	if (cparams->dbname)
@@ -181,7 +180,7 @@ connectMaintenanceDatabase(ConnParams *cparams,
 
 	/* Otherwise, try postgres first and then template1. */
 	cparams->dbname = "postgres";
-	conn = connectDatabase(cparams, progname, echo, true, false);
+	PGconn	   *conn = connectDatabase(cparams, progname, echo, true, false);
 	if (!conn)
 	{
 		cparams->dbname = "template1";
@@ -220,12 +219,11 @@ disconnectDatabase(PGconn *conn)
 PGresult *
 executeQuery(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
 
 	if (echo)
 		printf("%s\n", query);
 
-	res = PQexec(conn, query);
+	PGresult   *res = PQexec(conn, query);
 	if (!res ||
 		PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
@@ -245,12 +243,11 @@ executeQuery(PGconn *conn, const char *query, bool echo)
 void
 executeCommand(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
 
 	if (echo)
 		printf("%s\n", query);
 
-	res = PQexec(conn, query);
+	PGresult   *res = PQexec(conn, query);
 	if (!res ||
 		PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
@@ -272,17 +269,15 @@ executeCommand(PGconn *conn, const char *query, bool echo)
 bool
 executeMaintenanceCommand(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
-	bool		r;
 
 	if (echo)
 		printf("%s\n", query);
 
 	SetCancelConn(conn);
-	res = PQexec(conn, query);
+	PGresult   *res = PQexec(conn, query);
 	ResetCancelConn();
 
-	r = (res && PQresultStatus(res) == PGRES_COMMAND_OK);
+	bool		r = (res && PQresultStatus(res) == PGRES_COMMAND_OK);
 
 	if (res)
 		PQclear(res);
@@ -389,8 +384,6 @@ appendQualifiedRelation(PQExpBuffer buf, const char *spec,
 	char	   *table;
 	const char *columns;
 	PQExpBufferData sql;
-	PGresult   *res;
-	int			ntups;
 
 	splitTableColumnsSpec(spec, PQclientEncoding(conn), &table, &columns);
 
@@ -417,8 +410,8 @@ appendQualifiedRelation(PQExpBuffer buf, const char *spec,
 	 * relation has that OID; this query returns no rows.  Catalog corruption
 	 * might elicit other row counts.
 	 */
-	res = executeQuery(conn, sql.data, echo);
-	ntups = PQntuples(res);
+	PGresult   *res = executeQuery(conn, sql.data, echo);
+	int			ntups = PQntuples(res);
 	if (ntups != 1)
 	{
 		pg_log_error(ngettext("query returned %d row instead of one: %s",
@@ -462,9 +455,8 @@ yesno_prompt(const char *question)
 
 	for (;;)
 	{
-		char	   *resp;
 
-		resp = simple_prompt(prompt, true);
+		char	   *resp = simple_prompt(prompt, true);
 
 		if (strcmp(resp, _(PG_YESLETTER)) == 0)
 		{
