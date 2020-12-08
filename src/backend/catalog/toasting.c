@@ -188,6 +188,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 
 	/* this is pretty painful...  need a tuple descriptor */
 	TupleDesc	tupdesc = CreateTemplateTupleDesc(3);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1,
 					   "chunk_id",
 					   OIDOID,
@@ -226,26 +227,27 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	bool		mapped_relation = RelationIsMapped(rel);
 
 	Oid			toast_relid = heap_create_with_catalog(toast_relname,
-										   namespaceid,
-										   rel->rd_rel->reltablespace,
-										   toastOid,
-										   InvalidOid,
-										   InvalidOid,
-										   rel->rd_rel->relowner,
-										   table_relation_toast_am(rel),
-										   tupdesc,
-										   NIL,
-										   RELKIND_TOASTVALUE,
-										   rel->rd_rel->relpersistence,
-										   shared_relation,
-										   mapped_relation,
-										   ONCOMMIT_NOOP,
-										   reloptions,
-										   false,
-										   true,
-										   true,
-										   InvalidOid,
-										   NULL);
+													   namespaceid,
+													   rel->rd_rel->reltablespace,
+													   toastOid,
+													   InvalidOid,
+													   InvalidOid,
+													   rel->rd_rel->relowner,
+													   table_relation_toast_am(rel),
+													   tupdesc,
+													   NIL,
+													   RELKIND_TOASTVALUE,
+													   rel->rd_rel->relpersistence,
+													   shared_relation,
+													   mapped_relation,
+													   ONCOMMIT_NOOP,
+													   reloptions,
+													   false,
+													   true,
+													   true,
+													   InvalidOid,
+													   NULL);
+
 	Assert(toast_relid != InvalidOid);
 
 	/* make the toast relation visible, else table_open will fail */
@@ -267,6 +269,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	 */
 
 	IndexInfo  *indexInfo = makeNode(IndexInfo);
+
 	indexInfo->ii_NumIndexAttrs = 2;
 	indexInfo->ii_NumIndexKeyAttrs = 2;
 	indexInfo->ii_IndexAttrNumbers[0] = 1;
@@ -314,6 +317,7 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	Relation	class_rel = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	reltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relOid));
+
 	if (!HeapTupleIsValid(reltup))
 		elog(ERROR, "cache lookup failed for relation %u", relOid);
 
@@ -335,9 +339,8 @@ create_toast_table(Relation rel, Oid toastOid, Oid toastIndexOid,
 	table_close(class_rel, RowExclusiveLock);
 
 	/*
-	 * Register dependency from the toast table to the main, so that the
-	 * toast table will be deleted if the main is.  Skip this in bootstrap
-	 * mode.
+	 * Register dependency from the toast table to the main, so that the toast
+	 * table will be deleted if the main is.  Skip this in bootstrap mode.
 	 */
 	if (!IsBootstrapProcessingMode())
 	{
@@ -380,9 +383,9 @@ needs_toast_table(Relation rel)
 
 	/*
 	 * Ignore attempts to create toast tables on catalog tables after initdb.
-	 * Which catalogs get toast tables is explicitly chosen in
-	 * catalog/pg_*.h.  (We could get here via some ALTER TABLE command if
-	 * the catalog doesn't have a toast table.)
+	 * Which catalogs get toast tables is explicitly chosen in catalog/pg_*.h.
+	 * (We could get here via some ALTER TABLE command if the catalog doesn't
+	 * have a toast table.)
 	 */
 	if (IsCatalogRelation(rel) && !IsBootstrapProcessingMode())
 		return false;

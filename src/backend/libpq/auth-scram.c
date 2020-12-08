@@ -222,6 +222,7 @@ pg_be_scram_init(Port *port,
 	bool		got_secret;
 
 	scram_state *state = (scram_state *) palloc0(sizeof(scram_state));
+
 	state->port = port;
 	state->state = SCRAM_AUTH_INIT;
 
@@ -458,6 +459,7 @@ pg_be_scram_build_secret(const char *password)
 	 * proceed with the original password.  (See comments at top of file.)
 	 */
 	pg_saslprep_rc rc = pg_saslprep(password, &prep_password);
+
 	if (rc == SASLPREP_SUCCESS)
 		password = (const char *) prep_password;
 
@@ -468,7 +470,7 @@ pg_be_scram_build_secret(const char *password)
 				 errmsg("could not generate random salt")));
 
 	char	   *result = scram_build_secret(saltbuf, SCRAM_DEFAULT_SALT_LEN,
-								SCRAM_DEFAULT_ITERATIONS, password);
+											SCRAM_DEFAULT_ITERATIONS, password);
 
 	if (prep_password)
 		pfree(prep_password);
@@ -506,6 +508,7 @@ scram_verify_plain_password(const char *username, const char *password,
 
 	int			saltlen = pg_b64_dec_len(strlen(encoded_salt));
 	char	   *salt = palloc(saltlen);
+
 	saltlen = pg_b64_decode(encoded_salt, strlen(encoded_salt), salt,
 							saltlen);
 	if (saltlen < 0)
@@ -517,6 +520,7 @@ scram_verify_plain_password(const char *username, const char *password,
 
 	/* Normalize the password */
 	pg_saslprep_rc rc = pg_saslprep(password, &prep_password);
+
 	if (rc == SASLPREP_SUCCESS)
 		password = prep_password;
 
@@ -571,6 +575,7 @@ parse_scram_secret(const char *secret, int *iterations, char **salt,
 	 * SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>
 	 */
 	char	   *v = pstrdup(secret);
+
 	if ((scheme_str = strtok(v, "$")) == NULL)
 		goto invalid_secret;
 	if ((iterations_str = strtok(NULL, ":")) == NULL)
@@ -654,12 +659,15 @@ mock_scram_secret(const char *username, int *iterations, char **salt,
 	 * value.
 	 */
 	char	   *raw_salt = scram_mock_salt(username);
+
 	if (raw_salt == NULL)
 		elog(ERROR, "could not encode salt");
 
 	int			encoded_len = pg_b64_enc_len(SCRAM_DEFAULT_SALT_LEN);
+
 	/* don't forget the zero-terminator */
 	char	   *encoded_salt = (char *) palloc(encoded_len + 1);
+
 	encoded_len = pg_b64_encode(raw_salt, SCRAM_DEFAULT_SALT_LEN, encoded_salt,
 								encoded_len);
 
@@ -699,6 +707,7 @@ read_attr_value(char **input, char attr)
 	begin++;
 
 	char	   *end = begin;
+
 	while (*end && *end != ',')
 		end++;
 
@@ -826,6 +835,7 @@ read_any_attr(char **input, char *attr_p)
 	begin++;
 
 	char	   *end = begin;
+
 	while (*end && *end != ',')
 		end++;
 
@@ -1172,6 +1182,7 @@ build_server_first_message(scram_state *state)
 				 errmsg("could not generate random nonce")));
 
 	int			encoded_len = pg_b64_enc_len(SCRAM_RAW_NONCE_LEN);
+
 	/* don't forget the zero-terminator */
 	state->server_nonce = palloc(encoded_len + 1);
 	encoded_len = pg_b64_encode(raw_nonce, SCRAM_RAW_NONCE_LEN,
@@ -1241,6 +1252,7 @@ read_client_final_message(scram_state *state, const char *input)
 	 * then followed by the actual binding data depending on the type.
 	 */
 	char	   *channel_binding = read_attr_value(&p, 'c');
+
 	if (state->channel_binding_in_use)
 	{
 #ifdef HAVE_BE_TLS_GET_CERTIFICATE_HASH
@@ -1250,7 +1262,7 @@ read_client_final_message(scram_state *state, const char *input)
 
 		/* Fetch hash data of server's SSL certificate */
 		const char *cbind_data = be_tls_get_certificate_hash(state->port,
-												 &cbind_data_len);
+															 &cbind_data_len);
 
 		/* should not happen */
 		if (cbind_data == NULL || cbind_data_len == 0)
@@ -1259,12 +1271,15 @@ read_client_final_message(scram_state *state, const char *input)
 		size_t		cbind_header_len = strlen("p=tls-server-end-point,,");	/* p=type,, */
 		size_t		cbind_input_len = cbind_header_len + cbind_data_len;
 		char	   *cbind_input = palloc(cbind_input_len);
+
 		snprintf(cbind_input, cbind_input_len, "p=tls-server-end-point,,");
 		memcpy(cbind_input + cbind_header_len, cbind_data, cbind_data_len);
 
 		int			b64_message_len = pg_b64_enc_len(cbind_input_len);
+
 		/* don't forget the zero-terminator */
 		char	   *b64_message = palloc(b64_message_len + 1);
+
 		b64_message_len = pg_b64_encode(cbind_input, cbind_input_len,
 										b64_message, b64_message_len);
 		if (b64_message_len < 0)
@@ -1358,8 +1373,10 @@ build_server_final_message(scram_state *state)
 	}
 
 	int			siglen = pg_b64_enc_len(SCRAM_KEY_LEN);
+
 	/* don't forget the zero-terminator */
 	char	   *server_signature_base64 = palloc(siglen + 1);
+
 	siglen = pg_b64_encode((const char *) ServerSignature,
 						   SCRAM_KEY_LEN, server_signature_base64,
 						   siglen);
@@ -1403,6 +1420,7 @@ scram_mock_salt(const char *username)
 					 "salt length greater than SHA256 digest length");
 
 	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA256);
+
 	if (pg_cryptohash_init(ctx) < 0 ||
 		pg_cryptohash_update(ctx, (uint8 *) username, strlen(username)) < 0 ||
 		pg_cryptohash_update(ctx, (uint8 *) mock_auth_nonce, MOCK_AUTH_NONCE_LEN) < 0 ||

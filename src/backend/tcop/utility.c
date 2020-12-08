@@ -556,6 +556,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 
 	/* Prohibit read/write commands in read-only states. */
 	int			readonly_flags = ClassifyUtilityCommandAsReadOnly(parsetree);
+
 	if (readonly_flags != COMMAND_IS_STRICTLY_READ_ONLY &&
 		(XactReadOnly || IsInParallelMode()))
 	{
@@ -570,6 +571,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 	}
 
 	ParseState *pstate = make_parsestate(NULL);
+
 	pstate->p_sourcetext = queryString;
 	pstate->p_queryEnv = queryEnv;
 
@@ -919,6 +921,7 @@ standard_ProcessUtility(PlannedStmt *pstmt,
 				ReindexStmt *stmt = (ReindexStmt *) parsetree;
 
 				int			options = ReindexParseOptions(pstate, stmt);
+
 				if ((options & REINDEXOPT_CONCURRENTLY) != 0)
 					PreventInTransactionBlock(isTopLevel,
 											  "REINDEX CONCURRENTLY");
@@ -1138,7 +1141,7 @@ ProcessUtilitySlow(ParseState *pstate,
 
 					/* Run parse analysis ... */
 					List	   *stmts = transformCreateStmt((CreateStmt *) parsetree,
-												queryString);
+															queryString);
 
 					/*
 					 * ... and do it.  We can't use foreach() because we may
@@ -1445,12 +1448,12 @@ ProcessUtilitySlow(ParseState *pstate,
 					 * needs to match what DefineIndex() does.
 					 */
 					LOCKMODE	lockmode = stmt->concurrent ? ShareUpdateExclusiveLock
-						: ShareLock;
+					: ShareLock;
 					Oid			relid =
-						RangeVarGetRelidExtended(stmt->relation, lockmode,
-												 0,
-												 RangeVarCallbackOwnsRelation,
-												 NULL);
+					RangeVarGetRelidExtended(stmt->relation, lockmode,
+											 0,
+											 RangeVarCallbackOwnsRelation,
+											 NULL);
 
 					/*
 					 * CREATE INDEX on partitioned tables (but not regular
@@ -1467,6 +1470,7 @@ ProcessUtilitySlow(ParseState *pstate,
 						ListCell   *lc;
 
 						List	   *inheritors = find_all_inheritors(relid, lockmode, NULL);
+
 						foreach(lc, inheritors)
 						{
 							char		relkind = get_rel_relkind(lfirst_oid(lc));
@@ -1885,6 +1889,7 @@ ProcessUtilityForAlterTable(Node *stmt, AlterTableUtilityContext *context)
 
 	/* Create a suitable wrapper */
 	PlannedStmt *wrapper = makeNode(PlannedStmt);
+
 	wrapper->commandType = CMD_UTILITY;
 	wrapper->canSetTag = false;
 	wrapper->utilityStmt = stmt;
@@ -1957,6 +1962,7 @@ UtilityReturnsTuples(Node *parsetree)
 				if (stmt->ismove)
 					return false;
 				Portal		portal = GetPortalByName(stmt->portalname);
+
 				if (!PortalIsValid(portal))
 					return false;	/* not our business to raise error */
 				return portal->tupDesc ? true : false;
@@ -1967,6 +1973,7 @@ UtilityReturnsTuples(Node *parsetree)
 				ExecuteStmt *stmt = (ExecuteStmt *) parsetree;
 
 				PreparedStatement *entry = FetchPreparedStatement(stmt->name, false);
+
 				if (!entry)
 					return false;	/* not our business to raise error */
 				if (entry->plansource->resultDesc)
@@ -2008,6 +2015,7 @@ UtilityTupleDescriptor(Node *parsetree)
 				if (stmt->ismove)
 					return NULL;
 				Portal		portal = GetPortalByName(stmt->portalname);
+
 				if (!PortalIsValid(portal))
 					return NULL;	/* not our business to raise error */
 				return CreateTupleDescCopy(portal->tupDesc);
@@ -2018,6 +2026,7 @@ UtilityTupleDescriptor(Node *parsetree)
 				ExecuteStmt *stmt = (ExecuteStmt *) parsetree;
 
 				PreparedStatement *entry = FetchPreparedStatement(stmt->name, false);
+
 				if (!entry)
 					return NULL;	/* not our business to raise error */
 				return FetchPreparedStatementResultDesc(entry);
@@ -3252,6 +3261,7 @@ GetCommandLogLevel(Node *parsetree)
 
 				/* Look through an EXECUTE to the referenced stmt */
 				PreparedStatement *ps = FetchPreparedStatement(stmt->name, false);
+
 				if (ps && ps->plansource->raw_parse_tree)
 					lev = GetCommandLogLevel(ps->plansource->raw_parse_tree->stmt);
 				else

@@ -629,7 +629,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * namespace is selected.
 	 */
 	Oid			namespaceId =
-		RangeVarGetAndCheckCreationNamespace(stmt->relation, NoLock, NULL);
+	RangeVarGetAndCheckCreationNamespace(stmt->relation, NoLock, NULL);
 
 	/*
 	 * Security check: disallow creating temp tables from security-restricted
@@ -659,10 +659,11 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * addition of the new partition.
 	 */
 	LOCKMODE	parentLockmode = (stmt->partbound != NULL ? AccessExclusiveLock :
-					  ShareUpdateExclusiveLock);
+								  ShareUpdateExclusiveLock);
 
 	/* Determine the list of OIDs of the parents. */
 	List	   *inheritOids = NIL;
+
 	foreach(listptr, stmt->inhRelations)
 	{
 		RangeVar   *rv = (RangeVar *) lfirst(listptr);
@@ -716,7 +717,8 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	{
 
 		AclResult	aclresult = pg_tablespace_aclcheck(tablespaceId, GetUserId(),
-										   ACL_CREATE);
+													   ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_TABLESPACE,
 						   get_tablespace_name(tablespaceId));
@@ -736,7 +738,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * Parse and validate reloptions, if any.
 	 */
 	Datum		reloptions = transformRelOptions((Datum) 0, stmt->options, NULL, validnsps,
-									 true, false);
+												 true, false);
 
 	switch (relkind)
 	{
@@ -756,6 +758,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 		ofTypeId = typenameTypeId(NULL, stmt->ofTypename);
 
 		AclResult	aclresult = pg_type_aclcheck(ofTypeId, GetUserId(), ACL_USAGE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error_type(aclresult, ofTypeId);
 	}
@@ -809,6 +812,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			Assert(colDef->cooked_default == NULL);
 
 			RawColumnDefault *rawEnt = (RawColumnDefault *) palloc(sizeof(RawColumnDefault));
+
 			rawEnt->attnum = attnum;
 			rawEnt->raw_default = colDef->raw_default;
 			rawEnt->missingMode = false;
@@ -820,6 +824,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 		{
 
 			CookedConstraint *cooked = (CookedConstraint *) palloc(sizeof(CookedConstraint));
+
 			cooked->contype = CONSTR_DEFAULT;
 			cooked->conoid = InvalidOid;	/* until created */
 			cooked->name = NULL;
@@ -869,27 +874,27 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	 * stored immediately.
 	 */
 	Oid			relationId = heap_create_with_catalog(relname,
-										  namespaceId,
-										  tablespaceId,
-										  InvalidOid,
-										  InvalidOid,
-										  ofTypeId,
-										  ownerId,
-										  accessMethodId,
-										  descriptor,
-										  list_concat(cookedDefaults,
-													  old_constraints),
-										  relkind,
-										  stmt->relation->relpersistence,
-										  false,
-										  false,
-										  stmt->oncommit,
-										  reloptions,
-										  true,
-										  allowSystemTableMods,
-										  false,
-										  InvalidOid,
-										  typaddress);
+													  namespaceId,
+													  tablespaceId,
+													  InvalidOid,
+													  InvalidOid,
+													  ofTypeId,
+													  ownerId,
+													  accessMethodId,
+													  descriptor,
+													  list_concat(cookedDefaults,
+																  old_constraints),
+													  relkind,
+													  stmt->relation->relpersistence,
+													  false,
+													  false,
+													  stmt->oncommit,
+													  reloptions,
+													  true,
+													  allowSystemTableMods,
+													  false,
+													  InvalidOid,
+													  typaddress);
 
 	/*
 	 * We must bump the command counter to make the newly-created relation
@@ -973,6 +978,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 
 		/* Transform the bound values */
 		ParseState *pstate = make_parsestate(NULL);
+
 		pstate->p_sourcetext = queryString;
 
 		/*
@@ -981,7 +987,8 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 		 * using a proper context.
 		 */
 		ParseNamespaceItem *nsitem = addRangeTableEntryForRelation(pstate, rel, AccessShareLock,
-											   NULL, false, false);
+																   NULL, false, false);
+
 		addNSItemToQuery(pstate, nsitem, false, true, true);
 
 		PartitionBoundSpec *bound = transformPartitionBound(pstate, parent, stmt->partbound);
@@ -1028,6 +1035,7 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 		List	   *partexprs = NIL;
 
 		ParseState *pstate = make_parsestate(NULL);
+
 		pstate->p_sourcetext = queryString;
 
 		int			partnatts = list_length(stmt->partspec->partParams);
@@ -1100,10 +1108,11 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 			}
 
 			AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(rel),
-										   RelationGetDescr(parent));
+													   RelationGetDescr(parent));
 			IndexStmt  *idxstmt =
-				generateClonedIndexStmt(NULL, idxRel,
-										attmap, &constraintOid);
+			generateClonedIndexStmt(NULL, idxRel,
+									attmap, &constraintOid);
+
 			DefineIndex(RelationGetRelid(rel),
 						idxstmt,
 						InvalidOid,
@@ -1327,8 +1336,8 @@ RemoveRelations(DropStmt *drop)
 		state.partParentOid = InvalidOid;
 		state.concurrent = drop->concurrent;
 		Oid			relOid = RangeVarGetRelidExtended(rel, lockmode, RVR_MISSING_OK,
-										  RangeVarCallbackForDropRelation,
-										  (void *) &state);
+													  RangeVarCallbackForDropRelation,
+													  (void *) &state);
 
 		/* Not there? */
 		if (!OidIsValid(relOid))
@@ -1389,7 +1398,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 	struct DropRelationCallbackState *state = (struct DropRelationCallbackState *) arg;
 	char		relkind = state->relkind;
 	LOCKMODE	heap_lockmode = state->concurrent ?
-		ShareUpdateExclusiveLock : AccessExclusiveLock;
+	ShareUpdateExclusiveLock : AccessExclusiveLock;
 
 	/*
 	 * If we previously locked some other index's heap, and the name we're
@@ -1418,6 +1427,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 		return;
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
+
 	if (!HeapTupleIsValid(tuple))
 		return;					/* concurrently dropped, so nothing to do */
 	Form_pg_class classform = (Form_pg_class) GETSTRUCT(tuple);
@@ -1457,6 +1467,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 	{
 
 		HeapTuple	locTuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(relOid));
+
 		if (!HeapTupleIsValid(locTuple))
 		{
 			ReleaseSysCache(tuple);
@@ -1465,6 +1476,7 @@ RangeVarCallbackForDropRelation(const RangeVar *rel, Oid relOid, Oid oldRelOid,
 
 		Form_pg_index indexform = (Form_pg_index) GETSTRUCT(locTuple);
 		bool		indisvalid = indexform->indisvalid;
+
 		ReleaseSysCache(locTuple);
 
 		/* Mark object as being an invalid index of system catalogs */
@@ -1540,8 +1552,8 @@ ExecuteTruncate(TruncateStmt *stmt)
 		LOCKMODE	lockmode = AccessExclusiveLock;
 
 		Oid			myrelid = RangeVarGetRelidExtended(rv, lockmode,
-										   0, RangeVarCallbackForTruncate,
-										   NULL);
+													   0, RangeVarCallbackForTruncate,
+													   NULL);
 
 		/* open the relation, we already hold a lock on it */
 		Relation	rel = table_open(myrelid, NoLock);
@@ -1667,12 +1679,14 @@ ExecuteTruncateGuts(List *explicit_rels, List *relids, List *relids_logged,
 	 * time on a rel we have no permissions for.
 	 */
 	List	   *rels = list_copy(explicit_rels);
+
 	if (behavior == DROP_CASCADE)
 	{
 		for (;;)
 		{
 
 			List	   *newrelids = heap_truncate_find_FKs(relids);
+
 			if (newrelids == NIL)
 				break;			/* nothing else to add */
 
@@ -1681,6 +1695,7 @@ ExecuteTruncateGuts(List *explicit_rels, List *relids, List *relids_logged,
 				Oid			relid = lfirst_oid(cell);
 
 				Relation	rel = table_open(relid, AccessExclusiveLock);
+
 				ereport(NOTICE,
 						(errmsg("truncate cascades to table \"%s\"",
 								RelationGetRelationName(rel))));
@@ -1835,6 +1850,7 @@ ExecuteTruncateGuts(List *explicit_rels, List *relids, List *relids_logged,
 			 * The same for the toast table, if any.
 			 */
 			Oid			toast_relid = rel->rd_rel->reltoastrelid;
+
 			if (OidIsValid(toast_relid))
 			{
 				Relation	toastrel = relation_open(toast_relid,
@@ -1968,6 +1984,7 @@ truncate_check_perms(Oid relid, Form_pg_class reltuple)
 
 	/* Permissions checks */
 	AclResult	aclresult = pg_class_aclcheck(relid, GetUserId(), ACL_TRUNCATE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, get_relkind_objtype(reltuple->relkind),
 					   relname);
@@ -2183,6 +2200,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 	 * to inherit an OID column.
 	 */
 	int			child_attno = 0;
+
 	foreach(entry, supers)
 	{
 		Oid			parent = lfirst_oid(entry);
@@ -2296,6 +2314,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			 * Does it conflict with some previously inherited column?
 			 */
 			int			exist_attno = findAttrByName(attributeName, inhSchema);
+
 			if (exist_attno > 0)
 			{
 				Oid			defTypeId;
@@ -2322,6 +2341,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 									   format_type_with_typemod(attribute->atttypid,
 																attribute->atttypmod))));
 				Oid			defCollId = GetColumnDefCollation(NULL, def, defTypeId);
+
 				if (defCollId != attribute->attcollation)
 					ereport(ERROR,
 							(errcode(ERRCODE_COLLATION_MISMATCH),
@@ -2392,6 +2412,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 				/* Find default in constraint structure */
 				Assert(constr != NULL);
 				AttrDefault *attrdef = constr->defval;
+
 				for (i = 0; i < constr->num_defval; i++)
 				{
 					if (attrdef[i].adnum == parent_attno)
@@ -2480,9 +2501,9 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 
 				/* Adjust Vars to match new table's column numbering */
 				Node	   *expr = map_variable_attnos(stringToNode(check[i].ccbin),
-										   1, 0,
-										   newattmap,
-										   InvalidOid, &found_whole_row);
+													   1, 0,
+													   newattmap,
+													   InvalidOid, &found_whole_row);
 
 				/*
 				 * For the moment we have to reject whole-row variables. We
@@ -2503,6 +2524,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 					/* nope, this is a new one */
 
 					CookedConstraint *cooked = (CookedConstraint *) palloc(sizeof(CookedConstraint));
+
 					cooked->contype = CONSTR_CHECK;
 					cooked->conoid = InvalidOid;	/* until created */
 					cooked->name = pstrdup(name);
@@ -2548,6 +2570,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 			 * Does it conflict with some previously inherited column?
 			 */
 			int			exist_attno = findAttrByName(attributeName, inhSchema);
+
 			if (exist_attno > 0)
 			{
 				Oid			defTypeId,
@@ -2576,6 +2599,7 @@ MergeAttributes(List *schema, List *supers, char relpersistence,
 							(errmsg("moving and merging column \"%s\" with inherited definition", attributeName),
 							 errdetail("User-specified column moved to the position of the inherited column.")));
 				ColumnDef  *def = (ColumnDef *) list_nth(inhSchema, exist_attno - 1);
+
 				typenameTypeIdAndMod(NULL, def->typeName, &defTypeId, &deftypmod);
 				typenameTypeIdAndMod(NULL, newdef->typeName, &newTypeId, &newtypmod);
 				if (defTypeId != newTypeId || deftypmod != newtypmod)
@@ -2852,6 +2876,7 @@ StoreCatalogInheritance(Oid relationId, List *supers,
 	Relation	relation = table_open(InheritsRelationId, RowExclusiveLock);
 
 	int32		seqNumber = 1;
+
 	foreach(entry, supers)
 	{
 		Oid			parentOid = lfirst_oid(entry);
@@ -2954,6 +2979,7 @@ SetRelationHasSubclass(Oid relationId, bool relhassubclass)
 	 */
 	Relation	relationRelation = table_open(RelationRelationId, RowExclusiveLock);
 	HeapTuple	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relationId));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relationId);
 	Form_pg_class classtuple = (Form_pg_class) GETSTRUCT(tuple);
@@ -3039,6 +3065,7 @@ renameatt_internal(Oid myrelid,
 	 * until end of transaction.
 	 */
 	Relation	targetrelation = relation_open(myrelid, AccessExclusiveLock);
+
 	renameatt_check(myrelid, RelationGetForm(targetrelation), recursing);
 
 	/*
@@ -3102,8 +3129,8 @@ renameatt_internal(Oid myrelid,
 		ListCell   *lo;
 
 		List	   *child_oids = find_typed_table_dependencies(targetrelation->rd_rel->reltype,
-												   RelationGetRelationName(targetrelation),
-												   behavior);
+															   RelationGetRelationName(targetrelation),
+															   behavior);
 
 		foreach(lo, child_oids)
 			renameatt_internal(lfirst_oid(lo), oldattname, newattname, true, true, 0, behavior);
@@ -3112,6 +3139,7 @@ renameatt_internal(Oid myrelid,
 	Relation	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
 
 	HeapTuple	atttup = SearchSysCacheCopyAttName(myrelid, oldattname);
+
 	if (!HeapTupleIsValid(atttup))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -3120,6 +3148,7 @@ renameatt_internal(Oid myrelid,
 	Form_pg_attribute attform = (Form_pg_attribute) GETSTRUCT(atttup);
 
 	AttrNumber	attnum = attform->attnum;
+
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -3169,9 +3198,11 @@ RangeVarCallbackForRenameAttribute(const RangeVar *rv, Oid relid, Oid oldrelid,
 {
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tuple))
 		return;					/* concurrently dropped */
 	Form_pg_class form = (Form_pg_class) GETSTRUCT(tuple);
+
 	renameatt_check(relid, form, false);
 	ReleaseSysCache(tuple);
 }
@@ -3188,9 +3219,9 @@ renameatt(RenameStmt *stmt)
 
 	/* lock level taken here should match renameatt_internal */
 	Oid			relid = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
-									 stmt->missing_ok ? RVR_MISSING_OK : 0,
-									 RangeVarCallbackForRenameAttribute,
-									 NULL);
+												 stmt->missing_ok ? RVR_MISSING_OK : 0,
+												 RangeVarCallbackForRenameAttribute,
+												 NULL);
 
 	if (!OidIsValid(relid))
 	{
@@ -3201,13 +3232,13 @@ renameatt(RenameStmt *stmt)
 	}
 
 	AttrNumber	attnum =
-		renameatt_internal(relid,
-						   stmt->subname,	/* old att name */
-						   stmt->newname,	/* new att name */
-						   stmt->relation->inh, /* recursive? */
-						   false,	/* recursing? */
-						   0,	/* expected inhcount */
-						   stmt->behavior);
+	renameatt_internal(relid,
+					   stmt->subname,	/* old att name */
+					   stmt->newname,	/* new att name */
+					   stmt->relation->inh, /* recursive? */
+					   false,	/* recursing? */
+					   0,		/* expected inhcount */
+					   stmt->behavior);
 
 	ObjectAddressSubSet(address, RelationRelationId, relid, attnum);
 
@@ -3250,6 +3281,7 @@ rename_constraint_internal(Oid myrelid,
 	}
 
 	HeapTuple	tuple = SearchSysCache1(CONSTROID, ObjectIdGetDatum(constraintOid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for constraint %u",
 			 constraintOid);
@@ -3333,6 +3365,7 @@ RenameConstraint(RenameStmt *stmt)
 		typid = typenameTypeId(NULL, makeTypeNameFromNameList(castNode(List, stmt->object)));
 		Relation	rel = table_open(TypeRelationId, RowExclusiveLock);
 		HeapTuple	tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+
 		if (!HeapTupleIsValid(tup))
 			elog(ERROR, "cache lookup failed for type %u", typid);
 		checkDomainOwner(tup);
@@ -3385,10 +3418,10 @@ RenameRelation(RenameStmt *stmt)
 	 * escalation.
 	 */
 	Oid			relid = RangeVarGetRelidExtended(stmt->relation,
-									 is_index ? ShareUpdateExclusiveLock : AccessExclusiveLock,
-									 stmt->missing_ok ? RVR_MISSING_OK : 0,
-									 RangeVarCallbackForAlterRelation,
-									 (void *) stmt);
+												 is_index ? ShareUpdateExclusiveLock : AccessExclusiveLock,
+												 stmt->missing_ok ? RVR_MISSING_OK : 0,
+												 RangeVarCallbackForAlterRelation,
+												 (void *) stmt);
 
 	if (!OidIsValid(relid))
 	{
@@ -3433,6 +3466,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, bool is_internal, bo
 	relrelation = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	reltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(myrelid));
+
 	if (!HeapTupleIsValid(reltup))	/* shouldn't happen */
 		elog(ERROR, "cache lookup failed for relation %u", myrelid);
 	Form_pg_class relform = (Form_pg_class) GETSTRUCT(reltup);
@@ -3512,6 +3546,7 @@ CheckTableNotInUse(Relation rel, const char *stmt)
 {
 
 	int			expected_refcnt = rel->rd_isnailed ? 2 : 1;
+
 	if (rel->rd_refcnt != expected_refcnt)
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_IN_USE),
@@ -4866,6 +4901,7 @@ ATRewriteTables(AlterTableStmt *parsetree, List **wqueue, LOCKMODE lockmode,
 		{
 
 			Relation	rel = table_open(tab->relid, NoLock);
+
 			find_composite_type_dependencies(rel->rd_rel->reltype, rel, NULL);
 			table_close(rel, NoLock);
 		}
@@ -4928,7 +4964,7 @@ ATRewriteTables(AlterTableStmt *parsetree, List **wqueue, LOCKMODE lockmode,
 			 * user requested a change)
 			 */
 			char		persistence = tab->chgPersistence ?
-				tab->newrelpersistence : OldHeap->rd_rel->relpersistence;
+			tab->newrelpersistence : OldHeap->rd_rel->relpersistence;
 
 			table_close(OldHeap, NoLock);
 
@@ -4963,7 +4999,7 @@ ATRewriteTables(AlterTableStmt *parsetree, List **wqueue, LOCKMODE lockmode,
 			 * unlogged anyway.
 			 */
 			Oid			OIDNewHeap = make_new_heap(tab->relid, NewTableSpace, persistence,
-									   lockmode);
+												   lockmode);
 
 			/*
 			 * Copy the heap data into the new table with the desired
@@ -5163,6 +5199,7 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap, LOCKMODE lockmode)
 	}
 
 	List	   *notnull_attrs = NIL;
+
 	if (newrel || tab->verify_new_notnull)
 	{
 		/*
@@ -5626,6 +5663,7 @@ ATSimpleRecursion(List **wqueue, Relation rel,
 				continue;
 			/* find_all_inheritors already got lock */
 			Relation	childrel = relation_open(childrelid, NoLock);
+
 			CheckTableNotInUse(childrel, "ALTER TABLE");
 			ATPrepCmd(wqueue, childrel, cmd, false, true, lockmode, context);
 			relation_close(childrel, NoLock);
@@ -5648,12 +5686,14 @@ ATCheckPartitionsNotInUse(Relation rel, LOCKMODE lockmode)
 		ListCell   *cell;
 
 		List	   *inh = find_all_inheritors(RelationGetRelid(rel), lockmode, NULL);
+
 		/* first element is the parent rel; must ignore it */
 		for_each_from(cell, inh, 1)
 		{
 
 			/* find_all_inheritors already got lock */
 			Relation	childrel = table_open(lfirst_oid(cell), NoLock);
+
 			CheckTableNotInUse(childrel, "ALTER TABLE");
 			table_close(childrel, NoLock);
 		}
@@ -5677,14 +5717,15 @@ ATTypedTableRecursion(List **wqueue, Relation rel, AlterTableCmd *cmd,
 	Assert(rel->rd_rel->relkind == RELKIND_COMPOSITE_TYPE);
 
 	List	   *children = find_typed_table_dependencies(rel->rd_rel->reltype,
-											 RelationGetRelationName(rel),
-											 cmd->behavior);
+														 RelationGetRelationName(rel),
+														 cmd->behavior);
 
 	foreach(child, children)
 	{
 		Oid			childrelid = lfirst_oid(child);
 
 		Relation	childrel = relation_open(childrelid, lockmode);
+
 		CheckTableNotInUse(childrel, "ALTER TABLE");
 		ATPrepCmd(wqueue, childrel, cmd, true, true, lockmode, context);
 		relation_close(childrel, NoLock);
@@ -5737,7 +5778,7 @@ find_composite_type_dependencies(Oid typeOid, Relation origRelation,
 				ObjectIdGetDatum(typeOid));
 
 	SysScanDesc depScan = systable_beginscan(depRel, DependReferenceIndexId, true,
-								 NULL, 2, key);
+											 NULL, 2, key);
 
 	while (HeapTupleIsValid(depTup = systable_getnext(depScan)))
 	{
@@ -5883,6 +5924,7 @@ check_of_type(HeapTuple typetuple)
 
 		Assert(OidIsValid(typ->typrelid));
 		Relation	typeRelation = relation_open(typ->typrelid, AccessShareLock);
+
 		typeOk = (typeRelation->rd_rel->relkind == RELKIND_COMPOSITE_TYPE);
 
 		/*
@@ -5980,6 +6022,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 		/* Does child already have a column by this name? */
 		HeapTuple	tuple = SearchSysCacheCopyAttName(myrelid, colDef->colname);
+
 		if (HeapTupleIsValid(tuple))
 		{
 			Form_pg_attribute childatt = (Form_pg_attribute) GETSTRUCT(tuple);
@@ -5995,6 +6038,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 						 errmsg("child table \"%s\" has different type for column \"%s\"",
 								RelationGetRelationName(rel), colDef->colname)));
 			Oid			ccollid = GetColumnDefCollation(NULL, colDef, ctypeId);
+
 			if (ccollid != childatt->attcollation)
 				ereport(ERROR,
 						(errcode(ERRCODE_COLLATION_MISMATCH),
@@ -6060,12 +6104,14 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	pgclass = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	reltup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(myrelid));
+
 	if (!HeapTupleIsValid(reltup))
 		elog(ERROR, "cache lookup failed for relation %u", myrelid);
 	char		relkind = ((Form_pg_class) GETSTRUCT(reltup))->relkind;
 
 	/* Determine the new attribute's number */
 	int			newattnum = ((Form_pg_class) GETSTRUCT(reltup))->relnatts + 1;
+
 	if (newattnum > MaxHeapAttributeNumber)
 		ereport(ERROR,
 				(errcode(ERRCODE_TOO_MANY_COLUMNS),
@@ -6077,6 +6123,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	Oid			typeOid = tform->oid;
 
 	AclResult	aclresult = pg_type_aclcheck(typeOid, GetUserId(), ACL_USAGE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error_type(aclresult, typeOid);
 
@@ -6142,6 +6189,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	{
 
 		RawColumnDefault *rawEnt = (RawColumnDefault *) palloc(sizeof(RawColumnDefault));
+
 		rawEnt->attnum = attribute.attnum;
 		rawEnt->raw_default = copyObject(colDef->raw_default);
 
@@ -6232,6 +6280,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			int32		baseTypeMod = typmod;
 			Oid			baseTypeId = getBaseTypeAndTypmod(typeOid, &baseTypeMod);
 			Oid			baseTypeColl = get_typcollation(baseTypeId);
+
 			defval = (Expr *) makeNullConst(baseTypeId, baseTypeMod, baseTypeColl);
 			defval = (Expr *) coerce_to_target_type(NULL,
 													(Node *) defval,
@@ -6249,6 +6298,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		{
 
 			NewColumnValue *newval = (NewColumnValue *) palloc0(sizeof(NewColumnValue));
+
 			newval->attnum = attribute.attnum;
 			newval->expr = expression_planner(defval);
 			newval->is_generated = (colDef->generated != '\0');
@@ -6308,6 +6358,7 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 		/* find_inheritance_children already got lock */
 		Relation	childrel = table_open(childrelid, NoLock);
+
 		CheckTableNotInUse(childrel, "ALTER TABLE");
 
 		/* Find or create work queue entry for this table */
@@ -6339,12 +6390,14 @@ check_for_column_name_collision(Relation rel, const char *colname,
 	 * add a column matching a dropped column name, it's gonna fail anyway.
 	 */
 	HeapTuple	attTuple = SearchSysCache2(ATTNAME,
-							   ObjectIdGetDatum(RelationGetRelid(rel)),
-							   PointerGetDatum(colname));
+										   ObjectIdGetDatum(RelationGetRelid(rel)),
+										   PointerGetDatum(colname));
+
 	if (!HeapTupleIsValid(attTuple))
 		return true;
 
 	int			attnum = ((Form_pg_attribute) GETSTRUCT(attTuple))->attnum;
+
 	ReleaseSysCache(attTuple);
 
 	/*
@@ -6457,6 +6510,7 @@ ATExecDropNotNull(Relation rel, const char *colName, LOCKMODE lockmode)
 	Relation	attr_rel = table_open(AttributeRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -6493,6 +6547,7 @@ ATExecDropNotNull(Relation rel, const char *colName, LOCKMODE lockmode)
 		int			i;
 
 		HeapTuple	indexTuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(indexoid));
+
 		if (!HeapTupleIsValid(indexTuple))
 			elog(ERROR, "cache lookup failed for index %u", indexoid);
 		Form_pg_index indexStruct = (Form_pg_index) GETSTRUCT(indexTuple);
@@ -6527,6 +6582,7 @@ ATExecDropNotNull(Relation rel, const char *colName, LOCKMODE lockmode)
 		TupleDesc	tupDesc = RelationGetDescr(parent);
 
 		AttrNumber	parent_attnum = get_attnum(parentId, colName);
+
 		if (TupleDescAttr(tupDesc, parent_attnum - 1)->attnotnull)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
@@ -6602,6 +6658,7 @@ ATPrepSetNotNull(List **wqueue, Relation rel,
 							cmd->name, RelationGetRelationName(rel))));
 
 		bool		attnotnull = ((Form_pg_attribute) GETSTRUCT(tuple))->attnotnull;
+
 		ReleaseSysCache(tuple);
 		if (attnotnull)
 			return;
@@ -6784,6 +6841,7 @@ ATExecColumnDefault(Relation rel, const char *colName,
 	 * get the number of the attribute
 	 */
 	AttrNumber	attnum = get_attnum(RelationGetRelid(rel), colName);
+
 	if (attnum == InvalidAttrNumber)
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -6829,6 +6887,7 @@ ATExecColumnDefault(Relation rel, const char *colName,
 		/* SET DEFAULT */
 
 		RawColumnDefault *rawEnt = (RawColumnDefault *) palloc(sizeof(RawColumnDefault));
+
 		rawEnt->attnum = attnum;
 		rawEnt->raw_default = newDefault;
 		rawEnt->missingMode = false;
@@ -6891,6 +6950,7 @@ ATExecAddIdentity(Relation rel, const char *colName,
 	Relation	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -6981,6 +7041,7 @@ ATExecSetIdentity(Relation rel, const char *colName, Node *def, LOCKMODE lockmod
 
 	Relation	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
 	HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -7035,6 +7096,7 @@ ATExecDropIdentity(Relation rel, const char *colName, bool missing_ok, LOCKMODE 
 
 	Relation	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
 	HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -7082,6 +7144,7 @@ ATExecDropIdentity(Relation rel, const char *colName, bool missing_ok, LOCKMODE 
 
 	/* drop the internal sequence */
 	Oid			seqid = getIdentitySequence(RelationGetRelid(rel), attnum, false);
+
 	deleteDependencyRecordsForClass(RelationRelationId, seqid,
 									RelationRelationId, DEPENDENCY_INTERNAL);
 	CommandCounterIncrement();
@@ -7122,6 +7185,7 @@ ATPrepDropExpression(Relation rel, AlterTableCmd *cmd, bool recurse, bool recurs
 	{
 
 		HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), cmd->name);
+
 		if (!HeapTupleIsValid(tuple))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -7147,6 +7211,7 @@ ATExecDropExpression(Relation rel, const char *colName, bool missing_ok, LOCKMOD
 
 	Relation	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
 	HeapTuple	tuple = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -7223,7 +7288,7 @@ ATExecDropExpression(Relation rel, const char *colName, bool missing_ok, LOCKMOD
 					Int32GetDatum(attnum));
 
 		SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-								  NULL, 3, key);
+											  NULL, 3, key);
 
 		while (HeapTupleIsValid(tup = systable_getnext(scan)))
 		{
@@ -7316,6 +7381,7 @@ ATExecSetStatistics(Relation rel, const char *colName, int16 colNum, Node *newVa
 	Form_pg_attribute attrtuple = (Form_pg_attribute) GETSTRUCT(tuple);
 
 	AttrNumber	attnum = attrtuple->attnum;
+
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -7383,6 +7449,7 @@ ATExecSetOptions(Relation rel, const char *colName, Node *options,
 	Form_pg_attribute attrtuple = (Form_pg_attribute) GETSTRUCT(tuple);
 
 	AttrNumber	attnum = attrtuple->attnum;
+
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -7471,6 +7538,7 @@ ATExecSetStorage(Relation rel, const char *colName, Node *newValue, LOCKMODE loc
 	Form_pg_attribute attrtuple = (Form_pg_attribute) GETSTRUCT(tuple);
 
 	AttrNumber	attnum = attrtuple->attnum;
+
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -7610,6 +7678,7 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
 	 * get the number of the attribute
 	 */
 	HeapTuple	tuple = SearchSysCacheAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 	{
 		if (!missing_ok)
@@ -7685,12 +7754,14 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
 					 errhint("Do not specify the ONLY keyword.")));
 
 		Relation	attr_rel = table_open(AttributeRelationId, RowExclusiveLock);
+
 		foreach(child, children)
 		{
 			Oid			childrelid = lfirst_oid(child);
 
 			/* find_inheritance_children already got lock */
 			Relation	childrel = table_open(childrelid, NoLock);
+
 			CheckTableNotInUse(childrel, "ALTER TABLE");
 
 			tuple = SearchSysCacheCopyAttName(childrelid, colName);
@@ -7789,21 +7860,24 @@ ATExecAddIndex(AlteredTableInfo *tab, Relation rel,
 
 	/* suppress schema rights check when rebuilding existing index */
 	bool		check_rights = !is_rebuild;
+
 	/* skip index build if phase 3 will do it or we're reusing an old one */
 	bool		skip_build = tab->rewrite > 0 || OidIsValid(stmt->oldNode);
+
 	/* suppress notices when rebuilding existing index */
 	bool		quiet = is_rebuild;
 
 	ObjectAddress address = DefineIndex(RelationGetRelid(rel),
-						  stmt,
-						  InvalidOid,	/* no predefined OID */
-						  InvalidOid,	/* no parent index */
-						  InvalidOid,	/* no parent constraint */
-						  true, /* is_alter_table */
-						  check_rights,
-						  false,	/* check_not_in_use - we did it already */
-						  skip_build,
-						  quiet);
+										stmt,
+										InvalidOid, /* no predefined OID */
+										InvalidOid, /* no parent index */
+										InvalidOid, /* no parent constraint */
+										true,	/* is_alter_table */
+										check_rights,
+										false,	/* check_not_in_use - we did
+												 * it already */
+										skip_build,
+										quiet);
 
 	/*
 	 * If TryReuseIndex() stashed a relfilenode for us, we used it for the new
@@ -7870,6 +7944,7 @@ ATExecAddIndexConstraint(AlteredTableInfo *tab, Relation rel,
 	 * to match.
 	 */
 	char	   *constraintName = stmt->idxname;
+
 	if (constraintName == NULL)
 		constraintName = indexName;
 	else if (strcmp(constraintName, indexName) != 0)
@@ -7892,20 +7967,20 @@ ATExecAddIndexConstraint(AlteredTableInfo *tab, Relation rel,
 
 	/* Create the catalog entries for the constraint */
 	bits16		flags = INDEX_CONSTR_CREATE_UPDATE_INDEX |
-		INDEX_CONSTR_CREATE_REMOVE_OLD_DEPS |
-		(stmt->initdeferred ? INDEX_CONSTR_CREATE_INIT_DEFERRED : 0) |
-		(stmt->deferrable ? INDEX_CONSTR_CREATE_DEFERRABLE : 0) |
-		(stmt->primary ? INDEX_CONSTR_CREATE_MARK_AS_PRIMARY : 0);
+	INDEX_CONSTR_CREATE_REMOVE_OLD_DEPS |
+	(stmt->initdeferred ? INDEX_CONSTR_CREATE_INIT_DEFERRED : 0) |
+	(stmt->deferrable ? INDEX_CONSTR_CREATE_DEFERRABLE : 0) |
+	(stmt->primary ? INDEX_CONSTR_CREATE_MARK_AS_PRIMARY : 0);
 
 	ObjectAddress address = index_constraint_create(rel,
-									  index_oid,
-									  InvalidOid,
-									  indexInfo,
-									  constraintName,
-									  constraintType,
-									  flags,
-									  allowSystemTableMods,
-									  false);	/* is_internal */
+													index_oid,
+													InvalidOid,
+													indexInfo,
+													constraintName,
+													constraintType,
+													flags,
+													allowSystemTableMods,
+													false); /* is_internal */
 
 	index_close(indexRel, NoLock);
 
@@ -8057,12 +8132,12 @@ ATAddCheckConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	 * though, since we disallow merging at the top level.
 	 */
 	List	   *newcons = AddRelationNewConstraints(rel, NIL,
-										list_make1(copyObject(constr)),
-										recursing | is_readd,	/* allow_merge */
-										!recursing, /* is_local */
-										is_readd,	/* is_internal */
-										NULL);	/* queryString not available
-												 * here */
+													list_make1(copyObject(constr)),
+													recursing | is_readd,	/* allow_merge */
+													!recursing, /* is_local */
+													is_readd,	/* is_internal */
+													NULL);	/* queryString not
+															 * available here */
 
 	/* we don't expect more than one constraint here */
 	Assert(list_length(newcons) <= 1);
@@ -8076,6 +8151,7 @@ ATAddCheckConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		{
 
 			NewConstraint *newcon = (NewConstraint *) palloc0(sizeof(NewConstraint));
+
 			newcon->name = ccon->name;
 			newcon->contype = ccon->contype;
 			newcon->qual = ccon->expr;
@@ -8134,6 +8210,7 @@ ATAddCheckConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 		/* find_inheritance_children already got lock */
 		Relation	childrel = table_open(childrelid, NoLock);
+
 		CheckTableNotInUse(childrel, "ALTER TABLE");
 
 		/* Find or create work queue entry for this table */
@@ -8353,6 +8430,7 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	 * tables to validate this one.  See below.
 	 */
 	bool		old_check_ok = (fkconstraint->old_conpfeqop != NIL);
+
 	Assert(!old_check_ok || numfks == list_length(fkconstraint->old_conpfeqop));
 
 	for (i = 0; i < numpks; i++)
@@ -8364,12 +8442,14 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 
 		/* We need several fields out of the pg_opclass entry */
 		HeapTuple	cla_ht = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclasses[i]));
+
 		if (!HeapTupleIsValid(cla_ht))
 			elog(ERROR, "cache lookup failed for opclass %u", opclasses[i]);
 		Form_pg_opclass cla_tup = (Form_pg_opclass) GETSTRUCT(cla_ht);
 		Oid			amid = cla_tup->opcmethod;
 		Oid			opfamily = cla_tup->opcfamily;
 		Oid			opcintype = cla_tup->opcintype;
+
 		ReleaseSysCache(cla_ht);
 
 		/*
@@ -8388,7 +8468,7 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		 * We'll use it for PK = PK comparisons.
 		 */
 		Oid			ppeqop = get_opfamily_member(opfamily, opcintype, opcintype,
-									 eqstrategy);
+												 eqstrategy);
 
 		if (!OidIsValid(ppeqop))
 			elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
@@ -8401,7 +8481,8 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 		Oid			fktyped = getBaseType(fktype);
 
 		Oid			pfeqop = get_opfamily_member(opfamily, opcintype, fktyped,
-									 eqstrategy);
+												 eqstrategy);
+
 		if (OidIsValid(pfeqop))
 		{
 			pfeqop_right = fktyped;
@@ -8480,9 +8561,9 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			Oid			old_fktype = attr->atttypid;
 			Oid			new_fktype = fktype;
 			CoercionPathType old_pathtype = findFkeyCast(pfeqop_right, old_fktype,
-										&old_castfunc);
+														 &old_castfunc);
 			CoercionPathType new_pathtype = findFkeyCast(pfeqop_right, new_fktype,
-										&new_castfunc);
+														 &new_castfunc);
 
 			/*
 			 * Upon a change to the cast from the FK column to its pfeqop
@@ -8532,15 +8613,15 @@ ATAddForeignKeyConstraint(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	 * as necessary.  First handle the referenced side.
 	 */
 	ObjectAddress address = addFkRecurseReferenced(wqueue, fkconstraint, rel, pkrel,
-									 indexOid,
-									 InvalidOid,	/* no parent constraint */
-									 numfks,
-									 pkattnum,
-									 fkattnum,
-									 pfeqoperators,
-									 ppeqoperators,
-									 ffeqoperators,
-									 old_check_ok);
+												   indexOid,
+												   InvalidOid,	/* no parent constraint */
+												   numfks,
+												   pkattnum,
+												   fkattnum,
+												   pfeqoperators,
+												   ppeqoperators,
+												   ffeqoperators,
+												   old_check_ok);
 
 	/* Now handle the referencing side. */
 	addFkRecurseReferencing(wqueue, fkconstraint, rel, pkrel,
@@ -8647,34 +8728,36 @@ addFkRecurseReferenced(List **wqueue, Constraint *fkconstraint, Relation rel,
 	 * Record the FK constraint in pg_constraint.
 	 */
 	Oid			constrOid = CreateConstraintEntry(conname,
-									  RelationGetNamespace(rel),
-									  CONSTRAINT_FOREIGN,
-									  fkconstraint->deferrable,
-									  fkconstraint->initdeferred,
-									  fkconstraint->initially_valid,
-									  parentConstr,
-									  RelationGetRelid(rel),
-									  fkattnum,
-									  numfks,
-									  numfks,
-									  InvalidOid,	/* not a domain constraint */
-									  indexOid,
-									  RelationGetRelid(pkrel),
-									  pkattnum,
-									  pfeqoperators,
-									  ppeqoperators,
-									  ffeqoperators,
-									  numfks,
-									  fkconstraint->fk_upd_action,
-									  fkconstraint->fk_del_action,
-									  fkconstraint->fk_matchtype,
-									  NULL, /* no exclusion constraint */
-									  NULL, /* no check constraint */
-									  NULL,
-									  conislocal,	/* islocal */
-									  coninhcount,	/* inhcount */
-									  connoinherit, /* conNoInherit */
-									  false);	/* is_internal */
+												  RelationGetNamespace(rel),
+												  CONSTRAINT_FOREIGN,
+												  fkconstraint->deferrable,
+												  fkconstraint->initdeferred,
+												  fkconstraint->initially_valid,
+												  parentConstr,
+												  RelationGetRelid(rel),
+												  fkattnum,
+												  numfks,
+												  numfks,
+												  InvalidOid,	/* not a domain
+																 * constraint */
+												  indexOid,
+												  RelationGetRelid(pkrel),
+												  pkattnum,
+												  pfeqoperators,
+												  ppeqoperators,
+												  ffeqoperators,
+												  numfks,
+												  fkconstraint->fk_upd_action,
+												  fkconstraint->fk_del_action,
+												  fkconstraint->fk_matchtype,
+												  NULL, /* no exclusion
+														 * constraint */
+												  NULL, /* no check constraint */
+												  NULL,
+												  conislocal,	/* islocal */
+												  coninhcount,	/* inhcount */
+												  connoinherit, /* conNoInherit */
+												  false);	/* is_internal */
 
 	ObjectAddressSet(address, ConstraintRelationId, constrOid);
 
@@ -8726,7 +8809,8 @@ addFkRecurseReferenced(List **wqueue, Constraint *fkconstraint, Relation rel,
 			 * definition to match the partition's column layout.
 			 */
 			AttrMap    *map = build_attrmap_by_name_if_req(RelationGetDescr(partRel),
-											   RelationGetDescr(pkrel));
+														   RelationGetDescr(pkrel));
+
 			if (map)
 			{
 				mapped_pkattnum = palloc(sizeof(AttrNumber) * numfks);
@@ -8738,6 +8822,7 @@ addFkRecurseReferenced(List **wqueue, Constraint *fkconstraint, Relation rel,
 
 			/* do the deed */
 			Oid			partIndexId = index_get_partition(partRel, indexOid);
+
 			if (!OidIsValid(partIndexId))
 				elog(ERROR, "index for %u not found in partition %s",
 					 indexOid, RelationGetRelationName(partRel));
@@ -8830,6 +8915,7 @@ addFkRecurseReferencing(List **wqueue, Constraint *fkconstraint, Relation rel,
 			AlteredTableInfo *tab = ATGetQueueEntry(wqueue, rel);
 
 			NewConstraint *newcon = (NewConstraint *) palloc0(sizeof(NewConstraint));
+
 			newcon->name = get_constraint_name(parentConstr);
 			newcon->contype = CONSTR_FOREIGN;
 			newcon->refrelid = RelationGetRelid(pkrel);
@@ -8862,17 +8948,20 @@ addFkRecurseReferencing(List **wqueue, Constraint *fkconstraint, Relation rel,
 			CheckTableNotInUse(partition, "ALTER TABLE");
 
 			AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(partition),
-										   RelationGetDescr(rel));
+													   RelationGetDescr(rel));
+
 			for (int j = 0; j < numfks; j++)
 				mapped_fkattnum[j] = attmap->attnums[fkattnum[j] - 1];
 
 			/* Check whether an existing constraint can be repurposed */
 			List	   *partFKs = copyObject(RelationGetFKeyList(partition));
 			bool		attached = false;
+
 			foreach(cell, partFKs)
 			{
 
 				ForeignKeyCacheInfo *fk = lfirst_node(ForeignKeyCacheInfo, cell);
+
 				if (tryAttachPartitionForeignKey(fk,
 												 partitionId,
 												 parentConstr,
@@ -8904,35 +8993,35 @@ addFkRecurseReferencing(List **wqueue, Constraint *fkconstraint, Relation rel,
 			else
 				conname = fkconstraint->conname;
 			Oid			constrOid =
-				CreateConstraintEntry(conname,
-									  RelationGetNamespace(partition),
-									  CONSTRAINT_FOREIGN,
-									  fkconstraint->deferrable,
-									  fkconstraint->initdeferred,
-									  fkconstraint->initially_valid,
-									  parentConstr,
-									  partitionId,
-									  mapped_fkattnum,
-									  numfks,
-									  numfks,
-									  InvalidOid,
-									  indexOid,
-									  RelationGetRelid(pkrel),
-									  pkattnum,
-									  pfeqoperators,
-									  ppeqoperators,
-									  ffeqoperators,
-									  numfks,
-									  fkconstraint->fk_upd_action,
-									  fkconstraint->fk_del_action,
-									  fkconstraint->fk_matchtype,
-									  NULL,
-									  NULL,
-									  NULL,
-									  false,
-									  1,
-									  false,
-									  false);
+			CreateConstraintEntry(conname,
+								  RelationGetNamespace(partition),
+								  CONSTRAINT_FOREIGN,
+								  fkconstraint->deferrable,
+								  fkconstraint->initdeferred,
+								  fkconstraint->initially_valid,
+								  parentConstr,
+								  partitionId,
+								  mapped_fkattnum,
+								  numfks,
+								  numfks,
+								  InvalidOid,
+								  indexOid,
+								  RelationGetRelid(pkrel),
+								  pkattnum,
+								  pfeqoperators,
+								  ppeqoperators,
+								  ffeqoperators,
+								  numfks,
+								  fkconstraint->fk_upd_action,
+								  fkconstraint->fk_del_action,
+								  fkconstraint->fk_matchtype,
+								  NULL,
+								  NULL,
+								  NULL,
+								  false,
+								  1,
+								  false,
+								  false);
 
 			/*
 			 * Give this constraint partition-type dependencies on the parent
@@ -9025,6 +9114,7 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 	 * scan could return children first.)
 	 */
 	Relation	pg_constraint = table_open(ConstraintRelationId, RowShareLock);
+
 	ScanKeyInit(&key[0],
 				Anum_pg_constraint_confrelid, BTEqualStrategyNumber,
 				F_OIDEQ, ObjectIdGetDatum(RelationGetRelid(parentRel)));
@@ -9033,7 +9123,8 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 				F_CHAREQ, CharGetDatum(CONSTRAINT_FOREIGN));
 	/* This is a seqscan, as we don't have a usable index ... */
 	SysScanDesc scan = systable_beginscan(pg_constraint, InvalidOid, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
+
 	while ((tuple = systable_getnext(scan)) != NULL)
 	{
 		Form_pg_constraint constrForm = (Form_pg_constraint) GETSTRUCT(tuple);
@@ -9044,7 +9135,8 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 	table_close(pg_constraint, RowShareLock);
 
 	AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(partitionRel),
-								   RelationGetDescr(parentRel));
+											   RelationGetDescr(parentRel));
+
 	foreach(cell, clone)
 	{
 		Oid			constrOid = lfirst_oid(cell);
@@ -9080,6 +9172,7 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 		Relation	fkRel = table_open(constrForm->conrelid, AccessShareLock);
 
 		Oid			indexOid = constrForm->conindid;
+
 		DeconstructFkConstraintRow(tuple,
 								   &numfks,
 								   conkey,
@@ -9092,6 +9185,7 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 			mapped_confkey[i] = attmap->attnums[confkey[i] - 1];
 
 		Constraint *fkconstraint = makeNode(Constraint);
+
 		/* for now this is all we need */
 		fkconstraint->conname = NameStr(constrForm->conname);
 		fkconstraint->fk_upd_action = constrForm->confupdtype;
@@ -9106,7 +9200,8 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 		{
 
 			Form_pg_attribute att = TupleDescAttr(RelationGetDescr(fkRel),
-								conkey[i] - 1);
+												  conkey[i] - 1);
+
 			fkconstraint->fk_attrs = lappend(fkconstraint->fk_attrs,
 											 makeString(NameStr(att->attname)));
 		}
@@ -9117,6 +9212,7 @@ CloneFkReferenced(Relation parentRel, Relation partitionRel)
 		 * constraint, we don't need to set up for Phase 3 check.
 		 */
 		Oid			partIndexId = index_get_partition(partitionRel, indexOid);
+
 		if (!OidIsValid(partIndexId))
 			elog(ERROR, "index for %u not found in partition %s",
 				 indexOid, RelationGetRelationName(partitionRel));
@@ -9183,7 +9279,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 	 * different.  This map is used to convert them.
 	 */
 	AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(partRel),
-								   RelationGetDescr(parentRel));
+											   RelationGetDescr(parentRel));
 
 	List	   *partFKs = copyObject(RelationGetFKeyList(partRel));
 
@@ -9202,6 +9298,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 		ListCell   *cell;
 
 		HeapTuple	tuple = SearchSysCache1(CONSTROID, parentConstrOid);
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for constraint %u",
 				 parentConstrOid);
@@ -9219,6 +9316,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 		 * relation, that means to lock all partitions.
 		 */
 		Relation	pkrel = table_open(constrForm->confrelid, ShareRowExclusiveLock);
+
 		if (pkrel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
 			(void) find_all_inheritors(RelationGetRelid(pkrel),
 									   ShareRowExclusiveLock, NULL);
@@ -9236,6 +9334,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 		 * don't need to recurse to partitions for this constraint.
 		 */
 		bool		attached = false;
+
 		foreach(cell, partFKs)
 		{
 			ForeignKeyCacheInfo *fk = lfirst_node(ForeignKeyCacheInfo, cell);
@@ -9261,6 +9360,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 
 		/* No dice.  Set up to create our own constraint */
 		Constraint *fkconstraint = makeNode(Constraint);
+
 		if (ConstraintNameIsUsed(CONSTRAINT_RELATION,
 								 RelationGetRelid(partRel),
 								 NameStr(constrForm->conname)))
@@ -9280,42 +9380,43 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 		{
 
 			Form_pg_attribute att = TupleDescAttr(RelationGetDescr(partRel),
-								mapped_conkey[i] - 1);
+												  mapped_conkey[i] - 1);
+
 			fkconstraint->fk_attrs = lappend(fkconstraint->fk_attrs,
 											 makeString(NameStr(att->attname)));
 		}
 
 		Oid			indexOid = constrForm->conindid;
 		Oid			constrOid =
-			CreateConstraintEntry(fkconstraint->conname,
-								  constrForm->connamespace,
-								  CONSTRAINT_FOREIGN,
-								  fkconstraint->deferrable,
-								  fkconstraint->initdeferred,
-								  constrForm->convalidated,
-								  parentConstrOid,
-								  RelationGetRelid(partRel),
-								  mapped_conkey,
-								  numfks,
-								  numfks,
-								  InvalidOid,	/* not a domain constraint */
-								  indexOid,
-								  constrForm->confrelid,	/* same foreign rel */
-								  confkey,
-								  conpfeqop,
-								  conppeqop,
-								  conffeqop,
-								  numfks,
-								  fkconstraint->fk_upd_action,
-								  fkconstraint->fk_del_action,
-								  fkconstraint->fk_matchtype,
-								  NULL,
-								  NULL,
-								  NULL,
-								  false,	/* islocal */
-								  1,	/* inhcount */
-								  false,	/* conNoInherit */
-								  true);
+		CreateConstraintEntry(fkconstraint->conname,
+							  constrForm->connamespace,
+							  CONSTRAINT_FOREIGN,
+							  fkconstraint->deferrable,
+							  fkconstraint->initdeferred,
+							  constrForm->convalidated,
+							  parentConstrOid,
+							  RelationGetRelid(partRel),
+							  mapped_conkey,
+							  numfks,
+							  numfks,
+							  InvalidOid,	/* not a domain constraint */
+							  indexOid,
+							  constrForm->confrelid,	/* same foreign rel */
+							  confkey,
+							  conpfeqop,
+							  conppeqop,
+							  conffeqop,
+							  numfks,
+							  fkconstraint->fk_upd_action,
+							  fkconstraint->fk_del_action,
+							  fkconstraint->fk_matchtype,
+							  NULL,
+							  NULL,
+							  NULL,
+							  false,	/* islocal */
+							  1,	/* inhcount */
+							  false,	/* conNoInherit */
+							  true);
 
 		/* Set up partition dependencies for the new constraint */
 		ObjectAddressSet(address, ConstraintRelationId, constrOid);
@@ -9373,7 +9474,8 @@ tryAttachPartitionForeignKey(ForeignKeyCacheInfo *fk,
 	HeapTuple	trigtup;
 
 	HeapTuple	parentConstrTup = SearchSysCache1(CONSTROID,
-									  ObjectIdGetDatum(parentConstrOid));
+												  ObjectIdGetDatum(parentConstrOid));
+
 	if (!HeapTupleIsValid(parentConstrTup))
 		elog(ERROR, "cache lookup failed for constraint %u", parentConstrOid);
 	Form_pg_constraint parentConstr = (Form_pg_constraint) GETSTRUCT(parentConstrTup);
@@ -9404,10 +9506,12 @@ tryAttachPartitionForeignKey(ForeignKeyCacheInfo *fk,
 	 * that, but let's be careful for now.
 	 */
 	HeapTuple	partcontup = SearchSysCache1(CONSTROID,
-								 ObjectIdGetDatum(fk->conoid));
+											 ObjectIdGetDatum(fk->conoid));
+
 	if (!HeapTupleIsValid(partcontup))
 		elog(ERROR, "cache lookup failed for constraint %u", fk->conoid);
 	Form_pg_constraint partConstr = (Form_pg_constraint) GETSTRUCT(partcontup);
+
 	if (OidIsValid(partConstr->conparentid) ||
 		!partConstr->convalidated ||
 		partConstr->condeferrable != parentConstr->condeferrable ||
@@ -9432,13 +9536,15 @@ tryAttachPartitionForeignKey(ForeignKeyCacheInfo *fk,
 	 * OID, as well as being on the referenced rel.
 	 */
 	Relation	trigrel = table_open(TriggerRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&key,
 				Anum_pg_trigger_tgconstraint,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(fk->conoid));
 
 	SysScanDesc scan = systable_beginscan(trigrel, TriggerConstraintIndexId, true,
-							  NULL, 1, &key);
+										  NULL, 1, &key);
+
 	while ((trigtup = systable_getnext(scan)) != NULL)
 	{
 		Form_pg_trigger trgform = (Form_pg_trigger) GETSTRUCT(trigtup);
@@ -9518,7 +9624,7 @@ ATExecAlterConstraint(Relation rel, AlterTableCmd *cmd,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(cmdcon->conname));
 	SysScanDesc scan = systable_beginscan(conrel, ConstraintRelidTypidNameIndexId,
-							  true, NULL, 3, skey);
+										  true, NULL, 3, skey);
 
 	/* There can be at most one matching row */
 	if (!HeapTupleIsValid(contuple = systable_getnext(scan)))
@@ -9528,6 +9634,7 @@ ATExecAlterConstraint(Relation rel, AlterTableCmd *cmd,
 						cmdcon->conname, RelationGetRelationName(rel))));
 
 	Form_pg_constraint currcon = (Form_pg_constraint) GETSTRUCT(contuple);
+
 	if (currcon->contype != CONSTRAINT_FOREIGN)
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -9547,6 +9654,7 @@ ATExecAlterConstraint(Relation rel, AlterTableCmd *cmd,
 		 */
 		HeapTuple	copyTuple = heap_copytuple(contuple);
 		Form_pg_constraint copy_con = (Form_pg_constraint) GETSTRUCT(copyTuple);
+
 		copy_con->condeferrable = cmdcon->deferrable;
 		copy_con->condeferred = cmdcon->initdeferred;
 		CatalogTupleUpdate(conrel, &copyTuple->t_self, copyTuple);
@@ -9568,7 +9676,7 @@ ATExecAlterConstraint(Relation rel, AlterTableCmd *cmd,
 					ObjectIdGetDatum(currcon->oid));
 
 		SysScanDesc tgscan = systable_beginscan(tgrel, TriggerConstraintIndexId, true,
-									NULL, 1, &tgkey);
+												NULL, 1, &tgkey);
 
 		while (HeapTupleIsValid(tgtuple = systable_getnext(tgscan)))
 		{
@@ -9673,7 +9781,7 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(constrName));
 	SysScanDesc scan = systable_beginscan(conrel, ConstraintRelidTypidNameIndexId,
-							  true, NULL, 3, skey);
+										  true, NULL, 3, skey);
 
 	/* There can be at most one matching row */
 	if (!HeapTupleIsValid(tuple = systable_getnext(scan)))
@@ -9683,6 +9791,7 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 						constrName, RelationGetRelationName(rel))));
 
 	Form_pg_constraint con = (Form_pg_constraint) GETSTRUCT(tuple);
+
 	if (con->contype != CONSTRAINT_FOREIGN &&
 		con->contype != CONSTRAINT_CHECK)
 		ereport(ERROR,
@@ -9699,10 +9808,12 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 
 			/* Queue validation for phase 3 */
 			Constraint *fkconstraint = makeNode(Constraint);
+
 			/* for now this is all we need */
 			fkconstraint->conname = constrName;
 
 			NewConstraint *newcon = (NewConstraint *) palloc0(sizeof(NewConstraint));
+
 			newcon->name = constrName;
 			newcon->contype = CONSTR_FOREIGN;
 			newcon->refrelid = con->confrelid;
@@ -9769,6 +9880,7 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 
 			/* Queue validation for phase 3 */
 			NewConstraint *newcon = (NewConstraint *) palloc0(sizeof(NewConstraint));
+
 			newcon->name = constrName;
 			newcon->contype = CONSTR_CHECK;
 			newcon->refrelid = InvalidOid;
@@ -9776,11 +9888,13 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 			newcon->conid = con->oid;
 
 			Datum		val = SysCacheGetAttr(CONSTROID, tuple,
-								  Anum_pg_constraint_conbin, &isnull);
+											  Anum_pg_constraint_conbin, &isnull);
+
 			if (isnull)
 				elog(ERROR, "null conbin for constraint %u", con->oid);
 
 			char	   *conbin = TextDatumGetCString(val);
+
 			newcon->qual = (Node *) stringToNode(conbin);
 
 			/* Find or create work queue entry for this table */
@@ -9799,6 +9913,7 @@ ATExecValidateConstraint(List **wqueue, Relation rel, char *constrName,
 		 */
 		HeapTuple	copyTuple = heap_copytuple(tuple);
 		Form_pg_constraint copy_con = (Form_pg_constraint) GETSTRUCT(copyTuple);
+
 		copy_con->convalidated = true;
 		CatalogTupleUpdate(conrel, &copyTuple->t_self, copyTuple);
 
@@ -9831,11 +9946,13 @@ transformColumnNameList(Oid relId, List *colList,
 	ListCell   *l;
 
 	int			attnum = 0;
+
 	foreach(l, colList)
 	{
 		char	   *attname = strVal(lfirst(l));
 
 		HeapTuple	atttuple = SearchSysCacheAttName(relId, attname);
+
 		if (!HeapTupleIsValid(atttuple))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -9928,7 +10045,8 @@ transformFkeyGetPrimaryKey(Relation pkrel, Oid *indexOid,
 
 	/* Must get indclass the hard way */
 	Datum		indclassDatum = SysCacheGetAttr(INDEXRELID, indexTuple,
-									Anum_pg_index_indclass, &isnull);
+												Anum_pg_index_indclass, &isnull);
+
 	Assert(!isnull);
 	oidvector  *indclass = (oidvector *) DatumGetPointer(indclassDatum);
 
@@ -10003,6 +10121,7 @@ transformFkeyCheckAttrs(Relation pkrel,
 
 		indexoid = lfirst_oid(indexoidscan);
 		HeapTuple	indexTuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(indexoid));
+
 		if (!HeapTupleIsValid(indexTuple))
 			elog(ERROR, "cache lookup failed for index %u", indexoid);
 		Form_pg_index indexStruct = (Form_pg_index) GETSTRUCT(indexTuple);
@@ -10022,7 +10141,8 @@ transformFkeyCheckAttrs(Relation pkrel,
 
 			/* Must get indclass the hard way */
 			Datum		indclassDatum = SysCacheGetAttr(INDEXRELID, indexTuple,
-											Anum_pg_index_indclass, &isnull);
+														Anum_pg_index_indclass, &isnull);
+
 			Assert(!isnull);
 			oidvector  *indclass = (oidvector *) DatumGetPointer(indclassDatum);
 
@@ -10134,7 +10254,8 @@ checkFkeyPermissions(Relation rel, int16 *attnums, int natts)
 
 	/* Okay if we have relation-level REFERENCES permission */
 	AclResult	aclresult = pg_class_aclcheck(RelationGetRelid(rel), roleid,
-								  ACL_REFERENCES);
+											  ACL_REFERENCES);
+
 	if (aclresult == ACLCHECK_OK)
 		return;
 	/* Else we must have REFERENCES on each column */
@@ -10198,8 +10319,8 @@ validateForeignKeyConstraint(char *conname,
 	TableScanDesc scan = table_beginscan(rel, snapshot, 0, NULL);
 
 	MemoryContext perTupCxt = AllocSetContextCreate(CurrentMemoryContext,
-									  "validateForeignKeyConstraint",
-									  ALLOCSET_SMALL_SIZES);
+													"validateForeignKeyConstraint",
+													ALLOCSET_SMALL_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(perTupCxt);
 
 	while (table_scan_getnextslot(scan, ForwardScanDirection, slot))
@@ -10255,6 +10376,7 @@ CreateFKCheckTrigger(Oid myRelOid, Oid refRelOid, Constraint *fkconstraint,
 	 * and "RI_ConstraintTrigger_c_NNNN" for the check triggers.
 	 */
 	CreateTrigStmt *fk_trigger = makeNode(CreateTrigStmt);
+
 	fk_trigger->replace = false;
 	fk_trigger->isconstraint = true;
 	fk_trigger->trigname = "RI_ConstraintTrigger_c";
@@ -10304,6 +10426,7 @@ createForeignKeyActionTriggers(Relation rel, Oid refRelOid, Constraint *fkconstr
 	 * DELETE action on the referenced table.
 	 */
 	CreateTrigStmt *fk_trigger = makeNode(CreateTrigStmt);
+
 	fk_trigger->replace = false;
 	fk_trigger->isconstraint = true;
 	fk_trigger->trigname = "RI_ConstraintTrigger_a";
@@ -10469,7 +10592,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(constrName));
 	SysScanDesc scan = systable_beginscan(conrel, ConstraintRelidTypidNameIndexId,
-							  true, NULL, 3, skey);
+										  true, NULL, 3, skey);
 
 	/* There can be at most one matching row */
 	if (HeapTupleIsValid(tuple = systable_getnext(scan)))
@@ -10501,6 +10624,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
 
 			/* Must match lock taken by RemoveTriggerById: */
 			Relation	frel = table_open(con->confrelid, AccessExclusiveLock);
+
 			CheckTableNotInUse(frel, "ALTER TABLE");
 			table_close(frel, NoLock);
 		}
@@ -10577,6 +10701,7 @@ ATExecDropConstraint(Relation rel, const char *constrName,
 
 		/* find_inheritance_children already got lock */
 		Relation	childrel = table_open(childrelid, NoLock);
+
 		CheckTableNotInUse(childrel, "ALTER TABLE");
 
 		ScanKeyInit(&skey[0],
@@ -10704,6 +10829,7 @@ ATPrepAlterColumnType(List **wqueue,
 
 	/* lookup the attribute so we can check inheritance status */
 	HeapTuple	tuple = SearchSysCacheAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -10743,6 +10869,7 @@ ATPrepAlterColumnType(List **wqueue,
 	typenameTypeIdAndMod(NULL, typeName, &targettype, &targettypmod);
 
 	AclResult	aclresult = pg_type_aclcheck(targettype, GetUserId(), ACL_USAGE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error_type(aclresult, targettype);
 
@@ -10873,6 +11000,7 @@ ATPrepAlterColumnType(List **wqueue,
 
 			/* find_all_inheritors already got lock */
 			Relation	childrel = relation_open(childrelid, NoLock);
+
 			CheckTableNotInUse(childrel, "ALTER TABLE");
 
 			/*
@@ -10882,7 +11010,8 @@ ATPrepAlterColumnType(List **wqueue,
 			 * because of its different recursion mechanism.)
 			 */
 			HeapTuple	childtuple = SearchSysCacheAttName(RelationGetRelid(childrel),
-											   colName);
+														   colName);
+
 			if (!HeapTupleIsValid(childtuple))
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -10910,7 +11039,8 @@ ATPrepAlterColumnType(List **wqueue,
 				cmd = copyObject(cmd);
 
 				AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(childrel),
-											   RelationGetDescr(rel));
+														   RelationGetDescr(rel));
+
 				((ColumnDef *) cmd->def)->cooked_default =
 					map_variable_attnos(def->cooked_default,
 										1, 0,
@@ -11022,6 +11152,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 	{
 
 		Relation	newrel = table_open(RelationGetRelid(rel), NoLock);
+
 		RelationClearMissing(newrel);
 		relation_close(newrel, NoLock);
 		/* make sure we don't conflict with later attribute modifications */
@@ -11032,6 +11163,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 
 	/* Look up the target column */
 	HeapTuple	heapTup = SearchSysCacheCopyAttName(RelationGetRelid(rel), colName);
+
 	if (!HeapTupleIsValid(heapTup)) /* shouldn't happen */
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -11039,6 +11171,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 						colName, RelationGetRelationName(rel))));
 	attTup = (Form_pg_attribute) GETSTRUCT(heapTup);
 	AttrNumber	attnum = attTup->attnum;
+
 	attOldTup = TupleDescAttr(tab->oldDesc, attnum - 1);
 
 	/* Check for multiple ALTER TYPE on same column --- can't cope */
@@ -11053,6 +11186,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 	HeapTuple	typeTuple = typenameType(NULL, typeName, &targettypmod);
 	Form_pg_type tform = (Form_pg_type) GETSTRUCT(typeTuple);
 	Oid			targettype = tform->oid;
+
 	/* And the collation */
 	Oid			targetcollid = GetColumnDefCollation(NULL, def, targettype);
 
@@ -11121,7 +11255,7 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 				Int32GetDatum((int32) attnum));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 3, key);
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(depTup = systable_getnext(scan)))
 	{
@@ -11368,9 +11502,9 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 
 		/* Get the missing value datum */
 		Datum		missingval = heap_getattr(heapTup,
-								  Anum_pg_attribute_attmissingval,
-								  attrelation->rd_att,
-								  &missingNull);
+											  Anum_pg_attribute_attmissingval,
+											  attrelation->rd_att,
+											  &missingNull);
 
 		/* if it's a null array there is nothing to do */
 
@@ -11413,7 +11547,8 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 			nullsAtt[Anum_pg_attribute_attmissingval - 1] = false;
 
 			HeapTuple	newTup = heap_modify_tuple(heapTup, RelationGetDescr(attrelation),
-									   valuesAtt, nullsAtt, replacesAtt);
+												   valuesAtt, nullsAtt, replacesAtt);
+
 			heap_freetuple(heapTup);
 			heapTup = newTup;
 			attTup = (Form_pg_attribute) GETSTRUCT(heapTup);
@@ -11540,6 +11675,7 @@ RememberConstraintForRebuilding(Oid conoid, AlteredTableInfo *tab)
 		 * those properties.
 		 */
 		Oid			indoid = get_constraint_index(conoid);
+
 		if (OidIsValid(indoid))
 		{
 			RememberReplicaIdentityForRebuilding(indoid, tab);
@@ -11640,9 +11776,11 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		Oid			relid;
 
 		HeapTuple	tup = SearchSysCache1(CONSTROID, ObjectIdGetDatum(oldId));
+
 		if (!HeapTupleIsValid(tup)) /* should not happen */
 			elog(ERROR, "cache lookup failed for constraint %u", oldId);
 		Form_pg_constraint con = (Form_pg_constraint) GETSTRUCT(tup);
+
 		if (OidIsValid(con->conrelid))
 			relid = con->conrelid;
 		else
@@ -11655,6 +11793,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		Oid			confrelid = con->confrelid;
 		char		contype = con->contype;
 		bool		conislocal = con->conislocal;
+
 		ReleaseSysCache(tup);
 
 		ObjectAddressSet(obj, ConstraintRelationId, oldId);
@@ -11688,6 +11827,7 @@ ATPostAlterTypeCleanup(List **wqueue, AlteredTableInfo *tab, LOCKMODE lockmode)
 		Oid			oldId = lfirst_oid(oid_item);
 
 		Oid			relid = IndexGetRelation(oldId, false);
+
 		ATPostAlterTypeParse(oldId, relid, InvalidOid,
 							 (char *) lfirst(def_item),
 							 wqueue, lockmode, tab->rewrite);
@@ -11765,6 +11905,7 @@ ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, char *cmd,
 	 */
 	List	   *raw_parsetree_list = raw_parser(cmd);
 	List	   *querytree_list = NIL;
+
 	foreach(list_item, raw_parsetree_list)
 	{
 		RawStmt    *rs = lfirst_node(RawStmt, list_item);
@@ -11821,6 +11962,7 @@ ATPostAlterTypeParse(Oid oldId, Oid oldRelId, Oid refRelId, char *cmd,
 			stmt->idxcomment = GetComment(oldId, RelationRelationId, 0);
 
 			AlterTableCmd *newcmd = makeNode(AlterTableCmd);
+
 			newcmd->subtype = AT_ReAddIndex;
 			newcmd->def = (Node *) stmt;
 			tab->subcmds[AT_PASS_OLD_INDEX] =
@@ -11949,11 +12091,13 @@ RebuildConstraintComment(AlteredTableInfo *tab, int pass, Oid objid,
 
 	/* Look for comment for object wanted, and leave if none */
 	char	   *comment_str = GetComment(objid, ConstraintRelationId, 0);
+
 	if (comment_str == NULL)
 		return;
 
 	/* Build CommentStmt node, copying all input data for safety */
 	CommentStmt *cmd = makeNode(CommentStmt);
+
 	if (rel)
 	{
 		cmd->objtype = OBJECT_TABCONSTRAINT;
@@ -11973,6 +12117,7 @@ RebuildConstraintComment(AlteredTableInfo *tab, int pass, Oid objid,
 
 	/* Append it to list of commands */
 	AlterTableCmd *newcmd = makeNode(AlterTableCmd);
+
 	newcmd->subtype = AT_ReAddComment;
 	newcmd->def = (Node *) cmd;
 	tab->subcmds[pass] = lappend(tab->subcmds[pass], newcmd);
@@ -12020,15 +12165,18 @@ TryReuseForeignKey(Oid oldId, Constraint *con)
 	Assert(con->old_conpfeqop == NIL);	/* already prepared this node */
 
 	HeapTuple	tup = SearchSysCache1(CONSTROID, ObjectIdGetDatum(oldId));
+
 	if (!HeapTupleIsValid(tup)) /* should not happen */
 		elog(ERROR, "cache lookup failed for constraint %u", oldId);
 
 	Datum		adatum = SysCacheGetAttr(CONSTROID, tup,
-							 Anum_pg_constraint_conpfeqop, &isNull);
+										 Anum_pg_constraint_conpfeqop, &isNull);
+
 	if (isNull)
 		elog(ERROR, "null conpfeqop for constraint %u", oldId);
 	ArrayType  *arr = DatumGetArrayTypeP(adatum);	/* ensure not toasted */
 	int			numkeys = ARR_DIMS(arr)[0];
+
 	/* test follows the one in ri_FetchConstraintInfo() */
 	if (ARR_NDIM(arr) != 1 ||
 		ARR_HASNULL(arr) ||
@@ -12066,6 +12214,7 @@ ATExecAlterColumnGenericOptions(Relation rel,
 	/* First, determine FDW validator associated to the foreign table. */
 	Relation	ftrel = table_open(ForeignTableRelationId, AccessShareLock);
 	HeapTuple	tuple = SearchSysCache1(FOREIGNTABLEREL, rel->rd_id);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -12079,6 +12228,7 @@ ATExecAlterColumnGenericOptions(Relation rel,
 	ReleaseSysCache(tuple);
 
 	Relation	attrel = table_open(AttributeRelationId, RowExclusiveLock);
+
 	tuple = SearchSysCacheAttName(RelationGetRelid(rel), colName);
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
@@ -12089,6 +12239,7 @@ ATExecAlterColumnGenericOptions(Relation rel,
 	/* Prevent them from altering a system attribute */
 	Form_pg_attribute atttableform = (Form_pg_attribute) GETSTRUCT(tuple);
 	AttrNumber	attnum = atttableform->attnum;
+
 	if (attnum <= 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -12102,9 +12253,10 @@ ATExecAlterColumnGenericOptions(Relation rel,
 
 	/* Extract the current options */
 	Datum		datum = SysCacheGetAttr(ATTNAME,
-							tuple,
-							Anum_pg_attribute_attfdwoptions,
-							&isnull);
+										tuple,
+										Anum_pg_attribute_attfdwoptions,
+										&isnull);
+
 	if (isnull)
 		datum = PointerGetDatum(NULL);
 
@@ -12124,7 +12276,7 @@ ATExecAlterColumnGenericOptions(Relation rel,
 	/* Everything looks good - update the tuple */
 
 	HeapTuple	newtuple = heap_modify_tuple(tuple, RelationGetDescr(attrel),
-								 repl_val, repl_null, repl_repl);
+											 repl_val, repl_null, repl_repl);
 
 	CatalogTupleUpdate(attrel, &newtuple->t_self, newtuple);
 
@@ -12169,6 +12321,7 @@ ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lock
 	Relation	class_rel = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relationOid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relationOid);
 	Form_pg_class tuple_class = (Form_pg_class) GETSTRUCT(tuple);
@@ -12281,7 +12434,8 @@ ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lock
 
 				/* New owner must have CREATE privilege on namespace */
 				AclResult	aclresult = pg_namespace_aclcheck(namespaceOid, newOwnerId,
-												  ACL_CREATE);
+															  ACL_CREATE);
+
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_SCHEMA,
 								   get_namespace_name(namespaceOid));
@@ -12299,8 +12453,9 @@ ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, LOCKMODE lock
 		 * necessary when the ACL is non-null.
 		 */
 		Datum		aclDatum = SysCacheGetAttr(RELOID, tuple,
-								   Anum_pg_class_relacl,
-								   &isNull);
+											   Anum_pg_class_relacl,
+											   &isNull);
+
 		if (!isNull)
 		{
 			newAcl = aclnewowner(DatumGetAclP(aclDatum),
@@ -12392,12 +12547,14 @@ change_owner_fix_column_acls(Oid relationOid, Oid oldOwnerId, Oid newOwnerId)
 	HeapTuple	attributeTuple;
 
 	Relation	attRelation = table_open(AttributeRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&key[0],
 				Anum_pg_attribute_attrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relationOid));
 	SysScanDesc scan = systable_beginscan(attRelation, AttributeRelidNumIndexId,
-							  true, NULL, 1, key);
+										  true, NULL, 1, key);
+
 	while (HeapTupleIsValid(attributeTuple = systable_getnext(scan)))
 	{
 		Form_pg_attribute att = (Form_pg_attribute) GETSTRUCT(attributeTuple);
@@ -12411,9 +12568,10 @@ change_owner_fix_column_acls(Oid relationOid, Oid oldOwnerId, Oid newOwnerId)
 			continue;
 
 		Datum		aclDatum = heap_getattr(attributeTuple,
-								Anum_pg_attribute_attacl,
-								RelationGetDescr(attRelation),
-								&isNull);
+											Anum_pg_attribute_attacl,
+											RelationGetDescr(attRelation),
+											&isNull);
+
 		/* Null ACLs do not require changes */
 		if (isNull)
 			continue;
@@ -12422,13 +12580,14 @@ change_owner_fix_column_acls(Oid relationOid, Oid oldOwnerId, Oid newOwnerId)
 		memset(repl_repl, false, sizeof(repl_repl));
 
 		Acl		   *newAcl = aclnewowner(DatumGetAclP(aclDatum),
-							 oldOwnerId, newOwnerId);
+										 oldOwnerId, newOwnerId);
+
 		repl_repl[Anum_pg_attribute_attacl - 1] = true;
 		repl_val[Anum_pg_attribute_attacl - 1] = PointerGetDatum(newAcl);
 
 		HeapTuple	newtuple = heap_modify_tuple(attributeTuple,
-									 RelationGetDescr(attRelation),
-									 repl_val, repl_null, repl_repl);
+												 RelationGetDescr(attRelation),
+												 repl_val, repl_null, repl_repl);
 
 		CatalogTupleUpdate(attRelation, &newtuple->t_self, newtuple);
 
@@ -12468,7 +12627,7 @@ change_owner_recurse_to_sequences(Oid relationOid, Oid newOwnerId, LOCKMODE lock
 	/* we leave refobjsubid unspecified */
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -12563,6 +12722,7 @@ ATPrepSetTableSpace(AlteredTableInfo *tab, Relation rel, const char *tablespacen
 	{
 
 		AclResult	aclresult = pg_tablespace_aclcheck(tablespaceId, GetUserId(), ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_TABLESPACE, tablespacename);
 	}
@@ -12598,6 +12758,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 	/* Fetch heap tuple */
 	Oid			relid = RelationGetRelid(rel);
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
@@ -12619,8 +12780,8 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 
 	/* Generate new proposed reloptions (text array) */
 	Datum		newOptions = transformRelOptions(isnull ? (Datum) 0 : datum,
-									 defList, NULL, validnsps, false,
-									 operation == AT_ResetRelOptions);
+												 defList, NULL, validnsps, false,
+												 operation == AT_ResetRelOptions);
 
 	/* Validate */
 	switch (rel->rd_rel->relkind)
@@ -12697,7 +12858,7 @@ ATExecSetRelOptions(Relation rel, List *defList, AlterTableType operation,
 	repl_repl[Anum_pg_class_reloptions - 1] = true;
 
 	HeapTuple	newtuple = heap_modify_tuple(tuple, RelationGetDescr(pgclass),
-								 repl_val, repl_null, repl_repl);
+											 repl_val, repl_null, repl_repl);
 
 	CatalogTupleUpdate(pgclass, &newtuple->t_self, newtuple);
 
@@ -12791,6 +12952,7 @@ ATExecSetTableSpace(Oid tableOid, Oid newTableSpace, LOCKMODE lockmode)
 	 * No work if no change in tablespace.
 	 */
 	Oid			oldTableSpace = rel->rd_rel->reltablespace;
+
 	if (newTableSpace == oldTableSpace ||
 		(newTableSpace == MyDatabaseTableSpace && oldTableSpace == 0))
 	{
@@ -12827,6 +12989,7 @@ ATExecSetTableSpace(Oid tableOid, Oid newTableSpace, LOCKMODE lockmode)
 				 errmsg("cannot move temporary tables of other sessions")));
 
 	Oid			reltoastrelid = rel->rd_rel->reltoastrelid;
+
 	/* Fetch the list of indexes on toast relation if necessary */
 	if (OidIsValid(reltoastrelid))
 	{
@@ -12840,6 +13003,7 @@ ATExecSetTableSpace(Oid tableOid, Oid newTableSpace, LOCKMODE lockmode)
 	Relation	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(tableOid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", tableOid);
 	rd_rel = (Form_pg_class) GETSTRUCT(tuple);
@@ -12849,10 +13013,11 @@ ATExecSetTableSpace(Oid tableOid, Oid newTableSpace, LOCKMODE lockmode)
 	 * to allocate a new one in the new tablespace.
 	 */
 	Oid			newrelfilenode = GetNewRelFileNode(newTableSpace, NULL,
-									   rel->rd_rel->relpersistence);
+												   rel->rd_rel->relpersistence);
 
 	/* Open old and new relation */
 	RelFileNode newrnode = rel->rd_node;
+
 	newrnode.relNode = newrelfilenode;
 	newrnode.spcNode = newTableSpace;
 
@@ -12932,6 +13097,7 @@ ATExecSetTableSpaceNoStorage(Relation rel, Oid newTableSpace)
 	 * No work if no change in tablespace.
 	 */
 	Oid			oldTableSpace = rel->rd_rel->reltablespace;
+
 	if (newTableSpace == oldTableSpace ||
 		(newTableSpace == MyDatabaseTableSpace && oldTableSpace == 0))
 	{
@@ -12943,6 +13109,7 @@ ATExecSetTableSpaceNoStorage(Relation rel, Oid newTableSpace)
 	Relation	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(reloid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", reloid);
 	rd_rel = (Form_pg_class) GETSTRUCT(tuple);
@@ -13010,7 +13177,8 @@ AlterTableMoveAll(AlterTableMoveAllStmt *stmt)
 	{
 
 		AclResult	aclresult = pg_tablespace_aclcheck(new_tablespaceoid, GetUserId(),
-										   ACL_CREATE);
+													   ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_TABLESPACE,
 						   get_tablespace_name(new_tablespaceoid));
@@ -13041,6 +13209,7 @@ AlterTableMoveAll(AlterTableMoveAllStmt *stmt)
 
 	Relation	rel = table_open(RelationRelationId, AccessShareLock);
 	TableScanDesc scan = table_beginscan_catalog(rel, 1, key);
+
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Form_pg_class relForm = (Form_pg_class) GETSTRUCT(tuple);
@@ -13135,6 +13304,7 @@ index_copy_data(Relation rel, RelFileNode newrnode)
 {
 
 	SMgrRelation dstrel = smgropen(newrnode, rel->rd_backend);
+
 	RelationOpenSmgr(rel);
 
 	/*
@@ -13304,7 +13474,7 @@ ATExecAddInherit(Relation child_rel, RangeVar *parent, LOCKMODE lockmode)
 	 * We use weakest lock we can on child's children, namely AccessShareLock.
 	 */
 	List	   *children = find_all_inheritors(RelationGetRelid(child_rel),
-								   AccessShareLock, NULL);
+											   AccessShareLock, NULL);
 
 	if (list_member_oid(children, RelationGetRelid(parent_rel)))
 		ereport(ERROR,
@@ -13320,6 +13490,7 @@ ATExecAddInherit(Relation child_rel, RangeVar *parent, LOCKMODE lockmode)
 	 * prohibitions in ATExecAttachPartition() and CreateTrigger().
 	 */
 	const char *trigger_name = FindTriggerIncompatibleWithInheritance(child_rel->trigdesc);
+
 	if (trigger_name != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -13369,10 +13540,11 @@ CreateInheritance(Relation child_rel, Relation parent_rel)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(child_rel)));
 	SysScanDesc scan = systable_beginscan(catalogRelation, InheritsRelidSeqnoIndexId,
-							  true, NULL, 1, &key);
+										  true, NULL, 1, &key);
 
 	/* inhseqno sequences start at 1 */
 	int32		inhseqno = 0;
+
 	while (HeapTupleIsValid(inheritsTuple = systable_getnext(scan)))
 	{
 		Form_pg_inherits inh = (Form_pg_inherits) GETSTRUCT(inheritsTuple);
@@ -13419,11 +13591,13 @@ decompile_conbin(HeapTuple contup, TupleDesc tupdesc)
 
 	Form_pg_constraint con = (Form_pg_constraint) GETSTRUCT(contup);
 	Datum		attr = heap_getattr(contup, Anum_pg_constraint_conbin, tupdesc, &isnull);
+
 	if (isnull)
 		elog(ERROR, "null conbin for constraint %u", con->oid);
 
 	Datum		expr = DirectFunctionCall2(pg_get_expr, attr,
-							   ObjectIdGetDatum(con->conrelid));
+										   ObjectIdGetDatum(con->conrelid));
+
 	return TextDatumGetCString(expr);
 }
 
@@ -13591,7 +13765,7 @@ MergeConstraintsIntoExisting(Relation child_rel, Relation parent_rel)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(parent_rel)));
 	SysScanDesc parent_scan = systable_beginscan(catalog_relation, ConstraintRelidTypidNameIndexId,
-									 true, NULL, 1, &parent_key);
+												 true, NULL, 1, &parent_key);
 
 	while (HeapTupleIsValid(parent_tuple = systable_getnext(parent_scan)))
 	{
@@ -13613,7 +13787,7 @@ MergeConstraintsIntoExisting(Relation child_rel, Relation parent_rel)
 					BTEqualStrategyNumber, F_OIDEQ,
 					ObjectIdGetDatum(RelationGetRelid(child_rel)));
 		SysScanDesc child_scan = systable_beginscan(catalog_relation, ConstraintRelidTypidNameIndexId,
-										true, NULL, 1, &child_key);
+													true, NULL, 1, &child_key);
 
 		while (HeapTupleIsValid(child_tuple = systable_getnext(child_scan)))
 		{
@@ -13657,6 +13831,7 @@ MergeConstraintsIntoExisting(Relation child_rel, Relation parent_rel)
 			 * later on, this change will just roll back.)
 			 */
 			HeapTuple	child_copy = heap_copytuple(child_tuple);
+
 			child_con = (Form_pg_constraint) GETSTRUCT(child_copy);
 			child_con->coninhcount++;
 
@@ -13761,7 +13936,8 @@ RemoveInheritance(Relation child_rel, Relation parent_rel)
 		child_is_partition = true;
 
 	bool		found = DeleteInheritsTuple(RelationGetRelid(child_rel),
-								RelationGetRelid(parent_rel));
+											RelationGetRelid(parent_rel));
+
 	if (!found)
 	{
 		if (child_is_partition)
@@ -13782,12 +13958,14 @@ RemoveInheritance(Relation child_rel, Relation parent_rel)
 	 * Search through child columns looking for ones matching parent rel
 	 */
 	Relation	catalogRelation = table_open(AttributeRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&key[0],
 				Anum_pg_attribute_attrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(child_rel)));
 	SysScanDesc scan = systable_beginscan(catalogRelation, AttributeRelidNumIndexId,
-							  true, NULL, 1, key);
+										  true, NULL, 1, key);
+
 	while (HeapTupleIsValid(attributeTuple = systable_getnext(scan)))
 	{
 		Form_pg_attribute att = (Form_pg_attribute) GETSTRUCT(attributeTuple);
@@ -13859,6 +14037,7 @@ RemoveInheritance(Relation child_rel, Relation parent_rel)
 			continue;
 
 		bool		match = false;
+
 		foreach(lc, connames)
 		{
 			if (strcmp(NameStr(con->conname), (char *) lfirst(lc)) == 0)
@@ -13935,7 +14114,7 @@ drop_parent_dependency(Oid relid, Oid refclassid, Oid refobjid,
 				Int32GetDatum(0));
 
 	SysScanDesc scan = systable_beginscan(catalogRelation, DependDependerIndexId, true,
-							  NULL, 3, key);
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(depTuple = systable_getnext(scan)))
 	{
@@ -13978,6 +14157,7 @@ ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockmode)
 
 	/* Validate the type. */
 	Type		typetuple = typenameType(NULL, ofTypename, NULL);
+
 	check_of_type(typetuple);
 	Form_pg_type typeform = (Form_pg_type) GETSTRUCT(typetuple);
 	Oid			typeid = typeform->oid;
@@ -13989,7 +14169,8 @@ ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockmode)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 	SysScanDesc scan = systable_beginscan(inheritsRelation, InheritsRelidSeqnoIndexId,
-							  true, NULL, 1, &key);
+										  true, NULL, 1, &key);
+
 	if (HeapTupleIsValid(systable_getnext(scan)))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -14078,6 +14259,7 @@ ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockmode)
 	/* Update pg_class.reloftype */
 	relationRelation = table_open(RelationRelationId, RowExclusiveLock);
 	HeapTuple	classtuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(classtuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 	((Form_pg_class) GETSTRUCT(classtuple))->reloftype = typeid;
@@ -14121,6 +14303,7 @@ ATExecDropOf(Relation rel, LOCKMODE lockmode)
 	/* Clear pg_class.reloftype */
 	Relation	relationRelation = table_open(RelationRelationId, RowExclusiveLock);
 	HeapTuple	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 	((Form_pg_class) GETSTRUCT(tuple))->reloftype = InvalidOid;
@@ -14152,11 +14335,13 @@ relation_mark_replica_identity(Relation rel, char ri_type, Oid indexOid,
 	 */
 	Relation	pg_class = table_open(RelationRelationId, RowExclusiveLock);
 	HeapTuple	pg_class_tuple = SearchSysCacheCopy1(RELOID,
-										 ObjectIdGetDatum(RelationGetRelid(rel)));
+													 ObjectIdGetDatum(RelationGetRelid(rel)));
+
 	if (!HeapTupleIsValid(pg_class_tuple))
 		elog(ERROR, "cache lookup failed for relation \"%s\"",
 			 RelationGetRelationName(rel));
 	Form_pg_class pg_class_form = (Form_pg_class) GETSTRUCT(pg_class_tuple);
+
 	if (pg_class_form->relreplident != ri_type)
 	{
 		pg_class_form->relreplident = ri_type;
@@ -14191,6 +14376,7 @@ relation_mark_replica_identity(Relation rel, char ri_type, Oid indexOid,
 	 * and set it for any index that should have it now.
 	 */
 	Relation	pg_index = table_open(IndexRelationId, RowExclusiveLock);
+
 	foreach(index, RelationGetIndexList(rel))
 	{
 		Oid			thisIndexOid = lfirst_oid(index);
@@ -14262,6 +14448,7 @@ ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode
 
 	/* Check that the index exists */
 	Oid			indexOid = get_relname_relid(stmt->name, rel->rd_rel->relnamespace);
+
 	if (!OidIsValid(indexOid))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -14327,6 +14514,7 @@ ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode
 							RelationGetRelationName(indexRel), attno)));
 
 		Form_pg_attribute attr = TupleDescAttr(rel->rd_att, attno - 1);
+
 		if (!attr->attnotnull)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -14425,6 +14613,7 @@ ATExecGenericOptions(Relation rel, List *options)
 	Relation	ftrel = table_open(ForeignTableRelationId, RowExclusiveLock);
 
 	HeapTuple	tuple = SearchSysCacheCopy1(FOREIGNTABLEREL, rel->rd_id);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -14440,9 +14629,10 @@ ATExecGenericOptions(Relation rel, List *options)
 
 	/* Extract the current options */
 	Datum		datum = SysCacheGetAttr(FOREIGNTABLEREL,
-							tuple,
-							Anum_pg_foreign_table_ftoptions,
-							&isnull);
+										tuple,
+										Anum_pg_foreign_table_ftoptions,
+										&isnull);
+
 	if (isnull)
 		datum = PointerGetDatum(NULL);
 
@@ -14551,8 +14741,8 @@ ATPrepChangePersistence(Relation rel, bool toLogged)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(rel)));
 	SysScanDesc scan = systable_beginscan(pg_constraint,
-							  toLogged ? ConstraintRelidTypidNameIndexId : InvalidOid,
-							  true, NULL, 1, skey);
+										  toLogged ? ConstraintRelidTypidNameIndexId : InvalidOid,
+										  true, NULL, 1, skey);
 
 	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
 	{
@@ -14611,9 +14801,9 @@ AlterTableNamespace(AlterObjectSchemaStmt *stmt, Oid *oldschema)
 	ObjectAddress myself;
 
 	Oid			relid = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
-									 stmt->missing_ok ? RVR_MISSING_OK : 0,
-									 RangeVarCallbackForAlterRelation,
-									 (void *) stmt);
+												 stmt->missing_ok ? RVR_MISSING_OK : 0,
+												 RangeVarCallbackForAlterRelation,
+												 (void *) stmt);
 
 	if (!OidIsValid(relid))
 	{
@@ -14651,6 +14841,7 @@ AlterTableNamespace(AlterObjectSchemaStmt *stmt, Oid *oldschema)
 	CheckSetNamespace(oldNspOid, nspOid);
 
 	ObjectAddresses *objsMoved = new_object_addresses();
+
 	AlterTableNamespaceInternal(rel, oldNspOid, nspOid, objsMoved);
 	free_object_addresses(objsMoved);
 
@@ -14717,6 +14908,7 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 	ObjectAddress thisobj;
 
 	HeapTuple	classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relOid));
+
 	if (!HeapTupleIsValid(classTup))
 		elog(ERROR, "cache lookup failed for relation %u", relOid);
 	Form_pg_class classForm = (Form_pg_class) GETSTRUCT(classTup);
@@ -14733,6 +14925,7 @@ AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
 	 * access hook.
 	 */
 	bool		already_done = object_address_present(&thisobj, objsMoved);
+
 	if (!already_done && oldNspOid != newNspOid)
 	{
 		/* check for duplicate name (more friendly than unique-index failure) */
@@ -14844,7 +15037,7 @@ AlterSeqNamespaces(Relation classRel, Relation rel,
 	/* we leave refobjsubid unspecified */
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -14915,6 +15108,7 @@ register_on_commit_action(Oid relid, OnCommitAction action)
 	MemoryContext oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
 
 	OnCommitItem *oc = (OnCommitItem *) palloc(sizeof(OnCommitItem));
+
 	oc->relid = relid;
 	oc->oncommit = action;
 	oc->creating_subid = GetCurrentSubTransactionId();
@@ -15140,6 +15334,7 @@ RangeVarCallbackOwnsTable(const RangeVar *relation,
 	 * lookup and now.  In that case, there's nothing to do.
 	 */
 	char		relkind = get_rel_relkind(relId);
+
 	if (!relkind)
 		return;
 	if (relkind != RELKIND_RELATION && relkind != RELKIND_TOASTVALUE &&
@@ -15166,6 +15361,7 @@ RangeVarCallbackForTruncate(const RangeVar *relation,
 		return;
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relId));
+
 	if (!HeapTupleIsValid(tuple))	/* should not happen */
 		elog(ERROR, "cache lookup failed for relation %u", relId);
 
@@ -15189,6 +15385,7 @@ RangeVarCallbackOwnsRelation(const RangeVar *relation,
 		return;
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relId));
+
 	if (!HeapTupleIsValid(tuple))	/* should not happen */
 		elog(ERROR, "cache lookup failed for relation %u", relId);
 
@@ -15219,6 +15416,7 @@ RangeVarCallbackForAlterRelation(const RangeVar *rv, Oid relid, Oid oldrelid,
 	AclResult	aclresult;
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tuple))
 		return;					/* concurrently dropped */
 	Form_pg_class classform = (Form_pg_class) GETSTRUCT(tuple);
@@ -15371,7 +15569,8 @@ transformPartitionSpec(Relation rel, PartitionSpec *partspec, char *strategy)
 	 */
 	ParseState *pstate = make_parsestate(NULL);
 	ParseNamespaceItem *nsitem = addRangeTableEntryForRelation(pstate, rel, AccessShareLock,
-										   NULL, false, true);
+															   NULL, false, true);
+
 	addNSItemToQuery(pstate, nsitem, true, true, true);
 
 	/* take care of any partition expressions */
@@ -15411,6 +15610,7 @@ ComputePartitionAttrs(ParseState *pstate, Relation rel, List *partParams, AttrNu
 	Oid			am_oid;
 
 	int			attn = 0;
+
 	foreach(lc, partParams)
 	{
 		PartitionElem *pelem = castNode(PartitionElem, lfirst(lc));
@@ -15422,7 +15622,8 @@ ComputePartitionAttrs(ParseState *pstate, Relation rel, List *partParams, AttrNu
 			/* Simple attribute reference */
 
 			HeapTuple	atttuple = SearchSysCacheAttName(RelationGetRelid(rel),
-											 pelem->name);
+														 pelem->name);
+
 			if (!HeapTupleIsValid(atttuple))
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -15797,6 +15998,7 @@ QueuePartitionConstraintValidation(List **wqueue, Relation scanrel,
 
 		/* Grab a work queue entry. */
 		AlteredTableInfo *tab = ATGetQueueEntry(wqueue, scanrel);
+
 		Assert(tab->partition_constraint == NULL);
 		tab->partition_constraint = (Expr *) linitial(partConstraint);
 		tab->validate_default = validate_default;
@@ -15819,8 +16021,8 @@ QueuePartitionConstraintValidation(List **wqueue, Relation scanrel,
 			 * partition's attribute numbers.
 			 */
 			List	   *thisPartConstraint =
-				map_partition_varattnos(partConstraint, 1,
-										part_rel, scanrel);
+			map_partition_varattnos(partConstraint, 1,
+									part_rel, scanrel);
 
 			QueuePartitionConstraintValidation(wqueue, part_rel,
 											   thisPartConstraint,
@@ -15853,7 +16055,8 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 	 * new partition will change its partition constraint.
 	 */
 	Oid			defaultPartOid =
-		get_default_oid_from_partdesc(RelationGetPartitionDesc(rel));
+	get_default_oid_from_partdesc(RelationGetPartitionDesc(rel));
+
 	if (OidIsValid(defaultPartOid))
 		LockRelationOid(defaultPartOid, AccessExclusiveLock);
 
@@ -15892,7 +16095,8 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(attachrel)));
 	SysScanDesc scan = systable_beginscan(catalog, InheritsRelidSeqnoIndexId, true,
-							  NULL, 1, &skey);
+										  NULL, 1, &skey);
+
 	if (HeapTupleIsValid(systable_getnext(scan)))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -15930,7 +16134,8 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 	 * weaker lock now and the stronger one only when needed.
 	 */
 	List	   *attachrel_children = find_all_inheritors(RelationGetRelid(attachrel),
-											 AccessExclusiveLock, NULL);
+														 AccessExclusiveLock, NULL);
+
 	if (list_member_oid(attachrel_children, RelationGetRelid(rel)))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_TABLE),
@@ -15972,6 +16177,7 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 	/* Check if there are any columns in attachrel that aren't in the parent */
 	TupleDesc	tupleDesc = RelationGetDescr(attachrel);
 	int			natts = tupleDesc->natts;
+
 	for (attno = 1; attno <= natts; attno++)
 	{
 		Form_pg_attribute attribute = TupleDescAttr(tupleDesc, attno - 1);
@@ -15999,6 +16205,7 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 	 * in ATExecAddInherit() and CreateTrigger().
 	 */
 	const char *trigger_name = FindTriggerIncompatibleWithInheritance(attachrel->trigdesc);
+
 	if (trigger_name != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -16039,7 +16246,7 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 	 */
 	List	   *partBoundConstraint = get_qual_from_partbound(attachrel, rel, cmd->bound);
 	List	   *partConstraint = list_concat(partBoundConstraint,
-								 RelationGetPartitionQual(rel));
+											 RelationGetPartitionQual(rel));
 
 	/* Skip validation if there are no constraints to validate. */
 	if (partConstraint)
@@ -16083,7 +16290,7 @@ ATExecAttachPartition(List **wqueue, Relation rel, PartitionCmd *cmd,
 		/* we already hold a lock on the default partition */
 		Relation	defaultrel = table_open(defaultPartOid, NoLock);
 		List	   *defPartConstraint =
-			get_proposed_default_constraint(partBoundConstraint);
+		get_proposed_default_constraint(partBoundConstraint);
 
 		/*
 		 * Map the Vars in the constraint expression from rel's attnos to
@@ -16121,8 +16328,8 @@ AttachPartitionEnsureIndexes(Relation rel, Relation attachrel)
 	ListCell   *cell;
 
 	MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
-								"AttachPartitionEnsureIndexes",
-								ALLOCSET_DEFAULT_SIZES);
+											  "AttachPartitionEnsureIndexes",
+											  ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(cxt);
 
 	List	   *idxes = RelationGetIndexList(rel);
@@ -16132,6 +16339,7 @@ AttachPartitionEnsureIndexes(Relation rel, Relation attachrel)
 
 	/* Build arrays of all existing indexes and their IndexInfos */
 	int			i = 0;
+
 	foreach(cell, attachRelIdxs)
 	{
 		Oid			cldIdxId = lfirst_oid(cell);
@@ -16192,7 +16400,7 @@ AttachPartitionEnsureIndexes(Relation rel, Relation attachrel)
 		/* construct an indexinfo to compare existing indexes against */
 		IndexInfo  *info = BuildIndexInfo(idxRel);
 		AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(attachrel),
-									   RelationGetDescr(rel));
+												   RelationGetDescr(rel));
 		Oid			constraintOid = get_relation_idx_constraint_oid(RelationGetRelid(rel), idx);
 
 		/*
@@ -16253,8 +16461,9 @@ AttachPartitionEnsureIndexes(Relation rel, Relation attachrel)
 			Oid			constraintOid;
 
 			IndexStmt  *stmt = generateClonedIndexStmt(NULL,
-										   idxRel, attmap,
-										   &constraintOid);
+													   idxRel, attmap,
+													   &constraintOid);
+
 			DefineIndex(RelationGetRelid(attachrel), stmt, InvalidOid,
 						RelationGetRelid(idxRel),
 						constraintOid,
@@ -16287,10 +16496,10 @@ CloneRowTriggersToPartition(Relation parent, Relation partition)
 				F_OIDEQ, ObjectIdGetDatum(RelationGetRelid(parent)));
 	Relation	pg_trigger = table_open(TriggerRelationId, RowExclusiveLock);
 	SysScanDesc scan = systable_beginscan(pg_trigger, TriggerRelidNameIndexId,
-							  true, NULL, 1, &key);
+										  true, NULL, 1, &key);
 
 	MemoryContext perTupCxt = AllocSetContextCreate(CurrentMemoryContext,
-									  "clone trig", ALLOCSET_SMALL_SIZES);
+													"clone trig", ALLOCSET_SMALL_SIZES);
 
 	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
 	{
@@ -16338,7 +16547,8 @@ CloneRowTriggersToPartition(Relation parent, Relation partition)
 		 * appropriate for the partition.
 		 */
 		Datum		value = heap_getattr(tuple, Anum_pg_trigger_tgqual,
-							 RelationGetDescr(pg_trigger), &isnull);
+										 RelationGetDescr(pg_trigger), &isnull);
+
 		if (!isnull)
 		{
 			qual = stringToNode(TextDatumGetCString(value));
@@ -16360,7 +16570,8 @@ CloneRowTriggersToPartition(Relation parent, Relation partition)
 			{
 
 				Form_pg_attribute col = TupleDescAttr(parent->rd_att,
-									trigForm->tgattr.values[i] - 1);
+													  trigForm->tgattr.values[i] - 1);
+
 				cols = lappend(cols,
 							   makeString(pstrdup(NameStr(col->attname))));
 			}
@@ -16386,6 +16597,7 @@ CloneRowTriggersToPartition(Relation parent, Relation partition)
 		}
 
 		CreateTrigStmt *trigStmt = makeNode(CreateTrigStmt);
+
 		trigStmt->replace = false;
 		trigStmt->isconstraint = OidIsValid(trigForm->tgconstraint);
 		trigStmt->trigname = NameStr(trigForm->tgname);
@@ -16440,7 +16652,8 @@ ATExecDetachPartition(Relation rel, RangeVar *name)
 	 * will change its partition constraint.
 	 */
 	Oid			defaultPartOid =
-		get_default_oid_from_partdesc(RelationGetPartitionDesc(rel));
+	get_default_oid_from_partdesc(RelationGetPartitionDesc(rel));
+
 	if (OidIsValid(defaultPartOid))
 		LockRelationOid(defaultPartOid, AccessExclusiveLock);
 
@@ -16493,6 +16706,7 @@ ATExecDetachPartition(Relation rel, RangeVar *name)
 
 	/* detach indexes too */
 	List	   *indexes = RelationGetIndexList(partRel);
+
 	foreach(cell, indexes)
 	{
 		Oid			idxid = lfirst_oid(cell);
@@ -16504,11 +16718,13 @@ ATExecDetachPartition(Relation rel, RangeVar *name)
 				RelationGetRelid(rel)));
 
 		Relation	idx = index_open(idxid, AccessExclusiveLock);
+
 		IndexSetParentIndex(idx, InvalidOid);
 
 		/* If there's a constraint associated with the index, detach it too */
 		Oid			constrOid = get_relation_idx_constraint_oid(RelationGetRelid(partRel),
-													idxid);
+																idxid);
+
 		if (OidIsValid(constrOid))
 			ConstraintSetParentConstraint(constrOid, InvalidOid, InvalidOid);
 
@@ -16524,11 +16740,13 @@ ATExecDetachPartition(Relation rel, RangeVar *name)
 	 * additional action triggers.
 	 */
 	List	   *fks = copyObject(RelationGetFKeyList(partRel));
+
 	foreach(cell, fks)
 	{
 		ForeignKeyCacheInfo *fk = lfirst(cell);
 
 		HeapTuple	contup = SearchSysCache1(CONSTROID, ObjectIdGetDatum(fk->conoid));
+
 		if (!HeapTupleIsValid(contup))
 			elog(ERROR, "cache lookup failed for constraint %u", fk->conoid);
 		Form_pg_constraint conform = (Form_pg_constraint) GETSTRUCT(contup);
@@ -16550,6 +16768,7 @@ ATExecDetachPartition(Relation rel, RangeVar *name)
 		 * still do), but now we need separate ones of our own.
 		 */
 		Constraint *fkconstraint = makeNode(Constraint);
+
 		fkconstraint->conname = pstrdup(NameStr(conform->conname));
 		fkconstraint->fk_upd_action = conform->confupdtype;
 		fkconstraint->fk_del_action = conform->confdeltype;
@@ -16621,7 +16840,8 @@ DropClonedTriggersFromPartition(Oid partitionId)
 				F_OIDEQ, ObjectIdGetDatum(partitionId));
 	Relation	tgrel = table_open(TriggerRelationId, RowExclusiveLock);
 	SysScanDesc scan = systable_beginscan(tgrel, TriggerRelidNameIndexId,
-							  true, NULL, 1, &skey);
+										  true, NULL, 1, &skey);
+
 	while (HeapTupleIsValid(trigtup = systable_getnext(scan)))
 	{
 		Form_pg_trigger pg_trigger = (Form_pg_trigger) GETSTRUCT(trigtup);
@@ -16698,9 +16918,11 @@ RangeVarCallbackForAttachIndex(const RangeVar *rv, Oid relOid, Oid oldRelOid,
 		return;
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
+
 	if (!HeapTupleIsValid(tuple))
 		return;					/* concurrently dropped, so nothing to do */
 	Form_pg_class classform = (Form_pg_class) GETSTRUCT(tuple);
+
 	if (classform->relkind != RELKIND_PARTITIONED_INDEX &&
 		classform->relkind != RELKIND_INDEX)
 		ereport(ERROR,
@@ -16736,9 +16958,10 @@ ATExecAttachPartitionIdx(List **wqueue, Relation parentIdx, RangeVar *name)
 	state.parentTblOid = parentIdx->rd_index->indrelid;
 	state.lockedParentTbl = false;
 	Oid			partIdxId =
-		RangeVarGetRelidExtended(name, AccessExclusiveLock, 0,
-								 RangeVarCallbackForAttachIndex,
-								 (void *) &state);
+	RangeVarGetRelidExtended(name, AccessExclusiveLock, 0,
+							 RangeVarCallbackForAttachIndex,
+							 (void *) &state);
+
 	/* Not there? */
 	if (!OidIsValid(partIdxId))
 		ereport(ERROR,
@@ -16756,7 +16979,8 @@ ATExecAttachPartitionIdx(List **wqueue, Relation parentIdx, RangeVar *name)
 
 	/* Silently do nothing if already in the right state */
 	Oid			currParent = partIdx->rd_rel->relispartition ?
-		get_partition_parent(partIdxId) : InvalidOid;
+	get_partition_parent(partIdxId) : InvalidOid;
+
 	if (currParent != RelationGetRelid(parentIdx))
 	{
 		int			i;
@@ -16781,6 +17005,7 @@ ATExecAttachPartitionIdx(List **wqueue, Relation parentIdx, RangeVar *name)
 		/* Make sure it indexes a partition of the other index's table */
 		PartitionDesc partDesc = RelationGetPartitionDesc(parentTbl);
 		bool		found = false;
+
 		for (i = 0; i < partDesc->nparts; i++)
 		{
 			if (partDesc->oids[i] == state.partitionOid)
@@ -16803,7 +17028,8 @@ ATExecAttachPartitionIdx(List **wqueue, Relation parentIdx, RangeVar *name)
 		IndexInfo  *childInfo = BuildIndexInfo(partIdx);
 		IndexInfo  *parentInfo = BuildIndexInfo(parentIdx);
 		AttrMap    *attmap = build_attrmap_by_name(RelationGetDescr(partTbl),
-									   RelationGetDescr(parentTbl));
+												   RelationGetDescr(parentTbl));
+
 		if (!CompareIndexInfo(childInfo, parentInfo,
 							  partIdx->rd_indcollation,
 							  parentIdx->rd_indcollation,
@@ -16868,7 +17094,8 @@ refuseDupeIndexAttach(Relation parentIdx, Relation partIdx, Relation partitionTb
 {
 
 	Oid			existingIdx = index_get_partition(partitionTbl,
-									  RelationGetRelid(parentIdx));
+												  RelationGetRelid(parentIdx));
+
 	if (OidIsValid(existingIdx))
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -16901,20 +17128,24 @@ validatePartitionedIndex(Relation partedIdx, Relation partedTbl)
 	 * amount we expect, we can mark this parent index as valid.
 	 */
 	Relation	inheritsRel = table_open(InheritsRelationId, AccessShareLock);
+
 	ScanKeyInit(&key, Anum_pg_inherits_inhparent,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(partedIdx)));
 	SysScanDesc scan = systable_beginscan(inheritsRel, InheritsParentIndexId, true,
-							  NULL, 1, &key);
+										  NULL, 1, &key);
+
 	while ((inhTup = systable_getnext(scan)) != NULL)
 	{
 		Form_pg_inherits inhForm = (Form_pg_inherits) GETSTRUCT(inhTup);
 
 		HeapTuple	indTup = SearchSysCache1(INDEXRELID,
-								 ObjectIdGetDatum(inhForm->inhrelid));
+											 ObjectIdGetDatum(inhForm->inhrelid));
+
 		if (!HeapTupleIsValid(indTup))
 			elog(ERROR, "cache lookup failed for index %u", inhForm->inhrelid);
 		Form_pg_index indexForm = (Form_pg_index) GETSTRUCT(indTup);
+
 		if (indexForm->indisvalid)
 			tuples += 1;
 		ReleaseSysCache(indTup);
@@ -16934,6 +17165,7 @@ validatePartitionedIndex(Relation partedIdx, Relation partedTbl)
 		Relation	idxRel = table_open(IndexRelationId, RowExclusiveLock);
 
 		HeapTuple	newtup = heap_copytuple(partedIdx->rd_indextuple);
+
 		((Form_pg_index) GETSTRUCT(newtup))->indisvalid = true;
 		updated = true;
 
@@ -16991,6 +17223,7 @@ GetParentedForeignKeyRefs(Relation partition)
 
 	/* Search for constraints referencing this table */
 	Relation	pg_constraint = table_open(ConstraintRelationId, AccessShareLock);
+
 	ScanKeyInit(&key[0],
 				Anum_pg_constraint_confrelid, BTEqualStrategyNumber,
 				F_OIDEQ, ObjectIdGetDatum(RelationGetRelid(partition)));
@@ -17000,6 +17233,7 @@ GetParentedForeignKeyRefs(Relation partition)
 
 	/* XXX This is a seqscan, as we don't have a usable index */
 	SysScanDesc scan = systable_beginscan(pg_constraint, InvalidOid, true, NULL, 2, key);
+
 	while ((tuple = systable_getnext(scan)) != NULL)
 	{
 		Form_pg_constraint constrForm = (Form_pg_constraint) GETSTRUCT(tuple);
@@ -17037,6 +17271,7 @@ ATDetachCheckNoForeignKeyRefs(Relation partition)
 		Trigger		trig;
 
 		HeapTuple	tuple = SearchSysCache1(CONSTROID, ObjectIdGetDatum(constrOid));
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for constraint %u", constrOid);
 		Form_pg_constraint constrForm = (Form_pg_constraint) GETSTRUCT(tuple);

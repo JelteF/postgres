@@ -67,6 +67,7 @@ EventCacheLookup(EventTriggerEvent event)
 	if (EventTriggerCacheState != ETCS_VALID)
 		BuildEventTriggerCache();
 	EventTriggerCacheEntry *entry = hash_search(EventTriggerCache, &event, HASH_FIND, NULL);
+
 	return entry != NULL ? entry->triggerlist : NIL;
 }
 
@@ -117,7 +118,7 @@ BuildEventTriggerCache(void)
 	ctl.entrysize = sizeof(EventTriggerCacheEntry);
 	ctl.hcxt = EventTriggerCacheContext;
 	HTAB	   *cache = hash_create("Event Trigger Cache", 32, &ctl,
-						HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+									HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/*
 	 * Prepare to scan pg_event_trigger in name order.
@@ -138,16 +139,19 @@ BuildEventTriggerCache(void)
 
 		/* Get next tuple. */
 		HeapTuple	tup = systable_getnext_ordered(scan, ForwardScanDirection);
+
 		if (!HeapTupleIsValid(tup))
 			break;
 
 		/* Skip trigger if disabled. */
 		Form_pg_event_trigger form = (Form_pg_event_trigger) GETSTRUCT(tup);
+
 		if (form->evtenabled == TRIGGER_DISABLED)
 			continue;
 
 		/* Decode event name. */
 		char	   *evtevent = NameStr(form->evtevent);
+
 		if (strcmp(evtevent, "ddl_command_start") == 0)
 			event = EVT_DDLCommandStart;
 		else if (strcmp(evtevent, "ddl_command_end") == 0)
@@ -161,17 +165,20 @@ BuildEventTriggerCache(void)
 
 		/* Allocate new cache item. */
 		EventTriggerCacheItem *item = palloc0(sizeof(EventTriggerCacheItem));
+
 		item->fnoid = form->evtfoid;
 		item->enabled = form->evtenabled;
 
 		/* Decode and sort tags array. */
 		Datum		evttags = heap_getattr(tup, Anum_pg_event_trigger_evttags,
-							   RelationGetDescr(rel), &evttags_isnull);
+										   RelationGetDescr(rel), &evttags_isnull);
+
 		if (!evttags_isnull)
 			item->tagset = DecodeTextArrayToBitmapset(evttags);
 
 		/* Add to cache entry. */
 		EventTriggerCacheEntry *entry = hash_search(cache, &event, HASH_ENTER, &found);
+
 		if (found)
 			entry->triggerlist = lappend(entry->triggerlist, item);
 		else

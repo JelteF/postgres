@@ -82,8 +82,8 @@ init_MultiFuncCall(PG_FUNCTION_ARGS)
 		 * Create a suitably long-lived context to hold cross-call data
 		 */
 		MemoryContext multi_call_ctx = AllocSetContextCreate(fcinfo->flinfo->fn_mcxt,
-											   "SRF multi-call context",
-											   ALLOCSET_SMALL_SIZES);
+															 "SRF multi-call context",
+															 ALLOCSET_SMALL_SIZES);
 
 		/*
 		 * Allocate suitably long-lived space and zero it
@@ -245,6 +245,7 @@ get_expr_result_type(Node *expr,
 				   *lcn;
 
 		TupleDesc	tupdesc = CreateTemplateTupleDesc(list_length(rexpr->args));
+
 		Assert(list_length(rexpr->args) == list_length(rexpr->colnames));
 		forboth(lcc, rexpr->args, lcn, rexpr->colnames)
 		{
@@ -324,6 +325,7 @@ internal_get_result_type(Oid funcid,
 
 	/* First fetch the function's pg_proc row to inspect its rettype */
 	HeapTuple	tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+
 	if (!HeapTupleIsValid(tp))
 		elog(ERROR, "cache lookup failed for function %u", funcid);
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(tp);
@@ -332,6 +334,7 @@ internal_get_result_type(Oid funcid,
 
 	/* Check for OUT parameters defining a RECORD result */
 	TupleDesc	tupdesc = build_function_result_tupdesc_t(tp);
+
 	if (tupdesc)
 	{
 		/*
@@ -842,6 +845,7 @@ resolve_polymorphic_argtypes(int numargs, Oid *argtypes, char *argmodes,
 	memset(&poly_actuals, 0, sizeof(poly_actuals));
 	memset(&anyc_actuals, 0, sizeof(anyc_actuals));
 	int			inargno = 0;
+
 	for (i = 0; i < numargs; i++)
 	{
 		char		argmode = argmodes ? argmodes[i] : PROARGMODE_IN;
@@ -1096,8 +1100,9 @@ get_func_arg_info(HeapTuple procTup,
 
 	/* First discover the total number of parameters and get their types */
 	Datum		proallargtypes = SysCacheGetAttr(PROCOID, procTup,
-									 Anum_pg_proc_proallargtypes,
-									 &isNull);
+												 Anum_pg_proc_proallargtypes,
+												 &isNull);
+
 	if (!isNull)
 	{
 		/*
@@ -1130,8 +1135,9 @@ get_func_arg_info(HeapTuple procTup,
 
 	/* Get argument names, if available */
 	Datum		proargnames = SysCacheGetAttr(PROCOID, procTup,
-								  Anum_pg_proc_proargnames,
-								  &isNull);
+											  Anum_pg_proc_proargnames,
+											  &isNull);
+
 	if (isNull)
 		*p_argnames = NULL;
 	else
@@ -1148,8 +1154,9 @@ get_func_arg_info(HeapTuple procTup,
 
 	/* Get argument modes, if available */
 	Datum		proargmodes = SysCacheGetAttr(PROCOID, procTup,
-								  Anum_pg_proc_proargmodes,
-								  &isNull);
+											  Anum_pg_proc_proargmodes,
+											  &isNull);
+
 	if (isNull)
 		*p_argmodes = NULL;
 	else
@@ -1183,8 +1190,9 @@ get_func_trftypes(HeapTuple procTup,
 	bool		isNull;
 
 	Datum		protrftypes = SysCacheGetAttr(PROCOID, procTup,
-								  Anum_pg_proc_protrftypes,
-								  &isNull);
+											  Anum_pg_proc_protrftypes,
+											  &isNull);
+
 	if (!isNull)
 	{
 		/*
@@ -1244,6 +1252,7 @@ get_func_input_arg_names(char prokind,
 	 * array data is just going to look like a C array of values.
 	 */
 	ArrayType  *arr = DatumGetArrayTypeP(proargnames);	/* ensure not toasted */
+
 	if (ARR_NDIM(arr) != 1 ||
 		ARR_HASNULL(arr) ||
 		ARR_ELEMTYPE(arr) != TEXTOID)
@@ -1274,6 +1283,7 @@ get_func_input_arg_names(char prokind,
 	/* extract input-argument names */
 	char	  **inargnames = (char **) palloc(numargs * sizeof(char *));
 	int			numinargs = 0;
+
 	for (i = 0; i < numargs; i++)
 	{
 		if (argmodes == NULL ||
@@ -1323,6 +1333,7 @@ get_func_result_name(Oid functionId)
 
 	/* First fetch the function's pg_proc row */
 	HeapTuple	procTuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(functionId));
+
 	if (!HeapTupleIsValid(procTuple))
 		elog(ERROR, "cache lookup failed for function %u", functionId);
 
@@ -1426,16 +1437,19 @@ build_function_result_tupdesc_t(HeapTuple procTuple)
 
 	/* Get the data out of the tuple */
 	Datum		proallargtypes = SysCacheGetAttr(PROCOID, procTuple,
-									 Anum_pg_proc_proallargtypes,
-									 &isnull);
+												 Anum_pg_proc_proallargtypes,
+												 &isnull);
+
 	Assert(!isnull);
 	Datum		proargmodes = SysCacheGetAttr(PROCOID, procTuple,
-								  Anum_pg_proc_proargmodes,
-								  &isnull);
+											  Anum_pg_proc_proargmodes,
+											  &isnull);
+
 	Assert(!isnull);
 	Datum		proargnames = SysCacheGetAttr(PROCOID, procTuple,
-								  Anum_pg_proc_proargnames,
-								  &isnull);
+											  Anum_pg_proc_proargnames,
+											  &isnull);
+
 	if (isnull)
 		proargnames = PointerGetDatum(NULL);	/* just to be sure */
 
@@ -1478,12 +1492,14 @@ build_function_result_tupdesc_d(char prokind,
 	 */
 	ArrayType  *arr = DatumGetArrayTypeP(proallargtypes);	/* ensure not toasted */
 	int			numargs = ARR_DIMS(arr)[0];
+
 	if (ARR_NDIM(arr) != 1 ||
 		numargs < 0 ||
 		ARR_HASNULL(arr) ||
 		ARR_ELEMTYPE(arr) != OIDOID)
 		elog(ERROR, "proallargtypes is not a 1-D Oid array or it contains nulls");
 	Oid		   *argtypes = (Oid *) ARR_DATA_PTR(arr);
+
 	arr = DatumGetArrayTypeP(proargmodes);	/* ensure not toasted */
 	if (ARR_NDIM(arr) != 1 ||
 		ARR_DIMS(arr)[0] != numargs ||
@@ -1492,6 +1508,7 @@ build_function_result_tupdesc_d(char prokind,
 		elog(ERROR, "proargmodes is not a 1-D char array of length %d or it contains nulls",
 			 numargs);
 	char	   *argmodes = (char *) ARR_DATA_PTR(arr);
+
 	if (proargnames != PointerGetDatum(NULL))
 	{
 		arr = DatumGetArrayTypeP(proargnames);	/* ensure not toasted */
@@ -1514,6 +1531,7 @@ build_function_result_tupdesc_d(char prokind,
 	Oid		   *outargtypes = (Oid *) palloc(numargs * sizeof(Oid));
 	char	  **outargnames = (char **) palloc(numargs * sizeof(char *));
 	int			numoutargs = 0;
+
 	for (i = 0; i < numargs; i++)
 	{
 		char	   *pname;
@@ -1546,6 +1564,7 @@ build_function_result_tupdesc_d(char prokind,
 		return NULL;
 
 	TupleDesc	desc = CreateTemplateTupleDesc(numoutargs);
+
 	for (i = 0; i < numoutargs; i++)
 	{
 		TupleDescInitEntry(desc, i + 1,
@@ -1577,6 +1596,7 @@ RelationNameGetTupleDesc(const char *relname)
 	RangeVar   *relvar = makeRangeVarFromNameList(relname_list);
 	Relation	rel = relation_openrv(relvar, AccessShareLock);
 	TupleDesc	tupdesc = CreateTupleDescCopy(RelationGetDescr(rel));
+
 	relation_close(rel, AccessShareLock);
 
 	return tupdesc;

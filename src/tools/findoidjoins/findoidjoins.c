@@ -38,6 +38,7 @@ main(int argc, char **argv)
 	appendPQExpBuffer(&sql, "dbname=%s", argv[1]);
 
 	PGconn	   *conn = PQconnectdb(sql.data);
+
 	if (PQstatus(conn) == CONNECTION_BAD)
 	{
 		fprintf(stderr, "connection error:  %s\n", PQerrorMessage(conn));
@@ -45,6 +46,7 @@ main(int argc, char **argv)
 	}
 
 	PGresult   *res = PQexec(conn, ALWAYS_SECURE_SEARCH_PATH_SQL);
+
 	if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		fprintf(stderr, "sql error:  %s\n", PQerrorMessage(conn));

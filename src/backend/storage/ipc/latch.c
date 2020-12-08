@@ -468,6 +468,7 @@ WaitLatchOrSocket(Latch *latch, int wakeEvents, pgsocket sock,
 	{
 
 		int			ev = wakeEvents & WL_SOCKET_MASK;
+
 		AddWaitEventToSet(set, ev, sock, NULL, NULL);
 	}
 
@@ -836,6 +837,7 @@ AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd, Latch *latch,
 		elog(ERROR, "cannot wait on socket event without a socket");
 
 	WaitEvent  *event = &set->events[set->nevents];
+
 	event->pos = set->nevents++;
 	event->fd = fd;
 	event->events = events;
@@ -924,6 +926,7 @@ ModifyWaitEvent(WaitEventSet *set, int pos, uint32 events, Latch *latch)
 		if (latch && latch->owner_pid != MyProcPid)
 			elog(ERROR, "cannot wait on a latch owned by another process");
 		set->latch = latch;
+
 		/*
 		 * On Unix, we don't need to modify the kernel object because the
 		 * underlying pipe is the same for all latches so we can return
@@ -1302,7 +1305,7 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
 		 * to retry, everything >= 1 is the number of returned events.
 		 */
 		int			rc = WaitEventSetWaitBlock(set, cur_timeout,
-								   occurred_events, nevents);
+											   occurred_events, nevents);
 
 		if (rc == -1)
 			break;				/* timeout occurred */
@@ -1349,7 +1352,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
 	/* Sleep */
 	int			rc = epoll_wait(set->epoll_fd, set->epoll_ret_events,
-					nevents, cur_timeout);
+								nevents, cur_timeout);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1500,8 +1503,8 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 
 	/* Sleep */
 	int			rc = kevent(set->kqueue_fd, NULL, 0,
-				set->kqueue_ret_events, nevents,
-				timeout_p);
+							set->kqueue_ret_events, nevents,
+							timeout_p);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1560,9 +1563,9 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 				 (cur_kqueue_event->fflags & NOTE_EXIT) != 0)
 		{
 			/*
-			 * The kernel will tell this kqueue object only once about the exit
-			 * of the postmaster, so let's remember that for next time so that
-			 * we provide level-triggered semantics.
+			 * The kernel will tell this kqueue object only once about the
+			 * exit of the postmaster, so let's remember that for next time so
+			 * that we provide level-triggered semantics.
 			 */
 			set->report_postmaster_not_running = true;
 
@@ -1776,6 +1779,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 			buf.len = 0;
 
 			int			r = WSASend(cur_event->fd, &buf, 1, &sent, 0, NULL, NULL);
+
 			if (r == 0 || WSAGetLastError() != WSAEWOULDBLOCK)
 			{
 				occurred_events->pos = cur_event->pos;
@@ -1793,7 +1797,7 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 	 * Need to wait for ->nevents + 1, because signal handle is in [0].
 	 */
 	DWORD		rc = WaitForMultipleObjects(set->nevents + 1, set->handles, FALSE,
-								cur_timeout);
+											cur_timeout);
 
 	/* Check return code */
 	if (rc == WAIT_FAILED)

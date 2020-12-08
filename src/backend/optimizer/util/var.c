@@ -191,7 +191,8 @@ pull_varnos_walker(Node *node, pull_varnos_context *context)
 
 		context->sublevels_up++;
 		bool		result = query_tree_walker((Query *) node, pull_varnos_walker,
-								   (void *) context, 0);
+											   (void *) context, 0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -306,7 +307,8 @@ pull_vars_walker(Node *node, pull_vars_context *context)
 
 		context->sublevels_up++;
 		bool		result = query_tree_walker((Query *) node, pull_vars_walker,
-								   (void *) context, 0);
+											   (void *) context, 0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -403,9 +405,10 @@ contain_vars_of_level_walker(Node *node, int *sublevels_up)
 
 		(*sublevels_up)++;
 		bool		result = query_tree_walker((Query *) node,
-								   contain_vars_of_level_walker,
-								   (void *) sublevels_up,
-								   0);
+											   contain_vars_of_level_walker,
+											   (void *) sublevels_up,
+											   0);
+
 		(*sublevels_up)--;
 		return result;
 	}
@@ -476,9 +479,10 @@ locate_var_of_level_walker(Node *node,
 
 		context->sublevels_up++;
 		bool		result = query_tree_walker((Query *) node,
-								   locate_var_of_level_walker,
-								   (void *) context,
-								   0);
+											   locate_var_of_level_walker,
+											   (void *) context,
+											   0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -692,6 +696,7 @@ flatten_join_alias_vars_mutator(Node *node,
 		if (var->varlevelsup != context->sublevels_up)
 			return node;		/* no need to copy, really */
 		RangeTblEntry *rte = rt_fetch(var->varno, context->query->rtable);
+
 		if (rte->rtekind != RTE_JOIN)
 			return node;
 		if (var->varattno == InvalidAttrNumber)
@@ -703,6 +708,7 @@ flatten_join_alias_vars_mutator(Node *node,
 			ListCell   *ln;
 
 			AttrNumber	attnum = 0;
+
 			Assert(list_length(rte->joinaliasvars) == list_length(rte->eref->colnames));
 			forboth(lv, rte->joinaliasvars, ln, rte->eref->colnames)
 			{
@@ -730,6 +736,7 @@ flatten_join_alias_vars_mutator(Node *node,
 				colnames = lappend(colnames, copyObject((Node *) lfirst(ln)));
 			}
 			RowExpr    *rowexpr = makeNode(RowExpr);
+
 			rowexpr->args = fields;
 			rowexpr->row_typeid = var->vartype;
 			rowexpr->row_format = COERCE_IMPLICIT_CAST;
@@ -770,8 +777,9 @@ flatten_join_alias_vars_mutator(Node *node,
 		/* Copy the PlaceHolderVar node with correct mutation of subnodes */
 
 		PlaceHolderVar *phv = (PlaceHolderVar *) expression_tree_mutator(node,
-														 flatten_join_alias_vars_mutator,
-														 (void *) context);
+																		 flatten_join_alias_vars_mutator,
+																		 (void *) context);
+
 		/* now fix PlaceHolderVar's relid sets */
 		if (phv->phlevelsup == context->sublevels_up)
 		{
@@ -787,11 +795,13 @@ flatten_join_alias_vars_mutator(Node *node,
 
 		context->sublevels_up++;
 		bool		save_inserted_sublink = context->inserted_sublink;
+
 		context->inserted_sublink = ((Query *) node)->hasSubLinks;
 		Query	   *newnode = query_tree_mutator((Query *) node,
-									 flatten_join_alias_vars_mutator,
-									 (void *) context,
-									 QTW_IGNORE_JOINALIASES);
+												 flatten_join_alias_vars_mutator,
+												 (void *) context,
+												 QTW_IGNORE_JOINALIASES);
+
 		newnode->hasSubLinks |= context->inserted_sublink;
 		context->inserted_sublink = save_inserted_sublink;
 		context->sublevels_up--;
@@ -818,6 +828,7 @@ alias_relid_set(Query *query, Relids relids)
 	Relids		result = NULL;
 
 	int			rtindex = -1;
+
 	while ((rtindex = bms_next_member(relids, rtindex)) >= 0)
 	{
 		RangeTblEntry *rte = rt_fetch(rtindex, query->rtable);

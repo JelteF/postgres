@@ -93,8 +93,8 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 	ListCell   *lc;
 
 	MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
-								"BuildRelationExtStatistics",
-								ALLOCSET_DEFAULT_SIZES);
+											  "BuildRelationExtStatistics",
+											  ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(cxt);
 
 	Relation	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
@@ -116,6 +116,7 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 	}
 
 	int64		ext_cnt = 0;
+
 	foreach(lc, stats)
 	{
 		StatExtEntry *stat = (StatExtEntry *) lfirst(lc);
@@ -129,7 +130,8 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 		 * not, report this fact (except in autovacuum) and move on.
 		 */
 		VacAttrStats **stats = lookup_var_attr_stats(onerel, stat->columns,
-									  natts, vacattrstats);
+													 natts, vacattrstats);
+
 		if (!stats)
 		{
 			if (!IsAutoVacuumWorkerProcess())
@@ -149,8 +151,8 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 
 		/* compute statistics target for this statistics */
 		int			stattarget = statext_compute_stattarget(stat->stattarget,
-												bms_num_members(stat->columns),
-												stats);
+															bms_num_members(stat->columns),
+															stats);
 
 		/*
 		 * Don't rebuild statistics objects with statistics target set to 0
@@ -211,8 +213,8 @@ ComputeExtStatisticsRows(Relation onerel,
 	int			result = 0;
 
 	MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
-								"ComputeExtStatisticsRows",
-								ALLOCSET_DEFAULT_SIZES);
+											  "ComputeExtStatisticsRows",
+											  ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(cxt);
 
 	Relation	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
@@ -229,7 +231,7 @@ ComputeExtStatisticsRows(Relation onerel,
 		 * during the actual build BuildRelationExtStatistics).
 		 */
 		VacAttrStats **stats = lookup_var_attr_stats(onerel, stat->columns,
-									  natts, vacattrstats);
+													 natts, vacattrstats);
 
 		if (!stats)
 			continue;
@@ -239,7 +241,7 @@ ComputeExtStatisticsRows(Relation onerel,
 		 * object itself, and for its attributes.
 		 */
 		int			stattarget = statext_compute_stattarget(stat->stattarget,
-												nattrs, stats);
+															nattrs, stats);
 
 		/* Use the largest value for all statistics objects. */
 		if (stattarget > result)
@@ -363,7 +365,7 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 				ObjectIdGetDatum(relid));
 
 	SysScanDesc scan = systable_beginscan(pg_statext, StatisticExtRelidIndexId, true,
-							  NULL, 1, &skey);
+										  NULL, 1, &skey);
 
 	while (HeapTupleIsValid(htup = systable_getnext(scan)))
 	{
@@ -372,6 +374,7 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 
 		StatExtEntry *entry = palloc0(sizeof(StatExtEntry));
 		Form_pg_statistic_ext staForm = (Form_pg_statistic_ext) GETSTRUCT(htup);
+
 		entry->statOid = staForm->oid;
 		entry->schema = get_namespace_name(staForm->stxnamespace);
 		entry->name = pstrdup(NameStr(staForm->stxname));
@@ -384,14 +387,17 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 
 		/* decode the stxkind char array into a list of chars */
 		Datum		datum = SysCacheGetAttr(STATEXTOID, htup,
-								Anum_pg_statistic_ext_stxkind, &isnull);
+											Anum_pg_statistic_ext_stxkind, &isnull);
+
 		Assert(!isnull);
 		ArrayType  *arr = DatumGetArrayTypeP(datum);
+
 		if (ARR_NDIM(arr) != 1 ||
 			ARR_HASNULL(arr) ||
 			ARR_ELEMTYPE(arr) != CHAROID)
 			elog(ERROR, "stxkind is not a 1-D char array");
 		char	   *enabled = (char *) ARR_DATA_PTR(arr);
+
 		for (i = 0; i < ARR_DIMS(arr)[0]; i++)
 		{
 			Assert((enabled[i] == STATS_EXT_NDISTINCT) ||
@@ -423,7 +429,7 @@ lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
 	int			x = -1;
 
 	VacAttrStats **stats = (VacAttrStats **)
-		palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
+	palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
 
 	/* lookup VacAttrStats info for the requested columns (same attnum) */
 	while ((x = bms_next_member(attrs, x)) >= 0)
@@ -544,7 +550,7 @@ multi_sort_init(int ndims)
 	Assert(ndims >= 2);
 
 	MultiSortSupport mss = (MultiSortSupport) palloc0(offsetof(MultiSortSupportData, ssup)
-									 + sizeof(SortSupportData) * ndims);
+													  + sizeof(SortSupportData) * ndims);
 
 	mss->ndims = ndims;
 
@@ -581,8 +587,8 @@ multi_sort_compare(const void *a, const void *b, void *arg)
 	{
 
 		int			compare = ApplySortComparator(ia->values[i], ia->isnull[i],
-									  ib->values[i], ib->isnull[i],
-									  &mss->ssup[i]);
+												  ib->values[i], ib->isnull[i],
+												  &mss->ssup[i]);
 
 		if (compare != 0)
 			return compare;
@@ -687,6 +693,7 @@ build_attnums_array(Bitmapset *attrs, int *numattrs)
 
 	/* build attnums from the bitmapset */
 	AttrNumber *attnums = (AttrNumber *) palloc(sizeof(AttrNumber) * num);
+
 	i = 0;
 	j = -1;
 	while ((j = bms_next_member(attrs, j)) >= 0)
@@ -735,13 +742,16 @@ build_sorted_items(int numrows, int *nitems, HeapTuple *rows, TupleDesc tdesc,
 
 	/* items to sort */
 	SortItem   *items = (SortItem *) ptr;
+
 	ptr += numrows * sizeof(SortItem);
 
 	/* values and null flags */
 	Datum	   *values = (Datum *) ptr;
+
 	ptr += nvalues * sizeof(Datum);
 
 	bool	   *isnull = (bool *) ptr;
+
 	ptr += nvalues * sizeof(bool);
 
 	/* make sure we consumed the whole buffer exactly */
@@ -887,6 +897,7 @@ choose_best_statistics(List *stats, char requiredkind,
 		}
 
 		int			num_matched = bms_num_members(matched);
+
 		bms_free(matched);
 
 		/*
@@ -1240,7 +1251,7 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 		return sel;
 
 	Bitmapset **list_attnums = (Bitmapset **) palloc(sizeof(Bitmapset *) *
-										 list_length(clauses));
+													 list_length(clauses));
 
 	/*
 	 * Pre-process the clauses list to extract the attnums seen in each item.
@@ -1254,6 +1265,7 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 	 * statistics (we treat them as incompatible).
 	 */
 	int			listidx = 0;
+
 	foreach(l, clauses)
 	{
 		Node	   *clause = (Node *) lfirst(l);
@@ -1274,7 +1286,7 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 
 		/* find the best suited statistics object for these attnums */
 		StatisticExtInfo *stat = choose_best_statistics(rel->statlist, STATS_EXT_MCV,
-									  list_attnums, list_length(clauses));
+														list_attnums, list_length(clauses));
 
 		/*
 		 * if no (additional) matching stats could be found then we've nothing
@@ -1458,7 +1470,7 @@ statext_clauselist_selectivity(PlannerInfo *root, List *clauses, int varRelid,
 
 	/* First, try estimating clauses using a multivariate MCV list. */
 	Selectivity sel = statext_mcv_clauselist_selectivity(root, clauses, varRelid, jointype,
-											 sjinfo, rel, estimatedclauses, is_or);
+														 sjinfo, rel, estimatedclauses, is_or);
 
 	/*
 	 * Functional dependencies only work for clauses connected by AND, so for

@@ -196,6 +196,7 @@ bt_page_stats(PG_FUNCTION_ARGS)
 	CHECK_RELATION_BLOCK_RANGE(rel, blkno);
 
 	Buffer		buffer = ReadBuffer(rel, blkno);
+
 	LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 	/* keep compiler quiet */
@@ -212,6 +213,7 @@ bt_page_stats(PG_FUNCTION_ARGS)
 		elog(ERROR, "return type must be a row type");
 
 	int			j = 0;
+
 	values[j++] = psprintf("%d", stat.blkno);
 	values[j++] = psprintf("%c", stat.type);
 	values[j++] = psprintf("%d", stat.live_items);
@@ -225,7 +227,7 @@ bt_page_stats(PG_FUNCTION_ARGS)
 	values[j++] = psprintf("%d", stat.btpo_flags);
 
 	HeapTuple	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
-								   values);
+											   values);
 
 	Datum		result = HeapTupleGetDatum(tuple);
 
@@ -272,6 +274,7 @@ bt_page_print_tuples(struct user_args *uargs)
 	IndexTuple	itup = (IndexTuple) PageGetItem(page, id);
 
 	int			j = 0;
+
 	memset(nulls, 0, sizeof(nulls));
 	values[j++] = DatumGetInt16(offset);
 	values[j++] = ItemPointerGetDatum(&itup->t_tid);
@@ -343,6 +346,7 @@ bt_page_print_tuples(struct user_args *uargs)
 	}
 
 	ItemPointer htid = BTreeTupleGetHeapTID(itup);
+
 	if (ispivottuple && !BTreeTupleIsPivot(itup))
 	{
 		/* Don't show bogus heap TID in !heapkeyspace pivot tuple */
@@ -361,6 +365,7 @@ bt_page_print_tuples(struct user_args *uargs)
 		ItemPointer tids = BTreeTupleGetPosting(itup);
 		int			nposting = BTreeTupleGetNPosting(itup);
 		Datum	   *tids_datum = (Datum *) palloc(nposting * sizeof(Datum));
+
 		for (int i = 0; i < nposting; i++)
 			tids_datum[i] = ItemPointerGetDatum(&tids[i]);
 		values[j++] = PointerGetDatum(construct_array(tids_datum,
@@ -431,6 +436,7 @@ bt_page_items(PG_FUNCTION_ARGS)
 		CHECK_RELATION_BLOCK_RANGE(rel, blkno);
 
 		Buffer		buffer = ReadBuffer(rel, blkno);
+
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		/*
@@ -607,6 +613,7 @@ bt_metap(PG_FUNCTION_ARGS)
 				 errmsg("cannot access temporary tables of other sessions")));
 
 	Buffer		buffer = ReadBuffer(rel, 0);
+
 	LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 	Page		page = BufferGetPage(buffer);
@@ -634,6 +641,7 @@ bt_metap(PG_FUNCTION_ARGS)
 				 errhint("To resolve the problem, update the \"pageinspect\" extension to the latest version.")));
 
 	int			j = 0;
+
 	values[j++] = psprintf("%d", metad->btm_magic);
 	values[j++] = psprintf("%d", metad->btm_version);
 	values[j++] = psprintf(INT64_FORMAT, (int64) metad->btm_root);
@@ -661,7 +669,7 @@ bt_metap(PG_FUNCTION_ARGS)
 	}
 
 	HeapTuple	tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(tupleDesc),
-								   values);
+											   values);
 
 	Datum		result = HeapTupleGetDatum(tuple);
 

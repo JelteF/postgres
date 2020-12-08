@@ -410,6 +410,7 @@ aloop:
 	 */
 	ERR_clear_error();
 	int			r = SSL_accept(port->ssl);
+
 	if (r <= 0)
 	{
 		err = SSL_get_error(port->ssl, r);
@@ -526,11 +527,13 @@ aloop:
 	{
 
 		int			len = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
-										NID_commonName, NULL, 0);
+													NID_commonName, NULL, 0);
+
 		if (len != -1)
 		{
 
 			char	   *peer_cn = MemoryContextAlloc(TopMemoryContext, len + 1);
+
 			r = X509_NAME_get_text_by_NID(X509_get_subject_name(port->peer),
 										  NID_commonName, peer_cn, len + 1);
 			peer_cn[len] = '\0';
@@ -598,6 +601,7 @@ be_tls_read(Port *port, void *ptr, size_t len, int *waitfor)
 	ssize_t		n = SSL_read(port->ssl, ptr, len);
 	int			err = SSL_get_error(port->ssl, n);
 	unsigned long ecode = (err != SSL_ERROR_NONE || n < 0) ? ERR_get_error() : 0;
+
 	switch (err)
 	{
 		case SSL_ERROR_NONE:
@@ -654,6 +658,7 @@ be_tls_write(Port *port, void *ptr, size_t len, int *waitfor)
 	ssize_t		n = SSL_write(port->ssl, ptr, len);
 	int			err = SSL_get_error(port->ssl, n);
 	unsigned long ecode = (err != SSL_ERROR_NONE || n < 0) ? ERR_get_error() : 0;
+
 	switch (err)
 	{
 		case SSL_ERROR_NONE:
@@ -758,6 +763,7 @@ my_sock_write(BIO *h, const char *buf, int size)
 {
 
 	int			res = secure_raw_write(((Port *) BIO_get_data(h)), buf, size);
+
 	BIO_clear_retry_flags(h);
 	if (res <= 0)
 	{
@@ -780,6 +786,7 @@ my_BIO_s_socket(void)
 #ifdef HAVE_BIO_METH_NEW
 
 		int			my_bio_index = BIO_get_new_index();
+
 		if (my_bio_index == -1)
 			return NULL;
 		my_bio_methods = BIO_meth_new(my_bio_index, "PostgreSQL backend socket");
@@ -818,6 +825,7 @@ my_SSL_set_fd(Port *port, int fd)
 	BIO		   *bio;
 
 	BIO_METHOD *bio_method = my_BIO_s_socket();
+
 	if (bio_method == NULL)
 	{
 		SSLerr(SSL_F_SSL_SET_FD, ERR_R_BUF_LIB);
@@ -863,6 +871,7 @@ load_dh_file(char *filename, bool isServerStart)
 	}
 
 	DH		   *dh = PEM_read_DHparams(fp, NULL, NULL, NULL);
+
 	FreeFile(fp);
 
 	if (dh == NULL)
@@ -914,9 +923,11 @@ load_dh_buffer(const char *buffer, size_t len)
 {
 
 	BIO		   *bio = BIO_new_mem_buf(unconstify(char *, buffer), len);
+
 	if (bio == NULL)
 		return NULL;
 	DH		   *dh = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+
 	if (dh == NULL)
 		ereport(DEBUG2,
 				(errmsg_internal("DH load buffer: %s",
@@ -1078,6 +1089,7 @@ initialize_ecdh(SSL_CTX *context, bool isServerStart)
 #ifndef OPENSSL_NO_ECDH
 
 	int			nid = OBJ_sn2nid(SSLECDHCurve);
+
 	if (!nid)
 	{
 		ereport(isServerStart ? FATAL : LOG,
@@ -1087,6 +1099,7 @@ initialize_ecdh(SSL_CTX *context, bool isServerStart)
 	}
 
 	EC_KEY	   *ecdh = EC_KEY_new_by_curve_name(nid);
+
 	if (!ecdh)
 	{
 		ereport(isServerStart ? FATAL : LOG,
@@ -1120,6 +1133,7 @@ SSLerrmessage(unsigned long ecode)
 	if (ecode == 0)
 		return _("no SSL error reported");
 	const char *errreason = ERR_reason_error_string(ecode);
+
 	if (errreason != NULL)
 		return errreason;
 	snprintf(errbuf, sizeof(errbuf), _("SSL error code %lu"), ecode);
@@ -1214,6 +1228,7 @@ be_tls_get_certificate_hash(Port *port, size_t *len)
 
 	*len = 0;
 	X509	   *server_cert = SSL_get_certificate(port->ssl);
+
 	if (server_cert == NULL)
 		return NULL;
 
@@ -1250,6 +1265,7 @@ be_tls_get_certificate_hash(Port *port, size_t *len)
 		elog(ERROR, "could not generate server certificate hash");
 
 	char	   *cert_hash = palloc(hash_size);
+
 	memcpy(cert_hash, hash, hash_size);
 	*len = hash_size;
 
@@ -1303,11 +1319,13 @@ X509_NAME_to_cstring(X509_NAME *name)
 
 	/* ensure null termination of the BIO's content */
 	char		nullterm = '\0';
+
 	BIO_write(membuf, &nullterm, 1);
 	size_t		size = BIO_get_mem_data(membuf, &sp);
 	char	   *dp = pg_any_to_server(sp, size - 1, PG_UTF8);
 
 	char	   *result = pstrdup(dp);
+
 	if (dp != sp)
 		pfree(dp);
 	if (BIO_free(membuf) != 1)

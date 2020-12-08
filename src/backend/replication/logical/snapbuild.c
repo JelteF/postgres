@@ -461,8 +461,8 @@ SnapBuildBuildSnapshot(SnapBuild *builder)
 	Assert(builder->state >= SNAPBUILD_FULL_SNAPSHOT);
 
 	Size		ssize = sizeof(SnapshotData)
-		+ sizeof(TransactionId) * builder->committed.xcnt
-		+ sizeof(TransactionId) * 1 /* toplevel xid */ ;
+	+ sizeof(TransactionId) * builder->committed.xcnt
+	+ sizeof(TransactionId) * 1 /* toplevel xid */ ;
 
 	Snapshot	snapshot = MemoryContextAllocZero(builder->context, ssize);
 
@@ -564,6 +564,7 @@ SnapBuildInitialSnapshot(SnapBuild *builder)
 
 		LWLockAcquire(ProcArrayLock, LW_SHARED);
 		TransactionId safeXid = GetOldestSafeDecodingTransactionId(false);
+
 		LWLockRelease(ProcArrayLock);
 
 		Assert(TransactionIdPrecedesOrEquals(safeXid, snap->xmin));
@@ -590,7 +591,7 @@ SnapBuildInitialSnapshot(SnapBuild *builder)
 		 * meaning of ->xip.
 		 */
 		void	   *test = bsearch(&xid, snap->xip, snap->xcnt,
-					   sizeof(TransactionId), xidComparator);
+								   sizeof(TransactionId), xidComparator);
 
 		if (test == NULL)
 		{
@@ -882,8 +883,8 @@ SnapBuildPurgeCommittedTxn(SnapBuild *builder)
 
 	/* TODO: Neater algorithm than just copying and iterating? */
 	TransactionId *workspace =
-		MemoryContextAlloc(builder->context,
-						   builder->committed.xcnt * sizeof(TransactionId));
+	MemoryContextAlloc(builder->context,
+					   builder->committed.xcnt * sizeof(TransactionId));
 
 	/* copy xids that still are interesting to workspace */
 	for (off = 0; off < builder->committed.xcnt; off++)
@@ -1712,6 +1713,7 @@ SnapBuildRestore(SnapBuild *builder, XLogRecPtr lsn)
 	/* read statically sized portion of snapshot */
 	pgstat_report_wait_start(WAIT_EVENT_SNAPBUILD_READ);
 	int			readBytes = read(fd, &ondisk, SnapBuildOnDiskConstantSize);
+
 	pgstat_report_wait_end();
 	if (readBytes != SnapBuildOnDiskConstantSize)
 	{
@@ -1778,6 +1780,7 @@ SnapBuildRestore(SnapBuild *builder, XLogRecPtr lsn)
 
 	/* restore running xacts (dead, but kept for backward compat) */
 	Size		sz = sizeof(TransactionId) * ondisk.builder.was_running.was_xcnt_space;
+
 	ondisk.builder.was_running.was_xip =
 		MemoryContextAllocZero(builder->context, sz);
 	pgstat_report_wait_start(WAIT_EVENT_SNAPBUILD_READ);
@@ -1935,6 +1938,7 @@ CheckPointSnapBuild(void)
 		cutoff = redo;
 
 	DIR		   *snap_dir = AllocateDir("pg_logical/snapshots");
+
 	while ((snap_de = ReadDir(snap_dir, "pg_logical/snapshots")) != NULL)
 	{
 		uint32		hi;

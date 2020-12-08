@@ -62,6 +62,7 @@ mark_file_as_archived(StreamCtl *stream, const char *fname)
 			 fname);
 
 	Walfile    *f = stream->walmethod->open_for_write(tmppath, NULL, 0);
+
 	if (f == NULL)
 	{
 		pg_log_error("could not create archive status file \"%s\": %s",
@@ -181,6 +182,7 @@ close_walfile(StreamCtl *stream, XLogRecPtr pos)
 		return true;
 
 	off_t		currpos = stream->walmethod->get_current_pos(walfile);
+
 	if (currpos == -1)
 	{
 		pg_log_error("could not determine seek position in file \"%s\": %s",
@@ -271,6 +273,7 @@ writeTimeLineHistoryFile(StreamCtl *stream, char *filename, char *content)
 	}
 
 	Walfile    *f = stream->walmethod->open_for_write(histfname, ".tmp", 0);
+
 	if (f == NULL)
 	{
 		pg_log_error("could not create timeline history file \"%s\": %s",
@@ -365,6 +368,7 @@ CheckServerVersionForStreaming(PGconn *conn)
 	minServerMajor = 903;
 	maxServerMajor = PG_VERSION_NUM / 100;
 	int			serverMajor = PQserverVersion(conn) / 100;
+
 	if (serverMajor < minServerMajor)
 	{
 		const char *serverver = PQparameterStatus(conn, "server_version");
@@ -597,6 +601,7 @@ ReceiveXlogStream(PGconn *conn, StreamCtl *stream)
 			uint32		newtimeline;
 
 			bool		parsed = ReadEndOfStreamingResult(res, &stream->startpos, &newtimeline);
+
 			PQclear(res);
 			if (!parsed)
 				goto error;
@@ -859,6 +864,7 @@ CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
 	struct timeval *timeoutptr;
 
 	int			connsocket = PQsocket(conn);
+
 	if (connsocket < 0)
 	{
 		pg_log_error("invalid socket: %s", PQerrorMessage(conn));
@@ -868,6 +874,7 @@ CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
 	FD_ZERO(&input_mask);
 	FD_SET(connsocket, &input_mask);
 	int			maxfd = connsocket;
+
 	if (stop_socket != PGINVALID_SOCKET)
 	{
 		FD_SET(stop_socket, &input_mask);
@@ -922,6 +929,7 @@ CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
 
 	/* Try to receive a CopyData message */
 	int			rawlen = PQgetCopyData(conn, &copybuf, 1);
+
 	if (rawlen == 0)
 	{
 
@@ -931,6 +939,7 @@ CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
 		 * waiting if input appears on stop_socket.
 		 */
 		int			ret = CopyStreamPoll(conn, timeout, stop_socket);
+
 		if (ret <= 0)
 			return ret;
 
@@ -973,7 +982,8 @@ ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	 * Parse the keepalive message, enclosed in the CopyData message. We just
 	 * check if the server requested a reply, and ignore the rest.
 	 */
-	int			pos = 1;					/* skip msgtype 'k' */
+	int			pos = 1;		/* skip msgtype 'k' */
+
 	pos += 8;					/* skip walEnd */
 	pos += 8;					/* skip sendTime */
 
@@ -1035,7 +1045,8 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	 * message. We only need the WAL location field (dataStart), the rest of
 	 * the header is ignored.
 	 */
-	int			hdr_len = 1;				/* msgtype 'w' */
+	int			hdr_len = 1;	/* msgtype 'w' */
+
 	hdr_len += 8;				/* dataStart */
 	hdr_len += 8;				/* walEnd */
 	hdr_len += 8;				/* sendTime */

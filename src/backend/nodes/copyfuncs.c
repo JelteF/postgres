@@ -871,6 +871,7 @@ _copyMergeJoin(const MergeJoin *from)
 	COPY_SCALAR_FIELD(skip_mark_restore);
 	COPY_NODE_FIELD(mergeclauses);
 	int			numCols = list_length(from->mergeclauses);
+
 	if (numCols > 0)
 	{
 		COPY_POINTER_FIELD(mergeFamilies, numCols * sizeof(Oid));
@@ -4742,7 +4743,8 @@ _copyExtensibleNode(const ExtensibleNode *from)
 
 	const ExtensibleNodeMethods *methods = GetExtensibleNodeMethods(from->extnodename, false);
 	ExtensibleNode *newnode = (ExtensibleNode *) newNode(methods->node_size,
-										 T_ExtensibleNode);
+														 T_ExtensibleNode);
+
 	COPY_STRING_FIELD(extnodename);
 
 	/* copy the private fields */

@@ -35,7 +35,8 @@ check_prepare_conn(PGconn *conn, const char *dbName)
 
 	/* Set always-secure search path, so malicious users can't take control. */
 	PGresult   *res = PQexec(conn,
-				 "SELECT pg_catalog.set_config('search_path', '', false)");
+							 "SELECT pg_catalog.set_config('search_path', '', false)");
+
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		fprintf(stderr, "SET failed: %s", PQerrorMessage(conn));
@@ -71,6 +72,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 	char	   *tblName = argv[1];
+
 	dbName1 = argv[2];
 	dbName2 = argv[3];
 
@@ -96,6 +98,7 @@ main(int argc, char **argv)
 
 	/* start a transaction block */
 	PGresult   *res1 = PQexec(conn1, "BEGIN");
+
 	if (PQresultStatus(res1) != PGRES_COMMAND_OK)
 	{
 		fprintf(stderr, "BEGIN command failed\n");
@@ -131,6 +134,7 @@ main(int argc, char **argv)
 
 	/* first, print out the attribute names */
 	int			nFields = PQnfields(res1);
+
 	for (i = 0; i < nFields; i++)
 		printf("%-15s", PQfname(res1, i));
 	printf("\n\n");

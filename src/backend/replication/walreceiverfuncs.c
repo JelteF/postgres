@@ -313,6 +313,7 @@ GetWalRcvFlushRecPtr(XLogRecPtr *latestChunkStart, TimeLineID *receiveTLI)
 
 	SpinLockAcquire(&walrcv->mutex);
 	XLogRecPtr	recptr = walrcv->flushedUpto;
+
 	if (latestChunkStart)
 		*latestChunkStart = walrcv->latestChunkStart;
 	if (receiveTLI)
@@ -345,6 +346,7 @@ GetReplicationApplyDelay(void)
 
 	SpinLockAcquire(&walrcv->mutex);
 	XLogRecPtr	receivePtr = walrcv->flushedUpto;
+
 	SpinLockRelease(&walrcv->mutex);
 
 	XLogRecPtr	replayPtr = GetXLogReplayRecPtr(NULL);
@@ -373,6 +375,7 @@ GetReplicationTransferLatency(void)
 	SpinLockAcquire(&walrcv->mutex);
 	TimestampTz lastMsgSendTime = walrcv->lastMsgSendTime;
 	TimestampTz lastMsgReceiptTime = walrcv->lastMsgReceiptTime;
+
 	SpinLockRelease(&walrcv->mutex);
 
 	return TimestampDifferenceMilliseconds(lastMsgSendTime,

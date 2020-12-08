@@ -66,6 +66,7 @@ pg_lsn_in(PG_FUNCTION_ARGS)
 	bool		have_error = false;
 
 	XLogRecPtr	result = pg_lsn_in_internal(str, &have_error);
+
 	if (have_error)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
@@ -89,6 +90,7 @@ pg_lsn_out(PG_FUNCTION_ARGS)
 
 	snprintf(buf, sizeof buf, "%X/%X", id, off);
 	char	   *result = pstrdup(buf);
+
 	PG_RETURN_CSTRING(result);
 }
 
@@ -98,6 +100,7 @@ pg_lsn_recv(PG_FUNCTION_ARGS)
 	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
 
 	XLogRecPtr	result = pq_getmsgint64(buf);
+
 	PG_RETURN_LSN(result);
 }
 
@@ -238,9 +241,9 @@ pg_lsn_mi(PG_FUNCTION_ARGS)
 
 	/* Convert to numeric. */
 	Datum		result = DirectFunctionCall3(numeric_in,
-								 CStringGetDatum(buf),
-								 ObjectIdGetDatum(0),
-								 Int32GetDatum(-1));
+											 CStringGetDatum(buf),
+											 ObjectIdGetDatum(0),
+											 Int32GetDatum(-1));
 
 	return result;
 }
@@ -264,14 +267,14 @@ pg_lsn_pli(PG_FUNCTION_ARGS)
 	/* Convert to numeric */
 	snprintf(buf, sizeof(buf), UINT64_FORMAT, lsn);
 	Datum		num = DirectFunctionCall3(numeric_in,
-							  CStringGetDatum(buf),
-							  ObjectIdGetDatum(0),
-							  Int32GetDatum(-1));
+										  CStringGetDatum(buf),
+										  ObjectIdGetDatum(0),
+										  Int32GetDatum(-1));
 
 	/* Add two numerics */
 	Datum		res = DirectFunctionCall2(numeric_add,
-							  NumericGetDatum(num),
-							  NumericGetDatum(nbytes));
+										  NumericGetDatum(num),
+										  NumericGetDatum(nbytes));
 
 	/* Convert to pg_lsn */
 	return DirectFunctionCall1(numeric_pg_lsn, res);
@@ -296,14 +299,14 @@ pg_lsn_mii(PG_FUNCTION_ARGS)
 	/* Convert to numeric */
 	snprintf(buf, sizeof(buf), UINT64_FORMAT, lsn);
 	Datum		num = DirectFunctionCall3(numeric_in,
-							  CStringGetDatum(buf),
-							  ObjectIdGetDatum(0),
-							  Int32GetDatum(-1));
+										  CStringGetDatum(buf),
+										  ObjectIdGetDatum(0),
+										  Int32GetDatum(-1));
 
 	/* Subtract two numerics */
 	Datum		res = DirectFunctionCall2(numeric_sub,
-							  NumericGetDatum(num),
-							  NumericGetDatum(nbytes));
+										  NumericGetDatum(num),
+										  NumericGetDatum(nbytes));
 
 	/* Convert to pg_lsn */
 	return DirectFunctionCall1(numeric_pg_lsn, res);

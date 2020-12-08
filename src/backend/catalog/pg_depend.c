@@ -229,6 +229,7 @@ recordDependencyOnCurrentExtension(const ObjectAddress *object,
 		{
 
 			Oid			oldext = getExtensionOfObject(object->classId, object->objectId);
+
 			if (OidIsValid(oldext))
 			{
 				/* If already a member of this extension, nothing to do */
@@ -284,7 +285,7 @@ deleteDependencyRecordsFor(Oid classId, Oid objectId,
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -332,7 +333,7 @@ deleteDependencyRecordsForClass(Oid classId, Oid objectId,
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -377,7 +378,7 @@ deleteDependencyRecordsForSpecific(Oid classId, Oid objectId, char deptype,
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -477,7 +478,7 @@ changeDependencyFor(Oid classId, Oid objectId,
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -540,7 +541,7 @@ changeDependenciesOf(Oid classId, Oid oldObjectId,
 				ObjectIdGetDatum(oldObjectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -619,7 +620,7 @@ changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
 				ObjectIdGetDatum(oldRefObjectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -675,7 +676,7 @@ isObjectPinned(const ObjectAddress *object, Relation rel)
 				ObjectIdGetDatum(object->objectId));
 
 	SysScanDesc scan = systable_beginscan(rel, DependReferenceIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	/*
 	 * Since we won't generate additional pg_depend entries for pinned
@@ -684,6 +685,7 @@ isObjectPinned(const ObjectAddress *object, Relation rel)
 	 * need to loop.
 	 */
 	HeapTuple	tup = systable_getnext(scan);
+
 	if (HeapTupleIsValid(tup))
 	{
 		Form_pg_depend foundDep = (Form_pg_depend) GETSTRUCT(tup);
@@ -733,7 +735,7 @@ getExtensionOfObject(Oid classId, Oid objectId)
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -777,7 +779,7 @@ getAutoExtensionsOfObject(Oid classId, Oid objectId)
 				ObjectIdGetDatum(objectId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -825,7 +827,7 @@ sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId)
 				ObjectIdGetDatum(seqId));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 2, key);
+										  NULL, 2, key);
 
 	while (HeapTupleIsValid((tup = systable_getnext(scan))))
 	{
@@ -877,7 +879,7 @@ getOwnedSequences_internal(Oid relid, AttrNumber attnum, char deptype)
 					Int32GetDatum(attnum));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, attnum ? 3 : 2, key);
+										  NULL, attnum ? 3 : 2, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -969,7 +971,7 @@ get_constraint_index(Oid constraintId)
 				Int32GetDatum(0));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 3, key);
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -1034,7 +1036,7 @@ get_index_constraint(Oid indexId)
 				Int32GetDatum(0));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 3, key);
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -1088,7 +1090,7 @@ get_index_ref_constraints(Oid indexId)
 				Int32GetDatum(0));
 
 	SysScanDesc scan = systable_beginscan(depRel, DependReferenceIndexId, true,
-							  NULL, 3, key);
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{

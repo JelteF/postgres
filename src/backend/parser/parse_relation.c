@@ -128,6 +128,7 @@ refnameNamespaceItem(ParseState *pstate,
 		 * match a schema name the user hasn't got access to.
 		 */
 		Oid			namespaceId = LookupNamespaceNoError(schemaname);
+
 		if (!OidIsValid(namespaceId))
 			return NULL;
 		relId = get_relname_relid(refname, namespaceId);
@@ -538,6 +539,7 @@ GetCTEForRTE(ParseState *pstate, RangeTblEntry *rte, int rtelevelsup)
 
 	Assert(rte->rtekind == RTE_CTE);
 	Index		levelsup = rte->ctelevelsup + rtelevelsup;
+
 	while (levelsup-- > 0)
 	{
 		pstate = pstate->parentParseState;
@@ -580,11 +582,11 @@ updateFuzzyAttrMatchState(int fuzzy_rte_penalty,
 	/* Use Levenshtein to compute match distance. */
 	int			matchlen = strlen(match);
 	int			columndistance =
-		varstr_levenshtein_less_equal(actual, strlen(actual), match, matchlen,
-									  1, 1, 1,
-									  fuzzystate->distance + 1
-									  - fuzzy_rte_penalty,
-									  true);
+	varstr_levenshtein_less_equal(actual, strlen(actual), match, matchlen,
+								  1, 1, 1,
+								  fuzzystate->distance + 1
+								  - fuzzy_rte_penalty,
+								  true);
 
 	/*
 	 * If more than half the characters are different, don't treat it as a
@@ -671,8 +673,8 @@ scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
 	 * multiple matches.
 	 */
 	int			attnum = scanRTEForColumn(pstate, rte,
-							  colname, location,
-							  0, NULL);
+										  colname, location,
+										  0, NULL);
 
 	if (attnum == InvalidAttrNumber)
 		return NULL;			/* Return NULL if no match */
@@ -724,6 +726,7 @@ scanNSItemForColumn(ParseState *pstate, ParseNamespaceItem *nsitem,
 		/* System column, so use predetermined type data */
 
 		const FormData_pg_attribute *sysatt = SystemAttributeDefinition(attnum);
+
 		var = makeVar(nsitem->p_rtindex,
 					  attnum,
 					  sysatt->atttypid,
@@ -864,7 +867,7 @@ colNameToVar(ParseState *pstate, const char *colname, bool localonly,
 
 			/* use orig_pstate here for consistency with other callers */
 			Node	   *newresult = scanNSItemForColumn(orig_pstate, nsitem, sublevels_up,
-											colname, location);
+														colname, location);
 
 			if (newresult)
 			{
@@ -1227,7 +1230,7 @@ buildNSItemFromTupleDesc(RangeTblEntry *rte, Index rtindex, TupleDesc tupdesc)
 
 	/* extract per-column data from the tupdesc */
 	ParseNamespaceColumn *nscolumns = (ParseNamespaceColumn *)
-		palloc0(maxattrs * sizeof(ParseNamespaceColumn));
+	palloc0(maxattrs * sizeof(ParseNamespaceColumn));
 
 	for (varattno = 0; varattno < maxattrs; varattno++)
 	{
@@ -1248,6 +1251,7 @@ buildNSItemFromTupleDesc(RangeTblEntry *rte, Index rtindex, TupleDesc tupdesc)
 
 	/* ... and build the nsitem */
 	ParseNamespaceItem *nsitem = (ParseNamespaceItem *) palloc(sizeof(ParseNamespaceItem));
+
 	nsitem->p_rte = rte;
 	nsitem->p_rtindex = rtindex;
 	nsitem->p_nscolumns = nscolumns;
@@ -1287,9 +1291,10 @@ buildNSItemFromLists(RangeTblEntry *rte, Index rtindex,
 
 	/* extract per-column data from the lists */
 	ParseNamespaceColumn *nscolumns = (ParseNamespaceColumn *)
-		palloc0(maxattrs * sizeof(ParseNamespaceColumn));
+	palloc0(maxattrs * sizeof(ParseNamespaceColumn));
 
 	int			varattno = 0;
+
 	forthree(lct, coltypes,
 			 lcm, coltypmods,
 			 lcc, colcollations)
@@ -1306,6 +1311,7 @@ buildNSItemFromLists(RangeTblEntry *rte, Index rtindex,
 
 	/* ... and build the nsitem */
 	ParseNamespaceItem *nsitem = (ParseNamespaceItem *) palloc(sizeof(ParseNamespaceItem));
+
 	nsitem->p_rte = rte;
 	nsitem->p_rtindex = rtindex;
 	nsitem->p_nscolumns = nscolumns;
@@ -1336,6 +1342,7 @@ parserOpenTable(ParseState *pstate, const RangeVar *relation, int lockmode)
 
 	setup_parser_errposition_callback(&pcbstate, pstate, relation->location);
 	Relation	rel = table_openrv_extended(relation, lockmode, true);
+
 	if (rel == NULL)
 	{
 		if (relation->schemaname)
@@ -1409,6 +1416,7 @@ addRangeTableEntry(ParseState *pstate,
 	 * to a rel in a statement, we must open the rel with the proper lockmode.
 	 */
 	Relation	rel = parserOpenTable(pstate, relation, lockmode);
+
 	rte->relid = RelationGetRelid(rel);
 	rte->relkind = rel->rd_rel->relkind;
 	rte->rellockmode = lockmode;
@@ -1449,7 +1457,7 @@ addRangeTableEntry(ParseState *pstate,
 	 * list --- caller must do that if appropriate.
 	 */
 	ParseNamespaceItem *nsitem = buildNSItemFromTupleDesc(rte, list_length(pstate->p_rtable),
-									  rel->rd_att);
+														  rel->rd_att);
 
 	/*
 	 * Drop the rel refcount, but keep the access lock till end of transaction
@@ -1573,6 +1581,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 	/* fill in any unspecified alias columns, and extract column type info */
 	coltypes = coltypmods = colcollations = NIL;
 	int			varattno = 0;
+
 	foreach(tlistitem, subquery->targetList)
 	{
 		TargetEntry *te = (TargetEntry *) lfirst(tlistitem);
@@ -1585,6 +1594,7 @@ addRangeTableEntryForSubquery(ParseState *pstate,
 		{
 
 			char	   *attrname = pstrdup(te->resname);
+
 			eref->colnames = lappend(eref->colnames, makeString(attrname));
 		}
 		coltypes = lappend_oid(coltypes,
@@ -1681,6 +1691,7 @@ addRangeTableEntryForFunction(ParseState *pstate,
 		aliasname = linitial(funcnames);
 
 	Alias	   *eref = makeAlias(aliasname, NIL);
+
 	rte->eref = eref;
 
 	/* Process each function ... */
@@ -1688,6 +1699,7 @@ addRangeTableEntryForFunction(ParseState *pstate,
 
 	totalatts = 0;
 	int			funcno = 0;
+
 	forthree(lc1, funcexprs, lc2, funcnames, lc3, coldeflists)
 	{
 		Node	   *funcexpr = (Node *) lfirst(lc1);
@@ -1708,8 +1720,8 @@ addRangeTableEntryForFunction(ParseState *pstate,
 		 * Now determine if the function returns a simple or composite type.
 		 */
 		TypeFuncClass functypclass = get_expr_result_type(funcexpr,
-											&funcrettype,
-											&tupdesc);
+														  &funcrettype,
+														  &tupdesc);
 
 		/*
 		 * A coldeflist is required if the function returns RECORD and hasn't
@@ -1801,6 +1813,7 @@ addRangeTableEntryForFunction(ParseState *pstate,
 				int32		attrtypmod;
 
 				char	   *attrname = n->colname;
+
 				if (n->typeName->setof)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_TABLE_DEFINITION),
@@ -1810,6 +1823,7 @@ addRangeTableEntryForFunction(ParseState *pstate,
 				typenameTypeIdAndMod(pstate, n->typeName,
 									 &attrtype, &attrtypmod);
 				Oid			attrcollation = GetColumnDefCollation(pstate, n, attrtype);
+
 				TupleDescInitEntry(tupdesc,
 								   (AttrNumber) i,
 								   attrname,
@@ -2038,6 +2052,7 @@ addRangeTableEntryForValues(ParseState *pstate,
 	/* fill in any unspecified alias columns */
 	int			numcolumns = list_length((List *) linitial(exprs));
 	int			numaliases = list_length(eref->colnames);
+
 	while (numaliases < numcolumns)
 	{
 		char		attrname[64];
@@ -2169,6 +2184,7 @@ addRangeTableEntryForJoin(ParseState *pstate,
 	 * list --- caller must do that if appropriate.
 	 */
 	ParseNamespaceItem *nsitem = (ParseNamespaceItem *) palloc(sizeof(ParseNamespaceItem));
+
 	nsitem->p_rte = rte;
 	nsitem->p_rtindex = list_length(pstate->p_rtable);
 	nsitem->p_nscolumns = nscolumns;
@@ -2244,6 +2260,7 @@ addRangeTableEntryForCTE(ParseState *pstate,
 
 	/* fill in any unspecified alias columns */
 	int			varattno = 0;
+
 	foreach(lc, cte->ctecolnames)
 	{
 		varattno++;
@@ -2315,6 +2332,7 @@ addRangeTableEntryForENR(ParseState *pstate,
 
 	Assert(pstate != NULL);
 	EphemeralNamedRelationMetadata enrmd = get_visible_ENR(pstate, rv->relname);
+
 	Assert(enrmd != NULL);
 
 	switch (enrmd->enrtype)
@@ -2339,6 +2357,7 @@ addRangeTableEntryForENR(ParseState *pstate,
 	 * and/or actual column names.
 	 */
 	TupleDesc	tupdesc = ENRMetadataGetTupDesc(enrmd);
+
 	rte->eref = makeAlias(refname, NIL);
 	buildRelationAliases(tupdesc, alias, rte->eref);
 
@@ -2552,10 +2571,11 @@ expandRTE(RangeTblEntry *rte, int rtindex, int sublevels_up,
 					{
 
 						Var		   *varnode = makeVar(rtindex, varattno,
-										  exprType((Node *) te->expr),
-										  exprTypmod((Node *) te->expr),
-										  exprCollation((Node *) te->expr),
-										  sublevels_up);
+													  exprType((Node *) te->expr),
+													  exprTypmod((Node *) te->expr),
+													  exprCollation((Node *) te->expr),
+													  sublevels_up);
+
 						varnode->location = location;
 
 						*colvars = lappend(*colvars, varnode);
@@ -2578,8 +2598,9 @@ expandRTE(RangeTblEntry *rte, int rtindex, int sublevels_up,
 					TupleDesc	tupdesc;
 
 					TypeFuncClass functypclass = get_expr_result_type(rtfunc->funcexpr,
-														&funcrettype,
-														&tupdesc);
+																	  &funcrettype,
+																	  &tupdesc);
+
 					if (functypclass == TYPEFUNC_COMPOSITE ||
 						functypclass == TYPEFUNC_COMPOSITE_DOMAIN)
 					{
@@ -2852,6 +2873,7 @@ expandRelation(Oid relid, Alias *eref, int rtindex, int sublevels_up,
 
 	/* Get the tupledesc and turn it over to expandTupleDesc */
 	Relation	rel = relation_open(relid, AccessShareLock);
+
 	expandTupleDesc(rel->rd_att, eref, rel->rd_att->natts, 0,
 					rtindex, sublevels_up,
 					location, include_dropped,
@@ -2877,7 +2899,7 @@ expandTupleDesc(TupleDesc tupdesc, Alias *eref, int count, int offset,
 	int			varattno;
 
 	ListCell   *aliascell = (offset < list_length(eref->colnames)) ?
-		list_nth_cell(eref->colnames, offset) : NULL;
+	list_nth_cell(eref->colnames, offset) : NULL;
 
 	Assert(count <= tupdesc->natts);
 	for (varattno = 0; varattno < count; varattno++)
@@ -2926,9 +2948,10 @@ expandTupleDesc(TupleDesc tupdesc, Alias *eref, int count, int offset,
 		{
 
 			Var		   *varnode = makeVar(rtindex, varattno + offset + 1,
-							  attr->atttypid, attr->atttypmod,
-							  attr->attcollation,
-							  sublevels_up);
+										  attr->atttypid, attr->atttypmod,
+										  attr->attcollation,
+										  sublevels_up);
+
 			varnode->location = location;
 
 			*colvars = lappend(*colvars, varnode);
@@ -2958,6 +2981,7 @@ expandNSItemVars(ParseNamespaceItem *nsitem,
 	if (colnames)
 		*colnames = NIL;
 	int			colindex = 0;
+
 	foreach(lc, nsitem->p_rte->eref->colnames)
 	{
 		Value	   *colnameval = (Value *) lfirst(lc);
@@ -2969,11 +2993,12 @@ expandNSItemVars(ParseNamespaceItem *nsitem,
 
 			Assert(nscol->p_varno > 0);
 			Var		   *var = makeVar(nscol->p_varno,
-						  nscol->p_varattno,
-						  nscol->p_vartype,
-						  nscol->p_vartypmod,
-						  nscol->p_varcollid,
-						  sublevels_up);
+									  nscol->p_varattno,
+									  nscol->p_vartype,
+									  nscol->p_vartypmod,
+									  nscol->p_varcollid,
+									  sublevels_up);
+
 			/* makeVar doesn't offer parameters for these, so set by hand: */
 			var->varnosyn = nscol->p_varnosyn;
 			var->varattnosyn = nscol->p_varattnosyn;
@@ -3026,9 +3051,10 @@ expandNSItemAttrs(ParseState *pstate, ParseNamespaceItem *nsitem,
 		Var		   *varnode = (Var *) lfirst(var);
 
 		TargetEntry *te = makeTargetEntry((Expr *) varnode,
-							 (AttrNumber) pstate->p_next_resno++,
-							 label,
-							 false);
+										  (AttrNumber) pstate->p_next_resno++,
+										  label,
+										  false);
+
 		te_list = lappend(te_list, te);
 
 		/* Require read access to each column */
@@ -3103,12 +3129,14 @@ get_rte_attribute_is_dropped(RangeTblEntry *rte, AttrNumber attnum)
 				 */
 
 				HeapTuple	tp = SearchSysCache2(ATTNUM,
-									 ObjectIdGetDatum(rte->relid),
-									 Int16GetDatum(attnum));
+												 ObjectIdGetDatum(rte->relid),
+												 Int16GetDatum(attnum));
+
 				if (!HeapTupleIsValid(tp))	/* shouldn't happen */
 					elog(ERROR, "cache lookup failed for attribute %d of relation %u",
 						 attnum, rte->relid);
 				Form_pg_attribute att_tup = (Form_pg_attribute) GETSTRUCT(tp);
+
 				result = att_tup->attisdropped;
 				ReleaseSysCache(tp);
 			}
@@ -3173,7 +3201,8 @@ get_rte_attribute_is_dropped(RangeTblEntry *rte, AttrNumber attnum)
 					{
 
 						TupleDesc	tupdesc = get_expr_result_tupdesc(rtfunc->funcexpr,
-														  true);
+																	  true);
+
 						if (tupdesc)
 						{
 							/* Composite data type, e.g. a table's row type */
@@ -3309,6 +3338,7 @@ specialAttNum(const char *attname)
 {
 
 	const FormData_pg_attribute *sysatt = SystemAttributeByName(attname);
+
 	if (sysatt != NULL)
 		return sysatt->attnum;
 	return InvalidAttrNumber;
@@ -3329,6 +3359,7 @@ attnumAttName(Relation rd, int attid)
 	{
 
 		const FormData_pg_attribute *sysatt = SystemAttributeDefinition(attid);
+
 		return &sysatt->attname;
 	}
 	if (attid > rd->rd_att->natts)
@@ -3350,6 +3381,7 @@ attnumTypeId(Relation rd, int attid)
 	{
 
 		const FormData_pg_attribute *sysatt = SystemAttributeDefinition(attid);
+
 		return sysatt->atttypid;
 	}
 	if (attid > rd->rd_att->natts)
@@ -3409,8 +3441,9 @@ errorMissingRTE(ParseState *pstate, RangeVar *relation)
 		int			sublevels_up;
 
 		ParseNamespaceItem *nsitem = refnameNamespaceItem(pstate, NULL, rte->eref->aliasname,
-									  relation->location,
-									  &sublevels_up);
+														  relation->location,
+														  &sublevels_up);
+
 		if (nsitem && nsitem->p_rte == rte)
 			badAlias = rte->eref->aliasname;
 	}
@@ -3491,7 +3524,7 @@ errorMissingColumn(ParseState *pstate,
 		/* Handle case where there are two equally useful column hints */
 
 		char	   *closestsecond = strVal(list_nth(state->rsecond->eref->colnames,
-										state->second - 1));
+													state->second - 1));
 
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),

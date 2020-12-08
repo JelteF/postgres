@@ -156,6 +156,7 @@ ExecVacuum(ParseState *pstate, VacuumStmt *vacstmt, bool isTopLevel)
 			{
 
 				int			nworkers = defGetInt32(opt);
+
 				if (nworkers < 0 || nworkers > MAX_PARALLEL_WORKER_LIMIT)
 					ereport(ERROR,
 							(errcode(ERRCODE_SYNTAX_ERROR),
@@ -361,6 +362,7 @@ vacuum(List *relations, VacuumParams *params,
 
 			List	   *sublist = expand_vacuum_rel(vrel, params->options);
 			MemoryContext old_context = MemoryContextSwitchTo(vac_context);
+
 			newrels = list_concat(newrels, sublist);
 			MemoryContextSwitchTo(old_context);
 		}
@@ -740,9 +742,9 @@ expand_vacuum_rel(VacuumRelation *vrel, int options)
 		 */
 		int			rvr_opts = (options & VACOPT_SKIP_LOCKED) ? RVR_SKIP_LOCKED : 0;
 		Oid			relid = RangeVarGetRelidExtended(vrel->relation,
-										 AccessShareLock,
-										 rvr_opts,
-										 NULL, NULL);
+													 AccessShareLock,
+													 rvr_opts,
+													 NULL, NULL);
 
 		/*
 		 * If the lock is unavailable, emit the same log statement that
@@ -768,6 +770,7 @@ expand_vacuum_rel(VacuumRelation *vrel, int options)
 		 * ownership, fetch its syscache entry.
 		 */
 		HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for relation %u", relid);
 		Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
@@ -787,6 +790,7 @@ expand_vacuum_rel(VacuumRelation *vrel, int options)
 
 
 		bool		include_parts = (classForm->relkind == RELKIND_PARTITIONED_TABLE);
+
 		ReleaseSysCache(tuple);
 
 		/*
@@ -879,6 +883,7 @@ get_all_vacuum_rels(int options)
 		 * about failure to open one of these relations later.
 		 */
 		MemoryContext oldcontext = MemoryContextSwitchTo(vac_context);
+
 		vacrels = lappend(vacrels, makeVacuumRelation(NULL,
 													  relid,
 													  NIL));
@@ -966,6 +971,7 @@ vacuum_set_xid_limits(Relation rel,
 	 * wraparound won't occur too frequently.
 	 */
 	int			freezemin = freeze_min_age;
+
 	if (freezemin < 0)
 		freezemin = vacuum_freeze_min_age;
 	freezemin = Min(freezemin, autovacuum_freeze_max_age / 2);
@@ -975,6 +981,7 @@ vacuum_set_xid_limits(Relation rel,
 	 * Compute the cutoff XID, being careful not to generate a "permanent" XID
 	 */
 	TransactionId limit = *oldestXmin - freezemin;
+
 	if (!TransactionIdIsNormal(limit))
 		limit = FirstNormalTransactionId;
 
@@ -984,6 +991,7 @@ vacuum_set_xid_limits(Relation rel,
 	 * freeze age of zero.
 	 */
 	TransactionId safeLimit = ReadNewTransactionId() - autovacuum_freeze_max_age;
+
 	if (!TransactionIdIsNormal(safeLimit))
 		safeLimit = FirstNormalTransactionId;
 
@@ -1012,6 +1020,7 @@ vacuum_set_xid_limits(Relation rel,
 	 * prevent MultiXact wraparound won't occur too frequently.
 	 */
 	int			mxid_freezemin = multixact_freeze_min_age;
+
 	if (mxid_freezemin < 0)
 		mxid_freezemin = vacuum_multixact_freeze_min_age;
 	mxid_freezemin = Min(mxid_freezemin,
@@ -1021,11 +1030,13 @@ vacuum_set_xid_limits(Relation rel,
 	/* compute the cutoff multi, being careful to generate a valid value */
 	MultiXactId oldestMxact = GetOldestMultiXactId();
 	MultiXactId mxactLimit = oldestMxact - mxid_freezemin;
+
 	if (mxactLimit < FirstMultiXactId)
 		mxactLimit = FirstMultiXactId;
 
 	MultiXactId safeMxactLimit =
-		ReadNextMultiXactId() - effective_multixact_freeze_max_age;
+	ReadNextMultiXactId() - effective_multixact_freeze_max_age;
+
 	if (safeMxactLimit < FirstMultiXactId)
 		safeMxactLimit = FirstMultiXactId;
 
@@ -1056,6 +1067,7 @@ vacuum_set_xid_limits(Relation rel,
 		 * before anti-wraparound autovacuum is launched.
 		 */
 		int			freezetable = freeze_table_age;
+
 		if (freezetable < 0)
 			freezetable = vacuum_freeze_table_age;
 		freezetable = Min(freezetable, autovacuum_freeze_max_age * 0.95);
@@ -1151,6 +1163,7 @@ vac_estimate_reltuples(Relation relation,
 	double		old_density = old_rel_tuples / old_rel_pages;
 	double		unscanned_pages = (double) total_pages - (double) scanned_pages;
 	double		total_tuples = old_density * unscanned_pages + scanned_tuples;
+
 	return floor(total_tuples + 0.5);
 }
 
@@ -1209,6 +1222,7 @@ vac_update_relstats(Relation relation,
 
 	/* Fetch a copy of the tuple to scribble on */
 	HeapTuple	ctup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(ctup))
 		elog(ERROR, "pg_class entry for relid %u vanished during vacuuming",
 			 relid);
@@ -1217,6 +1231,7 @@ vac_update_relstats(Relation relation,
 	/* Apply statistical updates, if any, to copied tuple */
 
 	bool		dirty = false;
+
 	if (pgcform->relpages != (int32) num_pages)
 	{
 		pgcform->relpages = (int32) num_pages;
@@ -1363,7 +1378,7 @@ vac_update_datfrozenxid(void)
 	Relation	relation = table_open(RelationRelationId, AccessShareLock);
 
 	SysScanDesc scan = systable_beginscan(relation, InvalidOid, false,
-							  NULL, 0, NULL);
+										  NULL, 0, NULL);
 
 	while ((classTup = systable_getnext(scan)) != NULL)
 	{
@@ -1444,6 +1459,7 @@ vac_update_datfrozenxid(void)
 
 	/* Fetch a copy of the tuple to scribble on */
 	HeapTuple	tuple = SearchSysCacheCopy1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for database %u", MyDatabaseId);
 	Form_pg_database dbform = (Form_pg_database) GETSTRUCT(tuple);
@@ -1718,11 +1734,11 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params)
 	 * way, we can be sure that no other backend is vacuuming the same table.
 	 */
 	LOCKMODE	lmode = (params->options & VACOPT_FULL) ?
-		AccessExclusiveLock : ShareUpdateExclusiveLock;
+	AccessExclusiveLock : ShareUpdateExclusiveLock;
 
 	/* open the relation and get the appropriate lock on it */
 	Relation	onerel = vacuum_open_relation(relid, relation, params->options,
-								  params->log_min_duration >= 0, lmode);
+											  params->log_min_duration >= 0, lmode);
 
 	/* leave if relation could not be opened or locked */
 	if (!onerel)
@@ -1807,6 +1823,7 @@ vacuum_rel(Oid relid, RangeVar *relation, VacuumParams *params)
 	 * same process.
 	 */
 	LockRelId	onerelid = onerel->rd_lockInfo.lockRelId;
+
 	LockRelationIdForSession(&onerelid, lmode);
 
 	/* Set index cleanup option based on reloptions if not yet */
@@ -1943,6 +1960,7 @@ vac_open_indexes(Relation relation, LOCKMODE lockmode,
 		Oid			indexoid = lfirst_oid(indexoidscan);
 
 		Relation	indrel = index_open(indexoid, lockmode);
+
 		if (indrel->rd_index->indisready)
 			(*Irel)[i++] = indrel;
 		else

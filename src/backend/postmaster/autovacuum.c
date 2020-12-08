@@ -700,6 +700,7 @@ AutoVacLauncherMain(int argc, char *argv[])
 		 */
 
 		TimestampTz current_time = GetCurrentTimestamp();
+
 		LWLockAcquire(AutovacuumLock, LW_SHARED);
 
 		bool		can_launch = !dlist_is_empty(&AutoVacuumShmem->av_freeWorkers);
@@ -724,6 +725,7 @@ AutoVacLauncherMain(int argc, char *argv[])
 			 * startingWorker pointer.
 			 */
 			int			waittime = Min(autovacuum_naptime, 60) * 1000;
+
 			if (TimestampDifferenceExceeds(worker->wi_launchtime, current_time,
 										   waittime))
 			{
@@ -875,6 +877,7 @@ launcher_determine_sleep(bool canlaunch, bool recursing, struct timeval *nap)
 		avl_dbase  *avdb = dlist_tail_element(avl_dbase, adl_node, &DatabaseList);
 
 		TimestampTz next_wakeup = avdb->adl_next_worker;
+
 		TimestampDifference(current_time, next_wakeup, &secs, &usecs);
 
 		nap->tv_sec = secs;
@@ -945,11 +948,11 @@ rebuild_database_list(Oid newdb)
 	autovac_refresh_stats();
 
 	MemoryContext newcxt = AllocSetContextCreate(AutovacMemCxt,
-								   "AV dblist",
-								   ALLOCSET_DEFAULT_SIZES);
+												 "AV dblist",
+												 ALLOCSET_DEFAULT_SIZES);
 	MemoryContext tmpcxt = AllocSetContextCreate(newcxt,
-								   "tmp AV dblist",
-								   ALLOCSET_DEFAULT_SIZES);
+												 "tmp AV dblist",
+												 ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(tmpcxt);
 
 	/*
@@ -971,17 +974,20 @@ rebuild_database_list(Oid newdb)
 	hctl.keysize = sizeof(Oid);
 	hctl.entrysize = sizeof(avl_dbase);
 	hctl.hcxt = tmpcxt;
-	HTAB	   *dbhash = hash_create("db hash", 20, &hctl,	/* magic number here FIXME */
-						 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	HTAB	   *dbhash = hash_create("db hash", 20, &hctl,	/* magic number here
+															 * FIXME */
+									 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/* start by inserting the new database */
 	int			score = 0;
+
 	if (OidIsValid(newdb))
 	{
 		avl_dbase  *db;
 
 		/* only consider this database if it has a pgstat entry */
 		PgStat_StatDBEntry *entry = pgstat_fetch_stat_dbentry(newdb);
+
 		if (entry != NULL)
 		{
 			/* we assume it isn't found because the hash was just created */
@@ -1004,6 +1010,7 @@ rebuild_database_list(Oid newdb)
 		 * of dropped databases
 		 */
 		PgStat_StatDBEntry *entry = pgstat_fetch_stat_dbentry(avdb->adl_datid);
+
 		if (entry == NULL)
 			continue;
 
@@ -1019,6 +1026,7 @@ rebuild_database_list(Oid newdb)
 
 	/* finally, insert all qualifying databases not previously inserted */
 	List	   *dblist = get_database_list();
+
 	foreach(cell, dblist)
 	{
 		avw_dbase  *avdb = lfirst(cell);
@@ -1026,10 +1034,12 @@ rebuild_database_list(Oid newdb)
 
 		/* only consider databases with a pgstat entry */
 		PgStat_StatDBEntry *entry = pgstat_fetch_stat_dbentry(avdb->adw_datid);
+
 		if (entry == NULL)
 			continue;
 
 		avl_dbase  *db = hash_search(dbhash, &(avdb->adw_datid), HASH_ENTER, &found);
+
 		/* only update the score if the database was not already on the hash */
 		if (!found)
 		{
@@ -1053,6 +1063,7 @@ rebuild_database_list(Oid newdb)
 		avl_dbase  *dbary = palloc(nelems * sizeof(avl_dbase));
 
 		int			i = 0;
+
 		hash_seq_init(&seq, dbhash);
 		while ((db = hash_seq_search(&seq)) != NULL)
 			memcpy(&(dbary[i++]), db, sizeof(avl_dbase));
@@ -1068,6 +1079,7 @@ rebuild_database_list(Oid newdb)
 		 * the GUC variable).
 		 */
 		int			millis_increment = 1000.0 * autovacuum_naptime / nelems;
+
 		if (millis_increment <= MIN_AUTOVAC_SLEEPTIME)
 			millis_increment = MIN_AUTOVAC_SLEEPTIME * 1.1;
 
@@ -1159,6 +1171,7 @@ do_start_worker(void)
 	 */
 	recentXid = ReadNewTransactionId();
 	TransactionId xidForceLimit = recentXid - autovacuum_freeze_max_age;
+
 	/* ensure it's a "normal" XID, else TransactionIdPrecedes misbehaves */
 	/* this can cause the limit to go backwards by 3, but that's OK */
 	if (xidForceLimit < FirstNormalTransactionId)
@@ -1167,6 +1180,7 @@ do_start_worker(void)
 	/* Also determine the oldest datminmxid we will consider. */
 	recentMulti = ReadNextMultiXactId();
 	MultiXactId multiForceLimit = recentMulti - MultiXactMemberFreezeThreshold();
+
 	if (multiForceLimit < FirstMultiXactId)
 		multiForceLimit -= FirstMultiXactId;
 
@@ -1195,6 +1209,7 @@ do_start_worker(void)
 	bool		for_xid_wrap = false;
 	bool		for_multi_wrap = false;
 	TimestampTz current_time = GetCurrentTimestamp();
+
 	foreach(cell, dblist)
 	{
 		avw_dbase  *tmp = lfirst(cell);
@@ -1287,6 +1302,7 @@ do_start_worker(void)
 		dlist_node *wptr = dlist_pop_head_node(&AutoVacuumShmem->av_freeWorkers);
 
 		WorkerInfo	worker = dlist_container(WorkerInfoData, wi_links, wptr);
+
 		worker->wi_dboid = avdb->adw_datid;
 		worker->wi_proc = NULL;
 		worker->wi_launchtime = GetCurrentTimestamp();
@@ -1331,6 +1347,7 @@ launch_worker(TimestampTz now)
 	dlist_iter	iter;
 
 	Oid			dbid = do_start_worker();
+
 	if (OidIsValid(dbid))
 	{
 		bool		found = false;
@@ -1778,6 +1795,7 @@ autovac_balance_cost(void)
 
 	/* calculate the total base cost limit of participating active workers */
 	double		cost_total = 0.0;
+
 	dlist_foreach(iter, &AutoVacuumShmem->av_runningWorkers)
 	{
 		WorkerInfo	worker = dlist_container(WorkerInfoData, wi_links, iter.cur);
@@ -1798,6 +1816,7 @@ autovac_balance_cost(void)
 	 * limit to autovacuum_vacuum_cost_limit.
 	 */
 	double		cost_avail = (double) vac_cost_limit / vac_cost_delay;
+
 	dlist_foreach(iter, &AutoVacuumShmem->av_runningWorkers)
 	{
 		WorkerInfo	worker = dlist_container(WorkerInfoData, wi_links, iter.cur);
@@ -1957,6 +1976,7 @@ do_autovacuum(void)
 	 * default.
 	 */
 	HeapTuple	tuple = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(MyDatabaseId));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for database %u", MyDatabaseId);
 	Form_pg_database dbForm = (Form_pg_database) GETSTRUCT(tuple);
@@ -1995,9 +2015,9 @@ do_autovacuum(void)
 	ctl.entrysize = sizeof(av_relation);
 
 	HTAB	   *table_toast_map = hash_create("TOAST to main relid map",
-								  100,
-								  &ctl,
-								  HASH_ELEM | HASH_BLOBS);
+											  100,
+											  &ctl,
+											  HASH_ELEM | HASH_BLOBS);
 
 	/*
 	 * Scan pg_class to determine which tables to vacuum.
@@ -2060,7 +2080,7 @@ do_autovacuum(void)
 		/* Fetch reloptions and the pgstat entry for this table */
 		AutoVacOpts *relopts = extract_autovac_opts(tuple, pg_class_desc);
 		PgStat_StatTabEntry *tabentry = get_pgstat_tabentry_relid(relid, classForm->relisshared,
-											 shared, dbentry);
+																  shared, dbentry);
 
 		/* Check if it needs vacuum or analyze */
 		relation_needs_vacanalyze(relid, relopts, classForm, tabentry,
@@ -2081,8 +2101,8 @@ do_autovacuum(void)
 			bool		found;
 
 			av_relation *hentry = hash_search(table_toast_map,
-								 &classForm->reltoastrelid,
-								 HASH_ENTER, &found);
+											  &classForm->reltoastrelid,
+											  HASH_ENTER, &found);
 
 			if (!found)
 			{
@@ -2128,18 +2148,20 @@ do_autovacuum(void)
 		 * main rel
 		 */
 		AutoVacOpts *relopts = extract_autovac_opts(tuple, pg_class_desc);
+
 		if (relopts == NULL)
 		{
 			bool		found;
 
 			av_relation *hentry = hash_search(table_toast_map, &relid, HASH_FIND, &found);
+
 			if (found && hentry->ar_hasrelopts)
 				relopts = &hentry->ar_reloptions;
 		}
 
 		/* Fetch the pgstat entry for this table */
 		PgStat_StatTabEntry *tabentry = get_pgstat_tabentry_relid(relid, classForm->relisshared,
-											 shared, dbentry);
+																  shared, dbentry);
 
 		relation_needs_vacanalyze(relid, relopts, classForm, tabentry,
 								  effective_multixact_freeze_max_age,
@@ -2289,9 +2311,11 @@ do_autovacuum(void)
 		 * increases the odds of that function working with stale data.)
 		 */
 		HeapTuple	classTup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 		if (!HeapTupleIsValid(classTup))
 			continue;			/* somebody deleted the rel, forget it */
 		bool		isshared = ((Form_pg_class) GETSTRUCT(classTup))->relisshared;
+
 		ReleaseSysCache(classTup);
 
 		/*
@@ -2307,6 +2331,7 @@ do_autovacuum(void)
 		 * worker.
 		 */
 		bool		skipit = false;
+
 		dlist_foreach(iter, &AutoVacuumShmem->av_runningWorkers)
 		{
 			WorkerInfo	worker = dlist_container(WorkerInfoData, wi_links, iter.cur);
@@ -2355,7 +2380,8 @@ do_autovacuum(void)
 		 */
 		MemoryContextSwitchTo(AutovacMemCxt);
 		autovac_table *tab = table_recheck_autovac(relid, table_toast_map, pg_class_desc,
-									effective_multixact_freeze_max_age);
+												   effective_multixact_freeze_max_age);
+
 		if (tab == NULL)
 		{
 			/* someone else vacuumed the table, or it went away */
@@ -2583,6 +2609,7 @@ perform_work_item(AutoVacuumWorkItem *workitem)
 	char	   *cur_relname = get_rel_name(workitem->avw_relation);
 	char	   *cur_nspname = get_namespace_name(get_rel_namespace(workitem->avw_relation));
 	char	   *cur_datname = get_database_name(MyDatabaseId);
+
 	if (!cur_relname || !cur_nspname || !cur_datname)
 		goto deleted2;
 
@@ -2676,10 +2703,12 @@ extract_autovac_opts(HeapTuple tup, TupleDesc pg_class_desc)
 		   ((Form_pg_class) GETSTRUCT(tup))->relkind == RELKIND_TOASTVALUE);
 
 	bytea	   *relopts = extractRelOptions(tup, pg_class_desc, NULL);
+
 	if (relopts == NULL)
 		return NULL;
 
 	AutoVacOpts *av = palloc(sizeof(AutoVacOpts));
+
 	memcpy(av, &(((StdRdOptions *) relopts)->autovacuum), sizeof(AutoVacOpts));
 	pfree(relopts);
 
@@ -2736,6 +2765,7 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
 
 	/* fetch the relation's relcache entry */
 	HeapTuple	classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(classTup))
 		return NULL;
 	Form_pg_class classForm = (Form_pg_class) GETSTRUCT(classTup);
@@ -2745,19 +2775,21 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
 	 * main table reloptions if the toast table itself doesn't have.
 	 */
 	AutoVacOpts *avopts = extract_autovac_opts(classTup, pg_class_desc);
+
 	if (classForm->relkind == RELKIND_TOASTVALUE &&
 		avopts == NULL && table_toast_map != NULL)
 	{
 		bool		found;
 
 		av_relation *hentry = hash_search(table_toast_map, &relid, HASH_FIND, &found);
+
 		if (found && hentry->ar_hasrelopts)
 			avopts = &hentry->ar_reloptions;
 	}
 
 	/* fetch the pgstat table entry */
 	PgStat_StatTabEntry *tabentry = get_pgstat_tabentry_relid(relid, classForm->relisshared,
-										 shared, dbentry);
+															  shared, dbentry);
 
 	relation_needs_vacanalyze(relid, avopts, classForm, tabentry,
 							  effective_multixact_freeze_max_age,
@@ -2780,41 +2812,41 @@ table_recheck_autovac(Oid relid, HTAB *table_toast_map,
 
 		/* -1 in autovac setting means use plain vacuum_cost_delay */
 		double		vac_cost_delay = (avopts && avopts->vacuum_cost_delay >= 0)
-			? avopts->vacuum_cost_delay
-			: (autovacuum_vac_cost_delay >= 0)
-			? autovacuum_vac_cost_delay
-			: VacuumCostDelay;
+		? avopts->vacuum_cost_delay
+		: (autovacuum_vac_cost_delay >= 0)
+		? autovacuum_vac_cost_delay
+		: VacuumCostDelay;
 
 		/* 0 or -1 in autovac setting means use plain vacuum_cost_limit */
 		int			vac_cost_limit = (avopts && avopts->vacuum_cost_limit > 0)
-			? avopts->vacuum_cost_limit
-			: (autovacuum_vac_cost_limit > 0)
-			? autovacuum_vac_cost_limit
-			: VacuumCostLimit;
+		? avopts->vacuum_cost_limit
+		: (autovacuum_vac_cost_limit > 0)
+		? autovacuum_vac_cost_limit
+		: VacuumCostLimit;
 
 		/* -1 in autovac setting means use log_autovacuum_min_duration */
 		int			log_min_duration = (avopts && avopts->log_min_duration >= 0)
-			? avopts->log_min_duration
-			: Log_autovacuum_min_duration;
+		? avopts->log_min_duration
+		: Log_autovacuum_min_duration;
 
 		/* these do not have autovacuum-specific settings */
 		int			freeze_min_age = (avopts && avopts->freeze_min_age >= 0)
-			? avopts->freeze_min_age
-			: default_freeze_min_age;
+		? avopts->freeze_min_age
+		: default_freeze_min_age;
 
 		int			freeze_table_age = (avopts && avopts->freeze_table_age >= 0)
-			? avopts->freeze_table_age
-			: default_freeze_table_age;
+		? avopts->freeze_table_age
+		: default_freeze_table_age;
 
 		int			multixact_freeze_min_age = (avopts &&
-									avopts->multixact_freeze_min_age >= 0)
-			? avopts->multixact_freeze_min_age
-			: default_multixact_freeze_min_age;
+												avopts->multixact_freeze_min_age >= 0)
+		? avopts->multixact_freeze_min_age
+		: default_multixact_freeze_min_age;
 
 		int			multixact_freeze_table_age = (avopts &&
-									  avopts->multixact_freeze_table_age >= 0)
-			? avopts->multixact_freeze_table_age
-			: default_multixact_freeze_table_age;
+												  avopts->multixact_freeze_table_age >= 0)
+		? avopts->multixact_freeze_table_age
+		: default_multixact_freeze_table_age;
 
 		tab = palloc(sizeof(autovac_table));
 		tab->at_relid = relid;
@@ -2960,22 +2992,24 @@ relation_needs_vacanalyze(Oid relid,
 		: autovacuum_anl_thresh;
 
 	int			freeze_max_age = (relopts && relopts->freeze_max_age >= 0)
-		? Min(relopts->freeze_max_age, autovacuum_freeze_max_age)
-		: autovacuum_freeze_max_age;
+	? Min(relopts->freeze_max_age, autovacuum_freeze_max_age)
+	: autovacuum_freeze_max_age;
 
 	int			multixact_freeze_max_age = (relopts && relopts->multixact_freeze_max_age >= 0)
-		? Min(relopts->multixact_freeze_max_age, effective_multixact_freeze_max_age)
-		: effective_multixact_freeze_max_age;
+	? Min(relopts->multixact_freeze_max_age, effective_multixact_freeze_max_age)
+	: effective_multixact_freeze_max_age;
 
 	bool		av_enabled = (relopts ? relopts->enabled : true);
 
 	/* Force vacuum if table is at risk of wraparound */
 	TransactionId xidForceLimit = recentXid - freeze_max_age;
+
 	if (xidForceLimit < FirstNormalTransactionId)
 		xidForceLimit -= FirstNormalTransactionId;
 	bool		force_vacuum = (TransactionIdIsNormal(classForm->relfrozenxid) &&
-					TransactionIdPrecedes(classForm->relfrozenxid,
-										  xidForceLimit));
+								TransactionIdPrecedes(classForm->relfrozenxid,
+													  xidForceLimit));
+
 	if (!force_vacuum)
 	{
 		multiForceLimit = recentMulti - multixact_freeze_max_age;
@@ -3247,6 +3281,7 @@ AutoVacuumShmemSize(void)
 	 * Need the fixed struct and the array of WorkerInfoData.
 	 */
 	Size		size = sizeof(AutoVacuumShmemStruct);
+
 	size = MAXALIGN(size);
 	size = add_size(size, mul_size(autovacuum_max_workers,
 								   sizeof(WorkerInfoData)));
@@ -3281,7 +3316,7 @@ AutoVacuumShmemInit(void)
 			   sizeof(AutoVacuumWorkItem) * NUM_WORKITEMS);
 
 		WorkerInfo	worker = (WorkerInfo) ((char *) AutoVacuumShmem +
-							   MAXALIGN(sizeof(AutoVacuumShmemStruct)));
+										   MAXALIGN(sizeof(AutoVacuumShmemStruct)));
 
 		/* initialize the WorkerInfo free list */
 		for (i = 0; i < autovacuum_max_workers; i++)

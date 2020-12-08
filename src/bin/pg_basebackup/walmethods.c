@@ -322,6 +322,7 @@ dir_existsfile(const char *pathname)
 			 dir_data->basedir, pathname);
 
 	int			fd = open(tmppath, O_RDONLY | PG_BINARY, 0);
+
 	if (fd < 0)
 		return false;
 	close(fd);
@@ -349,6 +350,7 @@ CreateWalDirectoryMethod(const char *basedir, int compression, bool sync)
 {
 
 	WalWriteMethod *method = pg_malloc0(sizeof(WalWriteMethod));
+
 	method->open_for_write = dir_open_for_write;
 	method->write = dir_write;
 	method->get_current_pos = dir_get_current_pos;
@@ -430,6 +432,7 @@ tar_write_compressed_data(void *buf, size_t count, bool flush)
 	{
 
 		int			r = deflate(tar_data->zp, flush ? Z_FINISH : Z_NO_FLUSH);
+
 		if (r == Z_STREAM_ERROR)
 		{
 			tar_set_error("could not compress data");
@@ -782,6 +785,7 @@ tar_close(Walfile f, WalCloseMethod method)
 	 */
 	ssize_t		filesize = tar_get_current_pos(f);
 	int			padding = tarPaddingBytesRequired(filesize);
+
 	if (padding)
 	{
 		char		zerobuf[TAR_BLOCK_SIZE];
@@ -983,6 +987,7 @@ CreateWalTarMethod(const char *tarbase, int compression, bool sync)
 	const char *suffix = (compression != 0) ? ".tar.gz" : ".tar";
 
 	WalWriteMethod *method = pg_malloc0(sizeof(WalWriteMethod));
+
 	method->open_for_write = tar_open_for_write;
 	method->write = tar_write;
 	method->get_current_pos = tar_get_current_pos;

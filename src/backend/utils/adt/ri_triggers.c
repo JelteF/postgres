@@ -236,7 +236,7 @@ RI_FKey_check(TriggerData *trigdata)
 	SPIPlanPtr	qplan;
 
 	const RI_ConstraintInfo *riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
-									trigdata->tg_relation, false);
+															 trigdata->tg_relation, false);
 
 	if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
 		newslot = trigdata->tg_newslot;
@@ -354,11 +354,13 @@ RI_FKey_check(TriggerData *trigdata)
 		 */
 		initStringInfo(&querybuf);
 		const char *pk_only = pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(pkrelname, pk_rel);
 		appendStringInfo(&querybuf, "SELECT 1 FROM %s%s x",
 						 pk_only, pkrelname);
 		const char *querysep = "WHERE";
+
 		for (int i = 0; i < riinfo->nkeys; i++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -479,11 +481,13 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 		 */
 		initStringInfo(&querybuf);
 		const char *pk_only = pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(pkrelname, pk_rel);
 		appendStringInfo(&querybuf, "SELECT 1 FROM %s%s x",
 						 pk_only, pkrelname);
 		const char *querysep = "WHERE";
+
 		for (int i = 0; i < riinfo->nkeys; i++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -509,10 +513,10 @@ ri_Check_Pk_Match(Relation pk_rel, Relation fk_rel,
 	 * We have a plan now. Run it.
 	 */
 	bool		result = ri_PerformCheck(riinfo, &qkey, qplan,
-							 fk_rel, pk_rel,
-							 oldslot, NULL,
-							 true,	/* treat like update */
-							 SPI_OK_SELECT);
+										 fk_rel, pk_rel,
+										 oldslot, NULL,
+										 true,	/* treat like update */
+										 SPI_OK_SELECT);
 
 	if (SPI_finish() != SPI_OK_FINISH)
 		elog(ERROR, "SPI_finish failed");
@@ -608,7 +612,7 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 	SPIPlanPtr	qplan;
 
 	const RI_ConstraintInfo *riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
-									trigdata->tg_relation, true);
+															 trigdata->tg_relation, true);
 
 	/*
 	 * Get the relation descriptors of the FK and PK tables and the old tuple.
@@ -660,11 +664,13 @@ ri_restrict(TriggerData *trigdata, bool is_no_action)
 		 */
 		initStringInfo(&querybuf);
 		const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(fkrelname, fk_rel);
 		appendStringInfo(&querybuf, "SELECT 1 FROM %s%s x",
 						 fk_only, fkrelname);
 		const char *querysep = "WHERE";
+
 		for (int i = 0; i < riinfo->nkeys; i++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -725,7 +731,7 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 	ri_CheckTrigger(fcinfo, "RI_FKey_cascade_del", RI_TRIGTYPE_DELETE);
 
 	const RI_ConstraintInfo *riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
-									trigdata->tg_relation, true);
+															 trigdata->tg_relation, true);
 
 	/*
 	 * Get the relation descriptors of the FK and PK tables and the old tuple.
@@ -760,11 +766,13 @@ RI_FKey_cascade_del(PG_FUNCTION_ARGS)
 		 */
 		initStringInfo(&querybuf);
 		const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(fkrelname, fk_rel);
 		appendStringInfo(&querybuf, "DELETE FROM %s%s",
 						 fk_only, fkrelname);
 		const char *querysep = "WHERE";
+
 		for (int i = 0; i < riinfo->nkeys; i++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -825,7 +833,7 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 	ri_CheckTrigger(fcinfo, "RI_FKey_cascade_upd", RI_TRIGTYPE_UPDATE);
 
 	const RI_ConstraintInfo *riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
-									trigdata->tg_relation, true);
+															 trigdata->tg_relation, true);
 
 	/*
 	 * Get the relation descriptors of the FK and PK tables and the new and
@@ -867,12 +875,14 @@ RI_FKey_cascade_upd(PG_FUNCTION_ARGS)
 		initStringInfo(&querybuf);
 		initStringInfo(&qualbuf);
 		const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(fkrelname, fk_rel);
 		appendStringInfo(&querybuf, "UPDATE %s%s SET",
 						 fk_only, fkrelname);
 		const char *querysep = "";
 		const char *qualsep = "WHERE";
+
 		for (int i = 0, j = riinfo->nkeys; i < riinfo->nkeys; i++, j++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -995,7 +1005,7 @@ ri_set(TriggerData *trigdata, bool is_set_null)
 	SPIPlanPtr	qplan;
 
 	const RI_ConstraintInfo *riinfo = ri_FetchConstraintInfo(trigdata->tg_trigger,
-									trigdata->tg_relation, true);
+															 trigdata->tg_relation, true);
 
 	/*
 	 * Get the relation descriptors of the FK and PK tables and the old tuple.
@@ -1039,12 +1049,14 @@ ri_set(TriggerData *trigdata, bool is_set_null)
 		initStringInfo(&querybuf);
 		initStringInfo(&qualbuf);
 		const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-			"" : "ONLY ";
+		"" : "ONLY ";
+
 		quoteRelationName(fkrelname, fk_rel);
 		appendStringInfo(&querybuf, "UPDATE %s%s SET",
 						 fk_only, fkrelname);
 		const char *querysep = "";
 		const char *qualsep = "WHERE";
+
 		for (int i = 0; i < riinfo->nkeys; i++)
 		{
 			Oid			pk_type = RIAttType(pk_rel, riinfo->pk_attnums[i]);
@@ -1221,8 +1233,10 @@ RI_FKey_fk_upd_check_required(Trigger *trigger, Relation fk_rel,
 	 * way to know that.)
 	 */
 	Datum		xminDatum = slot_getsysattr(oldslot, MinTransactionIdAttributeNumber, &isnull);
+
 	Assert(!isnull);
 	TransactionId xmin = DatumGetTransactionId(xminDatum);
+
 	if (TransactionIdIsCurrentTransactionId(xmin))
 		return true;
 
@@ -1271,6 +1285,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * XXX are there any other show-stopper conditions to check?
 	 */
 	RangeTblEntry *pkrte = makeNode(RangeTblEntry);
+
 	pkrte->rtekind = RTE_RELATION;
 	pkrte->relid = RelationGetRelid(pk_rel);
 	pkrte->relkind = pk_rel->rd_rel->relkind;
@@ -1278,6 +1293,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	pkrte->requiredPerms = ACL_SELECT;
 
 	RangeTblEntry *fkrte = makeNode(RangeTblEntry);
+
 	fkrte->rtekind = RTE_RELATION;
 	fkrte->relid = RelationGetRelid(fk_rel);
 	fkrte->relkind = fk_rel->rd_rel->relkind;
@@ -1288,6 +1304,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	{
 
 		int			attno = riinfo->pk_attnums[i] - FirstLowInvalidHeapAttributeNumber;
+
 		pkrte->selectedCols = bms_add_member(pkrte->selectedCols, attno);
 
 		attno = riinfo->fk_attnums[i] - FirstLowInvalidHeapAttributeNumber;
@@ -1327,6 +1344,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	initStringInfo(&querybuf);
 	appendStringInfoString(&querybuf, "SELECT ");
 	const char *sep = "";
+
 	for (int i = 0; i < riinfo->nkeys; i++)
 	{
 		quoteOneName(fkattname,
@@ -1338,9 +1356,10 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	quoteRelationName(pkrelname, pk_rel);
 	quoteRelationName(fkrelname, fk_rel);
 	const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-		"" : "ONLY ";
+	"" : "ONLY ";
 	const char *pk_only = pk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-		"" : "ONLY ";
+	"" : "ONLY ";
+
 	appendStringInfo(&querybuf,
 					 " FROM %s%s fk LEFT OUTER JOIN %s%s pk ON",
 					 fk_only, fkrelname, pk_only, pkrelname);
@@ -1439,10 +1458,10 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
 	int			spi_result = SPI_execute_snapshot(qplan,
-									  NULL, NULL,
-									  GetLatestSnapshot(),
-									  InvalidSnapshot,
-									  true, false, 1);
+												  NULL, NULL,
+												  GetLatestSnapshot(),
+												  InvalidSnapshot,
+												  true, false, 1);
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
@@ -1557,6 +1576,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	initStringInfo(&querybuf);
 	appendStringInfoString(&querybuf, "SELECT ");
 	const char *sep = "";
+
 	for (i = 0; i < riinfo->nkeys; i++)
 	{
 		quoteOneName(fkattname,
@@ -1568,7 +1588,8 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	quoteRelationName(pkrelname, pk_rel);
 	quoteRelationName(fkrelname, fk_rel);
 	const char *fk_only = fk_rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE ?
-		"" : "ONLY ";
+	"" : "ONLY ";
+
 	appendStringInfo(&querybuf,
 					 " FROM %s%s fk JOIN %s pk ON",
 					 fk_only, fkrelname, pkrelname);
@@ -1601,6 +1622,7 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * partition constraint is the empty string in that case.)
 	 */
 	char	   *constraintDef = pg_get_partconstrdef_string(RelationGetRelid(pk_rel), "pk");
+
 	if (constraintDef && constraintDef[0] != '\0')
 		appendStringInfo(&querybuf, ") WHERE %s AND (",
 						 constraintDef);
@@ -1671,10 +1693,10 @@ RI_PartitionRemove_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * need at most one tuple returned, so pass limit = 1.
 	 */
 	int			spi_result = SPI_execute_snapshot(qplan,
-									  NULL, NULL,
-									  GetLatestSnapshot(),
-									  InvalidSnapshot,
-									  true, false, 1);
+												  NULL, NULL,
+												  GetLatestSnapshot(),
+												  InvalidSnapshot,
+												  true, false, 1);
 
 	/* Check result */
 	if (spi_result != SPI_OK_SELECT)
@@ -1807,6 +1829,7 @@ ri_GenerateQualCollation(StringInfo buf, Oid collation)
 		return;
 
 	HeapTuple	tp = SearchSysCache1(COLLOID, ObjectIdGetDatum(collation));
+
 	if (!HeapTupleIsValid(tp))
 		elog(ERROR, "cache lookup failed for collation %u", collation);
 	Form_pg_collation colltup = (Form_pg_collation) GETSTRUCT(tp);
@@ -1964,8 +1987,9 @@ ri_LoadConstraintInfo(Oid constraintOid)
 	 * Find or create a hash entry.  If we find a valid one, just return it.
 	 */
 	RI_ConstraintInfo *riinfo = (RI_ConstraintInfo *) hash_search(ri_constraint_cache,
-											   (void *) &constraintOid,
-											   HASH_ENTER, &found);
+																  (void *) &constraintOid,
+																  HASH_ENTER, &found);
+
 	if (!found)
 		riinfo->valid = false;
 	else if (riinfo->valid)
@@ -1975,6 +1999,7 @@ ri_LoadConstraintInfo(Oid constraintOid)
 	 * Fetch the pg_constraint row so we can fill in the entry.
 	 */
 	HeapTuple	tup = SearchSysCache1(CONSTROID, ObjectIdGetDatum(constraintOid));
+
 	if (!HeapTupleIsValid(tup)) /* should not happen */
 		elog(ERROR, "cache lookup failed for constraint %u", constraintOid);
 	Form_pg_constraint conForm = (Form_pg_constraint) GETSTRUCT(tup);
@@ -2206,9 +2231,9 @@ ri_PerformCheck(const RI_ConstraintInfo *riinfo,
 
 	/* Finally we can run the query. */
 	int			spi_result = SPI_execute_snapshot(qplan,
-									  vals, nulls,
-									  test_snapshot, crosscheck_snapshot,
-									  false, false, limit);
+												  vals, nulls,
+												  test_snapshot, crosscheck_snapshot,
+												  false, false, limit);
 
 	/* Restore UID and security context */
 	SetUserIdAndSecContext(save_userid, save_sec_context);
@@ -2289,6 +2314,7 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 	 * by caller, assume the violator tuple came from there.
 	 */
 	bool		onfk = (queryno == RI_PLAN_CHECK_LOOKUPPK);
+
 	if (onfk)
 	{
 		attnums = riinfo->fk_attnums;
@@ -2359,6 +2385,7 @@ ri_ReportViolation(const RI_ConstraintInfo *riinfo,
 			name = NameStr(att->attname);
 
 			Datum		datum = slot_getattr(violatorslot, fnum, &isnull);
+
 			if (!isnull)
 			{
 				Oid			foutoid;
@@ -2517,8 +2544,9 @@ ri_FetchPreparedPlan(RI_QueryKey *key)
 	 * Lookup for the key
 	 */
 	RI_QueryHashEntry *entry = (RI_QueryHashEntry *) hash_search(ri_query_cache,
-											  (void *) key,
-											  HASH_FIND, NULL);
+																 (void *) key,
+																 HASH_FIND, NULL);
+
 	if (entry == NULL)
 		return NULL;
 
@@ -2533,6 +2561,7 @@ ri_FetchPreparedPlan(RI_QueryKey *key)
 	 * locked both FK and PK rels.
 	 */
 	SPIPlanPtr	plan = entry->plan;
+
 	if (plan && SPI_plan_is_valid(plan))
 		return plan;
 
@@ -2569,8 +2598,9 @@ ri_HashPreparedPlan(RI_QueryKey *key, SPIPlanPtr plan)
 	 * invalid by ri_FetchPreparedPlan.
 	 */
 	RI_QueryHashEntry *entry = (RI_QueryHashEntry *) hash_search(ri_query_cache,
-											  (void *) key,
-											  HASH_ENTER, &found);
+																 (void *) key,
+																 HASH_ENTER, &found);
+
 	Assert(!found || entry->plan == NULL);
 	entry->plan = plan;
 }
@@ -2606,6 +2636,7 @@ ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
 		 * Get one attribute's oldvalue. If it is NULL - they're not equal.
 		 */
 		Datum		oldvalue = slot_getattr(oldslot, attnums[i], &isnull);
+
 		if (isnull)
 			return false;
 
@@ -2613,6 +2644,7 @@ ri_KeysEqual(Relation rel, TupleTableSlot *oldslot, TupleTableSlot *newslot,
 		 * Get one attribute's newvalue. If it is NULL - they're not equal.
 		 */
 		Datum		newvalue = slot_getattr(newslot, attnums[i], &isnull);
+
 		if (isnull)
 			return false;
 
@@ -2716,8 +2748,9 @@ ri_HashCompareOp(Oid eq_opr, Oid typeid)
 	key.eq_opr = eq_opr;
 	key.typeid = typeid;
 	RI_CompareHashEntry *entry = (RI_CompareHashEntry *) hash_search(ri_compare_cache,
-												(void *) &key,
-												HASH_ENTER, &found);
+																	 (void *) &key,
+																	 HASH_ENTER, &found);
+
 	if (!found)
 		entry->valid = false;
 

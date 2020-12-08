@@ -148,6 +148,7 @@ GetConnection(UserMapping *user, bool will_prep_stmt)
 	 * Find or create cached entry for requested connection.
 	 */
 	ConnCacheEntry *entry = hash_search(ConnectionHash, &key, HASH_ENTER, &found);
+
 	if (!found)
 	{
 		/*
@@ -526,6 +527,7 @@ do_sql_command(PGconn *conn, const char *sql)
 	if (!PQsendQuery(conn, sql))
 		pgfdw_report_error(ERROR, NULL, conn, false, sql);
 	PGresult   *res = pgfdw_get_result(conn, sql);
+
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		pgfdw_report_error(ERROR, res, conn, true, sql);
 	PQclear(res);
@@ -672,10 +674,11 @@ pgfdw_get_result(PGconn *conn, const char *query)
 
 				/* Sleep until there's something to do */
 				int			wc = WaitLatchOrSocket(MyLatch,
-									   WL_LATCH_SET | WL_SOCKET_READABLE |
-									   WL_EXIT_ON_PM_DEATH,
-									   PQsocket(conn),
-									   -1L, PG_WAIT_EXTENSION);
+												   WL_LATCH_SET | WL_SOCKET_READABLE |
+												   WL_EXIT_ON_PM_DEATH,
+												   PQsocket(conn),
+												   -1L, PG_WAIT_EXTENSION);
+
 				ResetLatch(MyLatch);
 
 				CHECK_FOR_INTERRUPTS();
@@ -689,6 +692,7 @@ pgfdw_get_result(PGconn *conn, const char *query)
 			}
 
 			PGresult   *res = PQgetResult(conn);
+
 			if (res == NULL)
 				break;			/* query is complete */
 
@@ -982,6 +986,7 @@ pgfdw_subxact_callback(SubXactEvent event, SubTransactionId mySubid,
 	 * of the current level, and close them.
 	 */
 	int			curlevel = GetCurrentTransactionNestLevel();
+
 	hash_seq_init(&scan, ConnectionHash);
 	while ((entry = (ConnCacheEntry *) hash_seq_search(&scan)))
 	{
@@ -1123,11 +1128,13 @@ pgfdw_reject_incomplete_xact_state_change(ConnCacheEntry *entry)
 
 	/* find server name to be shown in the message below */
 	HeapTuple	tup = SearchSysCache1(USERMAPPINGOID,
-						  ObjectIdGetDatum(entry->key));
+									  ObjectIdGetDatum(entry->key));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for user mapping %u", entry->key);
 	Form_pg_user_mapping umform = (Form_pg_user_mapping) GETSTRUCT(tup);
 	ForeignServer *server = GetForeignServer(umform->umserver);
+
 	ReleaseSysCache(tup);
 
 	ereport(ERROR,
@@ -1260,6 +1267,7 @@ pgfdw_get_cleanup_result(PGconn *conn, TimestampTz endtime, PGresult **result)
 
 				/* If timeout has expired, give up, else get sleep time. */
 				long		cur_timeout = TimestampDifferenceMilliseconds(now, endtime);
+
 				if (cur_timeout <= 0)
 				{
 					timed_out = true;

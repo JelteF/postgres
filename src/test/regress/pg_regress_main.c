@@ -90,6 +90,7 @@ psql_start_test(const char *testname,
 	}
 
 	char	   *appnameenv = psprintf("PGAPPNAME=pg_regress/%s", testname);
+
 	putenv(appnameenv);
 
 	PID_TYPE	pid = spawn_process(psql_cmd);

@@ -172,6 +172,7 @@ rloop:
 	 * ERR_get_error() may be called.
 	 */
 	unsigned long ecode = (err != SSL_ERROR_NONE || n < 0) ? ERR_get_error() : 0;
+
 	switch (err)
 	{
 		case SSL_ERROR_NONE:
@@ -278,6 +279,7 @@ pgtls_write(PGconn *conn, const void *ptr, size_t len)
 	ssize_t		n = SSL_write(conn->ssl, ptr, len);
 	int			err = SSL_get_error(conn->ssl, n);
 	unsigned long ecode = (err != SSL_ERROR_NONE || n < 0) ? ERR_get_error() : 0;
+
 	switch (err)
 	{
 		case SSL_ERROR_NONE:
@@ -426,6 +428,7 @@ pgtls_get_peer_certificate_hash(PGconn *conn, size_t *len)
 
 	/* save result */
 	char	   *cert_hash = malloc(hash_size);
+
 	if (cert_hash == NULL)
 	{
 		printfPQExpBuffer(&conn->errorMessage,
@@ -558,11 +561,13 @@ pgtls_verify_peer_name_matches_certificate_guts(PGconn *conn,
 	{
 
 		X509_NAME  *subject_name = X509_get_subject_name(conn->peer);
+
 		if (subject_name != NULL)
 		{
 
 			int			cn_index = X509_NAME_get_index_by_NID(subject_name,
-												  NID_commonName, -1);
+															  NID_commonName, -1);
+
 			if (cn_index >= 0)
 			{
 				(*names_examined)++;
@@ -796,6 +801,7 @@ initialize_SSL(PGconn *conn)
 	 * create a separate context for each connection, and accept the overhead.
 	 */
 	SSL_CTX    *SSL_context = SSL_CTX_new(SSLv23_method());
+
 	if (!SSL_context)
 	{
 		char	   *err = SSLerrmessage(ERR_get_error());
@@ -1253,11 +1259,13 @@ open_client_SSL(PGconn *conn)
 
 	ERR_clear_error();
 	int			r = SSL_connect(conn->ssl);
+
 	if (r <= 0)
 	{
 		int			err = SSL_get_error(conn->ssl, r);
 
 		unsigned long ecode = ERR_get_error();
+
 		switch (err)
 		{
 			case SSL_ERROR_WANT_READ:
@@ -1437,6 +1445,7 @@ SSLerrmessage(unsigned long ecode)
 {
 
 	char	   *errbuf = malloc(SSL_ERR_LEN);
+
 	if (!errbuf)
 		return ssl_nomem;
 	if (ecode == 0)
@@ -1445,6 +1454,7 @@ SSLerrmessage(unsigned long ecode)
 		return errbuf;
 	}
 	const char *errreason = ERR_reason_error_string(ecode);
+
 	if (errreason != NULL)
 	{
 		strlcpy(errbuf, errreason, SSL_ERR_LEN);
@@ -1557,6 +1567,7 @@ my_sock_read(BIO *h, char *buf, int size)
 {
 
 	int			res = pqsecure_raw_read((PGconn *) BIO_get_data(h), buf, size);
+
 	BIO_clear_retry_flags(h);
 	if (res < 0)
 	{
@@ -1586,6 +1597,7 @@ my_sock_write(BIO *h, const char *buf, int size)
 {
 
 	int			res = pqsecure_raw_write((PGconn *) BIO_get_data(h), buf, size);
+
 	BIO_clear_retry_flags(h);
 	if (res <= 0)
 	{
@@ -1619,6 +1631,7 @@ my_BIO_s_socket(void)
 #ifdef HAVE_BIO_METH_NEW
 
 		int			my_bio_index = BIO_get_new_index();
+
 		if (my_bio_index == -1)
 			return NULL;
 		my_bio_methods = BIO_meth_new(my_bio_index, "libpq socket");
@@ -1662,6 +1675,7 @@ my_SSL_set_fd(PGconn *conn, int fd)
 	BIO		   *bio;
 
 	BIO_METHOD *bio_method = my_BIO_s_socket();
+
 	if (bio_method == NULL)
 	{
 		SSLerr(SSL_F_SSL_SET_FD, ERR_R_BUF_LIB);

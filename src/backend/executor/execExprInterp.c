@@ -671,6 +671,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 			fcinfo->isnull = false;
 			Datum		d = op->d.func.fn_addr(fcinfo);
+
 			*op->resvalue = d;
 			*op->resnull = fcinfo->isnull;
 
@@ -1102,6 +1103,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			{
 
 				FunctionCallInfo fcinfo_out = op->d.iocoerce.fcinfo_data_out;
+
 				fcinfo_out->args[0].value = *op->resvalue;
 				fcinfo_out->args[0].isnull = false;
 
@@ -1118,6 +1120,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 				Datum		d;
 
 				FunctionCallInfo fcinfo_in = op->d.iocoerce.fcinfo_data_in;
+
 				fcinfo_in->args[0].value = PointerGetDatum(str);
 				fcinfo_in->args[0].isnull = *op->resnull;
 				/* second and third arguments are already set up */
@@ -1174,6 +1177,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 				fcinfo->isnull = false;
 				Datum		eqresult = op->d.func.fn_addr(fcinfo);
+
 				/* Must invert result of "="; safe to do even if null */
 				*op->resvalue = BoolGetDatum(!DatumGetBool(eqresult));
 				*op->resnull = fcinfo->isnull;
@@ -1202,6 +1206,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 				fcinfo->isnull = false;
 				Datum		eqresult = op->d.func.fn_addr(fcinfo);
+
 				*op->resvalue = eqresult;
 				*op->resnull = fcinfo->isnull;
 			}
@@ -1550,6 +1555,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			 * context.
 			 */
 			MemoryContext oldContext = MemoryContextSwitchTo(aggstate->tmpcontext->ecxt_per_tuple_memory);
+
 			fcinfo->isnull = false;
 			*op->resvalue = FunctionCallInvoke(fcinfo);
 			*op->resnull = fcinfo->isnull;
@@ -2255,10 +2261,11 @@ ExecEvalStepOp(ExprState *state, ExprEvalStep *op)
 
 		key.opcode = (void *) op->opcode;
 		ExprEvalOpLookup *res = bsearch(&key,
-					  reverse_dispatch_table,
-					  EEOP_LAST /* nmembers */ ,
-					  sizeof(ExprEvalOpLookup),
-					  dispatch_compare_ptr);
+										reverse_dispatch_table,
+										EEOP_LAST /* nmembers */ ,
+										sizeof(ExprEvalOpLookup),
+										dispatch_compare_ptr);
+
 		Assert(res);			/* unknown ops shouldn't get looked up */
 		return res->op;
 	}
@@ -2285,6 +2292,7 @@ ExecEvalFuncExprFusage(ExprState *state, ExprEvalStep *op,
 
 	fcinfo->isnull = false;
 	Datum		d = op->d.func.fn_addr(fcinfo);
+
 	*op->resvalue = d;
 	*op->resnull = fcinfo->isnull;
 
@@ -2318,6 +2326,7 @@ ExecEvalFuncExprStrictFusage(ExprState *state, ExprEvalStep *op,
 
 	fcinfo->isnull = false;
 	Datum		d = op->d.func.fn_addr(fcinfo);
+
 	*op->resvalue = d;
 	*op->resnull = fcinfo->isnull;
 
@@ -2335,6 +2344,7 @@ ExecEvalParamExec(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
 
 	ParamExecData *prm = &(econtext->ecxt_param_exec_vals[op->d.param.paramid]);
+
 	if (unlikely(prm->execPlan != NULL))
 	{
 		/* Parameter not evaluated yet, so go do it */
@@ -2553,8 +2563,8 @@ ExecEvalRowNullInt(ExprState *state, ExprEvalStep *op,
 
 	/* Lookup tupdesc if first time through or if type changes */
 	TupleDesc	tupDesc = get_cached_rowtype(tupType, tupTypmod,
-								 &op->d.nulltest_row.argdesc,
-								 econtext);
+											 &op->d.nulltest_row.argdesc,
+											 econtext);
 
 	/*
 	 * heap_attisnull needs a HeapTuple not a bare HeapTupleHeader.
@@ -2672,6 +2682,7 @@ ExecEvalArrayExpr(ExprState *state, ExprEvalStep *op)
 								   format_type_be(element_type))));
 
 			int			this_ndims = ARR_NDIM(array);
+
 			/* temporarily ignore zero-dimensional subarrays */
 			if (this_ndims <= 0)
 			{
@@ -2771,6 +2782,7 @@ ExecEvalArrayExpr(ExprState *state, ExprEvalStep *op)
 
 		char	   *dat = ARR_DATA_PTR(result);
 		int			iitem = 0;
+
 		for (int i = 0; i < outer_nelems; i++)
 		{
 			memcpy(dat, subdata[i], subbytes[i]);
@@ -2837,8 +2849,8 @@ ExecEvalRow(ExprState *state, ExprEvalStep *op)
 
 	/* build tuple from evaluated field values */
 	HeapTuple	tuple = heap_form_tuple(op->d.row.tupdesc,
-							op->d.row.elemvalues,
-							op->d.row.elemnulls);
+										op->d.row.elemvalues,
+										op->d.row.elemnulls);
 
 	*op->resvalue = HeapTupleGetDatum(tuple);
 	*op->resnull = false;
@@ -2886,6 +2898,7 @@ ExecEvalMinMax(ExprState *state, ExprEvalStep *op)
 
 			fcinfo->isnull = false;
 			int			cmpresult = DatumGetInt32(FunctionCallInvoke(fcinfo));
+
 			if (fcinfo->isnull) /* probably should not happen */
 				continue;
 
@@ -3033,7 +3046,7 @@ ExecEvalFieldStoreDeForm(ExprState *state, ExprEvalStep *op, ExprContext *econte
 
 	/* Lookup tupdesc if first time through or after rescan */
 	TupleDesc	tupDesc = get_cached_rowtype(op->d.fieldstore.fstore->resulttype, -1,
-								 op->d.fieldstore.argdesc, econtext);
+											 op->d.fieldstore.argdesc, econtext);
 
 	/* Check that current tupdesc doesn't have more fields than we allocated */
 	if (unlikely(tupDesc->natts > op->d.fieldstore.ncolumns))
@@ -3056,6 +3069,7 @@ ExecEvalFieldStoreDeForm(ExprState *state, ExprEvalStep *op, ExprContext *econte
 		HeapTupleData tmptup;
 
 		HeapTupleHeader tuphdr = DatumGetHeapTupleHeader(tupDatum);
+
 		tmptup.t_len = HeapTupleHeaderGetDatumLength(tuphdr);
 		ItemPointerSetInvalid(&(tmptup.t_self));
 		tmptup.t_tableOid = InvalidOid;
@@ -3077,8 +3091,8 @@ ExecEvalFieldStoreForm(ExprState *state, ExprEvalStep *op, ExprContext *econtext
 
 	/* argdesc should already be valid from the DeForm step */
 	HeapTuple	tuple = heap_form_tuple(*op->d.fieldstore.argdesc,
-							op->d.fieldstore.values,
-							op->d.fieldstore.nulls);
+										op->d.fieldstore.values,
+										op->d.fieldstore.nulls);
 
 	*op->resvalue = HeapTupleGetDatum(tuple);
 	*op->resnull = false;
@@ -3406,6 +3420,7 @@ ExecEvalScalarArrayOp(ExprState *state, ExprEvalStep *op)
 	 * to return NULL.
 	 */
 	int			nitems = ArrayGetNItems(ARR_NDIM(arr), ARR_DIMS(arr));
+
 	if (nitems <= 0)
 	{
 		*op->resvalue = BoolGetDatum(!useOr);
@@ -3598,6 +3613,7 @@ ExecEvalXmlExpr(ExprState *state, ExprEvalStep *op)
 				initStringInfo(&buf);
 
 				int			i = 0;
+
 				forboth(lc, xexpr->named_args, lc2, xexpr->arg_names)
 				{
 					Expr	   *e = (Expr *) lfirst(lc);
@@ -3620,6 +3636,7 @@ ExecEvalXmlExpr(ExprState *state, ExprEvalStep *op)
 				{
 
 					text	   *result = cstring_to_text_with_len(buf.data, buf.len);
+
 					*op->resvalue = PointerGetDatum(result);
 				}
 
@@ -3882,7 +3899,7 @@ ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 			 * to the base composite type.
 			 */
 			TupleDesc	var_tupdesc = lookup_rowtype_tupdesc_domain(variable->vartype,
-														-1, false);
+																	-1, false);
 
 			TupleDesc	slot_tupdesc = slot->tts_tupleDescriptor;
 
@@ -4019,8 +4036,8 @@ ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 	 * (Note: it is critical that we not change the slot's state here.)
 	 */
 	HeapTuple	tuple = toast_build_flattened_tuple(slot->tts_tupleDescriptor,
-										slot->tts_values,
-										slot->tts_isnull);
+													slot->tts_values,
+													slot->tts_isnull);
 	HeapTupleHeader dtuple = tuple->t_data;
 
 	/*
@@ -4043,8 +4060,9 @@ ExecEvalSysVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext,
 
 	/* slot_getsysattr has sufficient defenses against bad attnums */
 	Datum		d = slot_getsysattr(slot,
-						op->d.var.attnum,
-						op->resnull);
+									op->d.var.attnum,
+									op->resnull);
+
 	*op->resvalue = d;
 	/* this ought to be unreachable, but it's cheap enough to check */
 	if (unlikely(*op->resnull))
@@ -4068,6 +4086,7 @@ ExecAggInitGroup(AggState *aggstate, AggStatePerTrans pertrans, AggStatePerGroup
 	 * straight copy here is OK.)
 	 */
 	MemoryContext oldContext = MemoryContextSwitchTo(aggcontext->ecxt_per_tuple_memory);
+
 	pergroup->transValue = datumCopy(fcinfo->args[1].value,
 									 pertrans->transtypeByVal,
 									 pertrans->transtypeLen);

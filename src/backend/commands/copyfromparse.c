@@ -257,6 +257,7 @@ CopyGetData(CopyFromState cstate, void *databuf, int minread, int maxread)
 					HOLD_CANCEL_INTERRUPTS();
 					pq_startmsgread();
 					int			mtype = pq_getbyte();
+
 					if (mtype == EOF)
 						ereport(ERROR,
 								(errcode(ERRCODE_CONNECTION_FAILURE),
@@ -377,7 +378,8 @@ CopyLoadRawBuf(CopyFromState cstate)
 				nbytes);
 
 	int			inbytes = CopyGetData(cstate, cstate->raw_buf + nbytes,
-						  1, RAW_BUF_SIZE - nbytes);
+									  1, RAW_BUF_SIZE - nbytes);
+
 	nbytes += inbytes;
 	cstate->raw_buf[nbytes] = '\0';
 	cstate->raw_buf_index = 0;
@@ -422,6 +424,7 @@ CopyReadBinaryData(CopyFromState cstate, char *dest, int nbytes)
 
 			/* Transfer some bytes. */
 			int			copy_bytes = Min(nbytes - copied_bytes, RAW_BUF_BYTES(cstate));
+
 			memcpy(dest, cstate->raw_buf + cstate->raw_buf_index, copy_bytes);
 			cstate->raw_buf_index += copy_bytes;
 			dest += copy_bytes;
@@ -507,6 +510,7 @@ NextCopyFrom(CopyFromState cstate, ExprContext *econtext,
 	ExprState **defexprs = cstate->defexprs;
 
 	TupleDesc	tupDesc = RelationGetDescr(cstate->rel);
+
 	num_phys_attrs = tupDesc->natts;
 	attr_count = list_length(cstate->attnumlist);
 
@@ -748,8 +752,9 @@ CopyReadLine(CopyFromState cstate)
 	{
 
 		char	   *cvt = pg_any_to_server(cstate->line_buf.data,
-							   cstate->line_buf.len,
-							   cstate->file_encoding);
+										   cstate->line_buf.len,
+										   cstate->file_encoding);
+
 		if (cvt != cstate->line_buf.data)
 		{
 			/* transfer converted data back to line_buf */
@@ -1190,6 +1195,7 @@ CopyReadAttributesText(CopyFromState cstate)
 
 	/* Outer loop iterates over fields */
 	int			fieldno = 0;
+
 	for (;;)
 	{
 		bool		found_delim = false;
@@ -1206,6 +1212,7 @@ CopyReadAttributesText(CopyFromState cstate)
 
 		/* Remember start of field on both input and output sides */
 		char	   *start_ptr = cur_ptr;
+
 		cstate->raw_fields[fieldno] = output_ptr;
 
 		/*
@@ -1226,6 +1233,7 @@ CopyReadAttributesText(CopyFromState cstate)
 			if (cur_ptr >= line_end_ptr)
 				break;
 			char		c = *cur_ptr++;
+
 			if (c == delimc)
 			{
 				found_delim = true;
@@ -1332,6 +1340,7 @@ CopyReadAttributesText(CopyFromState cstate)
 
 		/* Check whether raw input matched null marker */
 		int			input_len = end_ptr - start_ptr;
+
 		if (input_len == cstate->opts.null_print_len &&
 			strncmp(start_ptr, cstate->opts.null_print, input_len) == 0)
 			cstate->raw_fields[fieldno] = NULL;
@@ -1413,6 +1422,7 @@ CopyReadAttributesCSV(CopyFromState cstate)
 
 	/* Outer loop iterates over fields */
 	int			fieldno = 0;
+
 	for (;;)
 	{
 		bool		found_delim = false;
@@ -1430,6 +1440,7 @@ CopyReadAttributesCSV(CopyFromState cstate)
 
 		/* Remember start of field on both input and output sides */
 		char	   *start_ptr = cur_ptr;
+
 		cstate->raw_fields[fieldno] = output_ptr;
 
 		/*
@@ -1574,7 +1585,7 @@ CopyReadBinaryAttribute(CopyFromState cstate, FmgrInfo *flinfo,
 
 	/* Call the column type's binary input converter */
 	Datum		result = ReceiveFunctionCall(flinfo, &cstate->attribute_buf,
-								 typioparam, typmod);
+											 typioparam, typmod);
 
 	/* Trouble if it didn't eat the whole buffer */
 	if (cstate->attribute_buf.cursor != cstate->attribute_buf.len)

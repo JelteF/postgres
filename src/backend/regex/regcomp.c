@@ -592,6 +592,7 @@ makesearch(struct vars *v,
 
 	/* first, make a list of the states reachable from pre and elsewhere */
 	struct state *slist = NULL;
+
 	for (a = pre->outs; a != NULL; a = a->outchain)
 	{
 		s = a->to;
@@ -735,6 +736,7 @@ parsebranch(struct vars *v,
 	lp = left;
 	seencontent = 0;
 	struct subre *t = subre(v, '=', 0, left, right);	/* op '=' is tentative */
+
 	NOERRN();
 	while (!SEE('|') && !SEE(stopper) && !SEE(EOS))
 	{
@@ -799,6 +801,7 @@ parseqatom(struct vars *v,
 
 	/* an atom or constraint... */
 	int			atomtype = v->nexttype;
+
 	switch (atomtype)
 	{
 			/* first, constraints, which end by returning */
@@ -1048,6 +1051,7 @@ parseqatom(struct vars *v,
 	/* if not a messy case, avoid hard part */
 	assert(!MESSY(top->flags));
 	int			f = top->flags | qprefer | ((atom != NULL) ? atom->flags : 0);
+
 	if (atomtype != '(' && atomtype != BACKREF && !MESSY(UP(f)))
 	{
 		if (!(m == 1 && n == 1))
@@ -1538,6 +1542,7 @@ scanplain(struct vars *v)
 	NEXT();
 
 	const chr  *endp = v->now;
+
 	while (SEE(PLAIN))
 	{
 		endp = v->now;
@@ -1593,6 +1598,7 @@ wordchrs(struct vars *v)
 
 	struct state *left = newstate(v->nfa);
 	struct state *right = newstate(v->nfa);
+
 	NOERR();
 	/* fine point:	implemented with [::], and lexer will set REG_ULOCALE */
 	lexword(v);
@@ -1625,6 +1631,7 @@ processlacon(struct vars *v,
 	 * of arcs); this would typically be a simple chr or a bracket expression.
 	 */
 	struct state *s1 = single_color_transition(begin, end);
+
 	switch (latype)
 	{
 		case LATYPE_AHEAD_POS:
@@ -1669,6 +1676,7 @@ processlacon(struct vars *v,
 
 	/* General case: we need a LACON subre and arc */
 	int			n = newlacon(v, begin, end, latype);
+
 	newarc(v->nfa, LACON, n, lp, rp);
 }
 
@@ -1793,6 +1801,7 @@ numst(struct subre *t,
 	assert(t != NULL);
 
 	int			i = start;
+
 	t->id = (short) i++;
 	if (t->left != NULL)
 		i = numst(t->left, i);
@@ -1939,6 +1948,7 @@ newlacon(struct vars *v,
 	v->lacons = newlacons;
 	v->nlacons = n + 1;
 	struct subre *sub = &v->lacons[n];
+
 	sub->begin = begin;
 	sub->end = end;
 	sub->subno = latype;
@@ -1975,6 +1985,7 @@ rfree(regex_t *re)
 
 	re->re_magic = 0;			/* invalidate RE */
 	struct guts *g = (struct guts *) re->re_guts;
+
 	re->re_guts = NULL;
 	re->re_fns = NULL;
 	if (g != NULL)
@@ -2043,6 +2054,7 @@ dump(regex_t *re,
 		return;
 	}
 	struct guts *g = (struct guts *) re->re_guts;
+
 	if (g->magic != GUTSMAGIC)
 		fprintf(f, "bad guts magic number (0x%x not 0x%x)\n", g->magic,
 				GUTSMAGIC);

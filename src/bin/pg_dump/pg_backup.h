@@ -70,7 +70,7 @@ typedef struct _connParams
 	/* If not NULL, this overrides the dbname obtained from command line */
 	/* (but *only* the DB name, not anything else in the connstring) */
 	char	   *override_dbname;
-} ConnParams;
+}			ConnParams;
 
 typedef struct _restoreOptions
 {
@@ -257,7 +257,7 @@ typedef void (*SetupWorkerPtrType) (Archive *AH);
  */
 
 extern void ConnectDatabase(Archive *AHX,
-							const ConnParams *cparams,
+							const ConnParams * cparams,
 							bool isReconnect);
 extern void DisconnectDatabase(Archive *AHX);
 extern PGconn *GetConnection(Archive *AHX);

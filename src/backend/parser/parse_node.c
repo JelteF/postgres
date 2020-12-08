@@ -117,6 +117,7 @@ parser_errposition(ParseState *pstate, int location)
 		return 0;
 	/* Convert offset to character number */
 	int			pos = pg_mbstrlen_with_len(pstate->p_sourcetext, location) + 1;
+
 	/* And pass it to the ereport mechanism */
 	return errposition(pos);
 }
@@ -217,6 +218,7 @@ transformContainerType(Oid *containerType, int32 *containerTypmod)
 
 	/* Get the type tuple for the container */
 	HeapTuple	type_tuple_container = SearchSysCache1(TYPEOID, ObjectIdGetDatum(*containerType));
+
 	if (!HeapTupleIsValid(type_tuple_container))
 		elog(ERROR, "cache lookup failed for type %u", *containerType);
 	Form_pg_type type_struct_container = (Form_pg_type) GETSTRUCT(type_tuple_container);
@@ -224,6 +226,7 @@ transformContainerType(Oid *containerType, int32 *containerTypmod)
 	/* needn't check typisdefined since this will fail anyway */
 
 	Oid			elementType = type_struct_container->typelem;
+
 	if (elementType == InvalidOid)
 		ereport(ERROR,
 				(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -390,11 +393,12 @@ transformContainerSubscripts(ParseState *pstate,
 		Oid			typeneeded = isSlice ? containerType : elementType;
 
 		Node	   *newFrom = coerce_to_target_type(pstate,
-										assignFrom, typesource,
-										typeneeded, containerTypMod,
-										COERCION_ASSIGNMENT,
-										COERCE_IMPLICIT_CAST,
-										-1);
+													assignFrom, typesource,
+													typeneeded, containerTypMod,
+													COERCION_ASSIGNMENT,
+													COERCE_IMPLICIT_CAST,
+													-1);
+
 		if (newFrom == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -411,6 +415,7 @@ transformContainerSubscripts(ParseState *pstate,
 	 * Ready to build the SubscriptingRef node.
 	 */
 	SubscriptingRef *sbsref = (SubscriptingRef *) makeNode(SubscriptingRef);
+
 	if (assignFrom != NULL)
 		sbsref->refassgnexpr = (Expr *) assignFrom;
 

@@ -220,8 +220,9 @@ CheckpointerMain(void)
 	 * TopMemoryContext, but resetting that would be a really bad idea.
 	 */
 	MemoryContext checkpointer_context = AllocSetContextCreate(TopMemoryContext,
-												 "Checkpointer",
-												 ALLOCSET_DEFAULT_SIZES);
+															   "Checkpointer",
+															   ALLOCSET_DEFAULT_SIZES);
+
 	MemoryContextSwitchTo(checkpointer_context);
 
 	/*
@@ -367,6 +368,7 @@ CheckpointerMain(void)
 		 */
 		pg_time_t	now = (pg_time_t) time(NULL);
 		int			elapsed_secs = now - last_checkpoint_time;
+
 		if (elapsed_secs >= CheckPointTimeout)
 		{
 			if (!do_checkpoint)
@@ -518,6 +520,7 @@ CheckpointerMain(void)
 		if (elapsed_secs >= CheckPointTimeout)
 			continue;			/* no sleep for us ... */
 		int			cur_timeout = CheckPointTimeout - elapsed_secs;
+
 		if (XLogArchiveTimeout > 0 && !RecoveryInProgress())
 		{
 			elapsed_secs = now - last_xlog_switch_time;
@@ -851,6 +854,7 @@ CheckpointerShmemSize(void)
 	 * NBuffers.  This may prove too large or small ...
 	 */
 	Size		size = offsetof(CheckpointerShmemStruct, requests);
+
 	size = add_size(size, mul_size(NBuffers, sizeof(CheckpointerRequest)));
 
 	return size;
@@ -1019,6 +1023,7 @@ RequestCheckpoint(int flags)
 
 			SpinLockAcquire(&CheckpointerShmem->ckpt_lck);
 			int			new_done = CheckpointerShmem->ckpt_done;
+
 			new_failed = CheckpointerShmem->ckpt_failed;
 			SpinLockRelease(&CheckpointerShmem->ckpt_lck);
 
@@ -1094,12 +1099,13 @@ ForwardSyncRequest(const FileTag *ftag, SyncRequestType type)
 
 	/* OK, insert request */
 	CheckpointerRequest *request = &CheckpointerShmem->requests[CheckpointerShmem->num_requests++];
+
 	request->ftag = *ftag;
 	request->type = type;
 
 	/* If queue is more than half full, nudge the checkpointer to empty it */
 	bool		too_full = (CheckpointerShmem->num_requests >=
-				CheckpointerShmem->max_requests / 2);
+							CheckpointerShmem->max_requests / 2);
 
 	LWLockRelease(CheckpointerCommLock);
 
@@ -1153,9 +1159,9 @@ CompactCheckpointerRequestQueue(void)
 	ctl.hcxt = CurrentMemoryContext;
 
 	HTAB	   *htab = hash_create("CompactCheckpointerRequestQueue",
-					   CheckpointerShmem->num_requests,
-					   &ctl,
-					   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+								   CheckpointerShmem->num_requests,
+								   &ctl,
+								   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/*
 	 * The basic idea here is that a request can be skipped if it's followed
@@ -1182,6 +1188,7 @@ CompactCheckpointerRequestQueue(void)
 		 */
 		CheckpointerRequest *request = &CheckpointerShmem->requests[n];
 		struct CheckpointerSlotMapping *slotmap = hash_search(htab, request, HASH_ENTER, &found);
+
 		if (found)
 		{
 			/* Duplicate, so mark the previous occurrence as skippable */
@@ -1258,6 +1265,7 @@ AbsorbSyncRequests(void)
 	 * is so small that the problem is quite unlikely to arise in practice.
 	 */
 	int			n = CheckpointerShmem->num_requests;
+
 	if (n > 0)
 	{
 		requests = (CheckpointerRequest *) palloc(n * sizeof(CheckpointerRequest));
@@ -1309,6 +1317,7 @@ FirstCallSinceLastCheckpoint(void)
 
 	SpinLockAcquire(&CheckpointerShmem->ckpt_lck);
 	int			new_done = CheckpointerShmem->ckpt_done;
+
 	SpinLockRelease(&CheckpointerShmem->ckpt_lck);
 
 	if (new_done != ckpt_done)

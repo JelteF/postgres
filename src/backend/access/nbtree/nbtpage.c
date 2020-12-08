@@ -65,6 +65,7 @@ _bt_initmetapage(Page page, BlockNumber rootbknum, uint32 level,
 	_bt_pageinit(page, BLCKSZ);
 
 	BTMetaPageData *metad = BTPageGetMeta(page);
+
 	metad->btm_magic = BTREE_MAGIC;
 	metad->btm_version = BTREE_VERSION;
 	metad->btm_root = rootbknum;
@@ -76,6 +77,7 @@ _bt_initmetapage(Page page, BlockNumber rootbknum, uint32 level,
 	metad->btm_allequalimage = allequalimage;
 
 	BTPageOpaque metaopaque = (BTPageOpaque) PageGetSpecialPointer(page);
+
 	metaopaque->btpo_flags = BTP_META;
 
 	/*
@@ -101,6 +103,7 @@ _bt_upgrademetapage(Page page)
 	BTPageOpaque metaopaque PG_USED_FOR_ASSERTS_ONLY;
 
 	BTMetaPageData *metad = BTPageGetMeta(page);
+
 	metaopaque = (BTPageOpaque) PageGetSpecialPointer(page);
 
 	/* It must be really a meta page of upgradable version */
@@ -316,6 +319,7 @@ _bt_getroot(Relation rel, int access)
 	}
 
 	Buffer		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+
 	metad = _bt_getmeta(rel, metabuf);
 
 	/* if no root page initialized yet, do it */
@@ -590,6 +594,7 @@ _bt_getrootheight(Relation rel)
 	{
 
 		Buffer		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -653,6 +658,7 @@ _bt_metaversion(Relation rel, bool *heapkeyspace, bool *allequalimage)
 	{
 
 		Buffer		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -921,6 +927,7 @@ _bt_relandgetbuf(Relation rel, Buffer obuf, BlockNumber blkno, int access)
 	if (BufferIsValid(obuf))
 		_bt_unlockbuf(rel, obuf);
 	Buffer		buf = ReleaseAndReadBuffer(obuf, rel, blkno);
+
 	_bt_lockbuf(rel, buf, access);
 
 	_bt_checkpage(rel, buf);
@@ -955,22 +962,22 @@ _bt_lockbuf(Relation rel, Buffer buf, int access)
 	LockBuffer(buf, access);
 
 	/*
-	 * It doesn't matter that _bt_unlockbuf() won't get called in the
-	 * event of an nbtree error (e.g. a unique violation error).  That
-	 * won't cause Valgrind false positives.
+	 * It doesn't matter that _bt_unlockbuf() won't get called in the event of
+	 * an nbtree error (e.g. a unique violation error).  That won't cause
+	 * Valgrind false positives.
 	 *
-	 * The nbtree client requests are superimposed on top of the
-	 * bufmgr.c buffer pin client requests.  In the event of an nbtree
-	 * error the buffer will certainly get marked as defined when the
-	 * backend once again acquires its first pin on the buffer. (Of
-	 * course, if the backend never touches the buffer again then it
-	 * doesn't matter that it remains non-accessible to Valgrind.)
+	 * The nbtree client requests are superimposed on top of the bufmgr.c
+	 * buffer pin client requests.  In the event of an nbtree error the buffer
+	 * will certainly get marked as defined when the backend once again
+	 * acquires its first pin on the buffer. (Of course, if the backend never
+	 * touches the buffer again then it doesn't matter that it remains
+	 * non-accessible to Valgrind.)
 	 *
-	 * Note: When an IndexTuple C pointer gets computed using an
-	 * ItemId read from a page while a lock was held, the C pointer
-	 * becomes unsafe to dereference forever as soon as the lock is
-	 * released.  Valgrind can only detect cases where the pointer
-	 * gets dereferenced with no _current_ lock/pin held, though.
+	 * Note: When an IndexTuple C pointer gets computed using an ItemId read
+	 * from a page while a lock was held, the C pointer becomes unsafe to
+	 * dereference forever as soon as the lock is released.  Valgrind can only
+	 * detect cases where the pointer gets dereferenced with no _current_
+	 * lock/pin held, though.
 	 */
 	if (!RelationUsesLocalBuffers(rel))
 		VALGRIND_MAKE_MEM_DEFINED(BufferGetPage(buf), BLCKSZ);
@@ -1072,6 +1079,7 @@ _bt_page_recyclable(Page page)
 	 * interested in it.
 	 */
 	BTPageOpaque opaque = (BTPageOpaque) PageGetSpecialPointer(page);
+
 	if (P_ISDELETED(opaque) &&
 		GlobalVisCheckRemovableXid(NULL, opaque->btpo.xact))
 		return true;
@@ -1170,6 +1178,7 @@ _bt_delitems_vacuum(Relation rel, Buffer buf,
 		OffsetNumber updatedoffset = updatedoffsets[i];
 
 		IndexTuple	itup = updatable[i]->itup;
+
 		itemsz = MAXALIGN(IndexTupleSize(itup));
 		if (!PageIndexTupleOverwrite(page, updatedoffset, (Item) itup,
 									 itemsz))
@@ -1186,6 +1195,7 @@ _bt_delitems_vacuum(Relation rel, Buffer buf,
 	 * processed by the current vacuum scan.
 	 */
 	BTPageOpaque opaque = (BTPageOpaque) PageGetSpecialPointer(page);
+
 	opaque->btpo_cycleid = 0;
 
 	/*
@@ -1334,6 +1344,7 @@ _bt_xid_horizon(Relation rel, Relation heapRel, Page page,
 	int			spacenhtids = ndeletable;
 	int			nhtids = 0;
 	ItemPointer htids = (ItemPointer) palloc(sizeof(ItemPointerData) * spacenhtids);
+
 	for (int i = 0; i < ndeletable; i++)
 	{
 
@@ -1381,7 +1392,7 @@ _bt_xid_horizon(Relation rel, Relation heapRel, Page page,
 	Assert(nhtids >= ndeletable);
 
 	TransactionId latestRemovedXid =
-		table_compute_xid_horizon_for_tuples(heapRel, htids, nhtids);
+	table_compute_xid_horizon_for_tuples(heapRel, htids, nhtids);
 
 	pfree(htids);
 
@@ -1422,6 +1433,7 @@ _bt_leftsib_splitflag(Relation rel, BlockNumber leftsib, BlockNumber target)
 	 * previous split has been completed.)
 	 */
 	bool		result = (opaque->btpo_next == target && P_INCOMPLETE_SPLIT(opaque));
+
 	_bt_relbuf(rel, buf);
 
 	return result;
@@ -1466,6 +1478,7 @@ _bt_rightsib_halfdeadflag(Relation rel, BlockNumber leafrightsib)
 
 	Assert(P_ISLEAF(opaque) && !P_ISDELETED(opaque));
 	bool		result = P_ISHALFDEAD(opaque);
+
 	_bt_relbuf(rel, buf);
 
 	return result;
@@ -1656,6 +1669,7 @@ _bt_pagedel(Relation rel, Buffer leafbuf, TransactionId *oldestBtpoXact)
 
 				/* we need an insertion scan key for the search, so build one */
 				BTScanInsert itup_key = _bt_mkscankey(rel, targetkey);
+
 				/* find the leftmost leaf page with matching pivot/high key */
 				itup_key->pivotsearch = true;
 				stack = _bt_search(rel, itup_key, &sleafbuf, BT_READ, NULL);
@@ -1824,6 +1838,7 @@ _bt_mark_page_halfdead(Relation rel, Buffer leafbuf, BTStack stack)
 	 */
 	BlockNumber topparent = leafblkno;
 	BlockNumber topparentrightsib = leafrightsib;
+
 	if (!_bt_lock_subtree_parent(rel, leafblkno, stack,
 								 &subtreeparent, &poffset,
 								 &topparent, &topparentrightsib))
@@ -2163,6 +2178,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	 */
 	BlockNumber rightsib = opaque->btpo_next;
 	Buffer		rbuf = _bt_getbuf(rel, rightsib, BT_WRITE);
+
 	page = BufferGetPage(rbuf);
 	opaque = (BTPageOpaque) PageGetSpecialPointer(page);
 	if (opaque->btpo_prev != target)
@@ -2173,6 +2189,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 								 rightsib, opaque->btpo_prev, target,
 								 RelationGetRelationName(rel))));
 	bool		rightsib_is_rightmost = P_RIGHTMOST(opaque);
+
 	*rightsib_empty = (P_FIRSTDATAKEY(opaque) > PageGetMaxOffsetNumber(page));
 
 	/*
@@ -2269,6 +2286,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	 * WAL consistency checking.
 	 */
 	PageHeader	header = (PageHeader) page;
+
 	header->pd_lower = SizeOfPageHeaderData;
 	header->pd_upper = header->pd_special;
 
@@ -2438,6 +2456,7 @@ _bt_lock_subtree_parent(Relation rel, BlockNumber child, BTStack stack,
 	 * the parent page itself.
 	 */
 	Buffer		pbuf = _bt_getstackbuf(rel, stack, child);
+
 	if (pbuf == InvalidBuffer)
 		ereport(ERROR,
 				(errcode(ERRCODE_INDEX_CORRUPTED),
@@ -2448,6 +2467,7 @@ _bt_lock_subtree_parent(Relation rel, BlockNumber child, BTStack stack,
 
 	Page		page = BufferGetPage(pbuf);
 	BTPageOpaque opaque = (BTPageOpaque) PageGetSpecialPointer(page);
+
 	maxoff = PageGetMaxOffsetNumber(page);
 	leftsibparent = opaque->btpo_prev;
 

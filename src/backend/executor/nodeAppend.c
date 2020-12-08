@@ -127,7 +127,8 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 
 		/* Create the working data structure for pruning. */
 		PartitionPruneState *prunestate = ExecCreatePartitionPruneState(&appendstate->ps,
-												   node->part_prune_info);
+																		node->part_prune_info);
+
 		appendstate->as_prune_state = prunestate;
 
 		/* Perform an initial partition prune, if required. */
@@ -179,7 +180,7 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 	appendstate->ps.resultopsfixed = false;
 
 	PlanState **appendplanstates = (PlanState **) palloc(nplans *
-											 sizeof(PlanState *));
+														 sizeof(PlanState *));
 
 	/*
 	 * call ExecInitNode on each of the valid plans to be executed and save
@@ -189,6 +190,7 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 	 */
 	j = 0;
 	int			firstvalid = nplans;
+
 	i = -1;
 	while ((i = bms_next_member(validsubplans, i)) >= 0)
 	{
@@ -381,6 +383,7 @@ ExecAppendInitializeDSM(AppendState *node,
 {
 
 	ParallelAppendState *pstate = shm_toc_allocate(pcxt->toc, node->pstate_len);
+
 	memset(pstate, 0, node->pstate_len);
 	LWLockInitialize(&pstate->pa_lock, LWTRANCHE_PARALLEL_APPEND);
 	shm_toc_insert(pcxt->toc, node->ps.plan->plan_node_id, pstate);
@@ -599,7 +602,8 @@ choose_next_subplan_for_worker(AppendState *node)
 	{
 
 		int			nextplan = bms_next_member(node->as_valid_subplans,
-								   pstate->pa_next_plan);
+											   pstate->pa_next_plan);
+
 		if (nextplan >= 0)
 		{
 			/* Advance to the next valid plan. */

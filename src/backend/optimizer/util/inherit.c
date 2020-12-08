@@ -116,6 +116,7 @@ expand_inherited_rtentry(PlannerInfo *root, RelOptInfo *rel,
 	 * child.
 	 */
 	PlanRowMark *oldrc = get_plan_rowmark(root->rowMarks, rti);
+
 	if (oldrc)
 	{
 		old_isParent = oldrc->isParent;
@@ -287,7 +288,7 @@ expand_partitioned_rtentry(PlannerInfo *root, RelOptInfo *relinfo,
 	Assert(parentrte->inh);
 
 	PartitionDesc partdesc = PartitionDirectoryLookup(root->glob->partition_directory,
-										parentrel);
+													  parentrel);
 
 	/* A partitioned table should always have a partition descriptor. */
 	Assert(partdesc);
@@ -322,6 +323,7 @@ expand_partitioned_rtentry(PlannerInfo *root, RelOptInfo *relinfo,
 
 	/* Expand simple_rel_array and friends to hold child objects. */
 	int			num_live_parts = bms_num_members(live_parts);
+
 	if (num_live_parts > 0)
 		expand_planner_arrays(root, num_live_parts);
 
@@ -340,6 +342,7 @@ expand_partitioned_rtentry(PlannerInfo *root, RelOptInfo *relinfo,
 	 * table itself, because it's not going to be scanned.
 	 */
 	int			i = -1;
+
 	while ((i = bms_next_member(live_parts, i)) >= 0)
 	{
 		Oid			childOID = partdesc->oids[i];
@@ -364,6 +367,7 @@ expand_partitioned_rtentry(PlannerInfo *root, RelOptInfo *relinfo,
 
 		/* Create the otherrel RelOptInfo too. */
 		RelOptInfo *childrelinfo = build_simple_rel(root, childRTindex, relinfo);
+
 		relinfo->part_rels[i] = childrelinfo;
 		relinfo->all_partrels = bms_add_members(relinfo->all_partrels,
 												childrelinfo->relids);
@@ -426,6 +430,7 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 	 * sufficient to start with.
 	 */
 	RangeTblEntry *childrte = makeNode(RangeTblEntry);
+
 	memcpy(childrte, parentrte, sizeof(RangeTblEntry));
 	Assert(parentrte->rtekind == RTE_RELATION); /* else this is dubious */
 	childrte->relid = childOID;
@@ -444,6 +449,7 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 	/* Link not-yet-fully-filled child RTE into data structures */
 	parse->rtable = lappend(parse->rtable, childrte);
 	Index		childRTindex = list_length(parse->rtable);
+
 	*childrte_p = childrte;
 	*childRTindex_p = childRTindex;
 
@@ -451,7 +457,8 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 	 * Build an AppendRelInfo struct for each parent/child pair.
 	 */
 	AppendRelInfo *appinfo = make_append_rel_info(parentrel, childrel,
-								   parentRTindex, childRTindex);
+												  parentRTindex, childRTindex);
+
 	root->append_rel_list = lappend(root->append_rel_list, appinfo);
 
 	/* tablesample is probably null, but copy it */
@@ -468,6 +475,7 @@ expand_single_inheritance_child(PlannerInfo *root, RangeTblEntry *parentrte,
 	TupleDesc	child_tupdesc = RelationGetDescr(childrel);
 	List	   *parent_colnames = parentrte->eref->colnames;
 	List	   *child_colnames = NIL;
+
 	for (int cattno = 0; cattno < child_tupdesc->natts; cattno++)
 	{
 		Form_pg_attribute att = TupleDescAttr(child_tupdesc, cattno);
@@ -600,7 +608,7 @@ translate_col_privs(const Bitmapset *parent_privs,
 
 	/* Check if parent has whole-row reference */
 	bool		whole_row = bms_is_member(InvalidAttrNumber - FirstLowInvalidHeapAttributeNumber,
-							  parent_privs);
+										  parent_privs);
 
 	/* And now translate the regular user attributes, using the vars list */
 	attno = InvalidAttrNumber;
@@ -648,6 +656,7 @@ expand_appendrel_subquery(PlannerInfo *root, RelOptInfo *rel,
 		/* find the child RTE, which should already exist */
 		Assert(childRTindex < root->simple_rel_array_size);
 		RangeTblEntry *childrte = root->simple_rte_array[childRTindex];
+
 		Assert(childrte != NULL);
 
 		/* Build the child RelOptInfo. */
@@ -686,6 +695,7 @@ apply_child_basequals(PlannerInfo *root, RelOptInfo *parentrel,
 	 */
 	List	   *childquals = NIL;
 	Index		cq_min_security = UINT_MAX;
+
 	foreach(lc, parentrel->baserestrictinfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -693,8 +703,9 @@ apply_child_basequals(PlannerInfo *root, RelOptInfo *parentrel,
 
 		Assert(IsA(rinfo, RestrictInfo));
 		Node	   *childqual = adjust_appendrel_attrs(root,
-										   (Node *) rinfo->clause,
-										   1, &appinfo);
+													   (Node *) rinfo->clause,
+													   1, &appinfo);
+
 		childqual = eval_const_expressions(root, childqual);
 		/* check for flat-out constant */
 		if (childqual && IsA(childqual, Const))
@@ -715,8 +726,9 @@ apply_child_basequals(PlannerInfo *root, RelOptInfo *parentrel,
 
 			/* check for pseudoconstant (no Vars or volatile functions) */
 			bool		pseudoconstant =
-				!contain_vars_of_level(onecq, 0) &&
-				!contain_volatile_functions(onecq);
+			!contain_vars_of_level(onecq, 0) &&
+			!contain_volatile_functions(onecq);
+
 			if (pseudoconstant)
 			{
 				/* tell createplan.c to check for gating quals */

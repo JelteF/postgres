@@ -137,8 +137,9 @@ lookup_ts_parser_cache(Oid prsId)
 
 	/* Try to look up an existing entry */
 	TSParserCacheEntry *entry = (TSParserCacheEntry *) hash_search(TSParserCacheHash,
-											   (void *) &prsId,
-											   HASH_FIND, NULL);
+																   (void *) &prsId,
+																   HASH_FIND, NULL);
+
 	if (entry == NULL || !entry->isvalid)
 	{
 		/*
@@ -147,6 +148,7 @@ lookup_ts_parser_cache(Oid prsId)
 		 */
 
 		HeapTuple	tp = SearchSysCache1(TSPARSEROID, ObjectIdGetDatum(prsId));
+
 		if (!HeapTupleIsValid(tp))
 			elog(ERROR, "cache lookup failed for text search parser %u",
 				 prsId);
@@ -234,8 +236,9 @@ lookup_ts_dictionary_cache(Oid dictId)
 
 	/* Try to look up an existing entry */
 	TSDictionaryCacheEntry *entry = (TSDictionaryCacheEntry *) hash_search(TSDictionaryCacheHash,
-												   (void *) &dictId,
-												   HASH_FIND, NULL);
+																		   (void *) &dictId,
+																		   HASH_FIND, NULL);
+
 	if (entry == NULL || !entry->isvalid)
 	{
 		/*
@@ -320,8 +323,9 @@ lookup_ts_dictionary_cache(Oid dictId)
 			MemoryContext oldcontext = MemoryContextSwitchTo(entry->dictCtx);
 
 			Datum		opt = SysCacheGetAttr(TSDICTOID, tpdict,
-								  Anum_pg_ts_dict_dictinitoption,
-								  &isnull);
+											  Anum_pg_ts_dict_dictinitoption,
+											  &isnull);
+
 			if (isnull)
 				dictoptions = NIL;
 			else
@@ -393,8 +397,9 @@ lookup_ts_config_cache(Oid cfgId)
 
 	/* Try to look up an existing entry */
 	TSConfigCacheEntry *entry = (TSConfigCacheEntry *) hash_search(TSConfigCacheHash,
-											   (void *) &cfgId,
-											   HASH_FIND, NULL);
+																   (void *) &cfgId,
+																   HASH_FIND, NULL);
+
 	if (entry == NULL || !entry->isvalid)
 	{
 		/*
@@ -408,6 +413,7 @@ lookup_ts_config_cache(Oid cfgId)
 		int			i;
 
 		HeapTuple	tp = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgId));
+
 		if (!HeapTupleIsValid(tp))
 			elog(ERROR, "cache lookup failed for text search configuration %u",
 				 cfgId);
@@ -467,7 +473,7 @@ lookup_ts_config_cache(Oid cfgId)
 		Relation	maprel = table_open(TSConfigMapRelationId, AccessShareLock);
 		Relation	mapidx = index_open(TSConfigMapIndexId, AccessShareLock);
 		SysScanDesc mapscan = systable_beginscan_ordered(maprel, mapidx,
-											 NULL, 1, &mapskey);
+														 NULL, 1, &mapskey);
 
 		while ((maptup = systable_getnext_ordered(mapscan, ForwardScanDirection)) != NULL)
 		{
@@ -605,13 +611,14 @@ check_TSCurrentConfig(char **newval, void **extra, GucSource source)
 		 * later changes of search_path don't affect it.
 		 */
 		HeapTuple	tuple = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgId));
+
 		if (!HeapTupleIsValid(tuple))
 			elog(ERROR, "cache lookup failed for text search configuration %u",
 				 cfgId);
 		Form_pg_ts_config cfg = (Form_pg_ts_config) GETSTRUCT(tuple);
 
 		char	   *buf = quote_qualified_identifier(get_namespace_name(cfg->cfgnamespace),
-										 NameStr(cfg->cfgname));
+													 NameStr(cfg->cfgname));
 
 		ReleaseSysCache(tuple);
 

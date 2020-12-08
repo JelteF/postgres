@@ -357,9 +357,9 @@ main(int argc, char **argv)
 
 		/* read the checkpoint record on the target to see where it ends. */
 		XLogRecPtr	chkptendrec = readOneRecord(datadir_target,
-									ControlFile_target.checkPoint,
-									targetNentries - 1,
-									restore_command);
+												ControlFile_target.checkPoint,
+												targetNentries - 1,
+												restore_command);
 
 		if (ControlFile_target.minRecoveryPoint > chkptendrec)
 		{
@@ -519,6 +519,7 @@ perform_rewind(filemap_t *filemap, rewind_source *source,
 			off_t		offset;
 
 			datapagemap_iterator_t *iter = datapagemap_iterate(&entry->target_pages_to_overwrite);
+
 			while (datapagemap_next(iter, &blkno))
 			{
 				offset = blkno * BLCKSZ;
@@ -576,6 +577,7 @@ perform_rewind(filemap_t *filemap, rewind_source *source,
 	 * minRecoveryPoint is up-to-date.
 	 */
 	char	   *buffer = source->fetch_file(source, "global/pg_control", &size);
+
 	digestControlFile(&ControlFile_source_after, buffer, size);
 	pg_free(buffer);
 
@@ -738,6 +740,7 @@ progress_report(bool finished)
 		return;
 
 	pg_time_t	now = time(NULL);
+
 	if (now == last_progress_report && !finished)
 		return;					/* Max once per second */
 
@@ -851,6 +854,7 @@ getTimelineHistory(ControlFileData *controlFile, int *nentries)
 		{
 
 			TimeLineHistoryEntry *entry = &history[i];
+
 			pg_log_debug("%d: %X/%X - %X/%X", entry->tli,
 						 (uint32) (entry->begin >> 32), (uint32) (entry->begin),
 						 (uint32) (entry->end >> 32), (uint32) (entry->end));
@@ -880,6 +884,7 @@ findCommonAncestorTimeline(XLogRecPtr *recptr, int *tliIndex)
 
 	/* Retrieve timelines for both source and target */
 	TimeLineHistoryEntry *sourceHistory = getTimelineHistory(&ControlFile_source, &sourceNentries);
+
 	targetHistory = getTimelineHistory(&ControlFile_target, &targetNentries);
 
 	/*
@@ -934,18 +939,20 @@ createBackupLabel(XLogRecPtr startpoint, TimeLineID starttli, XLogRecPtr checkpo
 	 */
 	time_t		stamp_time = time(NULL);
 	struct tm  *tmp = localtime(&stamp_time);
+
 	strftime(strfbuf, sizeof(strfbuf), "%Y-%m-%d %H:%M:%S %Z", tmp);
 
 	int			len = snprintf(buf, sizeof(buf),
-				   "START WAL LOCATION: %X/%X (file %s)\n"
-				   "CHECKPOINT LOCATION: %X/%X\n"
-				   "BACKUP METHOD: pg_rewind\n"
-				   "BACKUP FROM: standby\n"
-				   "START TIME: %s\n",
+							   "START WAL LOCATION: %X/%X (file %s)\n"
+							   "CHECKPOINT LOCATION: %X/%X\n"
+							   "BACKUP METHOD: pg_rewind\n"
+							   "BACKUP FROM: standby\n"
+							   "START TIME: %s\n",
 	/* omit LABEL: line */
-				   (uint32) (startpoint >> 32), (uint32) startpoint, xlogfilename,
-				   (uint32) (checkpointloc >> 32), (uint32) checkpointloc,
-				   strfbuf);
+							   (uint32) (startpoint >> 32), (uint32) startpoint, xlogfilename,
+							   (uint32) (checkpointloc >> 32), (uint32) checkpointloc,
+							   strfbuf);
+
 	if (len >= sizeof(buf))
 		pg_fatal("backup label buffer too small");	/* shouldn't happen */
 
@@ -1018,8 +1025,8 @@ getRestoreCommand(const char *argv0)
 
 	/* find postgres executable */
 	int			rc = find_other_exec(argv0, "postgres",
-						 PG_BACKEND_VERSIONSTR,
-						 postgres_exec_path);
+									 PG_BACKEND_VERSIONSTR,
+									 postgres_exec_path);
 
 	if (rc < 0)
 	{

@@ -25,22 +25,22 @@
  */
 typedef struct
 {
-	int				current_index;
-	int				head_offset;
-	TimestampTz		head_timestamp;
-	int				count_used;
-	TransactionId	xid_by_minute[FLEXIBLE_ARRAY_MEMBER];
-} OldSnapshotTimeMapping;
+	int			current_index;
+	int			head_offset;
+	TimestampTz head_timestamp;
+	int			count_used;
+	TransactionId xid_by_minute[FLEXIBLE_ARRAY_MEMBER];
+}			OldSnapshotTimeMapping;
 
 #define NUM_TIME_MAPPING_COLUMNS 3
 
 PG_MODULE_MAGIC;
 PG_FUNCTION_INFO_V1(pg_old_snapshot_time_mapping);
 
-static OldSnapshotTimeMapping *GetOldSnapshotTimeMapping(void);
+static OldSnapshotTimeMapping * GetOldSnapshotTimeMapping(void);
 static TupleDesc MakeOldSnapshotTimeMappingTupleDesc(void);
 static HeapTuple MakeOldSnapshotTimeMappingTuple(TupleDesc tupdesc,
-												 OldSnapshotTimeMapping *mapping);
+												 OldSnapshotTimeMapping * mapping);
 
 /*
  * SQL-callable set-returning function.
@@ -55,7 +55,8 @@ pg_old_snapshot_time_mapping(PG_FUNCTION_ARGS)
 	{
 
 		funcctx = SRF_FIRSTCALL_INIT();
-		MemoryContext	oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
 		mapping = GetOldSnapshotTimeMapping();
 		funcctx->user_fctx = mapping;
 		funcctx->tuple_desc = MakeOldSnapshotTimeMappingTupleDesc();
@@ -69,6 +70,7 @@ pg_old_snapshot_time_mapping(PG_FUNCTION_ARGS)
 	{
 
 		HeapTuple	tuple = MakeOldSnapshotTimeMappingTuple(funcctx->tuple_desc, mapping);
+
 		++mapping->current_index;
 		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
 	}
@@ -84,7 +86,8 @@ GetOldSnapshotTimeMapping(void)
 {
 
 	OldSnapshotTimeMapping *mapping = palloc(offsetof(OldSnapshotTimeMapping, xid_by_minute)
-					 + sizeof(TransactionId) * OLD_SNAPSHOT_TIME_MAP_ENTRIES);
+											 + sizeof(TransactionId) * OLD_SNAPSHOT_TIME_MAP_ENTRIES);
+
 	mapping->current_index = 0;
 
 	LWLockAcquire(OldSnapshotTimeMapLock, LW_SHARED);
@@ -121,27 +124,28 @@ MakeOldSnapshotTimeMappingTupleDesc(void)
  * Convert one entry from the old snapshot time mapping to a HeapTuple.
  */
 static HeapTuple
-MakeOldSnapshotTimeMappingTuple(TupleDesc tupdesc, OldSnapshotTimeMapping *mapping)
+MakeOldSnapshotTimeMappingTuple(TupleDesc tupdesc, OldSnapshotTimeMapping * mapping)
 {
-	Datum	values[NUM_TIME_MAPPING_COLUMNS];
-	bool	nulls[NUM_TIME_MAPPING_COLUMNS];
+	Datum		values[NUM_TIME_MAPPING_COLUMNS];
+	bool		nulls[NUM_TIME_MAPPING_COLUMNS];
 
 	/*
 	 * Figure out the array position corresponding to the current index.
 	 *
 	 * Index 0 means the oldest entry in the mapping, which is stored at
-	 * mapping->head_offset. Index 1 means the next-oldest entry, which is a the
-	 * following index, and so on. We wrap around when we reach the end of the array.
+	 * mapping->head_offset. Index 1 means the next-oldest entry, which is a
+	 * the following index, and so on. We wrap around when we reach the end of
+	 * the array.
 	 */
-	int		array_position = (mapping->head_offset + mapping->current_index)
-		% OLD_SNAPSHOT_TIME_MAP_ENTRIES;
+	int			array_position = (mapping->head_offset + mapping->current_index)
+	% OLD_SNAPSHOT_TIME_MAP_ENTRIES;
 
 	/*
-	 * No explicit timestamp is stored for any entry other than the oldest one,
-	 * but each entry corresponds to 1-minute period, so we can just add.
+	 * No explicit timestamp is stored for any entry other than the oldest
+	 * one, but each entry corresponds to 1-minute period, so we can just add.
 	 */
-	TimestampTz	timestamp = TimestampTzPlusMilliseconds(mapping->head_timestamp,
-											mapping->current_index * 60000);
+	TimestampTz timestamp = TimestampTzPlusMilliseconds(mapping->head_timestamp,
+														mapping->current_index * 60000);
 
 	/* Initialize nulls and values arrays. */
 	memset(nulls, 0, sizeof(nulls));

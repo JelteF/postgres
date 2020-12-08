@@ -441,6 +441,7 @@ enable_timeout_after(TimeoutId id, int delay_ms)
 	/* Queue the timeout at the appropriate time. */
 	TimestampTz now = GetCurrentTimestamp();
 	TimestampTz fin_time = TimestampTzPlusMilliseconds(now, delay_ms);
+
 	enable_timeout(id, now, fin_time);
 
 	/* Set the timer interrupt. */
@@ -463,6 +464,7 @@ enable_timeout_at(TimeoutId id, TimestampTz fin_time)
 
 	/* Queue the timeout at the appropriate time. */
 	TimestampTz now = GetCurrentTimestamp();
+
 	enable_timeout(id, now, fin_time);
 
 	/* Set the timer interrupt. */

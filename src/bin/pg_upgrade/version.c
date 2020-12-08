@@ -37,10 +37,11 @@ new_9_0_populate_pg_largeobject_metadata(ClusterInfo *cluster, bool check_mode)
 
 		/* find if there are any large objects */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT count(*) "
-								"FROM	pg_catalog.pg_largeobject ");
+											"SELECT count(*) "
+											"FROM	pg_catalog.pg_largeobject ");
 
 		int			i_count = PQfnumber(res, "count");
+
 		if (atoi(PQgetvalue(res, 0, i_count)) != 0)
 		{
 			found = true;
@@ -185,6 +186,7 @@ check_for_data_type_usage(ClusterInfo *cluster, const char *typename,
 		PGresult   *res = executeQueryOrDie(conn, "%s", querybuf.data);
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		i_attname = PQfnumber(res, "attname");
@@ -312,18 +314,19 @@ old_9_6_invalidate_hash_indexes(ClusterInfo *cluster, bool check_mode)
 
 		/* find hash indexes */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT n.nspname, c.relname "
-								"FROM	pg_catalog.pg_class c, "
-								"		pg_catalog.pg_index i, "
-								"		pg_catalog.pg_am a, "
-								"		pg_catalog.pg_namespace n "
-								"WHERE	i.indexrelid = c.oid AND "
-								"		c.relam = a.oid AND "
-								"		c.relnamespace = n.oid AND "
-								"		a.amname = 'hash'"
-			);
+											"SELECT n.nspname, c.relname "
+											"FROM	pg_catalog.pg_class c, "
+											"		pg_catalog.pg_index i, "
+											"		pg_catalog.pg_am a, "
+											"		pg_catalog.pg_namespace n "
+											"WHERE	i.indexrelid = c.oid AND "
+											"		c.relam = a.oid AND "
+											"		c.relnamespace = n.oid AND "
+											"		a.amname = 'hash'"
+		);
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		for (rowno = 0; rowno < ntups; rowno++)

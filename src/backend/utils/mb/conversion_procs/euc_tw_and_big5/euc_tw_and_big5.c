@@ -52,6 +52,7 @@ euc_tw_to_big5(PG_FUNCTION_ARGS)
 	CHECK_ENCODING_CONVERSION_ARGS(PG_EUC_TW, PG_BIG5);
 
 	unsigned char *buf = palloc(len * ENCODING_GROWTH_RATE + 1);
+
 	euc_tw2mic(src, buf, len);
 	mic2big5(buf, dest, strlen((char *) buf));
 	pfree(buf);
@@ -69,6 +70,7 @@ big5_to_euc_tw(PG_FUNCTION_ARGS)
 	CHECK_ENCODING_CONVERSION_ARGS(PG_BIG5, PG_EUC_TW);
 
 	unsigned char *buf = palloc(len * ENCODING_GROWTH_RATE + 1);
+
 	big52mic(src, buf, len);
 	mic2euc_tw(buf, dest, strlen((char *) buf));
 	pfree(buf);

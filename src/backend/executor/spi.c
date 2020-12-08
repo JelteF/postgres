@@ -178,6 +178,7 @@ SPI_finish(void)
 {
 
 	int			res = _SPI_begin_call(false);	/* just check we're connected */
+
 	if (res < 0)
 		return res;
 
@@ -457,6 +458,7 @@ AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid)
 		{
 
 			SPITupleTable *tuptable = slist_container(SPITupleTable, next, siter.cur);
+
 			if (tuptable->subid >= mySubid)
 			{
 				/*
@@ -500,6 +502,7 @@ SPI_execute(const char *src, bool read_only, long tcount)
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -537,6 +540,7 @@ SPI_execute_plan(SPIPlanPtr plan, Datum *Values, const char *Nulls,
 		return SPI_ERROR_PARAM;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -567,6 +571,7 @@ SPI_execute_plan_with_paramlist(SPIPlanPtr plan, ParamListInfo params,
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -595,6 +600,7 @@ SPI_execute_plan_with_receiver(SPIPlanPtr plan,
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -633,6 +639,7 @@ SPI_execute_snapshot(SPIPlanPtr plan,
 		return SPI_ERROR_PARAM;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -667,6 +674,7 @@ SPI_execute_with_args(const char *src,
 		return SPI_ERROR_PARAM;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -679,7 +687,7 @@ SPI_execute_with_args(const char *src,
 	plan.parserSetupArg = NULL;
 
 	ParamListInfo paramLI = _SPI_convert_params(nargs, argtypes,
-								  Values, Nulls);
+												Values, Nulls);
 
 	_SPI_prepare_oneshot_plan(src, &plan);
 
@@ -711,6 +719,7 @@ SPI_execute_with_receiver(const char *src,
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -1014,6 +1023,7 @@ SPI_fnumber(TupleDesc tupdesc, const char *fname)
 	}
 
 	const FormData_pg_attribute *sysatt = SystemAttributeByName(fname);
+
 	if (sysatt != NULL)
 		return sysatt->attnum;
 
@@ -1061,6 +1071,7 @@ SPI_getvalue(HeapTuple tuple, TupleDesc tupdesc, int fnumber)
 	}
 
 	Datum		val = heap_getattr(tuple, fnumber, tupdesc, &isnull);
+
 	if (isnull)
 		return NULL;
 
@@ -1118,6 +1129,7 @@ SPI_gettype(TupleDesc tupdesc, int fnumber)
 	}
 
 	char	   *result = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(typeTuple))->typname));
+
 	ReleaseSysCache(typeTuple);
 	return result;
 }
@@ -1225,6 +1237,7 @@ SPI_freetuptable(SPITupleTable *tuptable)
 		{
 
 			SPITupleTable *tt = slist_container(SPITupleTable, next, siter.cur);
+
 			if (tt == tuptable)
 			{
 				slist_delete_current(&siter);
@@ -1270,7 +1283,7 @@ SPI_cursor_open(const char *name, SPIPlanPtr plan,
 
 	/* build transient ParamListInfo in caller's context */
 	ParamListInfo paramLI = _SPI_convert_params(plan->nargs, plan->argtypes,
-								  Values, Nulls);
+												Values, Nulls);
 
 	Portal		portal = SPI_cursor_open_internal(name, plan, paramLI, read_only);
 
@@ -1316,7 +1329,7 @@ SPI_cursor_open_with_args(const char *name,
 
 	/* build transient ParamListInfo in executor context */
 	ParamListInfo paramLI = _SPI_convert_params(nargs, argtypes,
-								  Values, Nulls);
+												Values, Nulls);
 
 	_SPI_prepare_plan(src, &plan);
 
@@ -1448,7 +1461,7 @@ SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
 
 	/* Copy the plan's query string into the portal */
 	char	   *query_string = MemoryContextStrdup(portal->portalContext,
-									   plansource->query_string);
+												   plansource->query_string);
 
 	/*
 	 * Setup error traceback support for ereport(), in case GetCachedPlan
@@ -1891,7 +1904,8 @@ SPI_plan_get_cached_plan(SPIPlanPtr plan)
 
 	/* Get the generic plan for the query */
 	CachedPlan *cplan = GetCachedPlan(plansource, NULL, plan->saved,
-						  _SPI_current->queryEnv);
+									  _SPI_current->queryEnv);
+
 	Assert(cplan == plansource->gplan);
 
 	/* Pop the error context stack */
@@ -1921,11 +1935,13 @@ spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 
 	/* We create the tuple table context as a child of procCxt */
 
-	MemoryContext oldcxt = _SPI_procmem();	/* switch to procedure memory context */
+	MemoryContext oldcxt = _SPI_procmem();	/* switch to procedure memory
+											 * context */
 
 	MemoryContext tuptabcxt = AllocSetContextCreate(CurrentMemoryContext,
-									  "SPI TupTable",
-									  ALLOCSET_DEFAULT_SIZES);
+													"SPI TupTable",
+													ALLOCSET_DEFAULT_SIZES);
+
 	MemoryContextSwitchTo(tuptabcxt);
 
 	_SPI_current->tuptable = tuptable = (SPITupleTable *)
@@ -1962,6 +1978,7 @@ spi_printtup(TupleTableSlot *slot, DestReceiver *self)
 		elog(ERROR, "spi_printtup called while not connected to SPI");
 
 	SPITupleTable *tuptable = _SPI_current->tuptable;
+
 	if (tuptable == NULL)
 		elog(ERROR, "improper call to spi_printtup");
 
@@ -2036,8 +2053,8 @@ _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 		 * needs to see the unmodified raw parse tree.
 		 */
 		CachedPlanSource *plansource = CreateCachedPlan(parsetree,
-									  src,
-									  CreateCommandTag(parsetree->stmt));
+														src,
+														CreateCommandTag(parsetree->stmt));
 
 		/*
 		 * Parameter datatypes are driven by parserSetup hook if provided,
@@ -2132,8 +2149,8 @@ _SPI_prepare_oneshot_plan(const char *src, SPIPlanPtr plan)
 		RawStmt    *parsetree = lfirst_node(RawStmt, list_item);
 
 		CachedPlanSource *plansource = CreateOneShotCachedPlan(parsetree,
-											 src,
-											 CreateCommandTag(parsetree->stmt));
+															   src,
+															   CreateCommandTag(parsetree->stmt));
 
 		plancache_list = lappend(plancache_list, plansource);
 	}
@@ -2363,11 +2380,12 @@ _SPI_execute_plan(SPIPlanPtr plan, ParamListInfo paramLI,
 					snap = InvalidSnapshot;
 
 				QueryDesc  *qdesc = CreateQueryDesc(stmt,
-										plansource->query_string,
-										snap, crosscheck_snapshot,
-										dest,
-										paramLI, _SPI_current->queryEnv,
-										0);
+													plansource->query_string,
+													snap, crosscheck_snapshot,
+													dest,
+													paramLI, _SPI_current->queryEnv,
+													0);
+
 				res = _SPI_pquery(qdesc, fire_triggers,
 								  canSetTag ? tcount : 0);
 				FreeQueryDesc(qdesc);
@@ -2638,6 +2656,7 @@ _SPI_error_callback(void *arg)
 	 * otherwise treat the query as an item of context stack
 	 */
 	int			syntaxerrposition = geterrposition();
+
 	if (syntaxerrposition > 0)
 	{
 		errposition(0);
@@ -2674,9 +2693,9 @@ _SPI_cursor_operation(Portal portal, FetchDirection direction, long count,
 
 	/* Run the cursor */
 	uint64		nfetched = PortalRunFetch(portal,
-							  direction,
-							  count,
-							  dest);
+										  direction,
+										  count,
+										  dest);
 
 	/*
 	 * Think not to combine this store with the preceding function call. If
@@ -2810,6 +2829,7 @@ _SPI_make_plan_non_temp(SPIPlanPtr plan)
 
 	/* Copy the _SPI_plan struct and subsidiary data into the new context */
 	SPIPlanPtr	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+
 	newplan->magic = _SPI_PLAN_MAGIC;
 	newplan->plancxt = plancxt;
 	newplan->cursor_options = plan->cursor_options;
@@ -2865,12 +2885,13 @@ _SPI_save_plan(SPIPlanPtr plan)
 	 * transient context until we finish copying everything.
 	 */
 	MemoryContext plancxt = AllocSetContextCreate(CurrentMemoryContext,
-									"SPI Plan",
-									ALLOCSET_SMALL_SIZES);
+												  "SPI Plan",
+												  ALLOCSET_SMALL_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(plancxt);
 
 	/* Copy the SPI plan into its own context */
 	SPIPlanPtr	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+
 	newplan->magic = _SPI_PLAN_MAGIC;
 	newplan->plancxt = plancxt;
 	newplan->cursor_options = plan->cursor_options;
@@ -2891,6 +2912,7 @@ _SPI_save_plan(SPIPlanPtr plan)
 		CachedPlanSource *plansource = (CachedPlanSource *) lfirst(lc);
 
 		CachedPlanSource *newsource = CopyCachedPlan(plansource);
+
 		newplan->plancache_list = lappend(newplan->plancache_list, newsource);
 	}
 
@@ -2942,10 +2964,12 @@ SPI_register_relation(EphemeralNamedRelation enr)
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(false);	/* keep current memory context */
+
 	if (res < 0)
 		return res;
 
 	EphemeralNamedRelation match = _SPI_find_ENR_by_name(enr->md.name);
+
 	if (match)
 		res = SPI_ERROR_REL_DUPLICATE;
 	else
@@ -2974,10 +2998,12 @@ SPI_unregister_relation(const char *name)
 		return SPI_ERROR_ARGUMENT;
 
 	int			res = _SPI_begin_call(false);	/* keep current memory context */
+
 	if (res < 0)
 		return res;
 
 	EphemeralNamedRelation match = _SPI_find_ENR_by_name(name);
+
 	if (match)
 	{
 		unregister_ENR(_SPI_current->queryEnv, match->md.name);
@@ -3015,6 +3041,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_newtable);
 		enr->reldata = tdata->tg_newtable;
 		int			rc = SPI_register_relation(enr);
+
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
 	}
@@ -3031,6 +3058,7 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_oldtable);
 		enr->reldata = tdata->tg_oldtable;
 		int			rc = SPI_register_relation(enr);
+
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
 	}

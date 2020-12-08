@@ -165,6 +165,7 @@ ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 	 * Get cached list of index OIDs
 	 */
 	List	   *indexoidlist = RelationGetIndexList(resultRelation);
+
 	len = list_length(indexoidlist);
 	if (len == 0)
 		return;
@@ -324,6 +325,7 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 			 * per-query context)
 			 */
 			ExprState  *predicate = indexInfo->ii_PredicateState;
+
 			if (predicate == NULL)
 			{
 				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
@@ -347,9 +349,9 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 
 		/* Check whether to apply noDupErr to this index */
 		bool		applyNoDupErr = noDupErr &&
-			(arbiterIndexes == NIL ||
-			 list_member_oid(arbiterIndexes,
-							 indexRelation->rd_index->indexrelid));
+		(arbiterIndexes == NIL ||
+		 list_member_oid(arbiterIndexes,
+						 indexRelation->rd_index->indexrelid));
 
 		/*
 		 * The index AM does the actual insertion, plus uniqueness checking.
@@ -374,13 +376,13 @@ ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
 			checkUnique = UNIQUE_CHECK_PARTIAL;
 
 		bool		satisfiesConstraint =
-			index_insert(indexRelation, /* index relation */
-						 values,	/* array of index Datums */
-						 isnull,	/* null flags */
-						 tupleid,	/* tid of heap tuple */
-						 heapRelation,	/* heap relation */
-						 checkUnique,	/* type of uniqueness check to do */
-						 indexInfo);	/* index AM may need this */
+		index_insert(indexRelation, /* index relation */
+					 values,	/* array of index Datums */
+					 isnull,	/* null flags */
+					 tupleid,	/* tid of heap tuple */
+					 heapRelation,	/* heap relation */
+					 checkUnique,	/* type of uniqueness check to do */
+					 indexInfo);	/* index AM may need this */
 
 		/*
 		 * If the index has an associated exclusion constraint, check that.
@@ -536,6 +538,7 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 			 * per-query context)
 			 */
 			ExprState  *predicate = indexInfo->ii_PredicateState;
+
 			if (predicate == NULL)
 			{
 				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
@@ -558,11 +561,12 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
 					   isnull);
 
 		bool		satisfiesConstraint =
-			check_exclusion_or_unique_constraint(heapRelation, indexRelation,
-												 indexInfo, &invalidItemPtr,
-												 values, isnull, estate, false,
-												 CEOUC_WAIT, true,
-												 conflictTid);
+		check_exclusion_or_unique_constraint(heapRelation, indexRelation,
+											 indexInfo, &invalidItemPtr,
+											 values, isnull, estate, false,
+											 CEOUC_WAIT, true,
+											 conflictTid);
+
 		if (!satisfiesConstraint)
 			return false;
 	}
@@ -684,6 +688,7 @@ check_exclusion_or_unique_constraint(Relation heap, Relation index,
 
 	ExprContext *econtext = GetPerTupleExprContext(estate);
 	TupleTableSlot *save_scantuple = econtext->ecxt_scantuple;
+
 	econtext->ecxt_scantuple = existing_slot;
 
 	/*
@@ -694,6 +699,7 @@ retry:
 	conflict = false;
 	bool		found_self = false;
 	IndexScanDesc index_scan = index_beginscan(heap, index, &DirtySnapshot, indnkeyatts, 0);
+
 	index_rescan(index_scan, scankeys, indnkeyatts, NULL, 0);
 
 	while (index_getnext_slot(index_scan, ForwardScanDirection, existing_slot))
@@ -747,7 +753,7 @@ retry:
 		 * want to hold any index internal locks while waiting.
 		 */
 		TransactionId xwait = TransactionIdIsValid(DirtySnapshot.xmin) ?
-			DirtySnapshot.xmin : DirtySnapshot.xmax;
+		DirtySnapshot.xmin : DirtySnapshot.xmax;
 
 		if (TransactionIdIsValid(xwait) &&
 			(waitMode == CEOUC_WAIT ||

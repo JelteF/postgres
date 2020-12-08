@@ -650,6 +650,7 @@ getParamDescriptions(PGconn *conn, int msgLength)
 	int			i;
 
 	PGresult   *result = PQmakeEmptyPGresult(conn, PGRES_COMMAND_OK);
+
 	if (!result)
 		goto advance_and_error;
 
@@ -899,6 +900,7 @@ pqGetErrorNotice3(PGconn *conn, bool isError)
 	 * message as the connection's error message.
 	 */
 	PGresult   *res = PQmakeEmptyPGresult(conn, PGRES_EMPTY_QUERY);
+
 	if (res)
 		res->resultStatus = isError ? PGRES_FATAL_ERROR : PGRES_NONFATAL_ERROR;
 
@@ -1008,6 +1010,7 @@ pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 
 	/* Else build error message from relevant fields */
 	const char *val = PQresultErrorField(res, PG_DIAG_SEVERITY);
+
 	if (val)
 		appendPQExpBuffer(msg, "%s:  ", val);
 
@@ -1127,6 +1130,7 @@ pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 
 		const char *valf = PQresultErrorField(res, PG_DIAG_SOURCE_FILE);
 		const char *vall = PQresultErrorField(res, PG_DIAG_SOURCE_LINE);
+
 		val = PQresultErrorField(res, PG_DIAG_SOURCE_FUNCTION);
 		if (val || valf || vall)
 		{
@@ -1174,6 +1178,7 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 
 	/* Need a writable copy of the query */
 	char	   *wquery = strdup(query);
+
 	if (wquery == NULL)
 		return;					/* fail silently if out of memory */
 
@@ -1264,6 +1269,7 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 		{
 
 			int			w = pg_encoding_dsplen(encoding, &wquery[qoffset]);
+
 			/* treat any non-tab control chars as width 1 */
 			if (w <= 0)
 				w = 1;
@@ -1413,6 +1419,7 @@ getNotify(PGconn *conn)
 		return EOF;
 	/* must save name while getting extra string */
 	char	   *svname = strdup(conn->workBuffer.data);
+
 	if (!svname)
 		return EOF;
 	if (pqGets(&conn->workBuffer, conn))
@@ -1429,6 +1436,7 @@ getNotify(PGconn *conn)
 	int			nmlen = strlen(svname);
 	int			extralen = strlen(conn->workBuffer.data);
 	PGnotify   *newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + extralen + 2);
+
 	if (newNotify)
 	{
 		newNotify->relname = (char *) newNotify + sizeof(PGnotify);
@@ -1461,6 +1469,7 @@ getCopyStart(PGconn *conn, ExecStatusType copytype)
 	int			i;
 
 	PGresult   *result = PQmakeEmptyPGresult(conn, copytype);
+
 	if (!result)
 		goto failure;
 
@@ -1773,6 +1782,7 @@ pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 	 * (Note: unlike pqGetCopyData3, we do not change asyncStatus here.)
 	 */
 	int			msgLength = getCopyDataMessage(conn);
+
 	if (msgLength < 0)
 		return -1;				/* end-of-copy or error */
 	if (msgLength == 0)
@@ -1786,6 +1796,7 @@ pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize)
 	 */
 	conn->inCursor += conn->copy_already_done;
 	int			avail = msgLength - 4 - conn->copy_already_done;
+
 	if (avail <= bufsize)
 	{
 		/* Able to consume the whole message */
@@ -2112,6 +2123,7 @@ pqBuildStartupPacket3(PGconn *conn, int *packetlen,
 
 	*packetlen = build_startup_packet(conn, NULL, options);
 	char	   *startpacket = (char *) malloc(*packetlen);
+
 	if (!startpacket)
 		return NULL;
 	*packetlen = build_startup_packet(conn, startpacket, options);

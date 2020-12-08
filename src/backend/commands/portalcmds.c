@@ -181,6 +181,7 @@ PerformPortalFetch(FetchStmt *stmt,
 
 	/* get the portal from the portal name */
 	Portal		portal = GetPortalByName(stmt->portalname);
+
 	if (!PortalIsValid(portal))
 	{
 		ereport(ERROR,
@@ -195,9 +196,9 @@ PerformPortalFetch(FetchStmt *stmt,
 
 	/* Do it */
 	uint64		nprocessed = PortalRunFetch(portal,
-								stmt->direction,
-								stmt->howMany,
-								dest);
+											stmt->direction,
+											stmt->howMany,
+											dest);
 
 	/* Return command status if wanted */
 	if (qc)
@@ -233,6 +234,7 @@ PerformPortalClose(const char *name)
 	 * get the portal from the portal name
 	 */
 	Portal		portal = GetPortalByName(name);
+
 	if (!PortalIsValid(portal))
 	{
 		ereport(ERROR,
@@ -273,6 +275,7 @@ PortalCleanup(Portal portal)
 	 * and we can't be sure that ExecutorEnd itself wouldn't fail.
 	 */
 	QueryDesc  *queryDesc = portal->queryDesc;
+
 	if (queryDesc)
 	{
 		/*
@@ -288,6 +291,7 @@ PortalCleanup(Portal portal)
 
 			/* We must make the portal's resource owner current */
 			ResourceOwner saveResourceOwner = CurrentResourceOwner;
+
 			if (portal->resowner)
 				CurrentResourceOwner = portal->resowner;
 
@@ -348,6 +352,7 @@ PersistHoldablePortal(Portal portal)
 	Portal		saveActivePortal = ActivePortal;
 	ResourceOwner saveResourceOwner = CurrentResourceOwner;
 	MemoryContext savePortalContext = PortalContext;
+
 	PG_TRY();
 	{
 		ActivePortal = portal;

@@ -217,6 +217,7 @@ tts_virtual_materialize(TupleTableSlot *slot)
 			data = (char *) att_align_nominal(data,
 											  att->attalign);
 			Size		data_length = EOH_get_flat_size(eoh);
+
 			EOH_flatten_into(eoh, data, data_length);
 
 			slot->tts_values[natt] = PointerGetDatum(data);
@@ -381,6 +382,7 @@ tts_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 
 	MemoryContext oldcontext = MemoryContextSwitchTo(dstslot->tts_mcxt);
 	HeapTuple	tuple = ExecCopySlotHeapTuple(srcslot);
+
 	MemoryContextSwitchTo(oldcontext);
 
 	ExecStoreHeapTuple(tuple, dstslot, true);
@@ -548,6 +550,7 @@ tts_minimal_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 
 	MemoryContext oldcontext = MemoryContextSwitchTo(dstslot->tts_mcxt);
 	MinimalTuple mintuple = ExecCopySlotMinimalTuple(srcslot);
+
 	MemoryContextSwitchTo(oldcontext);
 
 	ExecStoreMinimalTuple(mintuple, dstslot, true);
@@ -753,6 +756,7 @@ tts_buffer_heap_copyslot(TupleTableSlot *dstslot, TupleTableSlot *srcslot)
 		ExecClearTuple(dstslot);
 		dstslot->tts_flags &= ~TTS_FLAG_EMPTY;
 		MemoryContext oldContext = MemoryContextSwitchTo(dstslot->tts_mcxt);
+
 		bdstslot->base.tuple = ExecCopySlotHeapTuple(srcslot);
 		dstslot->tts_flags |= TTS_FLAG_SHOULDFREE;
 		MemoryContextSwitchTo(oldContext);
@@ -902,6 +906,7 @@ slot_deform_heap_tuple(TupleTableSlot *slot, HeapTuple tuple, uint32 *offp,
 	 * loop state.
 	 */
 	int			attnum = slot->tts_nvalid;
+
 	if (attnum == 0)
 	{
 		/* Start from the first attribute */
@@ -1087,6 +1092,7 @@ MakeTupleTableSlot(TupleDesc tupleDesc,
 		allocsz = basesz;
 
 	TupleTableSlot *slot = palloc0(allocsz);
+
 	/* const for optimization purposes, OK to modify at allocation time */
 	*((const TupleTableSlotOps **) &slot->tts_ops) = tts_ops;
 	slot->type = T_TupleTableSlot;
@@ -1438,6 +1444,7 @@ ExecForceStoreHeapTuple(HeapTuple tuple,
 		ExecClearTuple(slot);
 		slot->tts_flags &= ~TTS_FLAG_EMPTY;
 		MemoryContext oldContext = MemoryContextSwitchTo(slot->tts_mcxt);
+
 		bslot->base.tuple = heap_copytuple(tuple);
 		slot->tts_flags |= TTS_FLAG_SHOULDFREE;
 		MemoryContextSwitchTo(oldContext);
@@ -1732,7 +1739,8 @@ ExecInitResultSlot(PlanState *planstate, const TupleTableSlotOps *tts_ops)
 {
 
 	TupleTableSlot *slot = ExecAllocTableSlot(&planstate->state->es_tupleTable,
-							  planstate->ps_ResultTupleDesc, tts_ops);
+											  planstate->ps_ResultTupleDesc, tts_ops);
+
 	planstate->ps_ResultTupleSlot = slot;
 
 	planstate->resultopsfixed = planstate->ps_ResultTupleDesc != NULL;
@@ -1996,6 +2004,7 @@ ExecTypeSetColNames(TupleDesc typeInfo, List *namesList)
 		if (colno >= typeInfo->natts)
 			break;
 		Form_pg_attribute attr = TupleDescAttr(typeInfo, colno);
+
 		colno++;
 
 		/* Ignore empty aliases (these must be for dropped columns) */
@@ -2182,12 +2191,12 @@ HeapTupleHeaderGetDatum(HeapTupleHeader tuple)
 
 	/* Use the type data saved by heap_form_tuple to look up the rowtype */
 	TupleDesc	tupDesc = lookup_rowtype_tupdesc(HeapTupleHeaderGetTypeId(tuple),
-									 HeapTupleHeaderGetTypMod(tuple));
+												 HeapTupleHeaderGetTypMod(tuple));
 
 	/* And do the flattening */
 	Datum		result = toast_flatten_tuple_to_datum(tuple,
-										  HeapTupleHeaderGetDatumLength(tuple),
-										  tupDesc);
+													  HeapTupleHeaderGetDatumLength(tuple),
+													  tupDesc);
 
 	ReleaseTupleDesc(tupDesc);
 
@@ -2259,6 +2268,7 @@ do_text_output_multiline(TupOutputState *tstate, const char *txt)
 		int			len;
 
 		const char *eol = strchr(txt, '\n');
+
 		if (eol)
 		{
 			len = eol - txt;

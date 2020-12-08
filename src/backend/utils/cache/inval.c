@@ -740,8 +740,9 @@ PrepareInvalidationState(void)
 		return;
 
 	TransInvalidationInfo *myInfo = (TransInvalidationInfo *)
-		MemoryContextAllocZero(TopTransactionContext,
-							   sizeof(TransInvalidationInfo));
+	MemoryContextAllocZero(TopTransactionContext,
+						   sizeof(TransInvalidationInfo));
+
 	myInfo->parent = transInvalInfo;
 	myInfo->my_level = GetCurrentTransactionNestLevel();
 
@@ -1016,6 +1017,7 @@ AtEOSubXact_Inval(bool isCommit)
 
 	/* Also bail out quickly if messages are not for this level. */
 	int			my_level = GetCurrentTransactionNestLevel();
+
 	if (myInfo->my_level != my_level)
 	{
 		Assert(myInfo->my_level < my_level);
@@ -1152,6 +1154,7 @@ CacheInvalidateHeapTuple(Relation relation,
 	 * First let the catcache do its thing
 	 */
 	Oid			tupleRelId = RelationGetRelid(relation);
+
 	if (RelationInvalidatesSnapshotsOnly(tupleRelId))
 	{
 		databaseId = IsSharedRelation(tupleRelId) ? InvalidOid : MyDatabaseId;
@@ -1278,6 +1281,7 @@ CacheInvalidateRelcache(Relation relation)
 	PrepareInvalidationState();
 
 	Oid			relationId = RelationGetRelid(relation);
+
 	if (relation->rd_rel->relisshared)
 		databaseId = InvalidOid;
 	else
@@ -1314,6 +1318,7 @@ CacheInvalidateRelcacheByTuple(HeapTuple classTuple)
 	PrepareInvalidationState();
 
 	Oid			relationId = classtup->oid;
+
 	if (classtup->relisshared)
 		databaseId = InvalidOid;
 	else
@@ -1334,6 +1339,7 @@ CacheInvalidateRelcacheByRelid(Oid relid)
 	PrepareInvalidationState();
 
 	HeapTuple	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 	CacheInvalidateRelcacheByTuple(tup);
@@ -1492,6 +1498,7 @@ CallSyscacheCallbacks(int cacheid, uint32 hashvalue)
 		elog(ERROR, "invalid cache ID: %d", cacheid);
 
 	int			i = syscache_callback_links[cacheid] - 1;
+
 	while (i >= 0)
 	{
 		struct SYSCACHECALLBACK *ccitem = syscache_callback_list + i;
@@ -1526,6 +1533,7 @@ LogLogicalInvalidations()
 
 	SharedInvalidationMessage *invalMessages = SharedInvalidMessagesArray;
 	int			nmsgs = numSharedInvalidMessagesArray;
+
 	SharedInvalidMessagesArray = NULL;
 	numSharedInvalidMessagesArray = 0;
 

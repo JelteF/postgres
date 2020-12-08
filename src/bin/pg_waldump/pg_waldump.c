@@ -189,6 +189,7 @@ search_directory(const char *directory, const char *fname)
 		PGAlignedXLogBlock buf;
 
 		int			r = read(fd, buf.data, XLOG_BLCKSZ);
+
 		if (r == XLOG_BLCKSZ)
 		{
 			XLogLongPageHeader longhdr = (XLogLongPageHeader) buf.data;
@@ -257,6 +258,7 @@ identify_target_directory(char *directory, char *fname)
 			return pg_strdup(XLOGDIR);
 
 		const char *datadir = getenv("PGDATA");
+
 		/* $PGDATA / XLOGDIR */
 		if (datadir != NULL)
 		{
@@ -464,6 +466,7 @@ XLogDumpDisplayRecord(XLogDumpConfig *config, XLogReaderState *record)
 		   (uint32) (xl_prev >> 32), (uint32) xl_prev);
 
 	const char *id = desc->rm_identify(info);
+
 	if (id == NULL)
 		printf("desc: UNKNOWN (%x) ", info & ~XLR_INFO_MASK);
 	else
@@ -661,6 +664,7 @@ XLogDumpDisplayStats(XLogDumpConfig *config, XLogDumpStats *stats)
 
 				/* the upper four bits in xl_info are the rmgr's */
 				const char *id = desc->rm_identify(rj << 4);
+
 				if (id == NULL)
 					id = psprintf("UNKNOWN (%x)", rj << 4);
 
@@ -950,6 +954,7 @@ main(int argc, char **argv)
 
 		waldir = identify_target_directory(waldir, fname);
 		int			fd = open_file_in_directory(waldir, fname);
+
 		if (fd < 0)
 			fatal_error("could not open file \"%s\"", fname);
 		close(fd);

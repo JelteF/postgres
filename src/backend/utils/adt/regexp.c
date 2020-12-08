@@ -176,14 +176,14 @@ RE_compile_and_cache(text *text_re, int cflags, Oid collation)
 	/* Convert pattern string to wide characters */
 	pg_wchar   *pattern = (pg_wchar *) palloc((text_re_len + 1) * sizeof(pg_wchar));
 	int			pattern_len = pg_mb2wchar_with_len(text_re_val,
-									   pattern,
-									   text_re_len);
+												   pattern,
+												   text_re_len);
 
 	int			regcomp_result = pg_regcomp(&re_temp.cre_re,
-								pattern,
-								pattern_len,
-								cflags,
-								collation);
+											pattern,
+											pattern_len,
+											cflags,
+											collation);
 
 	pfree(pattern);
 
@@ -267,13 +267,13 @@ RE_wchar_execute(regex_t *re, pg_wchar *data, int data_len,
 
 	/* Perform RE match and return result */
 	int			regexec_result = pg_regexec(re,
-								data,
-								data_len,
-								start_search,
-								NULL,	/* no details */
-								nmatch,
-								pmatch,
-								0);
+											data,
+											data_len,
+											start_search,
+											NULL,	/* no details */
+											nmatch,
+											pmatch,
+											0);
 
 	if (regexec_result != REG_OKAY && regexec_result != REG_NOMATCH)
 	{
@@ -967,7 +967,7 @@ regexp_match(PG_FUNCTION_ARGS)
 				 errhint("Use the regexp_matches function instead.")));
 
 	regexp_matches_ctx *matchctx = setup_regexp_matches(orig_str, pattern, &re_flags,
-									PG_GET_COLLATION(), true, false, false);
+														PG_GET_COLLATION(), true, false, false);
 
 	if (matchctx->nmatches == 0)
 		PG_RETURN_NULL();
@@ -1031,6 +1031,7 @@ regexp_matches(PG_FUNCTION_ARGS)
 	{
 
 		ArrayType  *result_ary = build_regexp_match_result(matchctx);
+
 		matchctx->next_match++;
 		SRF_RETURN_NEXT(funcctx, PointerGetDatum(result_ary));
 	}
@@ -1108,6 +1109,7 @@ setup_regexp_matches(text *orig_str, text *pattern, pg_re_flags *re_flags,
 	 * than at 2^27
 	 */
 	int			array_len = re_flags->glob ? 255 : 31;
+
 	matchctx->match_locs = (int *) palloc(sizeof(int) * array_len);
 	int			array_idx = 0;
 
@@ -1115,6 +1117,7 @@ setup_regexp_matches(text *orig_str, text *pattern, pg_re_flags *re_flags,
 	int			prev_match_end = 0;
 	int			prev_valid_match_end = 0;
 	int			start_search = 0;
+
 	while (RE_wchar_execute(cpattern, wide_str, wide_len, start_search,
 							pmatch_len, pmatch))
 	{
@@ -1265,6 +1268,7 @@ build_regexp_match_result(regexp_matches_ctx *matchctx)
 
 	/* Extract matching substrings from the original string */
 	int			loc = matchctx->next_match * matchctx->npatterns * 2;
+
 	for (i = 0; i < matchctx->npatterns; i++)
 	{
 		int			so = matchctx->match_locs[loc++];
@@ -1390,10 +1394,10 @@ regexp_split_to_array(PG_FUNCTION_ARGS)
 	re_flags.glob = true;
 
 	regexp_matches_ctx *splitctx = setup_regexp_matches(PG_GETARG_TEXT_PP(0),
-									PG_GETARG_TEXT_PP(1),
-									&re_flags,
-									PG_GET_COLLATION(),
-									false, true, true);
+														PG_GETARG_TEXT_PP(1),
+														&re_flags,
+														PG_GET_COLLATION(),
+														false, true, true);
 
 	while (splitctx->next_match <= splitctx->nmatches)
 	{
@@ -1435,6 +1439,7 @@ build_regexp_split_result(regexp_matches_ctx *splitctx)
 		elog(ERROR, "invalid match ending position");
 
 	int			endpos = splitctx->match_locs[splitctx->next_match * 2];
+
 	if (endpos < startpos)
 		elog(ERROR, "invalid match starting position");
 
@@ -1442,8 +1447,9 @@ build_regexp_split_result(regexp_matches_ctx *splitctx)
 	{
 
 		int			len = pg_wchar2mb_with_len(splitctx->wide_str + startpos,
-								   buf,
-								   endpos - startpos);
+											   buf,
+											   endpos - startpos);
+
 		Assert(len < splitctx->conv_bufsiz);
 		return PointerGetDatum(cstring_to_text_with_len(buf, len));
 	}
@@ -1474,6 +1480,7 @@ regexp_fixed_prefix(text *text_re, bool case_insensitive, Oid collation,
 
 	/* Compile RE */
 	int			cflags = REG_ADVANCED;
+
 	if (case_insensitive)
 		cflags |= REG_ICASE;
 
@@ -1509,6 +1516,7 @@ regexp_fixed_prefix(text *text_re, bool case_insensitive, Oid collation,
 	/* Convert pg_wchar result back to database encoding */
 	size_t		maxlen = pg_database_encoding_max_length() * slen + 1;
 	char	   *result = (char *) palloc(maxlen);
+
 	slen = pg_wchar2mb_with_len(str, result, slen);
 	Assert(slen < maxlen);
 

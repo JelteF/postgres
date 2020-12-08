@@ -79,6 +79,7 @@ lnext:
 
 		/* clear any leftover test tuple for this rel */
 		TupleTableSlot *markSlot = EvalPlanQualSlot(&node->lr_epqstate, erm->relation, erm->rti);
+
 		ExecClearTuple(markSlot);
 
 		/* if child rel, must check whether it produced this row */
@@ -119,6 +120,7 @@ lnext:
 			bool		updated = false;
 
 			FdwRoutine *fdwroutine = GetFdwRoutineForRelation(erm->relation, false);
+
 			/* this should have been checked already, but let's be safe */
 			if (fdwroutine->RefetchForeignRow == NULL)
 				ereport(ERROR,
@@ -291,6 +293,7 @@ ExecInitLockRows(LockRows *node, EState *estate, int eflags)
 	 * create state structure
 	 */
 	LockRowsState *lrstate = makeNode(LockRowsState);
+
 	lrstate->ps.plan = (Plan *) node;
 	lrstate->ps.state = estate;
 	lrstate->ps.ExecProcNode = ExecLockRows;
@@ -330,6 +333,7 @@ ExecInitLockRows(LockRows *node, EState *estate, int eflags)
 	 */
 	lrstate->lr_arowMarks = NIL;
 	List	   *epq_arowmarks = NIL;
+
 	foreach(lc, node->rowMarks)
 	{
 		PlanRowMark *rc = lfirst_node(PlanRowMark, lc);

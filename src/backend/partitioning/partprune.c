@@ -246,6 +246,7 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 	 * 'subpaths' of the scan plan for that partition.
 	 */
 	int			i = 1;
+
 	foreach(lc, subpaths)
 	{
 		Path	   *path = (Path *) lfirst(lc);
@@ -261,15 +262,16 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 
 	/* We now build a PartitionedRelPruneInfo for each partitioned rel. */
 	List	   *prunerelinfos = NIL;
+
 	foreach(lc, partitioned_rels)
 	{
 		Relids		partrelids = (Relids) lfirst(lc);
 		Bitmapset  *matchedsubplans = NULL;
 
 		List	   *pinfolist = make_partitionedrel_pruneinfo(root, parentrel,
-												  relid_subplan_map,
-												  partrelids, prunequal,
-												  &matchedsubplans);
+															  relid_subplan_map,
+															  partrelids, prunequal,
+															  &matchedsubplans);
 
 		/* When pruning is possible, record the matched subplans */
 		if (pinfolist != NIL)
@@ -291,6 +293,7 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 
 	/* Else build the result data structure */
 	PartitionPruneInfo *pruneinfo = makeNode(PartitionPruneInfo);
+
 	pruneinfo->prune_infos = prunerelinfos;
 
 	/*
@@ -305,6 +308,7 @@ make_partition_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 
 		/* Create the complement of allmatchedsubplans */
 		Bitmapset  *other_subplans = bms_add_range(NULL, 0, list_length(subpaths) - 1);
+
 		other_subplans = bms_del_members(other_subplans, allmatchedsubplans);
 
 		pruneinfo->other_subplans = other_subplans;
@@ -357,6 +361,7 @@ make_partitionedrel_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 
 	int			i = 1;
 	int			rti = -1;
+
 	while ((rti = bms_next_member(partrelids, rti)) > 0)
 	{
 		RelOptInfo *subpart = find_base_rel(root, rti);
@@ -499,6 +504,7 @@ make_partitionedrel_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 
 		/* Begin constructing the PartitionedRelPruneInfo for this rel */
 		PartitionedRelPruneInfo *pinfo = makeNode(PartitionedRelPruneInfo);
+
 		pinfo->rtindex = rti;
 		pinfo->initial_pruning_steps = initial_pruning_steps;
 		pinfo->exec_pruning_steps = exec_pruning_steps;
@@ -536,8 +542,10 @@ make_partitionedrel_pruneinfo(PlannerInfo *root, RelOptInfo *parentrel,
 		 * is, not pruned already).
 		 */
 		int		   *subplan_map = (int *) palloc(nparts * sizeof(int));
+
 		memset(subplan_map, -1, nparts * sizeof(int));
 		int		   *subpart_map = (int *) palloc(nparts * sizeof(int));
+
 		memset(subpart_map, -1, nparts * sizeof(int));
 		Oid		   *relid_map = (Oid *) palloc0(nparts * sizeof(Oid));
 		Bitmapset  *present_parts = NULL;
@@ -762,6 +770,7 @@ get_matching_partitions(PartitionPruneContext *context, List *pruning_steps)
 	i = -1;
 	Bitmapset  *result = NULL;
 	bool		scan_default = final_result->scan_default;
+
 	while ((i = bms_next_member(final_result->bound_offsets, i)) >= 0)
 	{
 		int			partindex = context->boundinfo->indexes[i];
@@ -911,8 +920,9 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 					Expr	   *arg = lfirst(lc1);
 
 					List	   *argsteps = gen_partprune_steps_internal(context,
-															list_make1(arg));
+																		list_make1(arg));
 					bool		arg_contradictory = context->contradictory;
+
 					/* Keep context->contradictory clear till we're done */
 					context->contradictory = false;
 
@@ -929,6 +939,7 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 
 						Assert(list_length(argsteps) == 1);
 						PartitionPruneStep *step = (PartitionPruneStep *) linitial(argsteps);
+
 						arg_stepids = lappend_int(arg_stepids, step->step_id);
 					}
 					else
@@ -942,7 +953,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 						 * source_stepids is set to an empty List.
 						 */
 						PartitionPruneStep *orstep = gen_prune_step_combine(context, NIL,
-														PARTPRUNE_COMBINE_UNION);
+																			PARTPRUNE_COMBINE_UNION);
+
 						arg_stepids = lappend_int(arg_stepids, orstep->step_id);
 					}
 				}
@@ -958,7 +970,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 				{
 
 					PartitionPruneStep *step = gen_prune_step_combine(context, arg_stepids,
-												  PARTPRUNE_COMBINE_UNION);
+																	  PARTPRUNE_COMBINE_UNION);
+
 					result = lappend(result, step);
 				}
 				continue;
@@ -992,7 +1005,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 				{
 
 					PartitionPruneStep *step = gen_prune_step_combine(context, arg_stepids,
-												  PARTPRUNE_COMBINE_INTERSECT);
+																	  PARTPRUNE_COMBINE_INTERSECT);
+
 					result = lappend(result, step);
 				}
 				continue;
@@ -1123,7 +1137,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 
 		/* Strategy 1 */
 		PartitionPruneStep *step = gen_prune_step_op(context, InvalidStrategy,
-								 false, NIL, NIL, nullkeys);
+													 false, NIL, NIL, nullkeys);
+
 		result = lappend(result, step);
 	}
 	else if (generate_opsteps)
@@ -1131,6 +1146,7 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 
 		/* Strategy 2 */
 		PartitionPruneStep *step = gen_prune_steps_from_opexps(context, keyclauses, nullkeys);
+
 		if (step != NULL)
 			result = lappend(result, step);
 	}
@@ -1139,7 +1155,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 
 		/* Strategy 3 */
 		PartitionPruneStep *step = gen_prune_step_op(context, InvalidStrategy,
-								 false, NIL, NIL, NULL);
+													 false, NIL, NIL, NULL);
+
 		result = lappend(result, step);
 	}
 
@@ -1162,7 +1179,8 @@ gen_partprune_steps_internal(GeneratePruningStepsContext *context,
 		{
 
 			PartitionPruneStep *step = gen_prune_step_combine(context, step_ids,
-										  PARTPRUNE_COMBINE_INTERSECT);
+															  PARTPRUNE_COMBINE_INTERSECT);
+
 			result = lappend(result, step);
 		}
 	}
@@ -1545,6 +1563,7 @@ gen_prune_steps_from_opexps(GeneratePruningStepsContext *context,
 					 * it, add all the clauses before that one to 'prefix'.
 					 */
 					int			last_keyno = pc->keyno;
+
 					foreach(lc, eq_clauses)
 					{
 						pc = lfirst(lc);
@@ -1676,12 +1695,13 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 	 * Recognize specially shaped clauses that match a Boolean partition key.
 	 */
 	PartClauseMatchStatus boolmatchstatus = match_boolean_partition_clause(partopfamily, clause,
-													 partkey, &expr);
+																		   partkey, &expr);
 
 	if (boolmatchstatus == PARTCLAUSE_MATCH_CLAUSE)
 	{
 
 		PartClauseInfo *partclause = (PartClauseInfo *) palloc(sizeof(PartClauseInfo));
+
 		partclause->keyno = partkeyidx;
 		/* Do pruning with the Boolean equality operator. */
 		partclause->opno = BooleanEqualOperator;
@@ -1843,6 +1863,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 			 * expression during per-scan pruning.
 			 */
 			Bitmapset  *paramids = pull_exec_paramids(expr);
+
 			if (!bms_is_empty(paramids))
 			{
 				context->has_exec_param = true;
@@ -1925,6 +1946,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 		 * Build the clause, passing the negator if applicable.
 		 */
 		PartClauseInfo *partclause = (PartClauseInfo *) palloc(sizeof(PartClauseInfo));
+
 		partclause->keyno = partkeyidx;
 		if (is_opne_listp)
 		{
@@ -1980,6 +2002,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 				return PARTCLAUSE_NOMATCH;
 
 			Oid			negator = get_negator(saop_op);
+
 			if (OidIsValid(negator) && op_in_opfamily(negator, partopfamily))
 			{
 				int			strategy;
@@ -2039,6 +2062,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 			 * expression during per-scan pruning.
 			 */
 			Bitmapset  *paramids = pull_exec_paramids(rightop);
+
 			if (!bms_is_empty(paramids))
 			{
 				context->has_exec_param = true;
@@ -2093,6 +2117,7 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 				return PARTCLAUSE_MATCH_CONTRADICT;
 
 			ArrayType  *arrval = DatumGetArrayTypeP(arr->constvalue);
+
 			get_typlenbyvalalign(ARR_ELEMTYPE(arrval),
 								 &elemlen, &elembyval, &elemalign);
 			deconstruct_array(arrval,
@@ -2116,8 +2141,9 @@ match_clause_to_partition_key(GeneratePruningStepsContext *context,
 				}
 
 				Const	   *elem_expr = makeConst(ARR_ELEMTYPE(arrval), -1,
-									  arr->constcollid, elemlen,
-									  elem_values[i], false, elembyval);
+												  arr->constcollid, elemlen,
+												  elem_values[i], false, elembyval);
+
 				elem_exprs = lappend(elem_exprs, elem_expr);
 			}
 		}
@@ -2249,11 +2275,12 @@ get_steps_using_prefix(GeneratePruningStepsContext *context,
 	{
 
 		PartitionPruneStep *step = gen_prune_step_op(context,
-								 step_opstrategy,
-								 step_op_is_ne,
-								 list_make1(step_lastexpr),
-								 list_make1_oid(step_lastcmpfn),
-								 step_nullkeys);
+													 step_opstrategy,
+													 step_op_is_ne,
+													 list_make1(step_lastexpr),
+													 list_make1_oid(step_lastcmpfn),
+													 step_nullkeys);
+
 		return list_make1(step);
 	}
 
@@ -2304,6 +2331,7 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 	/* Check if we need to recurse. */
 	Assert(start != NULL);
 	int			cur_keyno = ((PartClauseInfo *) lfirst(start))->keyno;
+
 	if (cur_keyno < step_lastkeyno - 1)
 	{
 		PartClauseInfo *pc;
@@ -2346,16 +2374,17 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 			}
 
 			List	   *moresteps = get_steps_using_prefix_recurse(context,
-													   step_opstrategy,
-													   step_op_is_ne,
-													   step_lastexpr,
-													   step_lastcmpfn,
-													   step_lastkeyno,
-													   step_nullkeys,
-													   prefix,
-													   next_start,
-													   step_exprs1,
-													   step_cmpfns1);
+																   step_opstrategy,
+																   step_op_is_ne,
+																   step_lastexpr,
+																   step_lastcmpfn,
+																   step_lastkeyno,
+																   step_nullkeys,
+																   prefix,
+																   next_start,
+																   step_exprs1,
+																   step_cmpfns1);
+
 			result = list_concat(result, moresteps);
 
 			list_free(step_exprs1);
@@ -2374,11 +2403,12 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 		 */
 		Assert(list_length(step_exprs) == cur_keyno ||
 			   !bms_is_empty(step_nullkeys));
+
 		/*
 		 * Note also that for hash partitioning, each partition key should
 		 * have either equality clauses or an IS NULL clause, so if a
-		 * partition key doesn't have an expression, it would be specified
-		 * in step_nullkeys.
+		 * partition key doesn't have an expression, it would be specified in
+		 * step_nullkeys.
 		 */
 		Assert(context->rel->part_scheme->strategy
 			   != PARTITION_STRATEGY_HASH ||
@@ -2403,9 +2433,10 @@ get_steps_using_prefix_recurse(GeneratePruningStepsContext *context,
 			step_cmpfns1 = lappend_oid(step_cmpfns1, step_lastcmpfn);
 
 			PartitionPruneStep *step = gen_prune_step_op(context,
-									 step_opstrategy, step_op_is_ne,
-									 step_exprs1, step_cmpfns1,
-									 step_nullkeys);
+														 step_opstrategy, step_op_is_ne,
+														 step_exprs1, step_cmpfns1,
+														 step_nullkeys);
+
 			result = lappend(result, step);
 		}
 	}
@@ -2826,11 +2857,12 @@ get_matching_range_bounds(PartitionPruneContext *context,
 					{
 
 						int32		cmpval =
-							partition_rbound_datum_cmp(partsupfunc,
-													   partcollation,
-													   boundinfo->datums[off - 1],
-													   boundinfo->kind[off - 1],
-													   values, nvalues);
+						partition_rbound_datum_cmp(partsupfunc,
+												   partcollation,
+												   boundinfo->datums[off - 1],
+												   boundinfo->kind[off - 1],
+												   values, nvalues);
+
 						if (cmpval != 0)
 							break;
 						off--;
@@ -2866,10 +2898,11 @@ get_matching_range_bounds(PartitionPruneContext *context,
 					{
 
 						int32		cmpval = partition_rbound_datum_cmp(partsupfunc,
-															partcollation,
-															boundinfo->datums[off + 1],
-															boundinfo->kind[off + 1],
-															values, nvalues);
+																		partcollation,
+																		boundinfo->datums[off + 1],
+																		boundinfo->kind[off + 1],
+																		values, nvalues);
+
 						if (cmpval != 0)
 							break;
 						off++;
@@ -2952,11 +2985,12 @@ get_matching_range_bounds(PartitionPruneContext *context,
 
 						int			nextoff = inclusive ? off - 1 : off + 1;
 						int32		cmpval =
-							partition_rbound_datum_cmp(partsupfunc,
-													   partcollation,
-													   boundinfo->datums[nextoff],
-													   boundinfo->kind[nextoff],
-													   values, nvalues);
+						partition_rbound_datum_cmp(partsupfunc,
+												   partcollation,
+												   boundinfo->datums[nextoff],
+												   boundinfo->kind[nextoff],
+												   values, nvalues);
+
 						if (cmpval != 0)
 							break;
 
@@ -3013,10 +3047,11 @@ get_matching_range_bounds(PartitionPruneContext *context,
 
 						int			nextoff = inclusive ? off + 1 : off - 1;
 						int32		cmpval = partition_rbound_datum_cmp(partsupfunc,
-															partcollation,
-															boundinfo->datums[nextoff],
-															boundinfo->kind[nextoff],
-															values, nvalues);
+																		partcollation,
+																		boundinfo->datums[nextoff],
+																		boundinfo->kind[nextoff],
+																		values, nvalues);
+
 						if (cmpval != 0)
 							break;
 
@@ -3232,6 +3267,7 @@ perform_pruning_base_step(PartitionPruneContext *context,
 			bool		isnull;
 
 			Expr	   *expr = lfirst(lc1);
+
 			stateidx = PruneCxtStateIdx(context->partnatts,
 										opstep->step.step_id, keyno);
 			partkey_datum_from_expr(context, expr, stateidx,
@@ -3246,6 +3282,7 @@ perform_pruning_base_step(PartitionPruneContext *context,
 			{
 
 				PruneStepResult *result = (PruneStepResult *) palloc(sizeof(PruneStepResult));
+
 				result->bound_offsets = NULL;
 				result->scan_default = false;
 				result->scan_null = false;
@@ -3255,6 +3292,7 @@ perform_pruning_base_step(PartitionPruneContext *context,
 
 			/* Set up the stepcmpfuncs entry, unless we already did */
 			Oid			cmpfn = lfirst_oid(lc2);
+
 			Assert(OidIsValid(cmpfn));
 			if (cmpfn != context->stepcmpfuncs[stateidx].fn_oid)
 			{
@@ -3342,6 +3380,7 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 	 * any partition pruning.  Return all datum indexes in that case.
 	 */
 	PruneStepResult *result = (PruneStepResult *) palloc0(sizeof(PruneStepResult));
+
 	if (list_length(cstep->source_stepids) == 0)
 	{
 		PartitionBoundInfo boundinfo = context->boundinfo;
@@ -3352,7 +3391,7 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 		 * valid entries; otherwise there are boundinfo->ndatums.
 		 */
 		int			rangemax = context->strategy == PARTITION_STRATEGY_RANGE ?
-			boundinfo->ndatums : boundinfo->ndatums - 1;
+		boundinfo->ndatums : boundinfo->ndatums - 1;
 
 		result->bound_offsets =
 			bms_add_range(result->bound_offsets, 0, rangemax);
@@ -3377,6 +3416,7 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 				if (step_id >= cstep->step.step_id)
 					elog(ERROR, "invalid pruning combine step argument");
 				PruneStepResult *step_result = step_results[step_id];
+
 				Assert(step_result != NULL);
 
 				/* Record any additional datum indexes from this step */
@@ -3400,6 +3440,7 @@ perform_pruning_combine_step(PartitionPruneContext *context,
 				if (step_id >= cstep->step.step_id)
 					elog(ERROR, "invalid pruning combine step argument");
 				PruneStepResult *step_result = step_results[step_id];
+
 				Assert(step_result != NULL);
 
 				if (firststep)
@@ -3537,6 +3578,7 @@ partkey_datum_from_expr(PartitionPruneContext *context,
 
 		ExprState  *exprstate = context->exprstates[stateidx];
 		ExprContext *ectx = context->planstate->ps_ExprContext;
+
 		*value = ExecEvalExprSwitchContext(exprstate, ectx, isnull);
 	}
 }

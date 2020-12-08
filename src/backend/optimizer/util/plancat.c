@@ -269,6 +269,7 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 
 			/* We copy just the fields we need, not all of rd_indam */
 			IndexAmRoutine *amroutine = indexRelation->rd_indam;
+
 			info->amcanorderbyop = amroutine->amcanorderbyop;
 			info->amoptionalkey = amroutine->amoptionalkey;
 			info->amsearcharray = amroutine->amsearcharray;
@@ -339,9 +340,10 @@ get_relation_info(PlannerInfo *root, Oid relationObjectId, bool inhparent,
 					info->nulls_first[i] = (opt & INDOPTION_NULLS_FIRST) != 0;
 
 					Oid			ltopr = get_opfamily_member(info->opfamily[i],
-												info->opcintype[i],
-												info->opcintype[i],
-												BTLessStrategyNumber);
+															info->opcintype[i],
+															info->opcintype[i],
+															BTLessStrategyNumber);
+
 					if (OidIsValid(ltopr) &&
 						get_ordering_op_properties(ltopr,
 												   &btopfamily,
@@ -541,6 +543,7 @@ get_relation_foreign_keys(PlannerInfo *root, RelOptInfo *rel,
 
 		/* Scan to find other RTEs matching confrelid */
 		Index		rti = 0;
+
 		foreach(lc2, rtable)
 		{
 			RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc2);
@@ -559,6 +562,7 @@ get_relation_foreign_keys(PlannerInfo *root, RelOptInfo *rel,
 
 			/* OK, let's make an entry */
 			ForeignKeyOptInfo *info = makeNode(ForeignKeyOptInfo);
+
 			info->con_relid = rel->relid;
 			info->ref_relid = rti;
 			info->nkeys = cachedfk->nkeys;
@@ -1020,6 +1024,7 @@ estimate_rel_size(Relation rel, int32 *attr_widths,
 				 */
 
 				int32		tuple_width = get_rel_data_width(rel, attr_widths);
+
 				tuple_width += MAXALIGN(SizeofHeapTupleHeader);
 				tuple_width += sizeof(ItemIdData);
 				/* note: integer division is intentional here */
@@ -1099,6 +1104,7 @@ get_rel_data_width(Relation rel, int32 *attr_widths)
 
 		/* This should match set_rel_width() in costsize.c */
 		int32		item_width = get_attavgwidth(RelationGetRelid(rel), i);
+
 		if (item_width <= 0)
 		{
 			item_width = get_typavgwidth(att->atttypid, att->atttypmod);
@@ -1172,6 +1178,7 @@ get_relation_constraints(PlannerInfo *root,
 	Relation	relation = table_open(relationObjectId, NoLock);
 
 	TupleConstr *constr = relation->rd_att->constr;
+
 	if (constr != NULL)
 	{
 		int			num_check = constr->num_check;
@@ -1290,11 +1297,13 @@ get_relation_statistics(RelOptInfo *rel, Relation relation)
 		int			i;
 
 		HeapTuple	htup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(statOid));
+
 		if (!HeapTupleIsValid(htup))
 			elog(ERROR, "cache lookup failed for statistics object %u", statOid);
 		Form_pg_statistic_ext staForm = (Form_pg_statistic_ext) GETSTRUCT(htup);
 
 		HeapTuple	dtup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(statOid));
+
 		if (!HeapTupleIsValid(dtup))
 			elog(ERROR, "cache lookup failed for statistics object %u", statOid);
 
@@ -1454,6 +1463,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 	 * expecting to see any in its predicate argument.
 	 */
 	List	   *safe_restrictions = NIL;
+
 	foreach(lc, rel->baserestrictinfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1494,9 +1504,9 @@ relation_excluded_by_constraints(PlannerInfo *root,
 	 * Fetch the appropriate set of constraint expressions.
 	 */
 	List	   *constraint_pred = get_relation_constraints(root, rte->relid, rel,
-											   include_noinherit,
-											   include_notnull,
-											   include_partition);
+														   include_noinherit,
+														   include_notnull,
+														   include_partition);
 
 	/*
 	 * We do not currently enforce that CHECK constraints contain only
@@ -1506,6 +1516,7 @@ relation_excluded_by_constraints(PlannerInfo *root,
 	 * and reason about the rest.
 	 */
 	List	   *safe_constraints = NIL;
+
 	foreach(lc, constraint_pred)
 	{
 		Node	   *pred = (Node *) lfirst(lc);
@@ -1685,6 +1696,7 @@ build_index_tlist(PlannerInfo *root, IndexOptInfo *index,
 	int			i;
 
 	ListCell   *indexpr_item = list_head(index->indexprs);
+
 	for (i = 0; i < index->ncolumns; i++)
 	{
 		int			indexkey = index->indexkeys[i];
@@ -1754,11 +1766,11 @@ restriction_selectivity(PlannerInfo *root,
 		return (Selectivity) 0.5;
 
 	float8		result = DatumGetFloat8(OidFunctionCall4Coll(oprrest,
-												 inputcollid,
-												 PointerGetDatum(root),
-												 ObjectIdGetDatum(operatorid),
-												 PointerGetDatum(args),
-												 Int32GetDatum(varRelid)));
+															 inputcollid,
+															 PointerGetDatum(root),
+															 ObjectIdGetDatum(operatorid),
+															 PointerGetDatum(args),
+															 Int32GetDatum(varRelid)));
 
 	if (result < 0.0 || result > 1.0)
 		elog(ERROR, "invalid restriction selectivity: %f", result);
@@ -1793,12 +1805,12 @@ join_selectivity(PlannerInfo *root,
 		return (Selectivity) 0.5;
 
 	float8		result = DatumGetFloat8(OidFunctionCall5Coll(oprjoin,
-												 inputcollid,
-												 PointerGetDatum(root),
-												 ObjectIdGetDatum(operatorid),
-												 PointerGetDatum(args),
-												 Int16GetDatum(jointype),
-												 PointerGetDatum(sjinfo)));
+															 inputcollid,
+															 PointerGetDatum(root),
+															 ObjectIdGetDatum(operatorid),
+															 PointerGetDatum(args),
+															 Int16GetDatum(jointype),
+															 PointerGetDatum(sjinfo)));
 
 	if (result < 0.0 || result > 1.0)
 		elog(ERROR, "invalid join selectivity: %f", result);
@@ -1850,8 +1862,8 @@ function_selectivity(PlannerInfo *root,
 	req.selectivity = -1;		/* to catch failure to set the value */
 
 	SupportRequestSelectivity *sresult = (SupportRequestSelectivity *)
-		DatumGetPointer(OidFunctionCall1(prosupport,
-										 PointerGetDatum(&req)));
+	DatumGetPointer(OidFunctionCall1(prosupport,
+									 PointerGetDatum(&req)));
 
 	/* If support function fails, use default */
 	if (sresult != &req)
@@ -1882,6 +1894,7 @@ add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
 {
 
 	HeapTuple	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+
 	if (!HeapTupleIsValid(proctup))
 		elog(ERROR, "cache lookup failed for function %u", funcid);
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
@@ -1900,8 +1913,8 @@ add_function_cost(PlannerInfo *root, Oid funcid, Node *node,
 		req.per_tuple = 0;
 
 		SupportRequestCost *sresult = (SupportRequestCost *)
-			DatumGetPointer(OidFunctionCall1(procform->prosupport,
-											 PointerGetDatum(&req)));
+		DatumGetPointer(OidFunctionCall1(procform->prosupport,
+										 PointerGetDatum(&req)));
 
 		if (sresult == &req)
 		{
@@ -1939,6 +1952,7 @@ get_function_rows(PlannerInfo *root, Oid funcid, Node *node)
 {
 
 	HeapTuple	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+
 	if (!HeapTupleIsValid(proctup))
 		elog(ERROR, "cache lookup failed for function %u", funcid);
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
@@ -1957,8 +1971,8 @@ get_function_rows(PlannerInfo *root, Oid funcid, Node *node)
 		req.rows = 0;			/* just for sanity */
 
 		SupportRequestRows *sresult = (SupportRequestRows *)
-			DatumGetPointer(OidFunctionCall1(procform->prosupport,
-											 PointerGetDatum(&req)));
+		DatumGetPointer(OidFunctionCall1(procform->prosupport,
+										 PointerGetDatum(&req)));
 
 		if (sresult == &req)
 		{
@@ -2030,6 +2044,7 @@ has_row_triggers(PlannerInfo *root, Index rti, CmdType event)
 	Relation	relation = table_open(rte->relid, NoLock);
 
 	TriggerDesc *trigDesc = relation->trigdesc;
+
 	switch (event)
 	{
 		case CMD_INSERT:
@@ -2091,7 +2106,8 @@ set_relation_partition_info(PlannerInfo *root, RelOptInfo *rel,
 			CreatePartitionDirectory(CurrentMemoryContext);
 
 	PartitionDesc partdesc = PartitionDirectoryLookup(root->glob->partition_directory,
-										relation);
+													  relation);
+
 	rel->part_scheme = find_partition_scheme(root, relation);
 	Assert(partdesc != NULL && rel->part_scheme != NULL);
 	rel->boundinfo = partdesc->boundinfo;
@@ -2292,6 +2308,7 @@ set_baserel_partition_constraint(Relation relation, RelOptInfo *rel)
 	 * format and back again.
 	 */
 	List	   *partconstr = RelationGetPartitionQual(relation);
+
 	if (partconstr)
 	{
 		partconstr = (List *) expression_planner((Expr *) partconstr);

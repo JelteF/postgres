@@ -234,6 +234,7 @@ sha1_pad(struct sha1_ctxt *ctxt)
 	PUTPAD(0x80);
 
 	size_t		padstart = COUNT % 64;
+
 	padlen = 64 - padstart;
 	if (padlen < 8)
 	{
@@ -299,6 +300,7 @@ sha1_result(struct sha1_ctxt *ctxt, uint8 *digest0)
 {
 
 	uint8	   *digest = (uint8 *) digest0;
+
 	sha1_pad(ctxt);
 #ifdef WORDS_BIGENDIAN
 	memmove(digest, &ctxt->h.b8[0], 20);

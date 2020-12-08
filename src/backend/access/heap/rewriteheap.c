@@ -244,8 +244,8 @@ begin_heap_rewrite(Relation old_heap, Relation new_heap, TransactionId oldest_xm
 	 * RewriteState struct itself plus all subsidiary data.
 	 */
 	MemoryContext rw_cxt = AllocSetContextCreate(CurrentMemoryContext,
-								   "Table rewrite",
-								   ALLOCSET_DEFAULT_SIZES);
+												 "Table rewrite",
+												 ALLOCSET_DEFAULT_SIZES);
 	MemoryContext old_cxt = MemoryContextSwitchTo(rw_cxt);
 
 	/* Create and fill in the state struct */
@@ -412,8 +412,8 @@ rewrite_heap_tuple(RewriteState state,
 		hashkey.tid = old_tuple->t_data->t_ctid;
 
 		OldToNewMapping mapping = (OldToNewMapping)
-			hash_search(state->rs_old_new_tid_map, &hashkey,
-						HASH_FIND, NULL);
+		hash_search(state->rs_old_new_tid_map, &hashkey,
+					HASH_FIND, NULL);
 
 		if (mapping != NULL)
 		{
@@ -437,7 +437,8 @@ rewrite_heap_tuple(RewriteState state,
 			 */
 
 			UnresolvedTup unresolved = hash_search(state->rs_unresolved_tups, &hashkey,
-									 HASH_ENTER, &found);
+												   HASH_ENTER, &found);
+
 			Assert(!found);
 
 			unresolved->old_tid = old_tuple->t_self;
@@ -491,7 +492,7 @@ rewrite_heap_tuple(RewriteState state,
 			hashkey.tid = old_tid;
 
 			UnresolvedTup unresolved = hash_search(state->rs_unresolved_tups, &hashkey,
-									 HASH_FIND, NULL);
+												   HASH_FIND, NULL);
 
 			if (unresolved != NULL)
 			{
@@ -526,7 +527,8 @@ rewrite_heap_tuple(RewriteState state,
 				 */
 
 				OldToNewMapping mapping = hash_search(state->rs_old_new_tid_map, &hashkey,
-									  HASH_ENTER, &found);
+													  HASH_ENTER, &found);
+
 				Assert(!found);
 
 				mapping->new_tid = new_tid;
@@ -577,7 +579,7 @@ rewrite_heap_dead_tuple(RewriteState state, HeapTuple old_tuple)
 	hashkey.tid = old_tuple->t_self;
 
 	UnresolvedTup unresolved = hash_search(state->rs_unresolved_tups, &hashkey,
-							 HASH_FIND, NULL);
+										   HASH_FIND, NULL);
 
 	if (unresolved != NULL)
 	{
@@ -696,7 +698,8 @@ raw_heap_insert(RewriteState state, HeapTuple tup)
 
 	/* And now we can insert the tuple into the page */
 	OffsetNumber newoff = PageAddItem(page, (Item) heaptup->t_data, heaptup->t_len,
-						 InvalidOffsetNumber, false, true);
+									  InvalidOffsetNumber, false, true);
+
 	if (newoff == InvalidOffsetNumber)
 		elog(ERROR, "failed to add tuple");
 
@@ -895,7 +898,8 @@ logical_heap_rewrite_flush_mappings(RewriteState state)
 		 * check the above "Logical rewrite support" comment for reasoning.
 		 */
 		int			written = FileWrite(src->vfd, waldata_start, len, src->off,
-							WAIT_EVENT_LOGICAL_REWRITE_WRITE);
+										WAIT_EVENT_LOGICAL_REWRITE_WRITE);
+
 		if (written != len)
 			ereport(ERROR,
 					(errcode_for_file_access(),
@@ -958,7 +962,7 @@ logical_rewrite_log_mapping(RewriteState state, TransactionId xid,
 
 	/* look for existing mappings for this 'mapped' xid */
 	RewriteMappingFile *src = hash_search(state->rs_logical_mappings, &xid,
-					  HASH_ENTER, &found);
+										  HASH_ENTER, &found);
 
 	/*
 	 * We haven't yet had the need to map anything for this xid, create
@@ -994,7 +998,8 @@ logical_rewrite_log_mapping(RewriteState state, TransactionId xid,
 	}
 
 	RewriteMappingDataEntry *pmap = MemoryContextAlloc(state->rs_cxt,
-							  sizeof(RewriteMappingDataEntry));
+													   sizeof(RewriteMappingDataEntry));
+
 	memcpy(&pmap->map, map, sizeof(LogicalRewriteMappingData));
 	dlist_push_tail(&src->mappings, &pmap->node);
 	src->num_mappings++;
@@ -1027,6 +1032,7 @@ logical_rewrite_heap_tuple(RewriteState state, ItemPointerData old_tid,
 		return;
 
 	TransactionId xmin = HeapTupleHeaderGetXmin(new_tuple->t_data);
+
 	/* use *GetUpdateXid to correctly deal with multixacts */
 	TransactionId xmax = HeapTupleHeaderGetUpdateXid(new_tuple->t_data);
 
@@ -1099,7 +1105,8 @@ heap_xlog_logical_rewrite(XLogReaderState *r)
 			 xlrec->mapped_xid, XLogRecGetXid(r));
 
 	int			fd = OpenTransientFile(path,
-						   O_CREAT | O_WRONLY | PG_BINARY);
+									   O_CREAT | O_WRONLY | PG_BINARY);
+
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -1183,6 +1190,7 @@ CheckPointLogicalRewriteHeap(void)
 		cutoff = redo;
 
 	DIR		   *mappings_dir = AllocateDir("pg_logical/mappings");
+
 	while ((mapping_de = ReadDir(mappings_dir, "pg_logical/mappings")) != NULL)
 	{
 		struct stat statbuf;

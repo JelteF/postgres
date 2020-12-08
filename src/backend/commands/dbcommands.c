@@ -437,10 +437,12 @@ createdb(ParseState *pstate, const CreatedbStmt *stmt)
 	{
 
 		char	   *tablespacename = defGetString(dtablespacename);
+
 		dst_deftablespace = get_tablespace_oid(tablespacename, false);
 		/* check permissions */
 		AclResult	aclresult = pg_tablespace_aclcheck(dst_deftablespace, GetUserId(),
-										   ACL_CREATE);
+													   ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_TABLESPACE,
 						   tablespacename);
@@ -928,6 +930,7 @@ dropdb(const char *dbname, bool missing_ok, bool force)
 	 * Remove the database's tuple from pg_database.
 	 */
 	HeapTuple	tup = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(db_id));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for database %u", db_id);
 
@@ -1169,7 +1172,8 @@ movedb(const char *dbname, const char *tblspcname)
 	 * Permission checks
 	 */
 	AclResult	aclresult = pg_tablespace_aclcheck(dst_tblspcoid, GetUserId(),
-									   ACL_CREATE);
+												   ACL_CREATE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_TABLESPACE,
 					   tblspcname);
@@ -1251,6 +1255,7 @@ movedb(const char *dbname, const char *tblspcname)
 	 * access to the DB's pg_class to do so.
 	 */
 	DIR		   *dstdir = AllocateDir(dst_dbpath);
+
 	if (dstdir != NULL)
 	{
 		while ((xlde = ReadDir(dstdir, dst_dbpath)) != NULL)
@@ -1557,12 +1562,14 @@ AlterDatabase(ParseState *pstate, AlterDatabaseStmt *stmt, bool isTopLevel)
 	 * connections.
 	 */
 	Relation	rel = table_open(DatabaseRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&scankey,
 				Anum_pg_database_datname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->dbname));
 	SysScanDesc scan = systable_beginscan(rel, DatabaseNameIndexId, true,
-							  NULL, 1, &scankey);
+										  NULL, 1, &scankey);
+
 	tuple = systable_getnext(scan);
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
@@ -1666,13 +1673,15 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 	 * connections.
 	 */
 	Relation	rel = table_open(DatabaseRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&scankey,
 				Anum_pg_database_datname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(dbname));
 	SysScanDesc scan = systable_beginscan(rel, DatabaseNameIndexId, true,
-							  NULL, 1, &scankey);
+										  NULL, 1, &scankey);
 	HeapTuple	tuple = systable_getnext(scan);
+
 	if (!HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_DATABASE),
@@ -1727,9 +1736,10 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 		 * necessary when the ACL is non-null.
 		 */
 		Datum		aclDatum = heap_getattr(tuple,
-								Anum_pg_database_datacl,
-								RelationGetDescr(rel),
-								&isNull);
+											Anum_pg_database_datacl,
+											RelationGetDescr(rel),
+											&isNull);
+
 		if (!isNull)
 		{
 			newAcl = aclnewowner(DatumGetAclP(aclDatum),
@@ -1739,6 +1749,7 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 		}
 
 		HeapTuple	newtuple = heap_modify_tuple(tuple, RelationGetDescr(rel), repl_val, repl_null, repl_repl);
+
 		CatalogTupleUpdate(rel, &newtuple->t_self, newtuple);
 
 		heap_freetuple(newtuple);
@@ -1804,7 +1815,7 @@ get_db_info(const char *name, LOCKMODE lockmode,
 					CStringGetDatum(name));
 
 		SysScanDesc scan = systable_beginscan(relation, DatabaseNameIndexId, true,
-								  NULL, 1, &scanKey);
+											  NULL, 1, &scanKey);
 
 		HeapTuple	tuple = systable_getnext(scan);
 
@@ -1897,6 +1908,7 @@ have_createdb_privilege(void)
 		return true;
 
 	HeapTuple	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(GetUserId()));
+
 	if (HeapTupleIsValid(utup))
 	{
 		result = ((Form_pg_authid) GETSTRUCT(utup))->rolcreatedb;
@@ -1920,6 +1932,7 @@ remove_dbtablespaces(Oid db_id)
 
 	Relation	rel = table_open(TableSpaceRelationId, AccessShareLock);
 	TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
+
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Form_pg_tablespace spcform = (Form_pg_tablespace) GETSTRUCT(tuple);
@@ -1949,6 +1962,7 @@ remove_dbtablespaces(Oid db_id)
 	}
 
 	int			ntblspc = list_length(ltblspc);
+
 	if (ntblspc == 0)
 	{
 		table_endscan(scan);
@@ -1958,6 +1972,7 @@ remove_dbtablespaces(Oid db_id)
 
 	Oid		   *tablespace_ids = (Oid *) palloc(ntblspc * sizeof(Oid));
 	int			i = 0;
+
 	foreach(cell, ltblspc)
 		tablespace_ids[i++] = lfirst_oid(cell);
 
@@ -2003,6 +2018,7 @@ check_db_file_conflict(Oid db_id)
 
 	Relation	rel = table_open(TableSpaceRelationId, AccessShareLock);
 	TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
+
 	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Form_pg_tablespace spcform = (Form_pg_tablespace) GETSTRUCT(tuple);
@@ -2076,12 +2092,13 @@ get_database_oid(const char *dbname, bool missing_ok)
 	 * the hard way.
 	 */
 	Relation	pg_database = table_open(DatabaseRelationId, AccessShareLock);
+
 	ScanKeyInit(&entry[0],
 				Anum_pg_database_datname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(dbname));
 	SysScanDesc scan = systable_beginscan(pg_database, DatabaseNameIndexId, true,
-							  NULL, 1, entry);
+										  NULL, 1, entry);
 
 	HeapTuple	dbtuple = systable_getnext(scan);
 
@@ -2115,6 +2132,7 @@ get_database_name(Oid dbid)
 	char	   *result;
 
 	HeapTuple	dbtuple = SearchSysCache1(DATABASEOID, ObjectIdGetDatum(dbid));
+
 	if (HeapTupleIsValid(dbtuple))
 	{
 		result = pstrdup(NameStr(((Form_pg_database) GETSTRUCT(dbtuple))->datname));

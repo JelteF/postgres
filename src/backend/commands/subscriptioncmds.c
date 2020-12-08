@@ -293,8 +293,8 @@ publicationListToArray(List *publist)
 
 	/* Create memory context for temporary allocations. */
 	MemoryContext memcxt = AllocSetContextCreate(CurrentMemoryContext,
-								   "publicationListToArray to array",
-								   ALLOCSET_DEFAULT_SIZES);
+												 "publicationListToArray to array",
+												 ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(memcxt);
 
 	Datum	   *datums = (Datum *) palloc(sizeof(Datum) * list_length(publist));
@@ -325,7 +325,7 @@ publicationListToArray(List *publist)
 	MemoryContextSwitchTo(oldcxt);
 
 	ArrayType  *arr = construct_array(datums, list_length(publist),
-						  TEXTOID, -1, false, TYPALIGN_INT);
+									  TEXTOID, -1, false, TYPALIGN_INT);
 
 	MemoryContextDelete(memcxt);
 
@@ -479,6 +479,7 @@ CreateSubscription(CreateSubscriptionStmt *stmt, bool isTopLevel)
 
 		/* Try to connect to the publisher. */
 		WalReceiverConn *wrconn = walrcv_connect(conninfo, true, stmt->subname, &err);
+
 		if (!wrconn)
 			ereport(ERROR,
 					(errmsg("could not connect to the publisher: %s", err)));
@@ -581,6 +582,7 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 	 */
 	Oid		   *subrel_local_oids = palloc(list_length(subrel_states) * sizeof(Oid));
 	int			off = 0;
+
 	foreach(lc, subrel_states)
 	{
 		SubscriptionRelState *relstate = (SubscriptionRelState *) lfirst(lc);
@@ -666,7 +668,7 @@ AlterSubscription(AlterSubscriptionStmt *stmt)
 
 	/* Fetch the existing tuple. */
 	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
-							  CStringGetDatum(stmt->subname));
+										  CStringGetDatum(stmt->subname));
 
 	if (!HeapTupleIsValid(tup))
 		ereport(ERROR,
@@ -912,7 +914,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	Relation	rel = table_open(SubscriptionRelationId, AccessExclusiveLock);
 
 	HeapTuple	tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
-						  CStringGetDatum(stmt->subname));
+									  CStringGetDatum(stmt->subname));
 
 	if (!HeapTupleIsValid(tup))
 	{
@@ -950,7 +952,8 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 
 	/* Get subname */
 	Datum		datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
-							Anum_pg_subscription_subname, &isnull);
+										Anum_pg_subscription_subname, &isnull);
+
 	Assert(!isnull);
 	subname = pstrdup(NameStr(*DatumGetName(datum)));
 
@@ -1007,6 +1010,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	 */
 	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 	List	   *subworkers = logicalrep_workers_find(subid, false);
+
 	LWLockRelease(LogicalRepWorkerLock);
 	foreach(lc, subworkers)
 	{
@@ -1025,6 +1029,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	/* Remove the origin tracking if exists. */
 	snprintf(originname, sizeof(originname), "pg_%u", subid);
 	RepOriginId originid = replorigin_by_name(originname, true);
+
 	if (originid != InvalidRepOriginId)
 		replorigin_drop(originid, false);
 
@@ -1048,6 +1053,7 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	appendStringInfo(&cmd, "DROP_REPLICATION_SLOT %s WAIT", quote_identifier(slotname));
 
 	WalReceiverConn *wrconn = walrcv_connect(conninfo, true, subname, &err);
+
 	if (wrconn == NULL)
 		ereport(ERROR,
 				(errmsg("could not connect to publisher when attempting to "
@@ -1132,7 +1138,7 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 	Relation	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
 
 	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
-							  CStringGetDatum(name));
+										  CStringGetDatum(name));
 
 	if (!HeapTupleIsValid(tup))
 		ereport(ERROR,
@@ -1195,6 +1201,7 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 						   "  FROM pg_catalog.pg_publication_tables t\n"
 						   " WHERE t.pubname IN (");
 	bool		first = true;
+
 	foreach(lc, publications)
 	{
 		char	   *pubname = strVal(lfirst(lc));
@@ -1209,6 +1216,7 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 	appendStringInfoChar(&cmd, ')');
 
 	WalRcvExecResult *res = walrcv_exec(wrconn, cmd.data, 2, tableRow);
+
 	pfree(cmd.data);
 
 	if (res->status != WALRCV_OK_TUPLES)
@@ -1218,16 +1226,20 @@ fetch_table_list(WalReceiverConn *wrconn, List *publications)
 
 	/* Process tables. */
 	TupleTableSlot *slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
+
 	while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
 	{
 		bool		isnull;
 
 		char	   *nspname = TextDatumGetCString(slot_getattr(slot, 1, &isnull));
+
 		Assert(!isnull);
 		char	   *relname = TextDatumGetCString(slot_getattr(slot, 2, &isnull));
+
 		Assert(!isnull);
 
 		RangeVar   *rv = makeRangeVar(pstrdup(nspname), pstrdup(relname), -1);
+
 		tablelist = lappend(tablelist, rv);
 
 		ExecClearTuple(slot);

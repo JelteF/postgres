@@ -68,10 +68,12 @@ pg_cryptohash_create(pg_cryptohash_type type)
 {
 
 	pg_cryptohash_ctx *ctx = ALLOC(sizeof(pg_cryptohash_ctx));
+
 	if (ctx == NULL)
 		return NULL;
 
 	pg_cryptohash_state *state = ALLOC(sizeof(pg_cryptohash_state));
+
 	if (state == NULL)
 	{
 		explicit_bzero(ctx, sizeof(pg_cryptohash_ctx));
@@ -207,6 +209,7 @@ pg_cryptohash_free(pg_cryptohash_ctx *ctx)
 		return;
 
 	pg_cryptohash_state *state = (pg_cryptohash_state *) ctx->data;
+
 	EVP_MD_CTX_destroy(state->evpctx);
 
 #ifndef FRONTEND

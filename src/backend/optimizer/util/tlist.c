@@ -163,10 +163,11 @@ add_to_flat_tlist(List *tlist, List *exprs)
 		if (!tlist_member(expr, tlist))
 		{
 
-			TargetEntry *tle = makeTargetEntry(copyObject(expr), /* copy needed?? */
-								  next_resno++,
-								  NULL,
-								  false);
+			TargetEntry *tle = makeTargetEntry(copyObject(expr),	/* copy needed?? */
+											   next_resno++,
+											   NULL,
+											   false);
+
 			tlist = lappend(tlist, tle);
 		}
 	}
@@ -420,6 +421,7 @@ get_sortgrouplist_exprs(List *sgClauses, List *targetList)
 		SortGroupClause *sortcl = (SortGroupClause *) lfirst(l);
 
 		Node	   *sortexpr = get_sortgroupclause_expr(sortcl, targetList);
+
 		result = lappend(result, sortexpr);
 	}
 	return result;
@@ -613,6 +615,7 @@ make_pathtarget_from_tlist(List *tlist)
 	target->sortgrouprefs = (Index *) palloc(list_length(tlist) * sizeof(Index));
 
 	int			i = 0;
+
 	foreach(lc, tlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(lc);
@@ -636,14 +639,16 @@ make_tlist_from_pathtarget(PathTarget *target)
 	ListCell   *lc;
 
 	int			i = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
 
 		TargetEntry *tle = makeTargetEntry(expr,
-							  i + 1,
-							  NULL,
-							  false);
+										   i + 1,
+										   NULL,
+										   false);
+
 		if (target->sortgrouprefs)
 			tle->ressortgroupref = target->sortgrouprefs[i];
 		tlist = lappend(tlist, tle);
@@ -777,6 +782,7 @@ apply_pathtarget_labeling_to_tlist(List *tlist, PathTarget *target)
 		return;
 
 	int			i = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -919,6 +925,7 @@ split_pathtarget_at_srfs(PlannerInfo *root,
 
 	/* Scan each expression in the PathTarget looking for SRFs */
 	int			lci = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Node	   *node = (Node *) lfirst(lc);
@@ -1145,6 +1152,7 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 
 		/* Record this SRF as needing to be evaluated at appropriate level */
 		ListCell   *lc = list_nth_cell(context->level_srfs, srf_depth);
+
 		lfirst(lc) = lappend(lfirst(lc), item);
 
 		/* Record its inputs as being needed at the same level */
@@ -1198,6 +1206,7 @@ add_sp_item_to_pathtarget(PathTarget *target, split_pathtarget_item *item)
 	 * conflicting sortgroupref already.
 	 */
 	int			lci = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Node	   *node = (Node *) lfirst(lc);

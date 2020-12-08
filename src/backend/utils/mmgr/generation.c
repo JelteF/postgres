@@ -224,6 +224,7 @@ GenerationContextCreate(MemoryContext parent,
 	 */
 
 	GenerationContext *set = (GenerationContext *) malloc(MAXALIGN(sizeof(GenerationContext)));
+
 	if (set == NULL)
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -638,6 +639,7 @@ GenerationGetChunkSpace(MemoryContext context, void *pointer)
 
 	VALGRIND_MAKE_MEM_DEFINED(chunk, GENERATIONCHUNK_PRIVATE_LEN);
 	Size		result = chunk->size + Generation_CHUNKHDRSZ;
+
 	VALGRIND_MAKE_MEM_NOACCESS(chunk, GENERATIONCHUNK_PRIVATE_LEN);
 	return result;
 }

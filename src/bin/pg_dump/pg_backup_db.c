@@ -36,6 +36,7 @@ _check_database_version(ArchiveHandle *AH)
 
 	const char *remoteversion_str = PQparameterStatus(AH->connection, "server_version");
 	int			remoteversion = PQserverVersion(AH->connection);
+
 	if (remoteversion == 0 || !remoteversion_str)
 		fatal("could not get server_version from libpq");
 
@@ -110,7 +111,7 @@ ReconnectToServer(ArchiveHandle *AH, const char *dbname)
  */
 void
 ConnectDatabase(Archive *AHX,
-				const ConnParams *cparams,
+				const ConnParams * cparams,
 				bool isReconnect)
 {
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
@@ -282,6 +283,7 @@ ExecuteSqlStatement(Archive *AHX, const char *query)
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
 
 	PGresult   *res = PQexec(AH->connection, query);
+
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		die_on_query_failure(AH, query);
 	PQclear(res);
@@ -293,6 +295,7 @@ ExecuteSqlQuery(Archive *AHX, const char *query, ExecStatusType status)
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
 
 	PGresult   *res = PQexec(AH->connection, query);
+
 	if (PQresultStatus(res) != status)
 		die_on_query_failure(AH, query);
 	return res;
@@ -309,6 +312,7 @@ ExecuteSqlQueryForSingleRow(Archive *fout, const char *query)
 
 	/* Expecting a single result only */
 	int			ntups = PQntuples(res);
+
 	if (ntups != 1)
 		fatal(ngettext("query returned %d row instead of one: %s",
 					   "query returned %d rows instead of one: %s",
@@ -508,6 +512,7 @@ EndDBCopyMode(Archive *AHX, const char *tocEntryTag)
 
 		/* Check command status and return to normal libpq state */
 		PGresult   *res = PQgetResult(AH->connection);
+
 		if (PQresultStatus(res) != PGRES_COMMAND_OK)
 			warn_or_exit_horribly(AH, "COPY failed for table \"%s\": %s",
 								  tocEntryTag, PQerrorMessage(AH->connection));

@@ -17,9 +17,9 @@
 #include "fe_utils/string_utils.h"
 
 
-static void cluster_one_database(const ConnParams *cparams, const char *table,
+static void cluster_one_database(const ConnParams * cparams, const char *table,
 								 const char *progname, bool verbose, bool echo);
-static void cluster_all_databases(ConnParams *cparams, const char *progname,
+static void cluster_all_databases(ConnParams * cparams, const char *progname,
 								  bool verbose, bool echo, bool quiet);
 static void help(const char *progname);
 
@@ -61,6 +61,7 @@ main(int argc, char *argv[])
 
 	pg_logging_init(argv[0]);
 	const char *progname = get_progname(argv[0]);
+
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pgscripts"));
 
 	handle_help_version_opts(argc, argv, "clusterdb", help);
@@ -190,7 +191,7 @@ main(int argc, char *argv[])
 
 
 static void
-cluster_one_database(const ConnParams *cparams, const char *table,
+cluster_one_database(const ConnParams * cparams, const char *table,
 					 const char *progname, bool verbose, bool echo)
 {
 	PQExpBufferData sql;
@@ -227,13 +228,14 @@ cluster_one_database(const ConnParams *cparams, const char *table,
 
 
 static void
-cluster_all_databases(ConnParams *cparams, const char *progname,
+cluster_all_databases(ConnParams * cparams, const char *progname,
 					  bool verbose, bool echo, bool quiet)
 {
 	int			i;
 
 	PGconn	   *conn = connectMaintenanceDatabase(cparams, progname, echo);
 	PGresult   *result = executeQuery(conn, "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", echo);
+
 	PQfinish(conn);
 
 	for (i = 0; i < PQntuples(result); i++)

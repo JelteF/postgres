@@ -167,15 +167,15 @@ brin_form_tuple(BrinDesc *brdesc, BlockNumber blkno, BrinMemTuple *tuple,
 			 datumno < brdesc->bd_info[keyno]->oi_nstored;
 			 datumno++)
 		{
-			Datum value = tuple->bt_columns[keyno].bv_values[datumno];
+			Datum		value = tuple->bt_columns[keyno].bv_values[datumno];
 
 #ifdef TOAST_INDEX_HACK
 
 			/* We must look at the stored type, not at the index descriptor. */
-			TypeCacheEntry	*atttype = brdesc->bd_info[keyno]->oi_typcache[datumno];
+			TypeCacheEntry *atttype = brdesc->bd_info[keyno]->oi_typcache[datumno];
 
 			/* Do we need to free the value at the end? */
-			bool free_value = false;
+			bool		free_value = false;
 
 			/* For non-varlena types we don't need to do anything special */
 			if (atttype->typlen != -1)
@@ -191,9 +191,9 @@ brin_form_tuple(BrinDesc *brdesc, BlockNumber blkno, BrinMemTuple *tuple,
 			 * If value is stored EXTERNAL, must fetch it so we are not
 			 * depending on outside storage.
 			 *
-			 * XXX Is this actually true? Could it be that the summary is
-			 * NULL even for range with non-NULL data? E.g. degenerate bloom
-			 * filter may be thrown away, etc.
+			 * XXX Is this actually true? Could it be that the summary is NULL
+			 * even for range with non-NULL data? E.g. degenerate bloom filter
+			 * may be thrown away, etc.
 			 */
 			if (VARATT_IS_EXTERNAL(DatumGetPointer(value)))
 			{
@@ -203,8 +203,8 @@ brin_form_tuple(BrinDesc *brdesc, BlockNumber blkno, BrinMemTuple *tuple,
 			}
 
 			/*
-			 * If value is above size target, and is of a compressible datatype,
-			 * try to compress it in-line.
+			 * If value is above size target, and is of a compressible
+			 * datatype, try to compress it in-line.
 			 */
 			if (!VARATT_IS_EXTENDED(DatumGetPointer(value)) &&
 				VARSIZE(DatumGetPointer(value)) > TOAST_INDEX_TARGET &&
@@ -306,6 +306,7 @@ brin_form_tuple(BrinDesc *brdesc, BlockNumber blkno, BrinMemTuple *tuple,
 		 */
 		bits8	   *bitP = ((bits8 *) ((char *) rettuple + SizeOfBrinTuple)) - 1;
 		int			bitmask = HIGHBIT;
+
 		for (keyno = 0; keyno < brdesc->bd_tupdesc->natts; keyno++)
 		{
 			if (bitmask != HIGHBIT)
@@ -361,16 +362,19 @@ brin_form_placeholder_tuple(BrinDesc *brdesc, BlockNumber blkno, Size *size)
 
 	/* compute total space needed: always add nulls */
 	Size		len = SizeOfBrinTuple;
+
 	len += BITMAPLEN(brdesc->bd_tupdesc->natts * 2);
 	len = hoff = MAXALIGN(len);
 
 	BrinTuple  *rettuple = palloc0(len);
+
 	rettuple->bt_blkno = blkno;
 	rettuple->bt_info = hoff;
 	rettuple->bt_info |= BRIN_NULLS_MASK | BRIN_PLACEHOLDER_MASK;
 
 	bits8	   *bitP = ((bits8 *) ((char *) rettuple + SizeOfBrinTuple)) - 1;
 	int			bitmask = HIGHBIT;
+
 	/* set allnulls true for all attributes */
 	for (keyno = 0; keyno < brdesc->bd_tupdesc->natts; keyno++)
 	{
@@ -448,7 +452,7 @@ brin_new_memtuple(BrinDesc *brdesc)
 {
 
 	long		basesize = MAXALIGN(sizeof(BrinMemTuple) +
-						sizeof(BrinValues) * brdesc->bd_tupdesc->natts);
+									sizeof(BrinValues) * brdesc->bd_tupdesc->natts);
 	BrinMemTuple *dtup = palloc0(basesize + sizeof(Datum) * brdesc->bd_totalstored);
 
 	dtup->bt_values = palloc(sizeof(Datum) * brdesc->bd_totalstored);
@@ -476,8 +480,9 @@ brin_memtuple_initialize(BrinMemTuple *dtuple, BrinDesc *brdesc)
 	MemoryContextReset(dtuple->bt_context);
 
 	char	   *currdatum = (char *) dtuple +
-		MAXALIGN(sizeof(BrinMemTuple) +
-				 sizeof(BrinValues) * brdesc->bd_tupdesc->natts);
+	MAXALIGN(sizeof(BrinMemTuple) +
+			 sizeof(BrinValues) * brdesc->bd_tupdesc->natts);
+
 	for (i = 0; i < brdesc->bd_tupdesc->natts; i++)
 	{
 		dtuple->bt_columns[i].bv_attno = i + 1;
@@ -510,7 +515,7 @@ brin_deform_tuple(BrinDesc *brdesc, BrinTuple *tuple, BrinMemTuple *dMemtuple)
 	int			valueno;
 
 	BrinMemTuple *dtup = dMemtuple ? brin_memtuple_initialize(dMemtuple, brdesc) :
-		brin_new_memtuple(brdesc);
+	brin_new_memtuple(brdesc);
 
 	if (BrinTupleIsPlaceholder(tuple))
 		dtup->bt_placeholder = true;
@@ -535,6 +540,7 @@ brin_deform_tuple(BrinDesc *brdesc, BrinTuple *tuple, BrinMemTuple *dMemtuple)
 	 * values array of each column.  The copies occur in the tuple's context.
 	 */
 	MemoryContext oldcxt = MemoryContextSwitchTo(dtup->bt_context);
+
 	for (valueno = 0, keyno = 0; keyno < brdesc->bd_tupdesc->natts; keyno++)
 	{
 		int			i;
@@ -620,6 +626,7 @@ brin_deconstruct_tuple(BrinDesc *brdesc,
 	TupleDesc	diskdsc = brtuple_disk_tupdesc(brdesc);
 	int			stored = 0;
 	long		off = 0;
+
 	for (attnum = 0; attnum < brdesc->bd_tupdesc->natts; attnum++)
 	{
 		int			datumno;

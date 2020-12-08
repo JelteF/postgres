@@ -259,6 +259,7 @@ resolve_symlinks(char *path)
 	{
 
 		char	   *lsep = last_dir_separator(path);
+
 		if (lsep)
 		{
 			*lsep = '\0';
@@ -279,6 +280,7 @@ resolve_symlinks(char *path)
 
 		errno = 0;
 		int			rllen = readlink(fname, link_buf, sizeof(link_buf));
+
 		if (rllen < 0 || rllen >= sizeof(link_buf))
 		{
 			log_error(errcode_for_file_access(),

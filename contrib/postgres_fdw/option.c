@@ -119,6 +119,7 @@ postgres_fdw_validator(PG_FUNCTION_ARGS)
 			char	   *endp;
 
 			double		val = strtod(defGetString(def), &endp);
+
 			if (*endp || val < 0)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
@@ -134,6 +135,7 @@ postgres_fdw_validator(PG_FUNCTION_ARGS)
 		{
 
 			int			fetch_size = strtol(defGetString(def), NULL, 10);
+
 			if (fetch_size <= 0)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
@@ -232,6 +234,7 @@ InitPgFdwOptions(void)
 
 	/* Count how many libpq options are available. */
 	int			num_libpq_opts = 0;
+
 	for (lopt = libpq_options; lopt->keyword; lopt++)
 		num_libpq_opts++;
 
@@ -253,6 +256,7 @@ InitPgFdwOptions(void)
 				 errmsg("out of memory")));
 
 	PgFdwOption *popt = postgres_fdw_options;
+
 	for (lopt = libpq_options; lopt->keyword; lopt++)
 	{
 		/* Hide debug options, as well as settings we override internally. */
@@ -335,6 +339,7 @@ ExtractConnectionOptions(List *defelems, const char **keywords,
 	InitPgFdwOptions();
 
 	int			i = 0;
+
 	foreach(lc, defelems)
 	{
 		DefElem    *d = (DefElem *) lfirst(lc);

@@ -34,12 +34,12 @@ static SimpleStringList *get_parallel_object_list(PGconn *conn,
 												  ReindexType type,
 												  SimpleStringList *user_list,
 												  bool echo);
-static void reindex_one_database(const ConnParams *cparams, ReindexType type,
+static void reindex_one_database(const ConnParams * cparams, ReindexType type,
 								 SimpleStringList *user_list,
 								 const char *progname,
 								 bool echo, bool verbose, bool concurrently,
 								 int concurrentCons);
-static void reindex_all_databases(ConnParams *cparams,
+static void reindex_all_databases(ConnParams * cparams,
 								  const char *progname, bool echo,
 								  bool quiet, bool verbose, bool concurrently,
 								  int concurrentCons);
@@ -96,6 +96,7 @@ main(int argc, char *argv[])
 
 	pg_logging_init(argv[0]);
 	const char *progname = get_progname(argv[0]);
+
 	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pgscripts"));
 
 	handle_help_version_opts(argc, argv, "reindexdb", help);
@@ -321,7 +322,7 @@ main(int argc, char *argv[])
 }
 
 static void
-reindex_one_database(const ConnParams *cparams, ReindexType type,
+reindex_one_database(const ConnParams * cparams, ReindexType type,
 					 SimpleStringList *user_list,
 					 const char *progname, bool echo,
 					 bool verbose, bool concurrently, int concurrentCons)
@@ -673,6 +674,7 @@ get_parallel_object_list(PGconn *conn, ReindexType type,
 	}
 
 	PGresult   *res = executeQuery(conn, catalog_query.data, echo);
+
 	termPQExpBuffer(&catalog_query);
 
 	/*
@@ -706,7 +708,7 @@ get_parallel_object_list(PGconn *conn, ReindexType type,
 }
 
 static void
-reindex_all_databases(ConnParams *cparams,
+reindex_all_databases(ConnParams * cparams,
 					  const char *progname, bool echo, bool quiet, bool verbose,
 					  bool concurrently, int concurrentCons)
 {
@@ -714,6 +716,7 @@ reindex_all_databases(ConnParams *cparams,
 
 	PGconn	   *conn = connectMaintenanceDatabase(cparams, progname, echo);
 	PGresult   *result = executeQuery(conn, "SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", echo);
+
 	PQfinish(conn);
 
 	for (i = 0; i < PQntuples(result); i++)

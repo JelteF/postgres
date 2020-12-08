@@ -50,6 +50,7 @@ spgvalidate(Oid opclassoid)
 
 	/* Fetch opclass information */
 	HeapTuple	classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassoid));
+
 	if (!HeapTupleIsValid(classtup))
 		elog(ERROR, "cache lookup failed for operator class %u", opclassoid);
 	Form_pg_opclass classform = (Form_pg_opclass) GETSTRUCT(classtup);
@@ -60,6 +61,7 @@ spgvalidate(Oid opclassoid)
 
 	/* Fetch opfamily information */
 	HeapTuple	familytup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfamilyoid));
+
 	if (!HeapTupleIsValid(familytup))
 		elog(ERROR, "cache lookup failed for operator family %u", opfamilyoid);
 	Form_pg_opfamily familyform = (Form_pg_opfamily) GETSTRUCT(familytup);
@@ -228,6 +230,7 @@ spgvalidate(Oid opclassoid)
 
 	/* Now check for inconsistent groups of operators/functions */
 	OpFamilyOpFuncGroup *opclassgroup = NULL;
+
 	foreach(lc, grouplist)
 	{
 		OpFamilyOpFuncGroup *thisgroup = (OpFamilyOpFuncGroup *) lfirst(lc);

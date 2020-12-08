@@ -658,6 +658,7 @@ has_rolreplication(Oid roleid)
 	bool		result = false;
 
 	HeapTuple	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+
 	if (HeapTupleIsValid(utup))
 	{
 		result = ((Form_pg_authid) GETSTRUCT(utup))->rolreplication;
@@ -708,6 +709,7 @@ InitializeSessionUserId(const char *rolename, Oid roleid)
 	}
 
 	Form_pg_authid rform = (Form_pg_authid) GETSTRUCT(roleTup);
+
 	roleid = rform->oid;
 	char	   *rname = NameStr(rform->rolname);
 
@@ -889,6 +891,7 @@ GetUserNameFromId(Oid roleid, bool noerr)
 	char	   *result;
 
 	HeapTuple	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+
 	if (!HeapTupleIsValid(tuple))
 	{
 		if (!noerr)
@@ -1328,6 +1331,7 @@ AddToDataDirLockFile(int target_line, const char *str)
 	char		destbuffer[BLCKSZ];
 
 	int			fd = open(DIRECTORY_LOCK_FILE, O_RDWR | PG_BINARY, 0);
+
 	if (fd < 0)
 	{
 		ereport(LOG,
@@ -1338,6 +1342,7 @@ AddToDataDirLockFile(int target_line, const char *str)
 	}
 	pgstat_report_wait_start(WAIT_EVENT_LOCK_FILE_ADDTODATADIR_READ);
 	int			len = read(fd, srcbuffer, sizeof(srcbuffer) - 1);
+
 	pgstat_report_wait_end();
 	if (len < 0)
 	{
@@ -1355,6 +1360,7 @@ AddToDataDirLockFile(int target_line, const char *str)
 	 * destbuffer.
 	 */
 	char	   *srcptr = srcbuffer;
+
 	for (lineno = 1; lineno < target_line; lineno++)
 	{
 		char	   *eol = strchr(srcptr, '\n');
@@ -1449,6 +1455,7 @@ RecheckDataDirLockFile(void)
 	char		buffer[BLCKSZ];
 
 	int			fd = open(DIRECTORY_LOCK_FILE, O_RDWR | PG_BINARY, 0);
+
 	if (fd < 0)
 	{
 		/*
@@ -1477,6 +1484,7 @@ RecheckDataDirLockFile(void)
 	}
 	pgstat_report_wait_start(WAIT_EVENT_LOCK_FILE_RECHECKDATADIR_READ);
 	int			len = read(fd, buffer, sizeof(buffer) - 1);
+
 	pgstat_report_wait_end();
 	if (len < 0)
 	{
@@ -1490,6 +1498,7 @@ RecheckDataDirLockFile(void)
 	buffer[len] = '\0';
 	close(fd);
 	long		file_pid = atol(buffer);
+
 	if (file_pid == getpid())
 		return true;			/* all is well */
 
@@ -1525,6 +1534,7 @@ ValidatePgVersion(const char *path)
 	snprintf(full_path, sizeof(full_path), "%s/PG_VERSION", path);
 
 	FILE	   *file = AllocateFile(full_path, "r");
+
 	if (!file)
 	{
 		if (errno == ENOENT)

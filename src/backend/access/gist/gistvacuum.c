@@ -148,6 +148,7 @@ gistvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 													  "GiST VACUUM page set context",
 													  16 * 1024);
 	MemoryContext oldctx = MemoryContextSwitchTo(vstate.page_set_context);
+
 	vstate.internal_page_set = intset_create();
 	vstate.empty_leaf_set = intset_create();
 	MemoryContextSwitchTo(oldctx);
@@ -188,6 +189,7 @@ gistvacuumscan(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	bool		needLock = !RELATION_IS_LOCAL(rel);
 
 	BlockNumber blkno = GIST_ROOT_BLKNO;
+
 	for (;;)
 	{
 		/* Get the current relation length */
@@ -263,7 +265,7 @@ restart:
 	vacuum_delay_point();
 
 	Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								info->strategy);
+											info->strategy);
 
 	/*
 	 * We are not going to stay here for a long time, aggressively grab an
@@ -346,8 +348,9 @@ restart:
 			{
 
 				XLogRecPtr	recptr = gistXLogUpdate(buffer,
-										todelete, ntodelete,
-										NULL, 0, InvalidBuffer);
+													todelete, ntodelete,
+													NULL, 0, InvalidBuffer);
+
 				PageSetLSN(page, recptr);
 			}
 			else
@@ -361,6 +364,7 @@ restart:
 		}
 
 		int			nremain = maxoff - FirstOffsetNumber + 1;
+
 		if (nremain == 0)
 		{
 			/*
@@ -442,6 +446,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 	 * Rescan all inner pages to find those that have empty child pages.
 	 */
 	BlockNumber empty_pages_remaining = intset_num_entries(vstate->empty_leaf_set);
+
 	intset_begin_iterate(vstate->internal_page_set);
 	while (empty_pages_remaining > 0 &&
 		   intset_iterate_next(vstate->internal_page_set, &blkno))
@@ -452,7 +457,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 		BlockNumber leafs_to_delete[MaxOffsetNumber];
 
 		Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, (BlockNumber) blkno,
-									RBM_NORMAL, info->strategy);
+												RBM_NORMAL, info->strategy);
 
 		LockBuffer(buffer, GIST_SHARE);
 		Page		page = (Page) BufferGetPage(buffer);
@@ -474,6 +479,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 		 */
 		maxoff = PageGetMaxOffsetNumber(page);
 		int			ntodelete = 0;
+
 		for (off = FirstOffsetNumber;
 			 off <= maxoff && ntodelete < maxoff - 1;
 			 off = OffsetNumberNext(off))
@@ -482,6 +488,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 			IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
 
 			BlockNumber leafblk = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+
 			if (intset_is_member(vstate->empty_leaf_set, leafblk))
 			{
 				leafs_to_delete[ntodelete] = leafblk;
@@ -505,6 +512,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 		LockBuffer(buffer, GIST_UNLOCK);
 
 		int			deleted = 0;
+
 		for (int i = 0; i < ntodelete; i++)
 		{
 
@@ -516,7 +524,8 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 				break;
 
 			Buffer		leafbuf = ReadBufferExtended(rel, MAIN_FORKNUM, leafs_to_delete[i],
-										 RBM_NORMAL, info->strategy);
+													 RBM_NORMAL, info->strategy);
+
 			LockBuffer(leafbuf, GIST_EXCLUSIVE);
 			gistcheckpage(rel, leafbuf);
 
@@ -601,6 +610,7 @@ gistdeletepage(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 
 	ItemId		iid = PageGetItemId(parentPage, downlink);
 	IndexTuple	idxtuple = (IndexTuple) PageGetItem(parentPage, iid);
+
 	if (BufferGetBlockNumber(leafBuffer) !=
 		ItemPointerGetBlockNumber(&(idxtuple->t_tid)))
 		return false;

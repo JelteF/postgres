@@ -58,6 +58,7 @@ longest(struct vars *v,
 
 	/* initialize */
 	struct sset *css = initialize(v, d, start);
+
 	if (css == NULL)
 		return NULL;
 	chr		   *cp = start;
@@ -184,6 +185,7 @@ shortest(struct vars *v,
 
 	/* initialize */
 	struct sset *css = initialize(v, d, start);
+
 	if (css == NULL)
 		return NULL;
 	chr		   *cp = start;
@@ -415,6 +417,7 @@ lastcold(struct vars *v,
 	int			i;
 
 	chr		   *nopr = d->lastnopr;
+
 	if (nopr == NULL)
 		nopr = v->start;
 	for (ss = d->ssets, i = d->nssused; i > 0; ss++, i--)
@@ -537,6 +540,7 @@ hash(unsigned *uv,
 	int			i;
 
 	unsigned	h = 0;
+
 	for (i = 0; i < n; i++)
 		h ^= uv[i];
 	return h;
@@ -632,6 +636,7 @@ miss(struct vars *v,
 	int			ispost = 0;
 	int			noprogress = 1;
 	int			gotstate = 0;
+
 	for (i = 0; i < d->nstates; i++)
 		if (ISBSET(css->states, i))
 			for (ca = cnfa->states[i]; ca->co != COLORLESS; ca++)
@@ -649,6 +654,7 @@ miss(struct vars *v,
 		return NULL;			/* character cannot reach any new state */
 	int			dolacons = (cnfa->flags & HASLACONS);
 	int			sawlacons = 0;
+
 	/* outer loop handles transitive closure of reachable-by-LACON states */
 	while (dolacons)
 	{
@@ -742,10 +748,12 @@ lacon(struct vars *v,
 	}
 
 	int			n = co - pcnfa->ncolors;
+
 	assert(n > 0 && n < v->g->nlacons && v->g->lacons != NULL);
 	FDEBUG(("=== testing lacon %d\n", n));
 	struct subre *sub = &v->g->lacons[n];
 	struct dfa *d = getladfa(v, n);
+
 	if (d == NULL)
 		return 0;
 	if (LATYPE_IS_AHEAD(sub->subno))
@@ -790,12 +798,14 @@ getvacant(struct vars *v,
 	color		co;
 
 	struct sset *ss = pickss(v, d, cp, start);
+
 	if (ss == NULL)
 		return NULL;
 	assert(!(ss->flags & LOCKED));
 
 	/* clear out its inarcs, including self-referential ones */
 	struct arcp ap = ss->ins;
+
 	while ((p = ap.ss) != NULL)
 	{
 		co = ap.co;

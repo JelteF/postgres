@@ -79,6 +79,7 @@ xstrcat(char **var, const char *more)
 {
 
 	char	   *newvar = psprintf("%s%s", *var, more);
+
 	free(*var);
 	*var = newvar;
 }
@@ -101,7 +102,8 @@ parse_slash_copy(const char *args)
 	result->before_tofrom = pg_strdup("");	/* initialize for appending */
 
 	char	   *token = strtokx(args, whitespace, ".,()", "\"",
-					0, false, false, pset.encoding);
+								0, false, false, pset.encoding);
+
 	if (!token)
 		goto error;
 
@@ -365,6 +367,7 @@ do_copy(const char *args)
 	/* run it like a user command, but with copystream as data source/sink */
 	pset.copyStream = copystream;
 	bool		success = SendQuery(query.data);
+
 	pset.copyStream = NULL;
 	termPQExpBuffer(&query);
 

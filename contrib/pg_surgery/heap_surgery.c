@@ -148,6 +148,7 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 		}
 
 		Buffer		buf = ReadBuffer(rel, blkno);
+
 		LockBufferForCleanup(buf);
 
 		Page		page = BufferGetPage(buf);
@@ -221,6 +222,7 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 				continue;
 
 			ItemId		itemid = PageGetItemId(page, curoff);
+
 			Assert(ItemIdIsNormal(itemid));
 
 			did_modify_page = true;

@@ -239,6 +239,7 @@ AuxiliaryProcessMain(int argc, char *argv[])
 					/* Turn on debugging for the bootstrap process. */
 
 					char	   *debugstr = psprintf("debug%s", optarg);
+
 					SetConfigOption("log_min_messages", debugstr,
 									PGC_POSTMASTER, PGC_S_ARGV);
 					SetConfigOption("client_min_messages", debugstr,
@@ -781,6 +782,7 @@ InsertOneTuple(void)
 
 	TupleDesc	tupDesc = CreateTupleDesc(numattr, attrtypes);
 	HeapTuple	tuple = heap_form_tuple(tupDesc, values, Nulls);
+
 	pfree(tupDesc);				/* just free's tupDesc, not the attrtypes */
 
 	simple_heap_insert(boot_reldesc, tuple);
@@ -874,12 +876,14 @@ populate_typ_array(void)
 	Assert(Typ == NULL);
 
 	int			nalloc = 512;
+
 	Typ = (struct typmap **)
 		MemoryContextAlloc(TopMemoryContext, nalloc * sizeof(struct typmap *));
 
 	Relation	rel = table_open(TypeRelationId, NoLock);
 	TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
 	int			i = 0;
+
 	while ((tup = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
 		Form_pg_type typForm = (Form_pg_type) GETSTRUCT(tup);
@@ -973,9 +977,11 @@ boot_get_type_io_data(Oid typid,
 		/* We have the boot-time contents of pg_type, so use it */
 
 		struct typmap **app = Typ;
+
 		while (*app && (*app)->am_oid != typid)
 			++app;
 		struct typmap *ap = *app;
+
 		if (ap == NULL)
 			elog(ERROR, "type OID %u not found in Typ list", typid);
 
@@ -1068,6 +1074,7 @@ index_register(Oid heap,
 	MemoryContext oldcxt = MemoryContextSwitchTo(nogc);
 
 	IndexList  *newind = (IndexList *) palloc(sizeof(IndexList));
+
 	newind->il_heap = heap;
 	newind->il_ind = ind;
 	newind->il_info = (IndexInfo *) palloc(sizeof(IndexInfo));

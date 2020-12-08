@@ -62,7 +62,7 @@ handle_help_version_opts(int argc, char *argv[],
  * as before, else we might create password exposure hazards.)
  */
 PGconn *
-connectDatabase(const ConnParams *cparams, const char *progname,
+connectDatabase(const ConnParams * cparams, const char *progname,
 				bool echo, bool fail_ok, bool allow_password_reuse)
 {
 	PGconn	   *conn;
@@ -170,7 +170,7 @@ connectDatabase(const ConnParams *cparams, const char *progname,
  * a --maintenance-db command line parameter.
  */
 PGconn *
-connectMaintenanceDatabase(ConnParams *cparams,
+connectMaintenanceDatabase(ConnParams * cparams,
 						   const char *progname, bool echo)
 {
 
@@ -181,6 +181,7 @@ connectMaintenanceDatabase(ConnParams *cparams,
 	/* Otherwise, try postgres first and then template1. */
 	cparams->dbname = "postgres";
 	PGconn	   *conn = connectDatabase(cparams, progname, echo, true, false);
+
 	if (!conn)
 	{
 		cparams->dbname = "template1";
@@ -224,6 +225,7 @@ executeQuery(PGconn *conn, const char *query, bool echo)
 		printf("%s\n", query);
 
 	PGresult   *res = PQexec(conn, query);
+
 	if (!res ||
 		PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
@@ -248,6 +250,7 @@ executeCommand(PGconn *conn, const char *query, bool echo)
 		printf("%s\n", query);
 
 	PGresult   *res = PQexec(conn, query);
+
 	if (!res ||
 		PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
@@ -275,6 +278,7 @@ executeMaintenanceCommand(PGconn *conn, const char *query, bool echo)
 
 	SetCancelConn(conn);
 	PGresult   *res = PQexec(conn, query);
+
 	ResetCancelConn();
 
 	bool		r = (res && PQresultStatus(res) == PGRES_COMMAND_OK);
@@ -412,6 +416,7 @@ appendQualifiedRelation(PQExpBuffer buf, const char *spec,
 	 */
 	PGresult   *res = executeQuery(conn, sql.data, echo);
 	int			ntups = PQntuples(res);
+
 	if (ntups != 1)
 	{
 		pg_log_error(ngettext("query returned %d row instead of one: %s",

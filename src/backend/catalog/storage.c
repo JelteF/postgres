@@ -98,6 +98,7 @@ AddPendingSync(const RelFileNode *rnode)
 	}
 
 	PendingRelSync *pending = hash_search(pendingSyncHash, rnode, HASH_ENTER, &found);
+
 	Assert(!found);
 	pending->is_truncated = false;
 }
@@ -141,6 +142,7 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence)
 	}
 
 	SMgrRelation srel = smgropen(rnode, backend);
+
 	smgrcreate(srel, MAIN_FORKNUM, false);
 
 	if (needs_wal)
@@ -148,7 +150,8 @@ RelationCreateStorage(RelFileNode rnode, char relpersistence)
 
 	/* Add the relation to the list of stuff to delete at abort */
 	PendingRelDelete *pending = (PendingRelDelete *)
-		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+	MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+
 	pending->relnode = rnode;
 	pending->backend = backend;
 	pending->atCommit = false;	/* delete if abort */
@@ -194,7 +197,8 @@ RelationDropStorage(Relation rel)
 
 	/* Add the relation to the list of stuff to delete at commit */
 	PendingRelDelete *pending = (PendingRelDelete *)
-		MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+	MemoryContextAlloc(TopMemoryContext, sizeof(PendingRelDelete));
+
 	pending->relnode = rel->rd_node;
 	pending->backend = rel->rd_backend;
 	pending->atCommit = true;	/* delete if commit */
@@ -239,6 +243,7 @@ RelationPreserveStorage(RelFileNode rnode, bool atCommit)
 	PendingRelDelete *next;
 
 	PendingRelDelete *prev = NULL;
+
 	for (pending = pendingDeletes; pending != NULL; pending = next)
 	{
 		next = pending->next;
@@ -293,6 +298,7 @@ RelationTruncate(Relation rel, BlockNumber nblocks)
 
 	/* Prepare for truncation of the FSM if it exists */
 	bool		fsm = smgrexists(rel->rd_smgr, FSM_FORKNUM);
+
 	if (fsm)
 	{
 		blocks[nforks] = FreeSpaceMapPrepareTruncateRel(rel, nblocks);
@@ -306,6 +312,7 @@ RelationTruncate(Relation rel, BlockNumber nblocks)
 
 	/* Prepare for truncation of the visibility map too if it exists */
 	bool		vm = smgrexists(rel->rd_smgr, VISIBILITYMAP_FORKNUM);
+
 	if (vm)
 	{
 		blocks[nforks] = visibilitymap_prepare_truncate(rel, nblocks);
@@ -342,7 +349,7 @@ RelationTruncate(Relation rel, BlockNumber nblocks)
 		XLogRegisterData((char *) &xlrec, sizeof(xlrec));
 
 		XLogRecPtr	lsn = XLogInsert(RM_SMGR_ID,
-						 XLOG_SMGR_TRUNCATE | XLR_SPECIAL_REL_UPDATE);
+									 XLOG_SMGR_TRUNCATE | XLR_SPECIAL_REL_UPDATE);
 
 		/*
 		 * Flush, because otherwise the truncation of the main relation might
@@ -383,7 +390,8 @@ RelationPreTruncate(Relation rel)
 	RelationOpenSmgr(rel);
 
 	PendingRelSync *pending = hash_search(pendingSyncHash, &(rel->rd_smgr->smgr_rnode.node),
-						  HASH_FIND, NULL);
+										  HASH_FIND, NULL);
+
 	if (pending)
 		pending->is_truncated = true;
 }
@@ -410,7 +418,7 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 	 * it needs to be synced to disk.
 	 */
 	bool		copying_initfork = relpersistence == RELPERSISTENCE_UNLOGGED &&
-		forkNum == INIT_FORKNUM;
+	forkNum == INIT_FORKNUM;
 
 	/*
 	 * We need to log the copied data in WAL iff WAL archiving/streaming is
@@ -419,7 +427,7 @@ RelationCopyStorage(SMgrRelation src, SMgrRelation dst,
 	 * current operation created a new relfilenode.
 	 */
 	bool		use_wal = XLogIsNeeded() &&
-		(relpersistence == RELPERSISTENCE_PERMANENT || copying_initfork);
+	(relpersistence == RELPERSISTENCE_PERMANENT || copying_initfork);
 
 	BlockNumber nblocks = smgrnblocks(src, forkNum);
 
@@ -499,6 +507,7 @@ EstimatePendingSyncsSpace(void)
 {
 
 	long		entries = pendingSyncHash ? hash_get_num_entries(pendingSyncHash) : 0;
+
 	return mul_size(1 + entries, sizeof(RelFileNode));
 }
 
@@ -589,6 +598,7 @@ smgrDoPendingDeletes(bool isCommit)
 	SMgrRelation *srels = NULL;
 
 	PendingRelDelete *prev = NULL;
+
 	for (pending = pendingDeletes; pending != NULL; pending = next)
 	{
 		next = pending->next;
@@ -762,6 +772,7 @@ smgrDoPendingSyncs(bool isCommit, bool isParallelWorker)
 				 * counts some pgstat events; unfortunately, we discard them.
 				 */
 				Relation	rel = CreateFakeRelcacheEntry(srel->smgr_rnode.node);
+
 				log_newpage_range(rel, fork, 0, n, false);
 				FreeFakeRelcacheEntry(rel);
 			}
@@ -801,6 +812,7 @@ smgrGetPendingDeletes(bool forCommit, RelFileNode **ptr)
 	PendingRelDelete *pending;
 
 	int			nrels = 0;
+
 	for (pending = pendingDeletes; pending != NULL; pending = pending->next)
 	{
 		if (pending->nestLevel >= nestLevel && pending->atCommit == forCommit
@@ -813,6 +825,7 @@ smgrGetPendingDeletes(bool forCommit, RelFileNode **ptr)
 		return 0;
 	}
 	RelFileNode *rptr = (RelFileNode *) palloc(nrels * sizeof(RelFileNode));
+
 	*ptr = rptr;
 	for (pending = pendingDeletes; pending != NULL; pending = pending->next)
 	{
@@ -894,6 +907,7 @@ smgr_redo(XLogReaderState *record)
 		xl_smgr_create *xlrec = (xl_smgr_create *) XLogRecGetData(record);
 
 		SMgrRelation reln = smgropen(xlrec->rnode, InvalidBackendId);
+
 		smgrcreate(reln, xlrec->forkNum, true);
 	}
 	else if (info == XLOG_SMGR_TRUNCATE)

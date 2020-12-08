@@ -223,11 +223,11 @@ autoprewarm_main(Datum main_arg)
 
 			/* Compute the next dump time. */
 			TimestampTz next_dump_time =
-				TimestampTzPlusMilliseconds(last_dump_time,
-											autoprewarm_interval * 1000);
+			TimestampTzPlusMilliseconds(last_dump_time,
+										autoprewarm_interval * 1000);
 			long		delay_in_ms =
-				TimestampDifferenceMilliseconds(GetCurrentTimestamp(),
-												next_dump_time);
+			TimestampDifferenceMilliseconds(GetCurrentTimestamp(),
+											next_dump_time);
 
 			/* Perform a dump if it's time. */
 			if (delay_in_ms <= 0)
@@ -287,6 +287,7 @@ apw_load_buffers(void)
 	 * any other error.
 	 */
 	FILE	   *file = AllocateFile(AUTOPREWARM_FILE, "r");
+
 	if (!file)
 	{
 		if (errno == ENOENT)
@@ -423,6 +424,7 @@ autoprewarm_database_main(Datum main_arg)
 	/* Connect to correct database and get block information. */
 	apw_init_shmem();
 	dsm_segment *seg = dsm_attach(apw_state->block_info_handle);
+
 	if (seg == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -472,6 +474,7 @@ autoprewarm_database_main(Datum main_arg)
 			Assert(rel == NULL);
 			StartTransactionCommand();
 			Oid			reloid = RelidByRelfilenode(blk->tablespace, blk->filenode);
+
 			if (OidIsValid(reloid))
 				rel = try_relation_open(reloid, AccessShareLock);
 
@@ -513,7 +516,8 @@ autoprewarm_database_main(Datum main_arg)
 
 		/* Prewarm buffer. */
 		Buffer		buf = ReadBufferExtended(rel, blk->forknum, blk->blocknum, RBM_NORMAL,
-								 NULL);
+											 NULL);
+
 		if (BufferIsValid(buf))
 		{
 			apw_state->prewarmed_blocks++;
@@ -549,6 +553,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 
 	LWLockAcquire(&apw_state->lock, LW_EXCLUSIVE);
 	pid_t		pid = apw_state->pid_using_dumpfile;
+
 	if (apw_state->pid_using_dumpfile == InvalidPid)
 		apw_state->pid_using_dumpfile = MyProcPid;
 	LWLockRelease(&apw_state->lock);
@@ -567,7 +572,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 	}
 
 	BlockInfoRecord *block_info_array =
-		(BlockInfoRecord *) palloc(sizeof(BlockInfoRecord) * NBuffers);
+	(BlockInfoRecord *) palloc(sizeof(BlockInfoRecord) * NBuffers);
 
 	for (num_blocks = 0, i = 0; i < NBuffers; i++)
 	{
@@ -600,6 +605,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 
 	snprintf(transient_dump_file_path, MAXPGPATH, "%s.tmp", AUTOPREWARM_FILE);
 	FILE	   *file = AllocateFile(transient_dump_file_path, "w");
+
 	if (!file)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -607,6 +613,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 						transient_dump_file_path)));
 
 	int			ret = fprintf(file, "<<%d>>\n", num_blocks);
+
 	if (ret < 0)
 	{
 		int			save_errno = errno;
@@ -686,6 +693,7 @@ autoprewarm_start_worker(PG_FUNCTION_ARGS)
 	apw_init_shmem();
 	LWLockAcquire(&apw_state->lock, LW_EXCLUSIVE);
 	pid_t		pid = apw_state->bgworker_pid;
+
 	LWLockRelease(&apw_state->lock);
 
 	if (pid != InvalidPid)
@@ -797,6 +805,7 @@ apw_start_leader_worker(void)
 				 errhint("You may need to increase max_worker_processes.")));
 
 	BgwHandleStatus status = WaitForBackgroundWorkerStartup(handle, &pid);
+
 	if (status != BGWH_STARTED)
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),

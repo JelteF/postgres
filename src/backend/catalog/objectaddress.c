@@ -96,7 +96,8 @@
  */
 typedef struct
 {
-	const char *class_descr;	/* string describing the catalog, for internal error messages */
+	const char *class_descr;	/* string describing the catalog, for internal
+								 * error messages */
 	Oid			class_oid;		/* oid of catalog */
 	Oid			oid_index_oid;	/* oid of index on system oid column */
 	int			oid_catcache_id;	/* id of catcache on system oid column	*/
@@ -983,8 +984,8 @@ get_object_address(ObjectType objtype, Node *object,
 
 					List	   *objlist = castNode(List, object);
 					ObjectAddress domaddr = get_object_address_type(OBJECT_DOMAIN,
-													  linitial_node(TypeName, objlist),
-													  missing_ok);
+																	linitial_node(TypeName, objlist),
+																	missing_ok);
 					char	   *constrname = strVal(lsecond(objlist));
 
 					address.classId = ConstraintRelationId;
@@ -1064,6 +1065,7 @@ get_object_address(ObjectType objtype, Node *object,
 
 					Oid			sourcetypeid = LookupTypeNameOid(NULL, sourcetype, missing_ok);
 					Oid			targettypeid = LookupTypeNameOid(NULL, targettype, missing_ok);
+
 					address.classId = CastRelationId;
 					address.objectId =
 						get_cast_oid(sourcetypeid, targettypeid, missing_ok);
@@ -1333,7 +1335,8 @@ get_relation_by_qualified_name(ObjectType objtype, List *object,
 	address.objectSubId = 0;
 
 	Relation	relation = relation_openrv_extended(makeRangeVarFromNameList(object),
-										lockmode, missing_ok);
+													lockmode, missing_ok);
+
 	if (!relation)
 		return address;
 
@@ -1413,6 +1416,7 @@ get_object_address_relobject(ObjectType objtype, List *object,
 
 	/* Separate relation name from dependent object name. */
 	int			nnames = list_length(object);
+
 	if (nnames < 2)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
@@ -1421,8 +1425,8 @@ get_object_address_relobject(ObjectType objtype, List *object,
 	/* Extract relation name and open relation. */
 	List	   *relname = list_truncate(list_copy(object), nnames - 1);
 	Relation	relation = table_openrv_extended(makeRangeVarFromNameList(relname),
-									 AccessShareLock,
-									 missing_ok);
+												 AccessShareLock,
+												 missing_ok);
 
 	Oid			reloid = relation ? RelationGetRelid(relation) : InvalidOid;
 
@@ -1490,12 +1494,14 @@ get_object_address_attribute(ObjectType objtype, List *object,
 				 errmsg("column name must be qualified")));
 	const char *attname = strVal(llast(object));
 	List	   *relname = list_truncate(list_copy(object), list_length(object) - 1);
+
 	/* XXX no missing_ok support here */
 	Relation	relation = relation_openrv(makeRangeVarFromNameList(relname), lockmode);
 	Oid			reloid = RelationGetRelid(relation);
 
 	/* Look up attribute and construct return value. */
 	AttrNumber	attnum = get_attnum(reloid, attname);
+
 	if (attnum == InvalidAttrNumber)
 	{
 		if (!missing_ok)
@@ -1536,6 +1542,7 @@ get_object_address_attrdef(ObjectType objtype, List *object,
 				 errmsg("column name must be qualified")));
 	const char *attname = strVal(llast(object));
 	List	   *relname = list_truncate(list_copy(object), list_length(object) - 1);
+
 	/* XXX no missing_ok support here */
 	Relation	relation = relation_openrv(makeRangeVarFromNameList(relname), lockmode);
 	Oid			reloid = RelationGetRelid(relation);
@@ -1545,12 +1552,14 @@ get_object_address_attrdef(ObjectType objtype, List *object,
 	/* Look up attribute number and scan pg_attrdef to find its tuple */
 	AttrNumber	attnum = get_attnum(reloid, attname);
 	Oid			defoid = InvalidOid;
+
 	if (attnum != InvalidAttrNumber && tupdesc->constr != NULL)
 	{
 		ScanKeyData keys[2];
 		HeapTuple	tup;
 
 		Relation	attrdef = relation_open(AttrDefaultRelationId, AccessShareLock);
+
 		ScanKeyInit(&keys[0],
 					Anum_pg_attrdef_adrelid,
 					BTEqualStrategyNumber,
@@ -1562,7 +1571,8 @@ get_object_address_attrdef(ObjectType objtype, List *object,
 					F_INT2EQ,
 					Int16GetDatum(attnum));
 		SysScanDesc scan = systable_beginscan(attrdef, AttrDefaultIndexId, true,
-								  NULL, 2, keys);
+											  NULL, 2, keys);
+
 		if (HeapTupleIsValid(tup = systable_getnext(scan)))
 		{
 			Form_pg_attrdef atdform = (Form_pg_attrdef) GETSTRUCT(tup);
@@ -1609,6 +1619,7 @@ get_object_address_type(ObjectType objtype, TypeName *typename, bool missing_ok)
 	address.objectSubId = 0;
 
 	Type		tup = LookupTypeName(NULL, typename, NULL, missing_ok);
+
 	if (!HeapTupleIsValid(tup))
 	{
 		if (!missing_ok)
@@ -1644,6 +1655,7 @@ get_object_address_opcf(ObjectType objtype, List *object, bool missing_ok)
 
 	/* XXX no missing_ok support here */
 	Oid			amoid = get_index_am_oid(strVal(linitial(object)), false);
+
 	object = list_copy_tail(object, 1);
 
 	switch (objtype)
@@ -1698,11 +1710,13 @@ get_object_address_opf_member(ObjectType objtype,
 	typenames[0] = typenames[1] = NULL;
 	typeoids[0] = typeoids[1] = InvalidOid;
 	int			i = 0;
+
 	foreach(cell, lsecond(object))
 	{
 
 		typenames[i] = lfirst_node(TypeName, cell);
 		ObjectAddress typaddr = get_object_address_type(OBJECT_TYPE, typenames[i], missing_ok);
+
 		typeoids[i] = typaddr.objectId;
 		if (++i >= 2)
 			break;
@@ -1717,10 +1731,11 @@ get_object_address_opf_member(ObjectType objtype,
 								 InvalidOid);
 
 				HeapTuple	tp = SearchSysCache4(AMOPSTRATEGY,
-									 ObjectIdGetDatum(famaddr.objectId),
-									 ObjectIdGetDatum(typeoids[0]),
-									 ObjectIdGetDatum(typeoids[1]),
-									 Int16GetDatum(membernum));
+												 ObjectIdGetDatum(famaddr.objectId),
+												 ObjectIdGetDatum(typeoids[0]),
+												 ObjectIdGetDatum(typeoids[1]),
+												 Int16GetDatum(membernum));
+
 				if (!HeapTupleIsValid(tp))
 				{
 					if (!missing_ok)
@@ -1747,10 +1762,11 @@ get_object_address_opf_member(ObjectType objtype,
 								 InvalidOid);
 
 				HeapTuple	tp = SearchSysCache4(AMPROCNUM,
-									 ObjectIdGetDatum(famaddr.objectId),
-									 ObjectIdGetDatum(typeoids[0]),
-									 ObjectIdGetDatum(typeoids[1]),
-									 Int16GetDatum(membernum));
+												 ObjectIdGetDatum(famaddr.objectId),
+												 ObjectIdGetDatum(typeoids[0]),
+												 ObjectIdGetDatum(typeoids[1]),
+												 Int16GetDatum(membernum));
+
 				if (!HeapTupleIsValid(tp))
 				{
 					if (!missing_ok)
@@ -1814,6 +1830,7 @@ get_object_address_usermapping(List *object, bool missing_ok)
 
 	/* Now look up the pg_user_mapping tuple */
 	ForeignServer *server = GetForeignServerByName(servername, true);
+
 	if (!server)
 	{
 		if (!missing_ok)
@@ -1857,7 +1874,8 @@ get_object_address_publication_rel(List *object,
 
 	List	   *relname = linitial(object);
 	Relation	relation = relation_openrv_extended(makeRangeVarFromNameList(relname),
-										AccessShareLock, missing_ok);
+													AccessShareLock, missing_ok);
+
 	if (!relation)
 		return address;
 
@@ -1866,6 +1884,7 @@ get_object_address_publication_rel(List *object,
 
 	/* Now look up the pg_publication tuple */
 	Publication *pub = GetPublicationByName(pubname, missing_ok);
+
 	if (!pub)
 	{
 		relation_close(relation, AccessShareLock);
@@ -1911,6 +1930,7 @@ get_object_address_defacl(List *object, bool missing_ok)
 	 * error reporting.
 	 */
 	char	   *username = strVal(lsecond(object));
+
 	if (list_length(object) >= 3)
 		schema = (char *) strVal(lthird(object));
 	else
@@ -1921,6 +1941,7 @@ get_object_address_defacl(List *object, bool missing_ok)
 	 * string, if any, is blissfully ignored.
 	 */
 	char		objtype = ((char *) strVal(linitial(object)))[0];
+
 	switch (objtype)
 	{
 		case DEFACLOBJ_RELATION:
@@ -1955,7 +1976,8 @@ get_object_address_defacl(List *object, bool missing_ok)
 	 * exist.
 	 */
 	HeapTuple	tp = SearchSysCache1(AUTHNAME,
-						 CStringGetDatum(username));
+									 CStringGetDatum(username));
+
 	if (!HeapTupleIsValid(tp))
 		goto not_found;
 	userid = ((Form_pg_authid) GETSTRUCT(tp))->oid;
@@ -2051,6 +2073,7 @@ pg_get_object_address(PG_FUNCTION_ARGS)
 
 	/* Decode object type, raise error if unknown */
 	int			itype = read_objtype_from_string(ttype);
+
 	if (itype < 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -2281,13 +2304,14 @@ pg_get_object_address(PG_FUNCTION_ARGS)
 		elog(ERROR, "unrecognized object type: %d", type);
 
 	ObjectAddress addr = get_object_address(type, objnode,
-							  &relation, AccessShareLock, false);
+											&relation, AccessShareLock, false);
 
 	/* We don't need the relcache entry, thank you very much */
 	if (relation)
 		relation_close(relation, AccessShareLock);
 
 	TupleDesc	tupdesc = CreateTemplateTupleDesc(3);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "classid",
 					   OIDOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "objid",
@@ -2347,7 +2371,8 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 			{
 
 				HeapTuple	tuple = SearchSysCache1(CONSTROID,
-										ObjectIdGetDatum(address.objectId));
+													ObjectIdGetDatum(address.objectId));
+
 				if (!HeapTupleIsValid(tuple))
 					elog(ERROR, "constraint with OID %u does not exist",
 						 address.objectId);
@@ -2539,22 +2564,26 @@ get_object_namespace(const ObjectAddress *address)
 
 	/* If not owned by a namespace, just return InvalidOid. */
 	const ObjectPropertyType *property = get_object_property_data(address->classId);
+
 	if (property->attnum_namespace == InvalidAttrNumber)
 		return InvalidOid;
 
 	/* Currently, we can only handle object types with system caches. */
 	int			cache = property->oid_catcache_id;
+
 	Assert(cache != -1);
 
 	/* Fetch tuple from syscache and extract namespace attribute. */
 	HeapTuple	tuple = SearchSysCache1(cache, ObjectIdGetDatum(address->objectId));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for cache %d oid %u",
 			 cache, address->objectId);
 	Oid			oid = DatumGetObjectId(SysCacheGetAttr(cache,
-										   tuple,
-										   property->attnum_namespace,
-										   &isnull));
+													   tuple,
+													   property->attnum_namespace,
+													   &isnull));
+
 	Assert(!isnull);
 	ReleaseSysCache(tuple);
 
@@ -2774,7 +2803,8 @@ get_catalog_object_by_oid(Relation catalog, AttrNumber oidcol, Oid objectId)
 					ObjectIdGetDatum(objectId));
 
 		SysScanDesc scan = systable_beginscan(catalog, oidIndexId, true,
-								  NULL, 1, &skey);
+											  NULL, 1, &skey);
+
 		tuple = systable_getnext(scan);
 		if (!HeapTupleIsValid(tuple))
 		{
@@ -2814,6 +2844,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *attname = get_attname(object->objectId,
 												  object->objectSubId,
 												  missing_ok);
+
 				if (!attname)
 					break;
 
@@ -2831,6 +2862,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				bits16		flags = FORMAT_PROC_INVALID_AS_NULL;
 				char	   *proname = format_procedure_extended(object->objectId,
 																flags);
+
 				if (proname == NULL)
 					break;
 
@@ -2843,6 +2875,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				bits16		flags = FORMAT_TYPE_INVALID_AS_NULL;
 				char	   *typname = format_type_extended(object->objectId, -1,
 														   flags);
+
 				if (typname == NULL)
 					break;
 
@@ -2862,7 +2895,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc rcscan = systable_beginscan(castDesc, CastOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(rcscan);
 
@@ -2893,7 +2926,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	collTup = SearchSysCache1(COLLOID,
-										  ObjectIdGetDatum(object->objectId));
+													  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(collTup))
 				{
 					if (!missing_ok)
@@ -2921,7 +2955,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				HeapTuple	conTup = SearchSysCache1(CONSTROID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(conTup))
 				{
 					if (!missing_ok)
@@ -2958,7 +2993,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	conTup = SearchSysCache1(CONVOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(conTup))
 				{
 					if (!missing_ok)
@@ -2995,7 +3031,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc adscan = systable_beginscan(attrdefDesc, AttrDefaultOidIndexId,
-											true, NULL, 1, skey);
+														true, NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(adscan);
 
@@ -3061,7 +3097,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	opcTup = SearchSysCache1(CLAOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(opcTup))
 				{
 					if (!missing_ok)
@@ -3073,7 +3110,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				Form_pg_opclass opcForm = (Form_pg_opclass) GETSTRUCT(opcTup);
 
 				HeapTuple	amTup = SearchSysCache1(AMOID,
-										ObjectIdGetDatum(opcForm->opcmethod));
+													ObjectIdGetDatum(opcForm->opcmethod));
+
 				if (!HeapTupleIsValid(amTup))
 					elog(ERROR, "cache lookup failed for access method %u",
 						 opcForm->opcmethod);
@@ -3103,7 +3141,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				HeapTuple	tup = SearchSysCache1(AMOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3124,7 +3163,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				StringInfoData opfam;
 
 				Relation	amopDesc = table_open(AccessMethodOperatorRelationId,
-									  AccessShareLock);
+												  AccessShareLock);
 
 				ScanKeyInit(&skey[0],
 							Anum_pg_amop_oid,
@@ -3132,7 +3171,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc amscan = systable_beginscan(amopDesc, AccessMethodOperatorOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(amscan);
 
@@ -3177,7 +3216,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				StringInfoData opfam;
 
 				Relation	amprocDesc = table_open(AccessMethodProcedureRelationId,
-										AccessShareLock);
+													AccessShareLock);
 
 				ScanKeyInit(&skey[0],
 							Anum_pg_amproc_oid,
@@ -3185,7 +3224,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc amscan = systable_beginscan(amprocDesc, AccessMethodProcedureOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(amscan);
 
@@ -3237,7 +3276,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc rcscan = systable_beginscan(ruleDesc, RewriteOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(rcscan);
 
@@ -3279,7 +3318,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc tgscan = systable_beginscan(trigDesc, TriggerOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(tgscan);
 
@@ -3312,6 +3351,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				char	   *nspname = get_namespace_name(object->objectId);
+
 				if (!nspname)
 				{
 					if (!missing_ok)
@@ -3328,7 +3368,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	stxTup = SearchSysCache1(STATEXTOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(stxTup))
 				{
 					if (!missing_ok)
@@ -3358,7 +3399,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	tup = SearchSysCache1(TSPARSEROID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3386,7 +3428,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	tup = SearchSysCache1(TSDICTOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3415,7 +3458,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	tup = SearchSysCache1(TSTEMPLATEOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3444,7 +3488,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *nspname;
 
 				HeapTuple	tup = SearchSysCache1(TSCONFIGOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3482,6 +3527,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				char	   *datname = get_database_name(object->objectId);
+
 				if (!datname)
 				{
 					if (!missing_ok)
@@ -3497,6 +3543,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				char	   *tblspace = get_tablespace_name(object->objectId);
+
 				if (!tblspace)
 				{
 					if (!missing_ok)
@@ -3512,7 +3559,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				ForeignDataWrapper *fdw = GetForeignDataWrapperExtended(object->objectId,
-													missing_ok);
+																		missing_ok);
+
 				if (fdw)
 					appendStringInfo(&buffer, _("foreign-data wrapper %s"), fdw->fdwname);
 				break;
@@ -3522,6 +3570,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				ForeignServer *srv = GetForeignServerExtended(object->objectId, missing_ok);
+
 				if (srv)
 					appendStringInfo(&buffer, _("server %s"), srv->servername);
 				break;
@@ -3532,7 +3581,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				char	   *usename;
 
 				HeapTuple	tup = SearchSysCache1(USERMAPPINGOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3570,7 +3620,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc rcscan = systable_beginscan(defaclrel, DefaultAclOidIndexId,
-											true, NULL, 1, skey);
+														true, NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(rcscan);
 
@@ -3664,6 +3714,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				char	   *extname = get_extension_name(object->objectId);
+
 				if (!extname)
 				{
 					if (!missing_ok)
@@ -3679,7 +3730,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				HeapTuple	tup = SearchSysCache1(EVENTTRIGGEROID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3706,7 +3758,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc sscan = systable_beginscan(policy_rel, PolicyOidIndexId,
-										   true, NULL, 1, skey);
+													   true, NULL, 1, skey);
 
 				HeapTuple	tuple = systable_getnext(sscan);
 
@@ -3739,6 +3791,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 				char	   *pubname = get_publication_name(object->objectId,
 														   missing_ok);
+
 				if (pubname)
 					appendStringInfo(&buffer, _("publication %s"), pubname);
 				break;
@@ -3749,7 +3802,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 				StringInfoData rel;
 
 				HeapTuple	tup = SearchSysCache1(PUBLICATIONREL,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -3776,6 +3830,7 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 				char	   *subname = get_subscription_name(object->objectId,
 															missing_ok);
+
 				if (subname)
 					appendStringInfo(&buffer, _("subscription %s"), subname);
 				break;
@@ -3785,7 +3840,8 @@ getObjectDescription(const ObjectAddress *object, bool missing_ok)
 			{
 
 				HeapTuple	trfTup = SearchSysCache1(TRFOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(trfTup))
 				{
 					if (!missing_ok)
@@ -3843,7 +3899,8 @@ getRelationDescription(StringInfo buffer, Oid relid, bool missing_ok)
 	char	   *nspname;
 
 	HeapTuple	relTup = SearchSysCache1(RELOID,
-							 ObjectIdGetDatum(relid));
+										 ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(relTup))
 	{
 		if (!missing_ok)
@@ -3915,6 +3972,7 @@ getOpFamilyDescription(StringInfo buffer, Oid opfid, bool missing_ok)
 	char	   *nspname;
 
 	HeapTuple	opfTup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfid));
+
 	if (!HeapTupleIsValid(opfTup))
 	{
 		if (!missing_ok)
@@ -3924,6 +3982,7 @@ getOpFamilyDescription(StringInfo buffer, Oid opfid, bool missing_ok)
 	Form_pg_opfamily opfForm = (Form_pg_opfamily) GETSTRUCT(opfTup);
 
 	HeapTuple	amTup = SearchSysCache1(AMOID, ObjectIdGetDatum(opfForm->opfmethod));
+
 	if (!HeapTupleIsValid(amTup))
 		elog(ERROR, "cache lookup failed for access method %u",
 			 opfForm->opfmethod);
@@ -3995,6 +4054,7 @@ pg_identify_object(PG_FUNCTION_ARGS)
 	 * function's pg_proc entry!
 	 */
 	TupleDesc	tupdesc = CreateTemplateTupleDesc(4);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "type",
 					   TEXTOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "schema",
@@ -4011,14 +4071,16 @@ pg_identify_object(PG_FUNCTION_ARGS)
 		Relation	catalog = table_open(address.classId, AccessShareLock);
 
 		HeapTuple	objtup = get_catalog_object_by_oid(catalog,
-										   get_object_attnum_oid(address.classId),
-										   address.objectId);
+													   get_object_attnum_oid(address.classId),
+													   address.objectId);
+
 		if (objtup != NULL)
 		{
 			bool		isnull;
 			AttrNumber	nameAttnum;
 
 			AttrNumber	nspAttnum = get_object_attnum_namespace(address.classId);
+
 			if (nspAttnum != InvalidAttrNumber)
 			{
 				schema_oid = heap_getattr(objtup, nspAttnum,
@@ -4039,7 +4101,8 @@ pg_identify_object(PG_FUNCTION_ARGS)
 				{
 
 					Datum		nameDatum = heap_getattr(objtup, nameAttnum,
-											 RelationGetDescr(catalog), &isnull);
+														 RelationGetDescr(catalog), &isnull);
+
 					if (isnull)
 						elog(ERROR, "invalid null name in object %u/%u/%d",
 							 address.classId, address.objectId, address.objectSubId);
@@ -4119,6 +4182,7 @@ pg_identify_object_as_address(PG_FUNCTION_ARGS)
 	 * function's pg_proc entry!
 	 */
 	TupleDesc	tupdesc = CreateTemplateTupleDesc(3);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "type",
 					   TEXTOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "object_names",
@@ -4134,6 +4198,7 @@ pg_identify_object_as_address(PG_FUNCTION_ARGS)
 
 	/* object identity */
 	char	   *identity = getObjectIdentityParts(&address, &names, &args, true);
+
 	if (identity == NULL)
 	{
 		nulls[1] = true;
@@ -4356,7 +4421,8 @@ getRelationTypeDescription(StringInfo buffer, Oid relid, int32 objectSubId,
 {
 
 	HeapTuple	relTup = SearchSysCache1(RELOID,
-							 ObjectIdGetDatum(relid));
+										 ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(relTup))
 	{
 		if (!missing_ok)
@@ -4417,7 +4483,8 @@ getConstraintTypeDescription(StringInfo buffer, Oid constroid, bool missing_ok)
 
 	Relation	constrRel = table_open(ConstraintRelationId, AccessShareLock);
 	HeapTuple	constrTup = get_catalog_object_by_oid(constrRel, Anum_pg_constraint_oid,
-										  constroid);
+													  constroid);
+
 	if (!HeapTupleIsValid(constrTup))
 	{
 		if (!missing_ok)
@@ -4451,7 +4518,8 @@ getProcedureTypeDescription(StringInfo buffer, Oid procid,
 {
 
 	HeapTuple	procTup = SearchSysCache1(PROCOID,
-							  ObjectIdGetDatum(procid));
+										  ObjectIdGetDatum(procid));
+
 	if (!HeapTupleIsValid(procTup))
 	{
 		if (!missing_ok)
@@ -4557,6 +4625,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				bits16		flags = FORMAT_PROC_FORCE_QUALIFY | FORMAT_PROC_INVALID_AS_NULL;
 				char	   *proname = format_procedure_extended(object->objectId,
 																flags);
+
 				if (proname == NULL)
 					break;
 
@@ -4588,7 +4657,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Relation	castRel = table_open(CastRelationId, AccessShareLock);
 
 				HeapTuple	tup = get_catalog_object_by_oid(castRel, Anum_pg_cast_oid,
-												object->objectId);
+															object->objectId);
 
 				if (!HeapTupleIsValid(tup))
 				{
@@ -4620,7 +4689,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	collTup = SearchSysCache1(COLLOID,
-										  ObjectIdGetDatum(object->objectId));
+													  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(collTup))
 				{
 					if (!missing_ok)
@@ -4630,6 +4700,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_collation coll = (Form_pg_collation) GETSTRUCT(collTup);
 				char	   *schema = get_namespace_name_or_temp(coll->collnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(coll->collname)));
@@ -4644,7 +4715,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	conTup = SearchSysCache1(CONSTROID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(conTup))
 				{
 					if (!missing_ok)
@@ -4689,7 +4761,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	conTup = SearchSysCache1(CONVOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(conTup))
 				{
 					if (!missing_ok)
@@ -4699,6 +4772,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_conversion conForm = (Form_pg_conversion) GETSTRUCT(conTup);
 				char	   *schema = get_namespace_name_or_temp(conForm->connamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(conForm->conname)));
@@ -4723,7 +4797,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc adscan = systable_beginscan(attrdefDesc, AttrDefaultOidIndexId,
-											true, NULL, 1, skey);
+														true, NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(adscan);
 
@@ -4758,7 +4832,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	langTup = SearchSysCache1(LANGOID,
-										  ObjectIdGetDatum(object->objectId));
+													  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(langTup))
 				{
 					if (!missing_ok)
@@ -4767,6 +4842,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 					break;
 				}
 				Form_pg_language langForm = (Form_pg_language) GETSTRUCT(langTup);
+
 				appendStringInfoString(&buffer,
 									   quote_identifier(NameStr(langForm->lanname)));
 				if (objname)
@@ -4788,6 +4864,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				bits16		flags = FORMAT_OPERATOR_FORCE_QUALIFY | FORMAT_OPERATOR_INVALID_AS_NULL;
 				char	   *oprname = format_operator_extended(object->objectId,
 															   flags);
+
 				if (oprname == NULL)
 					break;
 
@@ -4801,7 +4878,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	opcTup = SearchSysCache1(CLAOID,
-										 ObjectIdGetDatum(object->objectId));
+													 ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(opcTup))
 				{
 					if (!missing_ok)
@@ -4813,7 +4891,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 				char	   *schema = get_namespace_name_or_temp(opcForm->opcnamespace);
 
 				HeapTuple	amTup = SearchSysCache1(AMOID,
-										ObjectIdGetDatum(opcForm->opcmethod));
+													ObjectIdGetDatum(opcForm->opcmethod));
+
 				if (!HeapTupleIsValid(amTup))
 					elog(ERROR, "cache lookup failed for access method %u",
 						 opcForm->opcmethod);
@@ -4842,6 +4921,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *amname = get_am_name(object->objectId);
+
 				if (!amname)
 				{
 					if (!missing_ok)
@@ -4861,7 +4941,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				StringInfoData opfam;
 
 				Relation	amopDesc = table_open(AccessMethodOperatorRelationId,
-									  AccessShareLock);
+												  AccessShareLock);
 
 				ScanKeyInit(&skey[0],
 							Anum_pg_amop_oid,
@@ -4869,7 +4949,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc amscan = systable_beginscan(amopDesc, AccessMethodOperatorOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(amscan);
 
@@ -4917,7 +4997,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				StringInfoData opfam;
 
 				Relation	amprocDesc = table_open(AccessMethodProcedureRelationId,
-										AccessShareLock);
+													AccessShareLock);
 
 				ScanKeyInit(&skey[0],
 							Anum_pg_amproc_oid,
@@ -4925,7 +5005,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc amscan = systable_beginscan(amprocDesc, AccessMethodProcedureOidIndexId, true,
-											NULL, 1, skey);
+														NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(amscan);
 
@@ -4973,7 +5053,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Relation	ruleDesc = table_open(RewriteRelationId, AccessShareLock);
 
 				HeapTuple	tup = get_catalog_object_by_oid(ruleDesc, Anum_pg_rewrite_oid,
-												object->objectId);
+															object->objectId);
 
 				if (!HeapTupleIsValid(tup))
 				{
@@ -5003,7 +5083,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Relation	trigDesc = table_open(TriggerRelationId, AccessShareLock);
 
 				HeapTuple	tup = get_catalog_object_by_oid(trigDesc, Anum_pg_trigger_oid,
-												object->objectId);
+															object->objectId);
 
 				if (!HeapTupleIsValid(tup))
 				{
@@ -5031,6 +5111,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *nspname = get_namespace_name_or_temp(object->objectId);
+
 				if (!nspname)
 				{
 					if (!missing_ok)
@@ -5049,7 +5130,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(STATEXTOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5059,6 +5141,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_statistic_ext formStatistic = (Form_pg_statistic_ext) GETSTRUCT(tup);
 				char	   *schema = get_namespace_name_or_temp(formStatistic->stxnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(formStatistic->stxname)));
@@ -5073,7 +5156,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(TSPARSEROID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5083,6 +5167,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_ts_parser formParser = (Form_pg_ts_parser) GETSTRUCT(tup);
 				char	   *schema = get_namespace_name_or_temp(formParser->prsnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(formParser->prsname)));
@@ -5097,7 +5182,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(TSDICTOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5107,6 +5193,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_ts_dict formDict = (Form_pg_ts_dict) GETSTRUCT(tup);
 				char	   *schema = get_namespace_name_or_temp(formDict->dictnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(formDict->dictname)));
@@ -5121,7 +5208,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(TSTEMPLATEOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5131,6 +5219,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_ts_template formTmpl = (Form_pg_ts_template) GETSTRUCT(tup);
 				char	   *schema = get_namespace_name_or_temp(formTmpl->tmplnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(formTmpl->tmplname)));
@@ -5145,7 +5234,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(TSCONFIGOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5155,6 +5245,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				}
 				Form_pg_ts_config formCfg = (Form_pg_ts_config) GETSTRUCT(tup);
 				char	   *schema = get_namespace_name_or_temp(formCfg->cfgnamespace);
+
 				appendStringInfoString(&buffer,
 									   quote_qualified_identifier(schema,
 																  NameStr(formCfg->cfgname)));
@@ -5169,6 +5260,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *username = GetUserNameFromId(object->objectId, missing_ok);
+
 				if (!username)
 					break;
 				if (objname)
@@ -5182,6 +5274,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *datname = get_database_name(object->objectId);
+
 				if (!datname)
 				{
 					if (!missing_ok)
@@ -5200,6 +5293,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *tblspace = get_tablespace_name(object->objectId);
+
 				if (!tblspace)
 				{
 					if (!missing_ok)
@@ -5218,7 +5312,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				ForeignDataWrapper *fdw = GetForeignDataWrapperExtended(object->objectId,
-													missing_ok);
+																		missing_ok);
+
 				if (fdw)
 				{
 					appendStringInfoString(&buffer, quote_identifier(fdw->fdwname));
@@ -5232,7 +5327,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				ForeignServer *srv = GetForeignServerExtended(object->objectId,
-											   missing_ok);
+															  missing_ok);
+
 				if (srv)
 				{
 					appendStringInfoString(&buffer,
@@ -5248,7 +5344,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 				const char *usename;
 
 				HeapTuple	tup = SearchSysCache1(USERMAPPINGOID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5292,7 +5389,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 							ObjectIdGetDatum(object->objectId));
 
 				SysScanDesc rcscan = systable_beginscan(defaclrel, DefaultAclOidIndexId,
-											true, NULL, 1, skey);
+														true, NULL, 1, skey);
 
 				HeapTuple	tup = systable_getnext(rcscan);
 
@@ -5311,6 +5408,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Form_pg_default_acl defacl = (Form_pg_default_acl) GETSTRUCT(tup);
 
 				char	   *username = GetUserNameFromId(defacl->defaclrole, false);
+
 				appendStringInfo(&buffer,
 								 "for role %s",
 								 quote_identifier(username));
@@ -5366,6 +5464,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *extname = get_extension_name(object->objectId);
+
 				if (!extname)
 				{
 					if (!missing_ok)
@@ -5387,7 +5486,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 					*objname = NIL;
 
 				HeapTuple	tup = SearchSysCache1(EVENTTRIGGEROID,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5396,6 +5496,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 					break;
 				}
 				Form_pg_event_trigger trigForm = (Form_pg_event_trigger) GETSTRUCT(tup);
+
 				appendStringInfoString(&buffer,
 									   quote_identifier(NameStr(trigForm->evtname)));
 				ReleaseSysCache(tup);
@@ -5408,7 +5509,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Relation	polDesc = table_open(PolicyRelationId, AccessShareLock);
 
 				HeapTuple	tup = get_catalog_object_by_oid(polDesc, Anum_pg_policy_oid,
-												object->objectId);
+															object->objectId);
 
 				if (!HeapTupleIsValid(tup))
 				{
@@ -5436,6 +5537,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *pubname = get_publication_name(object->objectId, missing_ok);
+
 				if (pubname)
 				{
 					appendStringInfoString(&buffer,
@@ -5450,7 +5552,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				HeapTuple	tup = SearchSysCache1(PUBLICATIONREL,
-									  ObjectIdGetDatum(object->objectId));
+												  ObjectIdGetDatum(object->objectId));
+
 				if (!HeapTupleIsValid(tup))
 				{
 					if (!missing_ok)
@@ -5476,6 +5579,7 @@ getObjectIdentityParts(const ObjectAddress *object,
 			{
 
 				char	   *subname = get_subscription_name(object->objectId, missing_ok);
+
 				if (subname)
 				{
 					appendStringInfoString(&buffer,
@@ -5492,8 +5596,8 @@ getObjectIdentityParts(const ObjectAddress *object,
 				Relation	transformDesc = table_open(TransformRelationId, AccessShareLock);
 
 				HeapTuple	tup = get_catalog_object_by_oid(transformDesc,
-												Anum_pg_transform_oid,
-												object->objectId);
+															Anum_pg_transform_oid,
+															object->objectId);
 
 				if (!HeapTupleIsValid(tup))
 				{
@@ -5560,6 +5664,7 @@ getOpFamilyIdentity(StringInfo buffer, Oid opfid, List **object,
 {
 
 	HeapTuple	opfTup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfid));
+
 	if (!HeapTupleIsValid(opfTup))
 	{
 		if (!missing_ok)
@@ -5569,12 +5674,14 @@ getOpFamilyIdentity(StringInfo buffer, Oid opfid, List **object,
 	Form_pg_opfamily opfForm = (Form_pg_opfamily) GETSTRUCT(opfTup);
 
 	HeapTuple	amTup = SearchSysCache1(AMOID, ObjectIdGetDatum(opfForm->opfmethod));
+
 	if (!HeapTupleIsValid(amTup))
 		elog(ERROR, "cache lookup failed for access method %u",
 			 opfForm->opfmethod);
 	Form_pg_am	amForm = (Form_pg_am) GETSTRUCT(amTup);
 
 	char	   *schema = get_namespace_name_or_temp(opfForm->opfnamespace);
+
 	appendStringInfo(buffer, "%s USING %s",
 					 quote_qualified_identifier(schema,
 												NameStr(opfForm->opfname)),
@@ -5599,7 +5706,8 @@ getRelationIdentity(StringInfo buffer, Oid relid, List **object,
 {
 
 	HeapTuple	relTup = SearchSysCache1(RELOID,
-							 ObjectIdGetDatum(relid));
+										 ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(relTup))
 	{
 		if (!missing_ok)
@@ -5612,6 +5720,7 @@ getRelationIdentity(StringInfo buffer, Oid relid, List **object,
 	Form_pg_class relForm = (Form_pg_class) GETSTRUCT(relTup);
 
 	char	   *schema = get_namespace_name_or_temp(relForm->relnamespace);
+
 	appendStringInfoString(buffer,
 						   quote_qualified_identifier(schema,
 													  NameStr(relForm->relname)));
@@ -5633,8 +5742,8 @@ strlist_to_textarray(List *list)
 
 	/* Work in a temp context; easier than individually pfree'ing the Datums */
 	MemoryContext memcxt = AllocSetContextCreate(CurrentMemoryContext,
-								   "strlist to array",
-								   ALLOCSET_DEFAULT_SIZES);
+												 "strlist to array",
+												 ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldcxt = MemoryContextSwitchTo(memcxt);
 
 	Datum	   *datums = (Datum *) palloc(sizeof(Datum) * list_length(list));
@@ -5657,7 +5766,7 @@ strlist_to_textarray(List *list)
 
 	lb[0] = 1;
 	ArrayType  *arr = construct_md_array(datums, nulls, 1, &j,
-							 lb, TEXTOID, -1, false, TYPALIGN_INT);
+										 lb, TEXTOID, -1, false, TYPALIGN_INT);
 
 	MemoryContextDelete(memcxt);
 

@@ -156,6 +156,7 @@ InitArchiveFmt_Tar(ArchiveHandle *AH)
 	 * Set up some special context used in compressing data.
 	 */
 	lclContext *ctx = (lclContext *) pg_malloc0(sizeof(lclContext));
+
 	AH->formatData = (void *) ctx;
 	ctx->filePos = 0;
 	ctx->isSpecialScript = 0;
@@ -250,6 +251,7 @@ _ArchiveEntry(ArchiveHandle *AH, TocEntry *te)
 	char		fn[K_STD_BUF_SIZE];
 
 	lclTocEntry *ctx = (lclTocEntry *) pg_malloc0(sizeof(lclTocEntry));
+
 	if (te->dataDumper != NULL)
 	{
 #ifdef HAVE_LIBZ
@@ -385,10 +387,12 @@ tarOpen(ArchiveHandle *AH, const char *filename, char mode)
 		{
 
 			char	   *name = _tempnam(NULL, "pg_temp_");
+
 			if (name == NULL)
 				break;
 			int			fd = open(name, O_RDWR | O_CREAT | O_EXCL | O_BINARY |
-					  O_TEMPORARY, S_IRUSR | S_IWUSR);
+								  O_TEMPORARY, S_IRUSR | S_IWUSR);
+
 			free(name);
 
 			if (fd != -1)		/* created a file */
@@ -512,6 +516,7 @@ _tarReadRaw(ArchiveHandle *AH, void *buf, size_t len, TAR_MEMBER *th, FILE *fh)
 	Assert(th || fh);
 
 	size_t		avail = AH->lookaheadLen - AH->lookaheadPos;
+
 	if (avail > 0)
 	{
 		/* We have some lookahead bytes to use */
@@ -634,6 +639,7 @@ _PrintFileData(ArchiveHandle *AH, char *filename)
 		return;
 
 	TAR_MEMBER *th = tarOpen(AH, filename, 'r');
+
 	ctx->FH = th;
 
 	while ((cnt = tarRead(buf, 4095, th)) > 0)
@@ -715,6 +721,7 @@ _LoadBlobs(ArchiveHandle *AH)
 	StartRestoreBlobs(AH);
 
 	TAR_MEMBER *th = tarOpen(AH, NULL, 'r');	/* Open next file */
+
 	while (th != NULL)
 	{
 		ctx->FH = th;
@@ -778,6 +785,7 @@ _ReadByte(ArchiveHandle *AH)
 	unsigned char c;
 
 	size_t		res = tarRead(&c, 1, ctx->FH);
+
 	if (res != 1)
 		/* We already would have exited for errors on reads, must be EOF */
 		fatal("could not read from input file: end of file");
@@ -1182,7 +1190,7 @@ _tarPositionTo(ArchiveHandle *AH, const char *filename)
 		/* Header doesn't match, so read to next header */
 		len = th->fileLen;
 		len += tarPaddingBytesRequired(th->fileLen);
-		blks = len / TAR_BLOCK_SIZE;		/* # of tar blocks */
+		blks = len / TAR_BLOCK_SIZE;	/* # of tar blocks */
 
 		for (i = 0; i < blks; i++)
 			_tarReadRaw(AH, &header[0], TAR_BLOCK_SIZE, NULL, ctx->tarFH);

@@ -153,7 +153,8 @@ llvm_create_context(int jitFlags)
 	ResourceOwnerEnlargeJIT(CurrentResourceOwner);
 
 	LLVMJitContext *context = MemoryContextAllocZero(TopMemoryContext,
-									 sizeof(LLVMJitContext));
+													 sizeof(LLVMJitContext));
+
 	context->base.flags = jitFlags;
 
 	/* ensure cleanup */
@@ -191,6 +192,7 @@ llvm_release_context(JitContext *context)
 	{
 
 		LLVMJitHandle *jit_handle = (LLVMJitHandle *) linitial(llvm_context->handles);
+
 		llvm_context->handles = list_delete_first(llvm_context->handles);
 
 #if LLVM_VERSION_MAJOR > 11
@@ -207,6 +209,7 @@ llvm_release_context(JitContext *context)
 			 */
 			LLVMOrcExecutionSessionRef ee = LLVMOrcLLJITGetExecutionSession(jit_handle->lljit);
 			LLVMOrcSymbolStringPoolRef sp = LLVMOrcExecutionSessionGetSymbolStringPool(ee);
+
 			LLVMOrcSymbolStringPoolClearDeadEntries(sp);
 		}
 #else							/* LLVM_VERSION_MAJOR > 11 */
@@ -303,6 +306,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 
 		LLVMOrcJITTargetAddress addr = 0;
 		LLVMErrorRef error = LLVMOrcLLJITLookup(handle->lljit, &addr, funcname);
+
 		if (error)
 			elog(ERROR, "failed to look up symbol \"%s\": %s",
 				 funcname, llvm_error_message(error));
@@ -326,6 +330,7 @@ llvm_get_function(LLVMJitContext *context, const char *funcname)
 		LLVMJitHandle *handle = (LLVMJitHandle *) lfirst(lc);
 
 		LLVMOrcTargetAddress addr = 0;
+
 		if (LLVMOrcGetSymbolAddressIn(handle->stack, &addr, handle->orc_handle, funcname))
 			elog(ERROR, "failed to look up symbol \"%s\"", funcname);
 		if (addr)
@@ -373,6 +378,7 @@ llvm_pg_func(LLVMModuleRef mod, const char *funcname)
 
 	/* don't repeatedly add function */
 	LLVMValueRef v_fn = LLVMGetNamedFunction(mod, funcname);
+
 	if (v_fn)
 		return v_fn;
 
@@ -407,6 +413,7 @@ llvm_copy_attributes_at_index(LLVMValueRef v_from, LLVMValueRef v_to, uint32 ind
 		return;
 
 	LLVMAttributeRef *attrs = palloc(sizeof(LLVMAttributeRef) * num_attributes);
+
 	LLVMGetAttributesAtIndex(v_from, index, attrs);
 
 	for (int attno = 0; attno < num_attributes; attno++)
@@ -518,6 +525,7 @@ llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
 	 * a function the first time though.
 	 */
 	LLVMPassManagerBuilderRef llvm_pmb = LLVMPassManagerBuilderCreate();
+
 	LLVMPassManagerBuilderSetOptLevel(llvm_pmb, compile_optlevel);
 	LLVMPassManagerRef llvm_fpm = LLVMCreateFunctionPassManagerForModule(module);
 
@@ -551,6 +559,7 @@ llvm_optimize_module(LLVMJitContext *context, LLVMModuleRef module)
 	 * case, so always-inline functions etc get inlined. It's cheap enough.
 	 */
 	LLVMPassManagerRef llvm_mpm = LLVMCreatePassManager();
+
 	LLVMPassManagerBuilderPopulateModulePassManager(llvm_pmb,
 													llvm_mpm);
 	/* always use always-inliner pass */
@@ -601,8 +610,9 @@ llvm_compile_module(LLVMJitContext *context)
 	{
 
 		char	   *filename = psprintf("%u.%zu.bc",
-							MyProcPid,
-							context->module_generation);
+										MyProcPid,
+										context->module_generation);
+
 		LLVMWriteBitcodeToFile(context->module, filename);
 		pfree(filename);
 	}
@@ -619,8 +629,9 @@ llvm_compile_module(LLVMJitContext *context)
 	{
 
 		char	   *filename = psprintf("%u.%zu.optimized.bc",
-							MyProcPid,
-							context->module_generation);
+										MyProcPid,
+										context->module_generation);
+
 		LLVMWriteBitcodeToFile(context->module, filename);
 		pfree(filename);
 	}
@@ -652,8 +663,8 @@ llvm_compile_module(LLVMJitContext *context)
 
 		context->module = NULL; /* will be owned by LLJIT */
 		LLVMErrorRef error = LLVMOrcLLJITAddLLVMIRModuleWithRT(compile_orc,
-												  handle->resource_tracker,
-												  ts_module);
+															   handle->resource_tracker,
+															   ts_module);
 
 		if (error)
 			elog(ERROR, "failed to JIT module: %s",
@@ -676,6 +687,7 @@ llvm_compile_module(LLVMJitContext *context)
 	{
 
 		LLVMSharedModuleRef smod = LLVMOrcMakeSharedModule(context->module);
+
 		handle->stack = compile_orc;
 		if (LLVMOrcAddEagerlyCompiledIR(compile_orc, &handle->orc_handle, smod,
 										llvm_resolve_symbol, NULL))
@@ -750,19 +762,20 @@ llvm_session_initialize(void)
 	 */
 	char	   *cpu = LLVMGetHostCPUName();
 	char	   *features = LLVMGetHostCPUFeatures();
+
 	elog(DEBUG2, "LLVMJIT detected CPU \"%s\", with features \"%s\"",
 		 cpu, features);
 
 	LLVMTargetMachineRef opt0_tm =
-		LLVMCreateTargetMachine(llvm_targetref, llvm_triple, cpu, features,
-								LLVMCodeGenLevelNone,
-								LLVMRelocDefault,
-								LLVMCodeModelJITDefault);
+	LLVMCreateTargetMachine(llvm_targetref, llvm_triple, cpu, features,
+							LLVMCodeGenLevelNone,
+							LLVMRelocDefault,
+							LLVMCodeModelJITDefault);
 	LLVMTargetMachineRef opt3_tm =
-		LLVMCreateTargetMachine(llvm_targetref, llvm_triple, cpu, features,
-								LLVMCodeGenLevelAggressive,
-								LLVMRelocDefault,
-								LLVMCodeModelJITDefault);
+	LLVMCreateTargetMachine(llvm_targetref, llvm_triple, cpu, features,
+							LLVMCodeGenLevelAggressive,
+							LLVMRelocDefault,
+							LLVMCodeModelJITDefault);
 
 	LLVMDisposeMessage(cpu);
 	cpu = NULL;
@@ -870,11 +883,13 @@ load_type(LLVMModuleRef mod, const char *name)
 
 	/* this'll return a *pointer* to the global */
 	LLVMValueRef value = LLVMGetNamedGlobal(mod, name);
+
 	if (!value)
 		elog(ERROR, "type %s is unknown", name);
 
 	/* therefore look at the contained type and return that */
 	LLVMTypeRef typ = LLVMTypeOf(value);
+
 	Assert(typ != NULL);
 	typ = LLVMGetElementType(typ);
 	Assert(typ != NULL);
@@ -888,11 +903,13 @@ load_return_type(LLVMModuleRef mod, const char *name)
 
 	/* this'll return a *pointer* to the function */
 	LLVMValueRef value = LLVMGetNamedFunction(mod, name);
+
 	if (!value)
 		elog(ERROR, "function %s is unknown", name);
 
 	/* get type of function pointer */
 	LLVMTypeRef typ = LLVMTypeOf(value);
+
 	Assert(typ != NULL);
 	/* dereference pointer */
 	typ = LLVMGetElementType(typ);
@@ -1060,6 +1077,7 @@ llvm_resolve_symbols(LLVMOrcDefinitionGeneratorRef GeneratorObj, void *Ctx,
 
 	LLVMOrcMaterializationUnitRef mu = LLVMOrcAbsoluteSymbols(symbols, LookupSetSize);
 	LLVMErrorRef error = LLVMOrcJITDylibDefine(JD, mu);
+
 	if (error != LLVMErrorSuccess)
 		LLVMOrcDisposeMaterializationUnit(mu);
 
@@ -1126,6 +1144,7 @@ llvm_create_jit_instance(LLVMTargetMachineRef tm)
 
 	LLVMOrcLLJITBuilderRef lljit_builder = LLVMOrcCreateLLJITBuilder();
 	LLVMOrcJITTargetMachineBuilderRef tm_builder = LLVMOrcJITTargetMachineBuilderCreateFromTargetMachine(tm);
+
 	LLVMOrcLLJITBuilderSetJITTargetMachineBuilder(lljit_builder, tm_builder);
 
 	LLVMOrcLLJITBuilderSetObjectLinkingLayerCreator(lljit_builder,
@@ -1133,6 +1152,7 @@ llvm_create_jit_instance(LLVMTargetMachineRef tm)
 													NULL);
 
 	LLVMErrorRef error = LLVMOrcCreateLLJIT(&lljit, lljit_builder);
+
 	if (error)
 		elog(ERROR, "failed to create lljit instance: %s",
 			 llvm_error_message(error));
@@ -1157,6 +1177,7 @@ llvm_create_jit_instance(LLVMTargetMachineRef tm)
 	 * SQL callable function.
 	 */
 	LLVMOrcDefinitionGeneratorRef ref_gen = LLVMOrcCreateCustomCAPIDefinitionGenerator(llvm_resolve_symbols, NULL);
+
 	LLVMOrcJITDylibAddGenerator(LLVMOrcLLJITGetMainJITDylib(lljit), ref_gen);
 
 	return lljit;

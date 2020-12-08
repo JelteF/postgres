@@ -548,6 +548,7 @@ pushOperator(TSQueryParserState state, int8 oper, int16 distance)
 	Assert(oper == OP_NOT || oper == OP_AND || oper == OP_OR || oper == OP_PHRASE);
 
 	QueryOperator *tmp = (QueryOperator *) palloc0(sizeof(QueryOperator));
+
 	tmp->type = QI_OPR;
 	tmp->oper = oper;
 	tmp->distance = (oper == OP_PHRASE) ? distance : 0;
@@ -572,6 +573,7 @@ pushValue_internal(TSQueryParserState state, pg_crc32 valcrc, int distance, int 
 						state->buffer)));
 
 	QueryOperand *tmp = (QueryOperand *) palloc0(sizeof(QueryOperand));
+
 	tmp->type = QI_VAL;
 	tmp->weight = weight;
 	tmp->prefix = prefix;
@@ -629,6 +631,7 @@ pushStop(TSQueryParserState state)
 {
 
 	QueryOperand *tmp = (QueryOperand *) palloc0(sizeof(QueryOperand));
+
 	tmp->type = QI_VALSTOP;
 
 	state->polstr = lcons(tmp, state->polstr);
@@ -791,6 +794,7 @@ findoprnd(QueryItem *ptr, int size, bool *needcleanup)
 
 	*needcleanup = false;
 	uint32		pos = 0;
+
 	findoprnd_recurse(ptr, &pos, size, needcleanup);
 
 	if (pos != size)
@@ -882,6 +886,7 @@ parse_tsquery(char *buf,
 
 	/* Copy QueryItems to TSQuery */
 	int			i = 0;
+
 	foreach(cell, state.polstr)
 	{
 		QueryItem  *item = (QueryItem *) lfirst(cell);
@@ -1210,6 +1215,7 @@ tsqueryrecv(PG_FUNCTION_ARGS)
 	bool		needcleanup;
 
 	uint32		size = pq_getmsgint(buf, sizeof(uint32));
+
 	if (size > (MaxAllocSize / sizeof(QueryItem)))
 		elog(ERROR, "invalid size of tsquery");
 
@@ -1219,10 +1225,12 @@ tsqueryrecv(PG_FUNCTION_ARGS)
 	/* Allocate space for all the QueryItems. */
 	len = HDRSIZETQ + sizeof(QueryItem) * size;
 	TSQuery		query = (TSQuery) palloc0(len);
+
 	query->size = size;
 	QueryItem  *item = GETQUERY(query);
 
 	int			datalen = 0;
+
 	for (i = 0; i < size; i++)
 	{
 		item->type = (int8) pq_getmsgint(buf, sizeof(int8));
@@ -1236,6 +1244,7 @@ tsqueryrecv(PG_FUNCTION_ARGS)
 			uint8		weight = (uint8) pq_getmsgint(buf, sizeof(uint8));
 			uint8		prefix = (uint8) pq_getmsgint(buf, sizeof(uint8));
 			const char *val = pq_getmsgstring(buf);
+
 			val_len = strlen(val);
 
 			/* Sanity checks */
@@ -1273,6 +1282,7 @@ tsqueryrecv(PG_FUNCTION_ARGS)
 		{
 
 			int8		oper = (int8) pq_getmsgint(buf, sizeof(int8));
+
 			if (oper != OP_NOT && oper != OP_OR && oper != OP_AND && oper != OP_PHRASE)
 				elog(ERROR, "invalid tsquery: unrecognized operator type %d",
 					 (int) oper);

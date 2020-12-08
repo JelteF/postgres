@@ -417,6 +417,7 @@ ExecSupportsMarkRestore(Path *pathnode)
 	{
 		case T_IndexScan:
 		case T_IndexOnlyScan:
+
 			/*
 			 * Not all index types support mark/restore.
 			 */
@@ -597,6 +598,7 @@ IndexSupportsBackwardScan(Oid indexid)
 
 	/* Fetch the pg_class tuple of the index relation */
 	HeapTuple	ht_idxrel = SearchSysCache1(RELOID, ObjectIdGetDatum(indexid));
+
 	if (!HeapTupleIsValid(ht_idxrel))
 		elog(ERROR, "cache lookup failed for relation %u", indexid);
 	Form_pg_class idxrelrec = (Form_pg_class) GETSTRUCT(ht_idxrel);

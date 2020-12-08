@@ -179,6 +179,7 @@ md5_pad(md5_ctxt *ctxt)
 
 	/* Don't count up padding. Keep md5_n. */
 	unsigned int gap = MD5_BUFLEN - ctxt->md5_i;
+
 	if (gap > 8)
 	{
 		memmove(ctxt->md5_buf + ctxt->md5_i, md5_paddat,

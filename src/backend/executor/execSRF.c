@@ -333,6 +333,7 @@ ExecMakeTableFunctionResult(SetExprState *setexpr,
 					int			natts = expectedDesc->natts;
 
 					bool	   *nullflags = (bool *) palloc(natts * sizeof(bool));
+
 					memset(nullflags, true, natts * sizeof(bool));
 					tuplestore_putvalues(tupstore, expectedDesc, NULL, nullflags);
 				}
@@ -390,6 +391,7 @@ no_function_result:
 			int			natts = expectedDesc->natts;
 
 			bool	   *nullflags = (bool *) palloc(natts * sizeof(bool));
+
 			memset(nullflags, true, natts * sizeof(bool));
 			tuplestore_putvalues(tupstore, expectedDesc, NULL, nullflags);
 		}
@@ -510,7 +512,8 @@ restart:
 		 */
 		MemoryContext oldContext = MemoryContextSwitchTo(slot->tts_mcxt);
 		bool		foundTup = tuplestore_gettupleslot(fcache->funcResultStore, true, false,
-										   fcache->funcResultSlot);
+													   fcache->funcResultSlot);
+
 		MemoryContextSwitchTo(oldContext);
 
 		if (foundTup)
@@ -548,6 +551,7 @@ restart:
 	 */
 	FunctionCallInfo fcinfo = fcache->fcinfo;
 	List	   *arguments = fcache->args;
+
 	if (!fcache->setArgsValid)
 	{
 		MemoryContext oldContext = MemoryContextSwitchTo(argContext);
@@ -582,6 +586,7 @@ restart:
 	 * the function.
 	 */
 	bool		callit = true;
+
 	if (fcache->func.fn_strict)
 	{
 		for (i = 0; i < fcinfo->nargs; i++)
@@ -680,6 +685,7 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
 
 	/* Check permission to call function */
 	AclResult	aclresult = pg_proc_aclcheck(foid, GetUserId(), ACL_EXECUTE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(foid));
 	InvokeFunctionExecuteHook(foid);
@@ -727,8 +733,8 @@ init_sexpr(Oid foid, Oid input_collation, Expr *node,
 		TupleDesc	tupdesc;
 
 		TypeFuncClass functypclass = get_expr_result_type(sexpr->func.fn_expr,
-											&funcrettype,
-											&tupdesc);
+														  &funcrettype,
+														  &tupdesc);
 
 		/* Must save tupdesc in sexpr's context */
 		MemoryContext oldcontext = MemoryContextSwitchTo(sexprCxt);
@@ -814,6 +820,7 @@ ExecEvalFuncArgs(FunctionCallInfo fcinfo,
 	ListCell   *arg;
 
 	int			i = 0;
+
 	foreach(arg, argList)
 	{
 		ExprState  *argstate = (ExprState *) lfirst(arg);

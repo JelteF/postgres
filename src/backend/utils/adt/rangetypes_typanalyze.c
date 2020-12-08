@@ -126,6 +126,7 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 		vacuum_delay_point();
 
 		Datum		value = fetchfunc(stats, range_no, &isnull);
+
 		if (isnull)
 		{
 			/* range is null, just count that */
@@ -141,6 +142,7 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 
 		/* Get range and deserialize it for further analysis. */
 		RangeType  *range = DatumGetRangeTypeP(value);
+
 		range_deserialize(typcache, range, &lower, &upper, &empty);
 
 		if (!empty)
@@ -324,6 +326,7 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 
 		/* Store the fraction of empty ranges */
 		float4	   *emptyfrac = (float4 *) palloc(sizeof(float4));
+
 		*emptyfrac = ((double) empty_cnt) / ((double) non_null_cnt);
 		stats->stanumbers[slot_idx] = emptyfrac;
 		stats->numnumbers[slot_idx] = 1;

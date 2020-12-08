@@ -114,6 +114,7 @@ plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source)
 	}
 
 	int		   *myextra = (int *) malloc(sizeof(int));
+
 	if (!myextra)
 		return false;
 	*myextra = extrachecks;
@@ -224,8 +225,8 @@ plpgsql_call_handler(PG_FUNCTION_ARGS)
 	int			rc;
 
 	bool		nonatomic = fcinfo->context &&
-		IsA(fcinfo->context, CallContext) &&
-		!castNode(CallContext, fcinfo->context)->atomic;
+	IsA(fcinfo->context, CallContext) &&
+	!castNode(CallContext, fcinfo->context)->atomic;
 
 	/*
 	 * Connect to SPI manager
@@ -329,7 +330,7 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 	 */
 	EState	   *simple_eval_estate = CreateExecutorState();
 	ResourceOwner simple_eval_resowner =
-		ResourceOwnerCreate(NULL, "PL/pgSQL DO block simple expressions");
+	ResourceOwnerCreate(NULL, "PL/pgSQL DO block simple expressions");
 
 	/* And run the function */
 	PG_TRY();
@@ -422,6 +423,7 @@ plpgsql_validator(PG_FUNCTION_ARGS)
 
 	/* Get the new function's pg_proc entry */
 	HeapTuple	tuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcoid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for function %u", funcoid);
 	Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(tuple);
@@ -448,7 +450,8 @@ plpgsql_validator(PG_FUNCTION_ARGS)
 	/* Disallow pseudotypes in arguments (either IN or OUT) */
 	/* except for RECORD and polymorphic */
 	int			numargs = get_func_arg_info(tuple,
-								&argtypes, &argnames, &argmodes);
+											&argtypes, &argnames, &argmodes);
+
 	for (i = 0; i < numargs; i++)
 	{
 		if (get_typtype(argtypes[i]) == TYPTYPE_PSEUDO)

@@ -96,13 +96,13 @@ typedef struct CopyToStateData
 	FmgrInfo   *out_functions;	/* lookup info for output functions */
 	MemoryContext rowcontext;	/* per-row evaluation context */
 
-} CopyToStateData;
+}			CopyToStateData;
 
 /* DestReceiver for COPY (query) TO */
 typedef struct
 {
 	DestReceiver pub;			/* publicly-known function pointers */
-	CopyToState	cstate;			/* CopyToStateData for the command */
+	CopyToState cstate;			/* CopyToStateData for the command */
 	uint64		processed;		/* # of tuples processed */
 } DR_copy;
 
@@ -303,6 +303,7 @@ CopySendInt32(CopyToState cstate, int32 val)
 {
 
 	uint32		buf = pg_hton32((uint32) val);
+
 	CopySendData(cstate, &buf, sizeof(buf));
 }
 
@@ -314,6 +315,7 @@ CopySendInt16(CopyToState cstate, int16 val)
 {
 
 	uint16		buf = pg_hton16((uint16) val);
+
 	CopySendData(cstate, &buf, sizeof(buf));
 }
 
@@ -327,6 +329,7 @@ ClosePipeToProgram(CopyToState cstate)
 	Assert(cstate->is_program);
 
 	int			pclose_rc = ClosePipeStream(cstate->copy_file);
+
 	if (pclose_rc == -1)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -420,7 +423,7 @@ BeginCopyTo(ParseState *pstate,
 
 
 	/* Allocate workspace and zero all fields */
-	CopyToState	cstate = (CopyToStateData *) palloc0(sizeof(CopyToStateData));
+	CopyToState cstate = (CopyToStateData *) palloc0(sizeof(CopyToStateData));
 
 	/*
 	 * We allocate everything used by a cstate in a new memory context. This
@@ -433,7 +436,7 @@ BeginCopyTo(ParseState *pstate,
 	MemoryContext oldcontext = MemoryContextSwitchTo(cstate->copycontext);
 
 	/* Extract options from the statement node tree */
-	ProcessCopyOptions(pstate, &cstate->opts, false /* is_from */, options);
+	ProcessCopyOptions(pstate, &cstate->opts, false /* is_from */ , options);
 
 	/* Process the source/target relation or query */
 	if (rel)
@@ -460,8 +463,8 @@ BeginCopyTo(ParseState *pstate,
 		 * DECLARE CURSOR and PREPARE.)  XXX FIXME someday.
 		 */
 		List	   *rewritten = pg_analyze_and_rewrite(copyObject(raw_query),
-										   pstate->p_sourcetext, NULL, 0,
-										   NULL);
+													   pstate->p_sourcetext, NULL, 0,
+													   NULL);
 
 		/* check that we got back something we can work with */
 		if (rewritten == NIL)
@@ -523,7 +526,7 @@ BeginCopyTo(ParseState *pstate,
 
 		/* plan the query */
 		PlannedStmt *plan = pg_plan_query(query, pstate->p_sourcetext,
-							 CURSOR_OPT_PARALLEL_OK, NULL);
+										  CURSOR_OPT_PARALLEL_OK, NULL);
 
 		/*
 		 * With row level security and a user using "COPY relation TO", we
@@ -559,6 +562,7 @@ BeginCopyTo(ParseState *pstate,
 
 		/* Create dest receiver for COPY OUT */
 		DestReceiver *dest = CreateDestReceiver(DestCopyOut);
+
 		((DR_copy *) dest)->cstate = cstate;
 
 		/* Create a QueryDesc requesting no output */
@@ -822,7 +826,8 @@ CopyTo(CopyToState cstate)
 	else
 		tupDesc = cstate->queryDesc->tupDesc;
 	int			num_phys_attrs = tupDesc->natts;
-	cstate->opts.null_print_client = cstate->opts.null_print; /* default */
+
+	cstate->opts.null_print_client = cstate->opts.null_print;	/* default */
 
 	/* We use fe_msgbuf as a per-row buffer regardless of copy_dest */
 	cstate->fe_msgbuf = makeStringInfo();
@@ -865,6 +870,7 @@ CopyTo(CopyToState cstate)
 		CopySendData(cstate, BinarySignature, 11);
 		/* Flags field */
 		int32		tmp = 0;
+
 		CopySendInt32(cstate, tmp);
 		/* No header extension */
 		tmp = 0;
@@ -878,8 +884,8 @@ CopyTo(CopyToState cstate)
 		 */
 		if (cstate->need_transcoding)
 			cstate->opts.null_print_client = pg_server_to_any(cstate->opts.null_print,
-														 cstate->opts.null_print_len,
-														 cstate->file_encoding);
+															  cstate->opts.null_print_len,
+															  cstate->file_encoding);
 
 		/* if a header has been requested send the line */
 		if (cstate->opts.header_line)
@@ -1006,7 +1012,8 @@ CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 			{
 
 				bytea	   *outputbytes = SendFunctionCall(&out_functions[attnum - 1],
-											   value);
+														   value);
+
 				CopySendInt32(cstate, VARSIZE(outputbytes) - VARHDRSZ);
 				CopySendData(cstate, VARDATA(outputbytes),
 							 VARSIZE(outputbytes) - VARHDRSZ);
@@ -1279,7 +1286,7 @@ static bool
 copy_dest_receive(TupleTableSlot *slot, DestReceiver *self)
 {
 	DR_copy    *myState = (DR_copy *) self;
-	CopyToState	cstate = myState->cstate;
+	CopyToState cstate = myState->cstate;
 
 	/* Send the data */
 	CopyOneRowTo(cstate, slot);

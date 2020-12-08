@@ -56,6 +56,7 @@ GetSubscription(Oid subid, bool missing_ok)
 	Form_pg_subscription subform = (Form_pg_subscription) GETSTRUCT(tup);
 
 	Subscription *sub = (Subscription *) palloc(sizeof(Subscription));
+
 	sub->oid = subid;
 	sub->dbid = subform->subdbid;
 	sub->name = pstrdup(NameStr(subform->subname));
@@ -66,9 +67,10 @@ GetSubscription(Oid subid, bool missing_ok)
 
 	/* Get conninfo */
 	Datum		datum = SysCacheGetAttr(SUBSCRIPTIONOID,
-							tup,
-							Anum_pg_subscription_subconninfo,
-							&isnull);
+										tup,
+										Anum_pg_subscription_subconninfo,
+										&isnull);
+
 	Assert(!isnull);
 	sub->conninfo = TextDatumGetCString(datum);
 
@@ -122,7 +124,7 @@ CountDBSubscriptions(Oid dbid)
 				ObjectIdGetDatum(dbid));
 
 	SysScanDesc scan = systable_beginscan(rel, InvalidOid, false,
-							  NULL, 1, &scankey);
+										  NULL, 1, &scankey);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 		nsubs++;
@@ -159,7 +161,8 @@ get_subscription_oid(const char *subname, bool missing_ok)
 {
 
 	Oid			oid = GetSysCacheOid2(SUBSCRIPTIONNAME, Anum_pg_subscription_oid,
-						  MyDatabaseId, CStringGetDatum(subname));
+									  MyDatabaseId, CStringGetDatum(subname));
+
 	if (!OidIsValid(oid) && !missing_ok)
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -236,8 +239,9 @@ AddSubscriptionRelState(Oid subid, Oid relid, char state,
 
 	/* Try finding existing mapping. */
 	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONRELMAP,
-							  ObjectIdGetDatum(relid),
-							  ObjectIdGetDatum(subid));
+										  ObjectIdGetDatum(relid),
+										  ObjectIdGetDatum(subid));
+
 	if (HeapTupleIsValid(tup))
 		elog(ERROR, "subscription table %u in subscription %u already exists",
 			 relid, subid);
@@ -281,8 +285,9 @@ UpdateSubscriptionRelState(Oid subid, Oid relid, char state,
 
 	/* Try finding existing mapping. */
 	HeapTuple	tup = SearchSysCacheCopy2(SUBSCRIPTIONRELMAP,
-							  ObjectIdGetDatum(relid),
-							  ObjectIdGetDatum(subid));
+										  ObjectIdGetDatum(relid),
+										  ObjectIdGetDatum(subid));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "subscription table %u in subscription %u does not exist",
 			 relid, subid);
@@ -323,8 +328,8 @@ GetSubscriptionRelState(Oid subid, Oid relid, XLogRecPtr *sublsn)
 
 	/* Try finding the mapping. */
 	HeapTuple	tup = SearchSysCache2(SUBSCRIPTIONRELMAP,
-						  ObjectIdGetDatum(relid),
-						  ObjectIdGetDatum(subid));
+									  ObjectIdGetDatum(relid),
+									  ObjectIdGetDatum(subid));
 
 	if (!HeapTupleIsValid(tup))
 	{
@@ -337,7 +342,8 @@ GetSubscriptionRelState(Oid subid, Oid relid, XLogRecPtr *sublsn)
 
 	/* Get the LSN */
 	Datum		d = SysCacheGetAttr(SUBSCRIPTIONRELMAP, tup,
-						Anum_pg_subscription_rel_srsublsn, &isnull);
+									Anum_pg_subscription_rel_srsublsn, &isnull);
+
 	if (isnull)
 		*sublsn = InvalidXLogRecPtr;
 	else
@@ -382,6 +388,7 @@ RemoveSubscriptionRel(Oid subid, Oid relid)
 
 	/* Do the search and delete what we found. */
 	TableScanDesc scan = table_beginscan_catalog(rel, nkeys, skey);
+
 	while (HeapTupleIsValid(tup = heap_getnext(scan, ForwardScanDirection)))
 	{
 		CatalogTupleDelete(rel, &tup->t_self);
@@ -413,7 +420,7 @@ GetSubscriptionRelations(Oid subid)
 				ObjectIdGetDatum(subid));
 
 	SysScanDesc scan = systable_beginscan(rel, InvalidOid, false,
-							  NULL, nkeys, skey);
+										  NULL, nkeys, skey);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -422,10 +429,12 @@ GetSubscriptionRelations(Oid subid)
 		Form_pg_subscription_rel subrel = (Form_pg_subscription_rel) GETSTRUCT(tup);
 
 		SubscriptionRelState *relstate = (SubscriptionRelState *) palloc(sizeof(SubscriptionRelState));
+
 		relstate->relid = subrel->srrelid;
 		relstate->state = subrel->srsubstate;
 		Datum		d = SysCacheGetAttr(SUBSCRIPTIONRELMAP, tup,
-							Anum_pg_subscription_rel_srsublsn, &isnull);
+										Anum_pg_subscription_rel_srsublsn, &isnull);
+
 		if (isnull)
 			relstate->lsn = InvalidXLogRecPtr;
 		else
@@ -467,7 +476,7 @@ GetSubscriptionNotReadyRelations(Oid subid)
 				CharGetDatum(SUBREL_STATE_READY));
 
 	SysScanDesc scan = systable_beginscan(rel, InvalidOid, false,
-							  NULL, nkeys, skey);
+										  NULL, nkeys, skey);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -476,10 +485,12 @@ GetSubscriptionNotReadyRelations(Oid subid)
 		Form_pg_subscription_rel subrel = (Form_pg_subscription_rel) GETSTRUCT(tup);
 
 		SubscriptionRelState *relstate = (SubscriptionRelState *) palloc(sizeof(SubscriptionRelState));
+
 		relstate->relid = subrel->srrelid;
 		relstate->state = subrel->srsubstate;
 		Datum		d = SysCacheGetAttr(SUBSCRIPTIONRELMAP, tup,
-							Anum_pg_subscription_rel_srsublsn, &isnull);
+										Anum_pg_subscription_rel_srsublsn, &isnull);
+
 		if (isnull)
 			relstate->lsn = InvalidXLogRecPtr;
 		else

@@ -667,6 +667,7 @@ Setup_AF_UNIX(const char *sock_path)
 		gid_t		gid;
 
 		unsigned long val = strtoul(Unix_socket_group, &endptr, 10);
+
 		if (*endptr == '\0')
 		{						/* numeric group id */
 			gid = val;
@@ -675,6 +676,7 @@ Setup_AF_UNIX(const char *sock_path)
 		{						/* convert group name to id */
 
 			struct group *gr = getgrnam(Unix_socket_group);
+
 			if (!gr)
 			{
 				ereport(LOG,
@@ -960,7 +962,7 @@ pq_recvbuf(void)
 	{
 
 		int			r = secure_read(MyProcPort, PqRecvBuffer + PqRecvLength,
-						PQ_RECV_BUFFER_SIZE - PqRecvLength);
+									PQ_RECV_BUFFER_SIZE - PqRecvLength);
 
 		if (r < 0)
 		{
@@ -1051,6 +1053,7 @@ pq_getbyte_if_available(unsigned char *c)
 	socket_set_nonblocking(true);
 
 	int			r = secure_read(MyProcPort, c, 1);
+
 	if (r < 0)
 	{
 		/*
@@ -1358,6 +1361,7 @@ pq_putbytes(const char *s, size_t len)
 		return 0;
 	PqCommBusy = true;
 	int			res = internal_putbytes(s, len);
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1403,6 +1407,7 @@ socket_flush(void)
 	PqCommBusy = true;
 	socket_set_nonblocking(false);
 	int			res = internal_flush();
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1503,6 +1508,7 @@ socket_flush_if_writable(void)
 
 	PqCommBusy = true;
 	int			res = internal_flush();
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1563,6 +1569,7 @@ socket_putmessage(char msgtype, const char *s, size_t len)
 	{
 
 		uint32		n32 = pg_hton32((uint32) (len + 4));
+
 		if (internal_putbytes((char *) &n32, 4))
 			goto fail;
 	}
@@ -1592,6 +1599,7 @@ socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 	 * as well as the message itself.
 	 */
 	int			required = PqSendPointer + 1 + 4 + len;
+
 	if (required > PqSendBufferSize)
 	{
 		PqSendBuffer = repalloc(PqSendBuffer, required);

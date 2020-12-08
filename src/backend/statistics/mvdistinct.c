@@ -91,12 +91,14 @@ statext_ndistinct_build(double totalrows, int numrows, HeapTuple *rows,
 	int			numcombs = num_combinations(numattrs);
 
 	MVNDistinct *result = palloc(offsetof(MVNDistinct, items) +
-					numcombs * sizeof(MVNDistinctItem));
+								 numcombs * sizeof(MVNDistinctItem));
+
 	result->magic = STATS_NDISTINCT_MAGIC;
 	result->type = STATS_NDISTINCT_TYPE_BASIC;
 	result->nitems = numcombs;
 
 	int			itemcnt = 0;
+
 	for (k = 2; k <= numattrs; k++)
 	{
 		int		   *combination;
@@ -140,11 +142,13 @@ statext_ndistinct_load(Oid mvoid)
 	bool		isnull;
 
 	HeapTuple	htup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(mvoid));
+
 	if (!HeapTupleIsValid(htup))
 		elog(ERROR, "cache lookup failed for statistics object %u", mvoid);
 
 	Datum		ndist = SysCacheGetAttr(STATEXTDATASTXOID, htup,
-							Anum_pg_statistic_ext_data_stxdndistinct, &isnull);
+										Anum_pg_statistic_ext_data_stxdndistinct, &isnull);
+
 	if (isnull)
 		elog(ERROR,
 			 "requested statistic kind \"%c\" is not yet built for statistics object %u",
@@ -180,12 +184,14 @@ statext_ndistinct_serialize(MVNDistinct *ndistinct)
 	{
 
 		int			nmembers = bms_num_members(ndistinct->items[i].attrs);
+
 		Assert(nmembers >= 2);
 
 		len += SizeOfItem(nmembers);
 	}
 
 	bytea	   *output = (bytea *) palloc(len);
+
 	SET_VARSIZE(output, len);
 
 	char	   *tmp = VARDATA(output);
@@ -212,6 +218,7 @@ statext_ndistinct_serialize(MVNDistinct *ndistinct)
 		tmp += sizeof(int);
 
 		int			x = -1;
+
 		while ((x = bms_next_member(item.attrs, x)) >= 0)
 		{
 			AttrNumber	value = (AttrNumber) x;
@@ -270,6 +277,7 @@ statext_ndistinct_deserialize(bytea *data)
 
 	/* what minimum bytea size do we expect for those parameters */
 	Size		minimum_size = MinSizeOfItems(ndist.nitems);
+
 	if (VARSIZE_ANY_EXHDR(data) < minimum_size)
 		elog(ERROR, "invalid MVNDistinct size %zd (expected at least %zd)",
 			 VARSIZE_ANY_EXHDR(data), minimum_size);
@@ -279,7 +287,8 @@ statext_ndistinct_deserialize(bytea *data)
 	 * attnos: those live in bitmapsets allocated separately)
 	 */
 	MVNDistinct *ndistinct = palloc0(MAXALIGN(offsetof(MVNDistinct, items)) +
-						(ndist.nitems * sizeof(MVNDistinctItem)));
+									 (ndist.nitems * sizeof(MVNDistinctItem)));
+
 	ndistinct->magic = ndist.magic;
 	ndistinct->type = ndist.type;
 	ndistinct->nitems = ndist.nitems;
@@ -452,6 +461,7 @@ ndistinct_for_combination(double totalrows, int numrows, HeapTuple *rows,
 		VacAttrStats *colstat = stats[combination[i]];
 
 		TypeCacheEntry *type = lookup_type_cache(colstat->attrtypid, TYPECACHE_LT_OPR);
+
 		if (type->lt_opr == InvalidOid) /* shouldn't happen */
 			elog(ERROR, "cache lookup failed for ordering operator for type %u",
 				 colstat->attrtypid);

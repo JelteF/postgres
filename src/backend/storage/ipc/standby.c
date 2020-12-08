@@ -193,6 +193,7 @@ WaitExceedsMaxStandbyDelay(uint32 wait_event_info)
 
 	/* Are we past the limit time? */
 	TimestampTz ltime = GetStandbyLimitTime();
+
 	if (ltime && GetCurrentTimestamp() >= ltime)
 		return true;
 
@@ -237,7 +238,7 @@ ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
 
 	if (report_waiting)
 		waitStart = GetCurrentTimestamp();
-	char	   *new_status = NULL;			/* we haven't changed the ps display */
+	char	   *new_status = NULL;	/* we haven't changed the ps display */
 
 	while (VirtualTransactionIdIsValid(*waitlist))
 	{
@@ -258,6 +259,7 @@ ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
 				int			len;
 
 				const char *old_status = get_ps_display(&len);
+
 				new_status = (char *) palloc(len + 8 + 1);
 				memcpy(new_status, old_status, len);
 				strcpy(new_status + len, " waiting");
@@ -313,7 +315,7 @@ ResolveRecoveryConflictWithSnapshot(TransactionId latestRemovedXid, RelFileNode 
 		return;
 
 	VirtualTransactionId *backends = GetConflictingVirtualXIDs(latestRemovedXid,
-										 node.dbNode);
+															   node.dbNode);
 
 	ResolveRecoveryConflictWithVirtualXIDs(backends,
 										   PROCSIG_RECOVERY_CONFLICT_SNAPSHOT,
@@ -343,7 +345,8 @@ ResolveRecoveryConflictWithTablespace(Oid tsid)
 	 * We don't wait for commit because drop tablespace is non-transactional.
 	 */
 	VirtualTransactionId *temp_file_users = GetConflictingVirtualXIDs(InvalidTransactionId,
-												InvalidOid);
+																	  InvalidOid);
+
 	ResolveRecoveryConflictWithVirtualXIDs(temp_file_users,
 										   PROCSIG_RECOVERY_CONFLICT_TABLESPACE,
 										   WAIT_EVENT_RECOVERY_CONFLICT_TABLESPACE,
@@ -658,6 +661,7 @@ StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 
 	/* Create a new list for this xid, if we don't have one already. */
 	RecoveryLockListsEntry *entry = hash_search(RecoveryLockLists, &xid, HASH_ENTER, &found);
+
 	if (!found)
 	{
 		entry->xid = xid;
@@ -665,6 +669,7 @@ StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 	}
 
 	xl_standby_lock *newlock = palloc(sizeof(xl_standby_lock));
+
 	newlock->xid = xid;
 	newlock->dbOid = dbOid;
 	newlock->relOid = relOid;
@@ -919,6 +924,7 @@ LogStandbySnapshot(void)
 	 * Get details of any AccessExclusiveLocks being held at the moment.
 	 */
 	xl_standby_lock *locks = GetRunningTransactionLocks(&nlocks);
+
 	if (nlocks > 0)
 		LogAccessExclusiveLocks(nlocks, locks);
 	pfree(locks);

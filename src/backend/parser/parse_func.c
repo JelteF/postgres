@@ -145,6 +145,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	 * the argument count unchanged).
 	 */
 	int			nargs = 0;
+
 	foreach(l, fargs)
 	{
 		Node	   *arg = lfirst(l);
@@ -169,6 +170,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	 * bookkeeping to match things up.
 	 */
 	List	   *argnames = NIL;
+
 	foreach(l, fargs)
 	{
 		Node	   *arg = lfirst(l);
@@ -214,13 +216,13 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	 * aggregate or variadic decoration, or named arguments).
 	 */
 	bool		could_be_projection = (nargs == 1 && !proc_call &&
-						   agg_order == NIL && agg_filter == NULL &&
-						   !agg_star && !agg_distinct && over == NULL &&
-						   !func_variadic && argnames == NIL &&
-						   funcformat == COERCE_EXPLICIT_CALL &&
-						   list_length(funcname) == 1 &&
-						   (actual_arg_types[0] == RECORDOID ||
-							ISCOMPLEX(actual_arg_types[0])));
+									   agg_order == NIL && agg_filter == NULL &&
+									   !agg_star && !agg_distinct && over == NULL &&
+									   !func_variadic && argnames == NIL &&
+									   funcformat == COERCE_EXPLICIT_CALL &&
+									   list_length(funcname) == 1 &&
+									   (actual_arg_types[0] == RECORDOID ||
+										ISCOMPLEX(actual_arg_types[0])));
 
 	/*
 	 * If it's column syntax, check for column projection case first.
@@ -258,11 +260,11 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	setup_parser_errposition_callback(&pcbstate, pstate, location);
 
 	FuncDetailCode fdresult = func_get_detail(funcname, fargs, argnames, nargs,
-							   actual_arg_types,
-							   !func_variadic, true,
-							   &funcid, &rettype, &retset,
-							   &nvargs, &vatype,
-							   &declared_arg_types, &argdefaults);
+											  actual_arg_types,
+											  !func_variadic, true,
+											  &funcid, &rettype, &retset,
+											  &nvargs, &vatype,
+											  &declared_arg_types, &argdefaults);
 
 	cancel_parser_errposition_callback(&pcbstate);
 
@@ -356,11 +358,14 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 		 */
 
 		HeapTuple	tup = SearchSysCache1(AGGFNOID, ObjectIdGetDatum(funcid));
+
 		if (!HeapTupleIsValid(tup)) /* should not happen */
 			elog(ERROR, "cache lookup failed for aggregate %u", funcid);
 		Form_pg_aggregate classForm = (Form_pg_aggregate) GETSTRUCT(tup);
+
 		aggkind = classForm->aggkind;
 		int			catDirectArgs = classForm->aggnumdirectargs;
+
 		ReleaseSysCache(tup);
 
 		/* Now check various disallowed cases. */
@@ -395,6 +400,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 			 */
 			int			numAggregatedArgs = list_length(agg_order);
 			int			numDirectArgs = nargs - numAggregatedArgs;
+
 			Assert(numDirectArgs >= 0);
 
 			if (!OidIsValid(vatype))
@@ -423,6 +429,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 				 */
 
 				int			pronargs = nargs;
+
 				if (nvargs > 1)
 					pronargs -= nvargs - 1;
 				if (catDirectArgs < pronargs)
@@ -626,6 +633,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 	 * planner has to insert the up-to-date values at plan time.
 	 */
 	int			nargsplusdefs = nargs;
+
 	foreach(l, argdefaults)
 	{
 		Node	   *expr = (Node *) lfirst(l);
@@ -679,6 +687,7 @@ ParseFuncOrColumn(ParseState *pstate, List *funcname, List *fargs,
 
 		Assert(non_var_args >= 0);
 		List	   *vargs = list_copy_tail(fargs, non_var_args);
+
 		fargs = list_truncate(fargs, non_var_args);
 
 		newa->elements = vargs;
@@ -1043,6 +1052,7 @@ func_select_candidate(int nargs,
 	 * exact types. Keep all candidates if none match.
 	 */
 	int			ncandidates = 0;
+
 	nbestMatch = 0;
 	last_candidate = NULL;
 	for (current_candidate = candidates;
@@ -1160,6 +1170,7 @@ func_select_candidate(int nargs,
 	 * keep them all instead.
 	 */
 	bool		resolved_unknowns = false;
+
 	for (i = 0; i < nargs; i++)
 	{
 
@@ -1169,6 +1180,7 @@ func_select_candidate(int nargs,
 		slot_category[i] = TYPCATEGORY_INVALID;
 		slot_has_preferred_type[i] = false;
 		bool		have_conflict = false;
+
 		for (current_candidate = candidates;
 			 current_candidate != NULL;
 			 current_candidate = current_candidate->next)
@@ -1397,8 +1409,8 @@ func_get_detail(List *funcname,
 
 	/* Get list of possible candidates from namespace search */
 	FuncCandidateList raw_candidates = FuncnameGetCandidates(funcname, nargs, fargnames,
-										   expand_variadic, expand_defaults,
-										   false);
+															 expand_variadic, expand_defaults,
+															 false);
 
 	/*
 	 * Quickly check if there is an exact match to the input datatypes (there
@@ -1475,8 +1487,9 @@ func_get_detail(List *funcname,
 					Oid			cfuncid;
 
 					CoercionPathType cpathtype = find_coercion_pathway(targetType, sourceType,
-													  COERCION_EXPLICIT,
-													  &cfuncid);
+																	   COERCION_EXPLICIT,
+																	   &cfuncid);
+
 					switch (cpathtype)
 					{
 						case COERCION_PATH_RELABELTYPE:
@@ -1518,9 +1531,9 @@ func_get_detail(List *funcname,
 			FuncCandidateList current_candidates;
 
 			int			ncandidates = func_match_argtypes(nargs,
-											  argtypes,
-											  raw_candidates,
-											  &current_candidates);
+														  argtypes,
+														  raw_candidates,
+														  &current_candidates);
 
 			/* one match only? then run with it... */
 			if (ncandidates == 1)
@@ -1591,11 +1604,13 @@ func_get_detail(List *funcname,
 		}
 
 		HeapTuple	ftup = SearchSysCache1(PROCOID,
-							   ObjectIdGetDatum(best_candidate->oid));
+										   ObjectIdGetDatum(best_candidate->oid));
+
 		if (!HeapTupleIsValid(ftup))	/* should not happen */
 			elog(ERROR, "cache lookup failed for function %u",
 				 best_candidate->oid);
 		Form_pg_proc pform = (Form_pg_proc) GETSTRUCT(ftup);
+
 		*rettype = pform->prorettype;
 		*retset = pform->proretset;
 		*vatype = pform->provariadic;
@@ -1609,11 +1624,13 @@ func_get_detail(List *funcname,
 				elog(ERROR, "not enough default arguments");
 
 			Datum		proargdefaults = SysCacheGetAttr(PROCOID, ftup,
-											 Anum_pg_proc_proargdefaults,
-											 &isnull);
+														 Anum_pg_proc_proargdefaults,
+														 &isnull);
+
 			Assert(!isnull);
 			char	   *str = TextDatumGetCString(proargdefaults);
 			List	   *defaults = castNode(List, stringToNode(str));
+
 			pfree(str);
 
 			/* Delete any unused defaults from the returned list */
@@ -1632,10 +1649,12 @@ func_get_detail(List *funcname,
 
 				Bitmapset  *defargnumbers = NULL;
 				int		   *firstdefarg = &best_candidate->argnumbers[best_candidate->nargs - best_candidate->ndargs];
+
 				for (i = 0; i < best_candidate->ndargs; i++)
 					defargnumbers = bms_add_member(defargnumbers,
 												   firstdefarg[i]);
 				List	   *newdefaults = NIL;
+
 				i = pform->pronargs - pform->pronargdefaults;
 				foreach(lc, defaults)
 				{
@@ -1655,6 +1674,7 @@ func_get_detail(List *funcname,
 				 */
 
 				int			ndelete = list_length(defaults) - best_candidate->ndargs;
+
 				if (ndelete > 0)
 					defaults = list_copy_tail(defaults, ndelete);
 				*argdefaults = defaults;
@@ -1741,12 +1761,12 @@ unify_hypothetical_args(ParseState *pstate,
 		 * the aggregated values).
 		 */
 		Oid			commontype = select_common_type(pstate,
-										list_make2(lfirst(aarg), lfirst(harg)),
-										"WITHIN GROUP",
-										NULL);
+													list_make2(lfirst(aarg), lfirst(harg)),
+													"WITHIN GROUP",
+													NULL);
 		int32		commontypmod = select_common_typmod(pstate,
-											list_make2(lfirst(aarg), lfirst(harg)),
-											commontype);
+														list_make2(lfirst(aarg), lfirst(harg)),
+														commontype);
 
 		/*
 		 * Perform the coercions.  We don't need to worry about NamedArgExprs
@@ -1851,7 +1871,8 @@ FuncNameAsType(List *funcname)
 	 * contract for writing SECURITY DEFINER functions safely.
 	 */
 	Type		typtup = LookupTypeNameExtended(NULL, makeTypeNameFromNameList(funcname),
-									NULL, false, false);
+												NULL, false, false);
+
 	if (typtup == NULL)
 		return InvalidOid;
 
@@ -1893,8 +1914,9 @@ ParseComplexProjection(ParseState *pstate, const char *funcname, Node *first_arg
 	{
 
 		ParseNamespaceItem *nsitem = GetNSItemByRangeTablePosn(pstate,
-										   ((Var *) first_arg)->varno,
-										   ((Var *) first_arg)->varlevelsup);
+															   ((Var *) first_arg)->varno,
+															   ((Var *) first_arg)->varlevelsup);
+
 		/* Return a Var if funcname matches a column, else NULL */
 		return scanNSItemForColumn(pstate, nsitem,
 								   ((Var *) first_arg)->varlevelsup,
@@ -2017,7 +2039,7 @@ LookupFuncNameInternal(List *funcname, int nargs, const Oid *argtypes,
 	*lookupError = FUNCLOOKUP_NOSUCHFUNC;
 
 	FuncCandidateList clist = FuncnameGetCandidates(funcname, nargs, NIL, false, false,
-								  missing_ok);
+													missing_ok);
 
 	/*
 	 * If no arguments were specified, the name must yield a unique candidate.
@@ -2079,7 +2101,7 @@ LookupFuncName(List *funcname, int nargs, const Oid *argtypes, bool missing_ok)
 	FuncLookupError lookupError;
 
 	Oid			funcoid = LookupFuncNameInternal(funcname, nargs, argtypes, missing_ok,
-									 &lookupError);
+												 &lookupError);
 
 	if (OidIsValid(funcoid))
 		return funcoid;
@@ -2145,6 +2167,7 @@ LookupFuncWithArgs(ObjectType objtype, ObjectWithArgs *func, bool missing_ok)
 		   objtype == OBJECT_ROUTINE);
 
 	int			argcount = list_length(func->objargs);
+
 	if (argcount > FUNC_MAX_ARGS)
 	{
 		if (objtype == OBJECT_PROCEDURE)
@@ -2164,6 +2187,7 @@ LookupFuncWithArgs(ObjectType objtype, ObjectWithArgs *func, bool missing_ok)
 	}
 
 	int			i = 0;
+
 	foreach(args_item, func->objargs)
 	{
 		TypeName   *t = (TypeName *) lfirst(args_item);
@@ -2181,7 +2205,7 @@ LookupFuncWithArgs(ObjectType objtype, ObjectWithArgs *func, bool missing_ok)
 	int			nargs = func->args_unspecified ? -1 : argcount;
 
 	Oid			oid = LookupFuncNameInternal(func->objname, nargs, argoids, missing_ok,
-								 &lookupError);
+											 &lookupError);
 
 	if (OidIsValid(oid))
 	{
@@ -2365,6 +2389,7 @@ check_srf_call_placement(ParseState *pstate, Node *last_srf, int location)
 	 */
 	const char *err = NULL;
 	bool		errkind = false;
+
 	switch (pstate->p_expr_kind)
 	{
 		case EXPR_KIND_NONE:

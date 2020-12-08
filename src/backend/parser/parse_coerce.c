@@ -94,12 +94,13 @@ coerce_to_target_type(ParseState *pstate, Node *expr, Oid exprtype,
 	 * multiple stacked CollateExprs, we just discard all but the topmost.
 	 */
 	Node	   *origexpr = expr;
+
 	while (expr && IsA(expr, CollateExpr))
 		expr = (Node *) ((CollateExpr *) expr)->arg;
 
 	Node	   *result = coerce_type(pstate, expr, exprtype,
-						 targettype, targettypmod,
-						 ccontext, cformat, location);
+									 targettype, targettypmod,
+									 ccontext, cformat, location);
 
 	/*
 	 * If the target is a fixed-length type, it may need a length coercion as
@@ -333,8 +334,9 @@ coerce_type(ParseState *pstate, Node *node,
 		{
 
 			Datum		val2 = stringTypeDatum(baseType,
-								   DatumGetCString(con->constvalue),
-								   inputTypeMod);
+											   DatumGetCString(con->constvalue),
+											   inputTypeMod);
+
 			if (newcon->constlen == -1)
 				val2 = PointerGetDatum(PG_DETOAST_DATUM(val2));
 			if (!datumIsEqual(newcon->constvalue, val2, false, newcon->constlen))
@@ -575,7 +577,8 @@ can_coerce_type(int nargs, const Oid *input_typeids, const Oid *target_typeids,
 		 * both binary-compatible and coercion-function cases.
 		 */
 		CoercionPathType pathtype = find_coercion_pathway(targetTypeId, inputTypeId, ccontext,
-										 &funcId);
+														  &funcId);
+
 		if (pathtype != COERCION_PATH_NONE)
 			continue;
 
@@ -694,6 +697,7 @@ coerce_to_domain(Node *arg, Oid baseTypeId, int32 baseTypeMod, Oid typeId,
 	 * that the expression is properly labeled as to result type.
 	 */
 	CoerceToDomain *result = makeNode(CoerceToDomain);
+
 	result->arg = (Expr *) arg;
 	result->resulttype = typeId;
 	result->resulttypmod = -1;	/* currently, always -1 for domains */
@@ -812,6 +816,7 @@ build_coercion_expression(Node *node,
 	{
 
 		HeapTuple	tp = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcId));
+
 		if (!HeapTupleIsValid(tp))
 			elog(ERROR, "cache lookup failed for function %u", funcId);
 		Form_pg_proc procstruct = (Form_pg_proc) GETSTRUCT(tp);
@@ -872,7 +877,8 @@ build_coercion_expression(Node *node,
 		}
 
 		FuncExpr   *fexpr = makeFuncExpr(funcId, targetTypeId, args,
-							 InvalidOid, InvalidOid, cformat);
+										 InvalidOid, InvalidOid, cformat);
+
 		fexpr->location = location;
 		return (Node *) fexpr;
 	}
@@ -889,7 +895,7 @@ build_coercion_expression(Node *node,
 		 */
 		int32		sourceBaseTypeMod = exprTypmod(node);
 		Oid			sourceBaseTypeId = getBaseTypeAndTypmod(exprType(node),
-												&sourceBaseTypeMod);
+															&sourceBaseTypeMod);
 
 		/*
 		 * Set up a CaseTestExpr representing one element of the source array.
@@ -904,16 +910,18 @@ build_coercion_expression(Node *node,
 
 		/* And coerce it to the target element type */
 		Oid			targetElementType = get_element_type(targetTypeId);
+
 		Assert(OidIsValid(targetElementType));
 
 		Node	   *elemexpr = coerce_to_target_type(NULL,
-										 (Node *) ctest,
-										 ctest->typeId,
-										 targetElementType,
-										 targetTypMod,
-										 ccontext,
-										 cformat,
-										 location);
+													 (Node *) ctest,
+													 ctest->typeId,
+													 targetElementType,
+													 targetTypMod,
+													 ccontext,
+													 cformat,
+													 location);
+
 		if (elemexpr == NULL)	/* shouldn't happen */
 			elog(ERROR, "failed to coerce array element type as expected");
 
@@ -990,6 +998,7 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
 		int			vlocation = ((Var *) node)->location;
 
 		ParseNamespaceItem *nsitem = GetNSItemByRangeTablePosn(pstate, rtindex, sublevels_up);
+
 		args = expandNSItemVars(nsitem, sublevels_up, vlocation, NULL);
 	}
 	else
@@ -1011,6 +1020,7 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
 	List	   *newargs = NIL;
 	int			ucolno = 1;
 	ListCell   *arg = list_head(args);
+
 	for (i = 0; i < tupdesc->natts; i++)
 	{
 		Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
@@ -1039,12 +1049,13 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
 		Oid			exprtype = exprType(expr);
 
 		Node	   *cexpr = coerce_to_target_type(pstate,
-									  expr, exprtype,
-									  attr->atttypid,
-									  attr->atttypmod,
-									  ccontext,
-									  COERCE_IMPLICIT_CAST,
-									  -1);
+												  expr, exprtype,
+												  attr->atttypid,
+												  attr->atttypmod,
+												  ccontext,
+												  COERCE_IMPLICIT_CAST,
+												  -1);
+
 		if (cexpr == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_CANNOT_COERCE),
@@ -1072,6 +1083,7 @@ coerce_record_to_complex(ParseState *pstate, Node *node,
 	ReleaseTupleDesc(tupdesc);
 
 	RowExpr    *rowexpr = makeNode(RowExpr);
+
 	rowexpr->args = newargs;
 	rowexpr->row_typeid = baseTypeId;
 	rowexpr->row_format = cformat;
@@ -1112,10 +1124,11 @@ coerce_to_boolean(ParseState *pstate, Node *node,
 	{
 
 		Node	   *newnode = coerce_to_target_type(pstate, node, inputTypeId,
-										BOOLOID, -1,
-										COERCION_ASSIGNMENT,
-										COERCE_IMPLICIT_CAST,
-										-1);
+													BOOLOID, -1,
+													COERCION_ASSIGNMENT,
+													COERCE_IMPLICIT_CAST,
+													-1);
+
 		if (newnode == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -1159,10 +1172,11 @@ coerce_to_specific_type_typmod(ParseState *pstate, Node *node,
 	{
 
 		Node	   *newnode = coerce_to_target_type(pstate, node, inputTypeId,
-										targetTypeId, targetTypmod,
-										COERCION_ASSIGNMENT,
-										COERCE_IMPLICIT_CAST,
-										-1);
+													targetTypeId, targetTypmod,
+													COERCION_ASSIGNMENT,
+													COERCE_IMPLICIT_CAST,
+													-1);
+
 		if (newnode == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -1503,7 +1517,7 @@ select_common_typmod(ParseState *pstate, List *exprs, Oid common_type)
 
 	foreach(lc, exprs)
 	{
-		Node   *expr = (Node *) lfirst(lc);
+		Node	   *expr = (Node *) lfirst(lc);
 
 		/* Types must match */
 		if (exprType(expr) != common_type)
@@ -1652,6 +1666,7 @@ check_generic_type_consistency(const Oid *actual_arg_types,
 				continue;
 			actual_type = getBaseType(actual_type); /* flatten domains */
 			Oid			elem_type = get_element_type(actual_type);
+
 			if (!OidIsValid(elem_type))
 				return false;	/* not an array */
 			/* collect the element type for common-supertype choice */
@@ -1701,6 +1716,7 @@ check_generic_type_consistency(const Oid *actual_arg_types,
 		{
 
 			Oid			array_typelem = get_element_type(array_typeid);
+
 			if (!OidIsValid(array_typelem))
 				return false;	/* should be an array, but isn't */
 
@@ -1725,6 +1741,7 @@ check_generic_type_consistency(const Oid *actual_arg_types,
 	{
 
 		Oid			range_typelem = get_range_subtype(range_typeid);
+
 		if (!OidIsValid(range_typelem))
 			return false;		/* should be a range, but isn't */
 
@@ -1761,9 +1778,9 @@ check_generic_type_consistency(const Oid *actual_arg_types,
 	{
 
 		Oid			anycompatible_typeid =
-			select_common_type_from_oids(n_anycompatible_args,
-										 anycompatible_actual_types,
-										 true);
+		select_common_type_from_oids(n_anycompatible_args,
+									 anycompatible_actual_types,
+									 true);
 
 		if (!OidIsValid(anycompatible_typeid))
 			return false;		/* there's no common supertype */
@@ -1999,6 +2016,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 				continue;		/* no new information here */
 			actual_type = getBaseType(actual_type); /* flatten domains */
 			Oid			anycompatible_elem_type = get_element_type(actual_type);
+
 			if (!OidIsValid(anycompatible_elem_type))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -2112,6 +2130,7 @@ enforce_generic_type_consistency(const Oid *actual_arg_types,
 		{
 
 			Oid			range_typelem = get_range_subtype(range_typeid);
+
 			if (!OidIsValid(range_typelem))
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -2599,14 +2618,15 @@ IsBinaryCoercible(Oid srctype, Oid targettype)
 
 	/* Else look in pg_cast */
 	HeapTuple	tuple = SearchSysCache2(CASTSOURCETARGET,
-							ObjectIdGetDatum(srctype),
-							ObjectIdGetDatum(targettype));
+										ObjectIdGetDatum(srctype),
+										ObjectIdGetDatum(targettype));
+
 	if (!HeapTupleIsValid(tuple))
 		return false;			/* no cast */
 	Form_pg_cast castForm = (Form_pg_cast) GETSTRUCT(tuple);
 
 	bool		result = (castForm->castmethod == COERCION_METHOD_BINARY &&
-			  castForm->castcontext == COERCION_CODE_IMPLICIT);
+						  castForm->castcontext == COERCION_CODE_IMPLICIT);
 
 	ReleaseSysCache(tuple);
 
@@ -2661,8 +2681,8 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
 
 	/* Look in pg_cast */
 	HeapTuple	tuple = SearchSysCache2(CASTSOURCETARGET,
-							ObjectIdGetDatum(sourceTypeId),
-							ObjectIdGetDatum(targetTypeId));
+										ObjectIdGetDatum(sourceTypeId),
+										ObjectIdGetDatum(targetTypeId));
 
 	if (HeapTupleIsValid(tuple))
 	{
@@ -2737,9 +2757,10 @@ find_coercion_pathway(Oid targetTypeId, Oid sourceTypeId,
 				Oid			elemfuncid;
 
 				CoercionPathType elempathtype = find_coercion_pathway(targetElem,
-													 sourceElem,
-													 ccontext,
-													 &elemfuncid);
+																	  sourceElem,
+																	  ccontext,
+																	  &elemfuncid);
+
 				if (elempathtype != COERCION_PATH_NONE)
 				{
 					result = COERCION_PATH_ARRAYCOERCE;
@@ -2815,8 +2836,8 @@ find_typmod_coercion_function(Oid typeId,
 
 	/* Look in pg_cast */
 	HeapTuple	tuple = SearchSysCache2(CASTSOURCETARGET,
-							ObjectIdGetDatum(typeId),
-							ObjectIdGetDatum(typeId));
+										ObjectIdGetDatum(typeId),
+										ObjectIdGetDatum(typeId));
 
 	if (HeapTupleIsValid(tuple))
 	{
@@ -2863,10 +2884,12 @@ typeIsOfTypedTable(Oid reltypeId, Oid reloftypeId)
 	{
 
 		HeapTuple	tp = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 		if (!HeapTupleIsValid(tp))
 			elog(ERROR, "cache lookup failed for relation %u", relid);
 
 		Form_pg_class reltup = (Form_pg_class) GETSTRUCT(tp);
+
 		if (reltup->reloftype == reloftypeId)
 			result = true;
 

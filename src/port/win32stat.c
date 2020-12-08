@@ -35,17 +35,17 @@ typedef struct _FILE_STANDARD_INFORMATION
 	ULONG		NumberOfLinks;
 	BOOLEAN		DeletePending;
 	BOOLEAN		Directory;
-} FILE_STANDARD_INFORMATION;
+}			FILE_STANDARD_INFORMATION;
 #define FileStandardInformation 5
 #endif							/* !defined(__MINGW32__) &&
 								 * !defined(__MINGW64__) */
 
-typedef NTSTATUS (NTAPI * PFN_NTQUERYINFORMATIONFILE)
-			(IN HANDLE FileHandle,
-			 OUT PIO_STATUS_BLOCK IoStatusBlock,
-			 OUT PVOID FileInformation,
-			 IN ULONG Length,
-			 IN FILE_INFORMATION_CLASS FileInformationClass);
+typedef NTSTATUS(NTAPI * PFN_NTQUERYINFORMATIONFILE)
+(IN HANDLE FileHandle,
+ OUT PIO_STATUS_BLOCK IoStatusBlock,
+ OUT PVOID FileInformation,
+ IN ULONG Length,
+ IN FILE_INFORMATION_CLASS FileInformationClass);
 
 static PFN_NTQUERYINFORMATIONFILE _NtQueryInformationFile = NULL;
 

@@ -110,6 +110,7 @@ exprType(const Node *expr)
 					if (!qtree || !IsA(qtree, Query))
 						elog(ERROR, "cannot get type for untransformed sublink");
 					TargetEntry *tent = linitial_node(TargetEntry, qtree->targetList);
+
 					Assert(!tent->resjunk);
 					type = exprType((Node *) tent->expr);
 					if (sublink->subLinkType == ARRAY_SUBLINK)
@@ -322,6 +323,7 @@ exprTypmod(const Node *expr)
 					if (!qtree || !IsA(qtree, Query))
 						elog(ERROR, "cannot get type for untransformed sublink");
 					TargetEntry *tent = linitial_node(TargetEntry, qtree->targetList);
+
 					Assert(!tent->resjunk);
 					return exprTypmod((Node *) tent->expr);
 					/* note we don't need to care if it's an array */
@@ -374,6 +376,7 @@ exprTypmod(const Node *expr)
 				if (exprType((Node *) cexpr->defresult) != casetype)
 					return -1;
 				int32		typmod = exprTypmod((Node *) cexpr->defresult);
+
 				if (typmod < 0)
 					return -1;	/* no point in trying harder */
 				foreach(arg, cexpr->args)
@@ -403,6 +406,7 @@ exprTypmod(const Node *expr)
 				if (arrayexpr->elements == NIL)
 					return -1;
 				int32		typmod = exprTypmod((Node *) linitial(arrayexpr->elements));
+
 				if (typmod < 0)
 					return -1;	/* no point in trying harder */
 				if (arrayexpr->multidims)
@@ -434,6 +438,7 @@ exprTypmod(const Node *expr)
 				if (exprType((Node *) linitial(cexpr->args)) != coalescetype)
 					return -1;
 				int32		typmod = exprTypmod((Node *) linitial(cexpr->args));
+
 				if (typmod < 0)
 					return -1;	/* no point in trying harder */
 				for_each_from(arg, cexpr->args, 1)
@@ -461,6 +466,7 @@ exprTypmod(const Node *expr)
 				if (exprType((Node *) linitial(mexpr->args)) != minmaxtype)
 					return -1;
 				int32		typmod = exprTypmod((Node *) linitial(mexpr->args));
+
 				if (typmod < 0)
 					return -1;	/* no point in trying harder */
 				for_each_from(arg, mexpr->args, 1)
@@ -529,10 +535,12 @@ exprIsLengthCoercion(const Node *expr, int32 *coercedTypmod)
 		 * from a length coercion (it must be a type coercion, instead).
 		 */
 		int			nargs = list_length(func->args);
+
 		if (nargs < 2 || nargs > 3)
 			return false;
 
 		Const	   *second_arg = (Const *) lsecond(func->args);
+
 		if (!IsA(second_arg, Const) ||
 			second_arg->consttype != INT4OID ||
 			second_arg->constisnull)
@@ -821,6 +829,7 @@ exprCollation(const Node *expr)
 					if (!qtree || !IsA(qtree, Query))
 						elog(ERROR, "cannot get collation for untransformed sublink");
 					TargetEntry *tent = linitial_node(TargetEntry, qtree->targetList);
+
 					Assert(!tent->resjunk);
 					coll = exprCollation((Node *) tent->expr);
 					/* collation doesn't change if it's converted to array */
@@ -1069,6 +1078,7 @@ exprSetCollation(Node *expr, Oid collation)
 					if (!qtree || !IsA(qtree, Query))
 						elog(ERROR, "cannot set collation for untransformed sublink");
 					TargetEntry *tent = linitial_node(TargetEntry, qtree->targetList);
+
 					Assert(!tent->resjunk);
 					Assert(collation == exprCollation((Node *) tent->expr));
 				}
@@ -3043,6 +3053,7 @@ expression_tree_mutator(Node *node,
 				ListCell   *temp;
 
 				List	   *resultlist = NIL;
+
 				foreach(temp, (List *) node)
 				{
 					resultlist = lappend(resultlist,
@@ -3284,6 +3295,7 @@ query_tree_mutator(Query *query,
 		ListCell   *temp;
 
 		List	   *resultlist = NIL;
+
 		foreach(temp, query->windowClause)
 		{
 			WindowClause *wc = lfirst_node(WindowClause, temp);

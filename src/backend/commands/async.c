@@ -482,6 +482,7 @@ asyncQueuePageDiff(int p, int q)
 	Assert(q >= 0 && q <= QUEUE_MAX_PAGE);
 
 	int			diff = p - q;
+
 	if (diff >= ((QUEUE_MAX_PAGE + 1) / 2))
 		diff -= QUEUE_MAX_PAGE + 1;
 	else if (diff < -((QUEUE_MAX_PAGE + 1) / 2))
@@ -505,6 +506,7 @@ AsyncShmemSize(void)
 
 	/* This had better match AsyncShmemInit */
 	Size		size = mul_size(MaxBackends + 1, sizeof(QueueBackendStatus));
+
 	size = add_size(size, offsetof(AsyncQueueControl, backend));
 
 	size = add_size(size, SimpleLruShmemSize(NUM_NOTIFY_BUFFERS, 0));
@@ -527,6 +529,7 @@ AsyncShmemInit(void)
 	 * zero'th entry is unused but must be allocated.
 	 */
 	Size		size = mul_size(MaxBackends + 1, sizeof(QueueBackendStatus));
+
 	size = add_size(size, offsetof(AsyncQueueControl, backend));
 
 	asyncQueueControl = (AsyncQueueControl *)
@@ -647,7 +650,8 @@ Async_Notify(const char *channel, const char *payload)
 	MemoryContext oldcontext = MemoryContextSwitchTo(CurTransactionContext);
 
 	Notification *n = (Notification *) palloc(offsetof(Notification, data) +
-								channel_len + payload_len + 2);
+											  channel_len + payload_len + 2);
+
 	n->channel_len = channel_len;
 	n->payload_len = payload_len;
 	strcpy(n->data, channel);
@@ -665,8 +669,9 @@ Async_Notify(const char *channel, const char *payload)
 		 * get changed later by AtSubCommit_Notify.
 		 */
 		NotificationList *notifies = (NotificationList *)
-			MemoryContextAlloc(TopTransactionContext,
-							   sizeof(NotificationList));
+		MemoryContextAlloc(TopTransactionContext,
+						   sizeof(NotificationList));
+
 		notifies->nestingLevel = my_level;
 		notifies->events = list_make1(n);
 		/* We certainly don't need a hashtable yet */
@@ -715,7 +720,8 @@ queue_listen(ListenActionKind action, const char *channel)
 
 	/* space for terminating null is included in sizeof(ListenAction) */
 	ListenAction *actrec = (ListenAction *) palloc(offsetof(ListenAction, channel) +
-									 strlen(channel) + 1);
+												   strlen(channel) + 1);
+
 	actrec->action = action;
 	strcpy(actrec->channel, channel);
 
@@ -728,7 +734,8 @@ queue_listen(ListenActionKind action, const char *channel)
 		 * changed later by AtSubCommit_Notify.
 		 */
 		ActionList *actions = (ActionList *)
-			MemoryContextAlloc(TopTransactionContext, sizeof(ActionList));
+		MemoryContextAlloc(TopTransactionContext, sizeof(ActionList));
+
 		actions->nestingLevel = my_level;
 		actions->actions = list_make1(actrec);
 		actions->upper = pendingActions;
@@ -936,6 +943,7 @@ PreCommit_Notify(void)
 		backendHasSentNotifications = true;
 
 		ListCell   *nextNotify = list_head(pendingNotifies->events);
+
 		while (nextNotify != NULL)
 		{
 			/*
@@ -1067,6 +1075,7 @@ Exec_ListenPreCommit(void)
 	QueuePosition head = QUEUE_HEAD;
 	QueuePosition max = QUEUE_TAIL;
 	BackendId	prevListener = InvalidBackendId;
+
 	for (BackendId i = QUEUE_FIRST_LISTENER; i > 0; i = QUEUE_NEXT_LISTENER(i))
 	{
 		if (QUEUE_BACKEND_DBOID(i) == MyDatabaseId)
@@ -1128,6 +1137,7 @@ Exec_ListenCommit(const char *channel)
 	 * later.
 	 */
 	MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+
 	listenChannels = lappend(listenChannels, pstrdup(channel));
 	MemoryContextSwitchTo(oldcontext);
 }
@@ -1341,9 +1351,11 @@ asyncQueueIsFull(void)
 	 * might try to create the next head page in any case.
 	 */
 	int			nexthead = QUEUE_POS_PAGE(QUEUE_HEAD) + 1;
+
 	if (nexthead > QUEUE_MAX_PAGE)
 		nexthead = 0;			/* wrap around */
 	int			boundary = QUEUE_STOP_PAGE;
+
 	boundary -= boundary % SLRU_PAGES_PER_SEGMENT;
 	return asyncQueuePagePrecedes(nexthead, boundary);
 }
@@ -1399,6 +1411,7 @@ asyncQueueNotificationToEntry(Notification *n, AsyncQueueEntry *qe)
 
 	/* The terminators are already included in AsyncQueueEntryEmptySize */
 	int			entryLength = AsyncQueueEntryEmptySize + payloadlen + channellen;
+
 	entryLength = QUEUEALIGN(entryLength);
 	qe->length = entryLength;
 	qe->dboid = MyDatabaseId;
@@ -1455,6 +1468,7 @@ asyncQueueAddEntries(ListCell *nextNotify)
 	 * wrapped around, but re-zeroing the page is harmless in that case.)
 	 */
 	int			pageno = QUEUE_POS_PAGE(queue_head);
+
 	if (QUEUE_POS_IS_ZERO(queue_head))
 		slotno = SimpleLruZeroPage(NotifyCtl, pageno);
 	else
@@ -1544,6 +1558,7 @@ pg_notification_queue_usage(PG_FUNCTION_ARGS)
 
 	LWLockAcquire(NotifyQueueLock, LW_SHARED);
 	double		usage = asyncQueueUsage();
+
 	LWLockRelease(NotifyQueueLock);
 
 	PG_RETURN_FLOAT8(usage);
@@ -1592,6 +1607,7 @@ asyncQueueFillWarning(void)
 {
 
 	double		fillDegree = asyncQueueUsage();
+
 	if (fillDegree < 0.5)
 		return;
 
@@ -1664,6 +1680,7 @@ SignalBackends(void)
 		if (pid == MyProcPid)
 			continue;			/* never signal self */
 		QueuePosition pos = QUEUE_BACKEND_POS(i);
+
 		if (QUEUE_BACKEND_DBOID(i) == MyDatabaseId)
 		{
 			/*
@@ -1909,6 +1926,7 @@ asyncQueueReadAllNotifications(void)
 	Assert(MyProcPid == QUEUE_BACKEND_PID(MyBackendId));
 	volatile QueuePosition pos = QUEUE_BACKEND_POS(MyBackendId);
 	QueuePosition head = QUEUE_HEAD;
+
 	LWLockRelease(NotifyQueueLock);
 
 	if (QUEUE_POS_EQUAL(pos, head))
@@ -1985,7 +2003,8 @@ asyncQueueReadAllNotifications(void)
 			 * part of the page we will actually inspect.
 			 */
 			int			slotno = SimpleLruReadPage_ReadOnly(NotifyCtl, curpage,
-												InvalidTransactionId);
+															InvalidTransactionId);
+
 			if (curpage == QUEUE_POS_PAGE(head))
 			{
 				/* we only want to read as far as head */
@@ -2168,6 +2187,7 @@ asyncQueueAdvanceTail(void)
 	 */
 	LWLockAcquire(NotifyQueueLock, LW_EXCLUSIVE);
 	QueuePosition min = QUEUE_HEAD;
+
 	for (BackendId i = QUEUE_FIRST_LISTENER; i > 0; i = QUEUE_NEXT_LISTENER(i))
 	{
 		Assert(QUEUE_BACKEND_PID(i) != InvalidPid);
@@ -2175,6 +2195,7 @@ asyncQueueAdvanceTail(void)
 	}
 	QUEUE_TAIL = min;
 	int			oldtailpage = QUEUE_STOP_PAGE;
+
 	LWLockRelease(NotifyQueueLock);
 
 	/*
@@ -2186,6 +2207,7 @@ asyncQueueAdvanceTail(void)
 	 */
 	int			newtailpage = QUEUE_POS_PAGE(min);
 	int			boundary = newtailpage - (newtailpage % SLRU_PAGES_PER_SEGMENT);
+
 	if (asyncQueuePagePrecedes(oldtailpage, boundary))
 	{
 		/*
@@ -2356,9 +2378,10 @@ AddEventToPendingNotifies(Notification *n)
 			bool		found;
 
 			NotificationHash *hentry = (NotificationHash *) hash_search(pendingNotifies->hashtab,
-													  &oldn,
-													  HASH_ENTER,
-													  &found);
+																		&oldn,
+																		HASH_ENTER,
+																		&found);
+
 			Assert(!found);
 			hentry->event = oldn;
 		}
@@ -2373,9 +2396,10 @@ AddEventToPendingNotifies(Notification *n)
 		bool		found;
 
 		NotificationHash *hentry = (NotificationHash *) hash_search(pendingNotifies->hashtab,
-												  &n,
-												  HASH_ENTER,
-												  &found);
+																	&n,
+																	HASH_ENTER,
+																	&found);
+
 		Assert(!found);
 		hentry->event = n;
 	}

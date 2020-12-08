@@ -161,6 +161,7 @@ transformWithClause(ParseState *pstate, WithClause *withClause)
 		cstate.numitems = list_length(withClause->ctes);
 		cstate.items = (CteItem *) palloc0(cstate.numitems * sizeof(CteItem));
 		int			i = 0;
+
 		foreach(lc, withClause->ctes)
 		{
 			cstate.items[i].cte = (CommonTableExpr *) lfirst(lc);
@@ -240,6 +241,7 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
 	Assert(!IsA(cte->ctequery, Query));
 
 	Query	   *query = parse_sub_analyze(cte->ctequery, pstate, cte, false, true);
+
 	cte->ctequery = (Node *) query;
 
 	/*
@@ -291,6 +293,7 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
 		lctypmod = list_head(cte->ctecoltypmods);
 		lccoll = list_head(cte->ctecolcollations);
 		int			varattno = 0;
+
 		foreach(lctlist, GetCTETargetList(cte))
 		{
 			TargetEntry *te = (TargetEntry *) lfirst(lctlist);
@@ -302,6 +305,7 @@ analyzeCTE(ParseState *pstate, CommonTableExpr *cte)
 			if (lctyp == NULL || lctypmod == NULL || lccoll == NULL)	/* shouldn't happen */
 				elog(ERROR, "wrong number of output columns in WITH");
 			Node	   *texpr = (Node *) te->expr;
+
 			if (exprType(texpr) != lfirst_oid(lctyp) ||
 				exprTypmod(texpr) != lfirst_int(lctypmod))
 				ereport(ERROR,
@@ -363,6 +367,7 @@ analyzeCTETargetList(ParseState *pstate, CommonTableExpr *cte, List *tlist)
 	cte->ctecoltypes = cte->ctecoltypmods = cte->ctecolcollations = NIL;
 	int			numaliases = list_length(cte->aliascolnames);
 	int			varattno = 0;
+
 	foreach(tlistitem, tlist)
 	{
 		TargetEntry *te = (TargetEntry *) lfirst(tlistitem);
@@ -375,6 +380,7 @@ analyzeCTETargetList(ParseState *pstate, CommonTableExpr *cte, List *tlist)
 		{
 
 			char	   *attrname = pstrdup(te->resname);
+
 			cte->ctecolnames = lappend(cte->ctecolnames, makeString(attrname));
 		}
 		Oid			coltype = exprType((Node *) te->expr);
@@ -530,6 +536,7 @@ makeDependencyGraphWalker(Node *node, CteState *cstate)
 
 				cstate->innerwiths = lcons(NIL, cstate->innerwiths);
 				ListCell   *cell1 = list_head(cstate->innerwiths);
+
 				foreach(lc, stmt->withClause->ctes)
 				{
 					CommonTableExpr *cte = (CommonTableExpr *) lfirst(lc);
@@ -595,6 +602,7 @@ TopologicalSort(ParseState *pstate, CteItem *items, int numitems)
 		{
 
 			CteItem		tmp = items[i];
+
 			items[i] = items[j];
 			items[j] = tmp;
 		}
@@ -747,6 +755,7 @@ checkWellFormedRecursionWalker(Node *node, CteState *cstate)
 
 			/* No, could be a reference to the query level we are working on */
 			CommonTableExpr *mycte = cstate->items[cstate->curitem].cte;
+
 			if (strcmp(rv->relname, mycte->ctename) == 0)
 			{
 				/* Found a recursive reference to the active query */
@@ -803,6 +812,7 @@ checkWellFormedRecursionWalker(Node *node, CteState *cstate)
 
 				cstate->innerwiths = lcons(NIL, cstate->innerwiths);
 				ListCell   *cell1 = list_head(cstate->innerwiths);
+
 				foreach(lc, stmt->withClause->ctes)
 				{
 					CommonTableExpr *cte = (CommonTableExpr *) lfirst(lc);

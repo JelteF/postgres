@@ -145,6 +145,7 @@ main(int argc, char **argv)
 	}
 
 	PQconninfoOption *defs = PQconndefaults();
+
 	if (defs == NULL)
 	{
 		pg_log_error("could not fetch default options");

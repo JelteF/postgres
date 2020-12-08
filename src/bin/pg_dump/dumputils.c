@@ -481,6 +481,7 @@ parseAclItem(const char *item, const char *type,
 
 	/* user or group name is string up to = */
 	char	   *eqpos = copyAclUserName(grantee, buf);
+
 	if (*eqpos != '=')
 	{
 		pg_free(buf);
@@ -489,6 +490,7 @@ parseAclItem(const char *item, const char *type,
 
 	/* grantor should appear after / */
 	char	   *slpos = strchr(eqpos + 1, '/');
+
 	if (slpos)
 	{
 		*slpos++ = '\0';
@@ -1002,6 +1004,7 @@ makeAlterConfigCommand(PGconn *conn, const char *configitem,
 	/* Parse the configitem.  If we can't find an "=", silently do nothing. */
 	char	   *mine = pg_strdup(configitem);
 	char	   *pos = strchr(mine, '=');
+
 	if (pos == NULL)
 	{
 		pg_free(mine);

@@ -388,6 +388,7 @@ parse_filename_for_nontemp_relation(const char *name, int *oidchars,
 	{
 
 		int			forkchar = forkname_chars(&name[pos + 1], fork);
+
 		if (forkchar <= 0)
 			return false;
 		pos += forkchar + 1;

@@ -321,7 +321,8 @@ auth_failed(Port *port, int status, char *logdetail)
 	}
 
 	char	   *cdetail = psprintf(_("Connection matched pg_hba.conf line %d: \"%s\""),
-					   port->hba->linenumber, port->hba->rawline);
+								   port->hba->linenumber, port->hba->rawline);
+
 	if (logdetail)
 		logdetail = psprintf("%s\n%s", logdetail, cdetail);
 	else
@@ -672,6 +673,7 @@ recv_password_packet(Port *port)
 		/* Expect 'p' message type */
 
 		int			mtype = pq_getbyte();
+
 		if (mtype != 'p')
 		{
 			/*
@@ -759,10 +761,12 @@ CheckPasswordAuth(Port *port, char **logdetail)
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
 	char	   *passwd = recv_password_packet(port);
+
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
 	char	   *shadow_pass = get_role_password(port->user_name, logdetail);
+
 	if (shadow_pass)
 	{
 		result = plain_crypt_verify(port->user_name, shadow_pass, passwd,
@@ -858,6 +862,7 @@ CheckMD5Auth(Port *port, char *shadow_pass, char **logdetail)
 	sendAuthRequest(port, AUTH_REQ_MD5, md5Salt, 4);
 
 	char	   *passwd = recv_password_packet(port);
+
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
@@ -918,6 +923,7 @@ CheckSCRAMAuth(Port *port, char *shadow_pass, char **logdetail)
 	 * packets (type 'p').
 	 */
 	bool		initial = true;
+
 	do
 	{
 		pq_startmsgread();
@@ -1350,14 +1356,15 @@ pg_SSPI_recvauth(Port *port)
 	 * Acquire a handle to the server credentials.
 	 */
 	SECURITY_STATUS r = AcquireCredentialsHandle(NULL,
-								 "negotiate",
-								 SECPKG_CRED_INBOUND,
-								 NULL,
-								 NULL,
-								 NULL,
-								 NULL,
-								 &sspicred,
-								 &expiry);
+												 "negotiate",
+												 SECPKG_CRED_INBOUND,
+												 NULL,
+												 NULL,
+												 NULL,
+												 NULL,
+												 &sspicred,
+												 &expiry);
+
 	if (r != SEC_E_OK)
 		pg_SSPI_error(ERROR, _("could not acquire SSPI credentials"), r);
 
@@ -1504,13 +1511,15 @@ pg_SSPI_recvauth(Port *port)
 	 */
 
 	HMODULE		secur32 = LoadLibrary("SECUR32.DLL");
+
 	if (secur32 == NULL)
 		ereport(ERROR,
 				(errmsg("could not load library \"%s\": error code %lu",
 						"SECUR32.DLL", GetLastError())));
 
 	QUERY_SECURITY_CONTEXT_TOKEN_FN _QuerySecurityContextToken = (QUERY_SECURITY_CONTEXT_TOKEN_FN) (pg_funcptr_t)
-		GetProcAddress(secur32, "QuerySecurityContextToken");
+	GetProcAddress(secur32, "QuerySecurityContextToken");
+
 	if (_QuerySecurityContextToken == NULL)
 	{
 		FreeLibrary(secur32);
@@ -1542,6 +1551,7 @@ pg_SSPI_recvauth(Port *port)
 								 GetLastError())));
 
 	TOKEN_USER *tokenuser = malloc(retlen);
+
 	if (tokenuser == NULL)
 		ereport(ERROR,
 				(errmsg("out of memory")));
@@ -1599,6 +1609,7 @@ pg_SSPI_recvauth(Port *port)
 
 		char	   *namebuf = psprintf("%s@%s", accountname, domainname);
 		int			retval = check_usermap(port->hba->usermap, port->user_name, namebuf, true);
+
 		pfree(namebuf);
 		return retval;
 	}
@@ -1629,7 +1640,7 @@ pg_SSPI_make_upn(char *accountname,
 
 	char	   *samname = psprintf("%s\\%s", domainname, accountname);
 	BOOLEAN		res = TranslateName(samname, NameSamCompatible, NameUserPrincipal,
-						NULL, &upnamesize);
+									NULL, &upnamesize);
 
 	if ((!res && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
 		|| upnamesize == 0)
@@ -2290,6 +2301,7 @@ CheckBSDAuth(Port *port, char *user)
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
 	char	   *passwd = recv_password_packet(port);
+
 	if (passwd == NULL)
 		return STATUS_EOF;
 
@@ -2329,6 +2341,7 @@ InitializeLDAPConnection(Port *port, LDAP **ldap)
 	int			r;
 
 	const char *scheme = port->hba->ldapscheme;
+
 	if (scheme == NULL)
 		scheme = "ldap";
 #ifdef WIN32
@@ -2488,6 +2501,7 @@ InitializeLDAPConnection(Port *port, LDAP **ldap)
 			 */
 
 			HANDLE		ldaphandle = LoadLibrary("WLDAP32.DLL");
+
 			if (ldaphandle == NULL)
 			{
 				/*
@@ -2714,6 +2728,7 @@ CheckLDAPAuth(Port *port)
 		}
 
 		int			count = ldap_count_entries(ldap, search_message);
+
 		if (count != 1)
 		{
 			if (count == 0)
@@ -2738,6 +2753,7 @@ CheckLDAPAuth(Port *port)
 
 		LDAPMessage *entry = ldap_first_entry(ldap, search_message);
 		char	   *dn = ldap_get_dn(ldap, entry);
+
 		if (dn == NULL)
 		{
 			int			error;
@@ -2822,6 +2838,7 @@ errdetail_for_ldap(LDAP *ldap)
 	char	   *message;
 
 	int			rc = ldap_get_option(ldap, LDAP_OPT_DIAGNOSTIC_MESSAGE, &message);
+
 	if (rc == LDAP_SUCCESS && message != NULL)
 	{
 		errdetail("LDAP diagnostics: %s", message);
@@ -2857,6 +2874,7 @@ CheckCertAuth(Port *port)
 
 	/* Just pass the certificate cn to the usermap check */
 	int			status_check_usermap = check_usermap(port->hba->usermap, port->user_name, port->peer_cn, false);
+
 	if (status_check_usermap != STATUS_OK)
 	{
 		/*
@@ -2945,6 +2963,7 @@ radius_add_attribute(radius_packet *packet, uint8 type, const unsigned char *dat
 	}
 
 	radius_attribute *attr = (radius_attribute *) ((unsigned char *) packet + packet->length);
+
 	attr->attribute = type;
 	attr->length = len + 2;		/* total size includes type and length */
 	memcpy(attr->data, data, len);
@@ -2981,6 +3000,7 @@ CheckRADIUSAuth(Port *port)
 	sendAuthRequest(port, AUTH_REQ_PASSWORD, NULL, 0);
 
 	char	   *passwd = recv_password_packet(port);
+
 	if (passwd == NULL)
 		return STATUS_EOF;		/* client wouldn't send password */
 
@@ -3226,6 +3246,7 @@ PerformRadiusTransaction(const char *server, const char *secret, const char *por
 
 		gettimeofday(&now, NULL);
 		int64		timeoutval = (endtime.tv_sec * 1000000 + endtime.tv_usec) - (now.tv_sec * 1000000 + now.tv_usec);
+
 		if (timeoutval <= 0)
 		{
 			ereport(LOG,

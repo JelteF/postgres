@@ -132,6 +132,7 @@ gistbuildempty(Relation index)
 
 	/* Initialize the root page */
 	Buffer		buffer = ReadBufferExtended(index, INIT_FORKNUM, P_NEW, RBM_NORMAL, NULL);
+
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 
 	/* Initialize and xlog buffer */
@@ -173,7 +174,9 @@ gistinsert(Relation r, Datum *values, bool *isnull,
 	oldCxt = MemoryContextSwitchTo(giststate->tempCxt);
 
 	IndexTuple	itup = gistFormTuple(giststate, r,
-						 values, isnull, true /* size is currently bogus */ );
+									 values, isnull, true	/* size is currently
+									   * bogus */ );
+
 	itup->t_tid = *ht_ctid;
 
 	gistdoinsert(r, itup, 0, giststate, heapRel, false);
@@ -285,6 +288,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
 		 * remove the old version from the vector.
 		 */
 		IndexTuple *itvec = gistextractpage(page, &tlen);
+
 		if (OffsetNumberIsValid(oldoffnum))
 		{
 			/* on inner page we should remove old tuple */
@@ -301,6 +305,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
 		 * Check that split didn't produce too many pages.
 		 */
 		int			npage = 0;
+
 		for (ptr = dist; ptr; ptr = ptr->next)
 			npage++;
 		/* in a root split, we'll add one more page to the list below */
@@ -375,6 +380,7 @@ gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
 			for (ptr = dist; ptr; ptr = ptr->next)
 				ndownlinks++;
 			IndexTuple *downlinks = palloc(sizeof(IndexTuple) * ndownlinks);
+
 			for (i = 0, ptr = dist; ptr; ptr = ptr->next)
 				downlinks[i++] = ptr->itup;
 
@@ -731,6 +737,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 			 */
 
 			OffsetNumber downlinkoffnum = gistchoose(state.r, stack->page, itup, giststate);
+
 			iid = PageGetItemId(stack->page, downlinkoffnum);
 			idxtuple = (IndexTuple) PageGetItem(stack->page, iid);
 			BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
@@ -750,6 +757,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 			 * consistent with the key we're inserting. Update it if it's not.
 			 */
 			IndexTuple	newtup = gistgetadjusted(state.r, idxtuple, itup, giststate);
+
 			if (newtup)
 			{
 				/*
@@ -803,6 +811,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 
 			/* descend to the chosen child */
 			GISTInsertStack *item = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
+
 			item->blkno = childblkno;
 			item->parent = stack;
 			item->downlinkoffnum = downlinkoffnum;
@@ -906,6 +915,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 	top->downlinkoffnum = InvalidOffsetNumber;
 
 	List	   *fifo = list_make1(top);
+
 	while (fifo != NIL)
 	{
 		/* Get next page to visit */
@@ -1054,8 +1064,9 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child)
 		 * should release all old parent
 		 */
 
-		GISTInsertStack *ptr = child->parent->parent;	/* child->parent already released
-										 * above */
+		GISTInsertStack *ptr = child->parent->parent;	/* child->parent already
+														 * released above */
+
 		while (ptr)
 		{
 			ReleaseBuffer(ptr->buffer);
@@ -1095,6 +1106,7 @@ gistformdownlink(Relation rel, Buffer buf, GISTSTATE *giststate,
 	IndexTuple	downlink = NULL;
 
 	OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
+
 	for (offset = FirstOffsetNumber; offset <= maxoff; offset = OffsetNumberNext(offset))
 	{
 		IndexTuple	ituple = (IndexTuple)
@@ -1106,7 +1118,8 @@ gistformdownlink(Relation rel, Buffer buf, GISTSTATE *giststate,
 		{
 
 			IndexTuple	newdownlink = gistgetadjusted(rel, downlink, ituple,
-										  giststate);
+													  giststate);
+
 			if (newdownlink)
 				downlink = newdownlink;
 		}
@@ -1128,6 +1141,7 @@ gistformdownlink(Relation rel, Buffer buf, GISTSTATE *giststate,
 		LockBuffer(stack->parent->buffer, GIST_EXCLUSIVE);
 		gistFindCorrectParent(rel, stack);
 		ItemId		iid = PageGetItemId(stack->parent->page, stack->downlinkoffnum);
+
 		downlink = (IndexTuple) PageGetItem(stack->parent->page, iid);
 		downlink = CopyIndexTuple(downlink);
 		LockBuffer(stack->parent->buffer, GIST_UNLOCK);
@@ -1252,14 +1266,14 @@ gistinserttuples(GISTInsertState *state, GISTInsertStack *stack,
 
 	/* Insert the tuple(s) to the page, splitting the page if necessary */
 	bool		is_split = gistplacetopage(state->r, state->freespace, giststate,
-							   stack->buffer,
-							   tuples, ntup,
-							   oldoffnum, NULL,
-							   leftchild,
-							   &splitinfo,
-							   true,
-							   state->heapRel,
-							   state->is_build);
+										   stack->buffer,
+										   tuples, ntup,
+										   oldoffnum, NULL,
+										   leftchild,
+										   &splitinfo,
+										   true,
+										   state->heapRel,
+										   state->is_build);
 
 	/*
 	 * Before recursing up in case the page was split, release locks on the
@@ -1488,8 +1502,8 @@ initGISTstate(Relation index)
 
 	/* Create the memory context that will hold the GISTSTATE */
 	MemoryContext scanCxt = AllocSetContextCreate(CurrentMemoryContext,
-									"GiST scan context",
-									ALLOCSET_DEFAULT_SIZES);
+												  "GiST scan context",
+												  ALLOCSET_DEFAULT_SIZES);
 	MemoryContext oldCxt = MemoryContextSwitchTo(scanCxt);
 
 	/* Create and fill in the GISTSTATE */
@@ -1665,8 +1679,8 @@ gistprunepage(Relation rel, Page page, Buffer buffer, Relation heapRel)
 		{
 
 			XLogRecPtr	recptr = gistXLogDelete(buffer,
-									deletable, ndeletable,
-									latestRemovedXid);
+												deletable, ndeletable,
+												latestRemovedXid);
 
 			PageSetLSN(page, recptr);
 		}

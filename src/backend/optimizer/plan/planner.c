@@ -394,7 +394,7 @@ standard_planner(Query *parse, const char *query_string, int cursorOptions,
 
 	/* primary planning entry point (may recurse for subqueries) */
 	PlannerInfo *root = subquery_planner(glob, parse, NULL,
-							false, tuple_fraction);
+										 false, tuple_fraction);
 
 	/* Select best Path and turn it into a Plan */
 	RelOptInfo *final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
@@ -591,6 +591,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 
 	/* Create a PlannerInfo data structure for this subquery */
 	PlannerInfo *root = makeNode(PlannerInfo);
+
 	root->parse = parse;
 	root->glob = glob;
 	root->query_level = parent_root ? parent_root->query_level + 1 : 1;
@@ -681,6 +682,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	root->hasLateralRTEs = false;
 	bool		hasOuterJoins = false;
 	bool		hasResultRTEs = false;
+
 	foreach(l, parse->rtable)
 	{
 		RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
@@ -759,6 +761,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 		parse->hasTargetSRFs = expression_returns_set((Node *) parse->targetList);
 
 	List	   *newWithCheckOptions = NIL;
+
 	foreach(l, parse->withCheckOptions)
 	{
 		WithCheckOption *wco = lfirst_node(WithCheckOption, l);
@@ -938,6 +941,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	 * as Node *.
 	 */
 	List	   *newHaving = NIL;
+
 	foreach(l, (List *) parse->havingQual)
 	{
 		Node	   *havingclause = (Node *) lfirst(l);
@@ -1009,6 +1013,7 @@ subquery_planner(PlannerGlobal *glob, Query *parse,
 	 * create_plan() runs, but we must include their effects now.
 	 */
 	RelOptInfo *final_rel = fetch_upper_rel(root, UPPERREL_FINAL, NULL);
+
 	SS_charge_for_initplans(root, final_rel);
 
 	/*
@@ -1234,6 +1239,7 @@ inheritance_planner(PlannerInfo *root)
 	 */
 	Bitmapset  *subqueryRTindexes = NULL;
 	Index		rti = 1;
+
 	foreach(lc, parse->rtable)
 	{
 		RangeTblEntry *rte = lfirst_node(RangeTblEntry, lc);
@@ -1251,6 +1257,7 @@ inheritance_planner(PlannerInfo *root)
 	 * for non-partitioning inheritance cases is not possible.
 	 */
 	RangeTblEntry *parent_rte = rt_fetch(top_parentRTindex, parse->rtable);
+
 	Assert(parent_rte->inh);
 	if (parent_rte->relkind == RELKIND_PARTITIONED_TABLE)
 	{
@@ -1275,6 +1282,7 @@ inheritance_planner(PlannerInfo *root)
 		 * Flat-copy the PlannerInfo to prevent modification of the original.
 		 */
 		PlannerInfo *subroot = makeNode(PlannerInfo);
+
 		memcpy(subroot, root, sizeof(PlannerInfo));
 
 		/*
@@ -1352,6 +1360,7 @@ inheritance_planner(PlannerInfo *root)
 	List	   *old_child_rtis = NIL;
 	List	   *new_child_rtis = NIL;
 	Bitmapset  *parent_relids = bms_make_singleton(top_parentRTindex);
+
 	foreach(lc, select_appinfos)
 	{
 		AppendRelInfo *appinfo = lfirst_node(AppendRelInfo, lc);
@@ -1411,6 +1420,7 @@ inheritance_planner(PlannerInfo *root)
 	 * them all clones of the original subqueries.
 	 */
 	Index		next_subquery_rti = list_length(parse->rtable) + 1;
+
 	if (subqueryRTindexes != NULL)
 	{
 		int			n_children = list_length(child_appinfos);
@@ -1423,6 +1433,7 @@ inheritance_planner(PlannerInfo *root)
 			{
 
 				RangeTblEntry *subqrte = rt_fetch(oldrti, parse->rtable);
+
 				parse->rtable = lappend(parse->rtable, copyObject(subqrte));
 			}
 		}
@@ -1438,7 +1449,8 @@ inheritance_planner(PlannerInfo *root)
 	 * entry is needed since relids start from 1.
 	 */
 	Query	  **parent_parses = (Query **) palloc0((list_length(select_rtable) + 1) *
-									   sizeof(Query *));
+												   sizeof(Query *));
+
 	parent_parses[top_parentRTindex] = parse;
 
 	/*
@@ -1455,6 +1467,7 @@ inheritance_planner(PlannerInfo *root)
 		 * should already be available.
 		 */
 		Query	   *parent_parse = parent_parses[appinfo->parent_relid];
+
 		Assert(parent_parse != NULL);
 
 		/*
@@ -1462,6 +1475,7 @@ inheritance_planner(PlannerInfo *root)
 		 * propagation of information back to the main copy.
 		 */
 		PlannerInfo *subroot = makeNode(PlannerInfo);
+
 		memcpy(subroot, root, sizeof(PlannerInfo));
 
 		/*
@@ -1481,6 +1495,7 @@ inheritance_planner(PlannerInfo *root)
 		 */
 		parent_rte = rt_fetch(appinfo->parent_relid, subroot->parse->rtable);
 		RangeTblEntry *child_rte = rt_fetch(appinfo->child_relid, subroot->parse->rtable);
+
 		child_rte->securityQuals = parent_rte->securityQuals;
 		parent_rte->securityQuals = NIL;
 
@@ -1578,6 +1593,7 @@ inheritance_planner(PlannerInfo *root)
 		 * cheapest-total path.
 		 */
 		RelOptInfo *sub_final_rel = fetch_upper_rel(subroot, UPPERREL_FINAL, NULL);
+
 		set_cheapest(sub_final_rel);
 		Path	   *subpath = sub_final_rel->cheapest_total_path;
 
@@ -1616,6 +1632,7 @@ inheritance_planner(PlannerInfo *root)
 
 					RangeTblEntry *subqrte = rt_fetch(newrti, subroot->parse->rtable);
 					ListCell   *newrticell = list_nth_cell(final_rtable, newrti - 1);
+
 					lfirst(newrticell) = subqrte;
 				}
 			}
@@ -1692,8 +1709,8 @@ inheritance_planner(PlannerInfo *root)
 
 		/* Make a dummy path, cf set_dummy_rel_pathlist() */
 		Path	   *dummy_path = (Path *) create_append_path(NULL, final_rel, NIL, NIL,
-												 NIL, NULL, 0, false,
-												 NIL, -1);
+															 NIL, NULL, 0, false,
+															 NIL, -1);
 
 		/* These lists must be nonempty to make a valid ModifyTable node */
 		subpaths = list_make1(dummy_path);
@@ -2062,7 +2079,8 @@ grouping_planner(PlannerInfo *root, bool inheritance_update,
 		 * should emit grouping_target.
 		 */
 		bool		have_grouping = (parse->groupClause || parse->groupingSets ||
-						 parse->hasAggs || root->hasHavingQual);
+									 parse->hasAggs || root->hasHavingQual);
+
 		if (have_grouping)
 		{
 			scanjoin_target = make_group_input_target(root, final_target);
@@ -2120,7 +2138,8 @@ grouping_planner(PlannerInfo *root, bool inheritance_update,
 
 		/* Apply scan/join target. */
 		bool		scanjoin_target_same_exprs = list_length(scanjoin_targets) == 1
-			&& equal(scanjoin_target->exprs, current_rel->reltarget->exprs);
+		&& equal(scanjoin_target->exprs, current_rel->reltarget->exprs);
+
 		apply_scanjoin_target_to_paths(root, current_rel, scanjoin_targets,
 									   scanjoin_targets_contain_srfs,
 									   scanjoin_target_parallel_safe,
@@ -2626,6 +2645,7 @@ preprocess_rowmarks(PlannerInfo *root)
 	 * need or have FOR [KEY] UPDATE/SHARE marks for.
 	 */
 	Bitmapset  *rels = get_relids_in_jointree((Node *) parse->jointree, false);
+
 	if (parse->resultRelation)
 		rels = bms_del_member(rels, parse->resultRelation);
 
@@ -2633,6 +2653,7 @@ preprocess_rowmarks(PlannerInfo *root)
 	 * Convert RowMarkClauses to PlanRowMark representation.
 	 */
 	List	   *prowmarks = NIL;
+
 	foreach(l, parse->rowMarks)
 	{
 		RowMarkClause *rc = lfirst_node(RowMarkClause, l);
@@ -2657,6 +2678,7 @@ preprocess_rowmarks(PlannerInfo *root)
 		rels = bms_del_member(rels, rc->rti);
 
 		PlanRowMark *newrc = makeNode(PlanRowMark);
+
 		newrc->rti = newrc->prti = rc->rti;
 		newrc->rowmarkId = ++(root->glob->lastRowMarkId);
 		newrc->markType = select_rowmark_type(rte, rc->strength);
@@ -2672,6 +2694,7 @@ preprocess_rowmarks(PlannerInfo *root)
 	 * Now, add rowmarks for any non-target, non-locked base relations.
 	 */
 	int			i = 0;
+
 	foreach(l, parse->rtable)
 	{
 		RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
@@ -2681,6 +2704,7 @@ preprocess_rowmarks(PlannerInfo *root)
 			continue;
 
 		PlanRowMark *newrc = makeNode(PlanRowMark);
+
 		newrc->rti = newrc->prti = i;
 		newrc->rowmarkId = ++(root->glob->lastRowMarkId);
 		newrc->markType = select_rowmark_type(rte, LCS_NONE);
@@ -2954,6 +2978,7 @@ limit_needed(Query *parse)
 {
 
 	Node	   *node = parse->limitCount;
+
 	if (node)
 	{
 		if (IsA(node, Const))
@@ -3028,7 +3053,8 @@ remove_useless_groupby_columns(PlannerInfo *root)
 	 * that are GROUP BY items.
 	 */
 	Bitmapset **groupbyattnos = (Bitmapset **) palloc0(sizeof(Bitmapset *) *
-										   (list_length(parse->rtable) + 1));
+													   (list_length(parse->rtable) + 1));
+
 	foreach(lc, parse->groupClause)
 	{
 		SortGroupClause *sgc = lfirst_node(SortGroupClause, lc);
@@ -3060,7 +3086,8 @@ remove_useless_groupby_columns(PlannerInfo *root)
 	 * in a separate pass.  Here, we just fill surplusvars[k] with a bitmapset
 	 * of the column attnos of RTE k that are removable GROUP BY items.
 	 */
-	Bitmapset **surplusvars = NULL;			/* don't allocate array unless required */
+	Bitmapset **surplusvars = NULL; /* don't allocate array unless required */
+
 	relid = 0;
 	foreach(lc, parse->rtable)
 	{
@@ -3083,6 +3110,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 
 		/* Nothing to do unless this rel has multiple Vars in GROUP BY */
 		Bitmapset  *relattnos = groupbyattnos[relid];
+
 		if (bms_membership(relattnos) != BMS_MULTIPLE)
 			continue;
 
@@ -3091,6 +3119,7 @@ remove_useless_groupby_columns(PlannerInfo *root)
 		 * (i.e., nondeferrable) primary key constraint.
 		 */
 		Bitmapset  *pkattnos = get_primary_key_attnos(rte->relid, false, &constraintOid);
+
 		if (pkattnos == NULL)
 			continue;
 
@@ -3743,7 +3772,7 @@ create_grouping_paths(PlannerInfo *root,
 	 * aggregation paths.
 	 */
 	RelOptInfo *grouped_rel = make_grouping_rel(root, input_rel, target,
-									target_parallel_safe, parse->havingQual);
+												target_parallel_safe, parse->havingQual);
 
 	/*
 	 * Create either paths for a degenerate grouping or paths for ordinary
@@ -3918,6 +3947,7 @@ create_degenerate_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	Path	   *path;
 
 	int			nrows = list_length(parse->groupingSets);
+
 	if (nrows > 1)
 	{
 		/*
@@ -4069,9 +4099,9 @@ create_ordinary_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	 * Estimate number of groups.
 	 */
 	double		dNumGroups = get_number_of_groups(root,
-									  cheapest_path->rows,
-									  gd,
-									  extra->targetList);
+												  cheapest_path->rows,
+												  gd,
+												  extra->targetList);
 
 	/* Build final grouping paths */
 	add_paths_to_grouping_rel(root, input_rel, grouped_rel,
@@ -4174,9 +4204,9 @@ consider_groupingsets_paths(PlannerInfo *root,
 		}
 
 		double		hashsize = estimate_hashagg_tablesize(root,
-											  path,
-											  agg_costs,
-											  dNumGroups - exclude_groups);
+														  path,
+														  agg_costs,
+														  dNumGroups - exclude_groups);
 
 		/*
 		 * gd->rollups is empty if we have only unsortable columns to work
@@ -4351,6 +4381,7 @@ consider_groupingsets_paths(PlannerInfo *root,
 			 * below, must use the same condition.
 			 */
 			int			i = 0;
+
 			for_each_from(lc, gd->rollups, 1)
 			{
 				RollupData *rollup = lfirst_node(RollupData, lc);
@@ -4588,12 +4619,12 @@ create_one_window_path(PlannerInfo *root,
 		int			presorted_keys;
 
 		List	   *window_pathkeys = make_pathkeys_for_window(root,
-												   wc,
-												   root->processed_tlist);
+															   wc,
+															   root->processed_tlist);
 
 		bool		is_sorted = pathkeys_count_contained_in(window_pathkeys,
-												path->pathkeys,
-												&presorted_keys);
+															path->pathkeys,
+															&presorted_keys);
 
 		/* Sort if necessary */
 		if (!is_sorted)
@@ -4717,7 +4748,8 @@ create_distinct_paths(PlannerInfo *root,
 		 */
 
 		List	   *distinctExprs = get_sortgrouplist_exprs(parse->distinctClause,
-												parse->targetList);
+															parse->targetList);
+
 		numDistinctRows = estimate_num_groups(root, distinctExprs,
 											  cheapest_input_path->rows,
 											  NULL);
@@ -4905,7 +4937,7 @@ create_ordered_paths(PlannerInfo *root,
 		int			presorted_keys;
 
 		bool		is_sorted = pathkeys_count_contained_in(root->sort_pathkeys,
-												input_path->pathkeys, &presorted_keys);
+															input_path->pathkeys, &presorted_keys);
 
 		if (is_sorted)
 		{
@@ -4998,13 +5030,14 @@ create_ordered_paths(PlannerInfo *root,
 		{
 
 			Path	   *path = (Path *) create_sort_path(root,
-											 ordered_rel,
-											 cheapest_partial_path,
-											 root->sort_pathkeys,
-											 limit_tuples);
+														 ordered_rel,
+														 cheapest_partial_path,
+														 root->sort_pathkeys,
+														 limit_tuples);
 
 			double		total_groups = cheapest_partial_path->rows *
-				cheapest_partial_path->parallel_workers;
+			cheapest_partial_path->parallel_workers;
+
 			path = (Path *)
 				create_gather_merge_path(root, ordered_rel,
 										 path,
@@ -5044,8 +5077,8 @@ create_ordered_paths(PlannerInfo *root,
 				 */
 
 				bool		is_sorted = pathkeys_count_contained_in(root->sort_pathkeys,
-														input_path->pathkeys,
-														&presorted_keys);
+																	input_path->pathkeys,
+																	&presorted_keys);
 
 				/* No point in adding incremental sort on fully sorted paths. */
 				if (is_sorted)
@@ -5056,13 +5089,14 @@ create_ordered_paths(PlannerInfo *root,
 
 				/* Since we have presorted keys, consider incremental sort. */
 				Path	   *sorted_path = (Path *) create_incremental_sort_path(root,
-																	ordered_rel,
-																	input_path,
-																	root->sort_pathkeys,
-																	presorted_keys,
-																	limit_tuples);
+																				ordered_rel,
+																				input_path,
+																				root->sort_pathkeys,
+																				presorted_keys,
+																				limit_tuples);
 				double		total_groups = input_path->rows *
-					input_path->parallel_workers;
+				input_path->parallel_workers;
+
 				sorted_path = (Path *)
 					create_gather_merge_path(root, ordered_rel,
 											 sorted_path,
@@ -5146,6 +5180,7 @@ make_group_input_target(PlannerInfo *root, PathTarget *final_target)
 	List	   *non_group_cols = NIL;
 
 	int			i = 0;
+
 	foreach(lc, final_target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -5186,9 +5221,10 @@ make_group_input_target(PlannerInfo *root, PathTarget *final_target)
 	 * WindowFuncs will be pulled out here, too.
 	 */
 	List	   *non_group_vars = pull_var_clause((Node *) non_group_cols,
-									 PVC_RECURSE_AGGREGATES |
-									 PVC_RECURSE_WINDOWFUNCS |
-									 PVC_INCLUDE_PLACEHOLDERS);
+												 PVC_RECURSE_AGGREGATES |
+												 PVC_RECURSE_WINDOWFUNCS |
+												 PVC_INCLUDE_PLACEHOLDERS);
+
 	add_new_columns_to_pathtarget(input_target, non_group_vars);
 
 	/* clean up cruft */
@@ -5227,6 +5263,7 @@ make_partial_grouping_target(PlannerInfo *root,
 	List	   *non_group_cols = NIL;
 
 	int			i = 0;
+
 	foreach(lc, grouping_target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -5267,9 +5304,9 @@ make_partial_grouping_target(PlannerInfo *root,
 	 * we are covering the needs of ORDER BY and window specifications.
 	 */
 	List	   *non_group_exprs = pull_var_clause((Node *) non_group_cols,
-									  PVC_INCLUDE_AGGREGATES |
-									  PVC_RECURSE_WINDOWFUNCS |
-									  PVC_INCLUDE_PLACEHOLDERS);
+												  PVC_INCLUDE_AGGREGATES |
+												  PVC_RECURSE_WINDOWFUNCS |
+												  PVC_INCLUDE_PLACEHOLDERS);
 
 	add_new_columns_to_pathtarget(partial_target, non_group_exprs);
 
@@ -5290,6 +5327,7 @@ make_partial_grouping_target(PlannerInfo *root,
 			 * but flat-copy the node itself to avoid damaging other trees.
 			 */
 			Aggref	   *newaggref = makeNode(Aggref);
+
 			memcpy(newaggref, aggref, sizeof(Aggref));
 
 			/* For now, assume serialization is required */
@@ -5364,6 +5402,7 @@ postprocess_setop_tlist(List *new_tlist, List *orig_tlist)
 
 		Assert(orig_tlist_item != NULL);
 		TargetEntry *orig_tle = lfirst_node(TargetEntry, orig_tlist_item);
+
 		orig_tlist_item = lnext(orig_tlist, orig_tlist_item);
 		if (orig_tle->resjunk)	/* should not happen */
 			elog(ERROR, "resjunk output columns are not implemented");
@@ -5544,6 +5583,7 @@ make_window_input_target(PlannerInfo *root,
 	 * into a bitmapset for convenient reference below.
 	 */
 	Bitmapset  *sgrefs = NULL;
+
 	foreach(lc, activeWindows)
 	{
 		WindowClause *wc = lfirst_node(WindowClause, lc);
@@ -5579,6 +5619,7 @@ make_window_input_target(PlannerInfo *root,
 	List	   *flattenable_cols = NIL;
 
 	int			i = 0;
+
 	foreach(lc, final_target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -5620,9 +5661,10 @@ make_window_input_target(PlannerInfo *root,
 	 * WindowFuncs to make sure their input expressions are available.
 	 */
 	List	   *flattenable_vars = pull_var_clause((Node *) flattenable_cols,
-									   PVC_INCLUDE_AGGREGATES |
-									   PVC_RECURSE_WINDOWFUNCS |
-									   PVC_INCLUDE_PLACEHOLDERS);
+												   PVC_INCLUDE_AGGREGATES |
+												   PVC_RECURSE_WINDOWFUNCS |
+												   PVC_INCLUDE_PLACEHOLDERS);
+
 	add_new_columns_to_pathtarget(input_target, flattenable_vars);
 
 	/* clean up cruft */
@@ -5662,8 +5704,9 @@ make_pathkeys_for_window(PlannerInfo *root, WindowClause *wc,
 	/* Okay, make the combined pathkeys */
 	List	   *window_sortclauses = list_concat_copy(wc->partitionClause, wc->orderClause);
 	List	   *window_pathkeys = make_pathkeys_for_sortclauses(root,
-													window_sortclauses,
-													tlist);
+																window_sortclauses,
+																tlist);
+
 	list_free(window_sortclauses);
 	return window_pathkeys;
 }
@@ -5757,6 +5800,7 @@ make_sort_input_target(PlannerInfo *root,
 	bool		have_srf = have_volatile = have_expensive = have_srf_sortcols = false;
 
 	int			i = 0;
+
 	foreach(lc, final_target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -5874,9 +5918,10 @@ make_sort_input_target(PlannerInfo *root,
 	 * would be unable to recompute them.
 	 */
 	List	   *postponable_vars = pull_var_clause((Node *) postponable_cols,
-									   PVC_INCLUDE_AGGREGATES |
-									   PVC_INCLUDE_WINDOWFUNCS |
-									   PVC_INCLUDE_PLACEHOLDERS);
+												   PVC_INCLUDE_AGGREGATES |
+												   PVC_INCLUDE_WINDOWFUNCS |
+												   PVC_INCLUDE_PLACEHOLDERS);
+
 	add_new_columns_to_pathtarget(input_target, postponable_vars);
 
 	/* clean up cruft */
@@ -6146,11 +6191,13 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 
 	/* Set up mostly-dummy planner state */
 	Query	   *query = makeNode(Query);
+
 	query->commandType = CMD_SELECT;
 
 	PlannerGlobal *glob = makeNode(PlannerGlobal);
 
 	PlannerInfo *root = makeNode(PlannerInfo);
+
 	root->parse = query;
 	root->glob = glob;
 	root->query_level = 1;
@@ -6159,6 +6206,7 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 
 	/* Build a minimal RTE for the rel */
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
+
 	rte->rtekind = RTE_RELATION;
 	rte->relid = tableOid;
 	rte->relkind = RELKIND_RELATION;	/* Don't be too picky. */
@@ -6176,6 +6224,7 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 
 	/* Locate IndexOptInfo for the target index */
 	IndexOptInfo *indexInfo = NULL;
+
 	foreach(lc, rel->indexlist)
 	{
 		indexInfo = lfirst_node(IndexOptInfo, lc);
@@ -6213,15 +6262,16 @@ plan_cluster_use_sort(Oid tableOid, Oid indexOid)
 
 	/* Estimate the cost of seq scan + sort */
 	Path	   *seqScanPath = create_seqscan_path(root, rel, NULL, 0);
+
 	cost_sort(&seqScanAndSortPath, root, NIL,
 			  seqScanPath->total_cost, rel->tuples, rel->reltarget->width,
 			  comparisonCost, maintenance_work_mem, -1.0);
 
 	/* Estimate the cost of index scan */
 	IndexPath  *indexScanPath = create_index_path(root, indexInfo,
-									  NIL, NIL, NIL, NIL,
-									  ForwardScanDirection, false,
-									  NULL, 1.0, false);
+												  NIL, NIL, NIL, NIL,
+												  ForwardScanDirection, false,
+												  NULL, 1.0, false);
 
 	return (seqScanAndSortPath.total_cost < indexScanPath->path.total_cost);
 }
@@ -6259,11 +6309,13 @@ plan_create_index_workers(Oid tableOid, Oid indexOid)
 
 	/* Set up largely-dummy planner state */
 	Query	   *query = makeNode(Query);
+
 	query->commandType = CMD_SELECT;
 
 	PlannerGlobal *glob = makeNode(PlannerGlobal);
 
 	PlannerInfo *root = makeNode(PlannerInfo);
+
 	root->parse = query;
 	root->glob = glob;
 	root->query_level = 1;
@@ -6279,6 +6331,7 @@ plan_create_index_workers(Oid tableOid, Oid indexOid)
 	 * undergoing REINDEX.
 	 */
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
+
 	rte->rtekind = RTE_RELATION;
 	rte->relid = tableOid;
 	rte->relkind = RELKIND_RELATION;	/* Don't be too picky. */
@@ -6395,8 +6448,8 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 			int			presorted_keys;
 
 			bool		is_sorted = pathkeys_count_contained_in(root->group_pathkeys,
-													path->pathkeys,
-													&presorted_keys);
+																path->pathkeys,
+																&presorted_keys);
 
 			if (path == cheapest_path || is_sorted)
 			{
@@ -6541,8 +6594,8 @@ add_paths_to_grouping_rel(PlannerInfo *root, RelOptInfo *input_rel,
 				int			presorted_keys;
 
 				bool		is_sorted = pathkeys_count_contained_in(root->group_pathkeys,
-														path->pathkeys,
-														&presorted_keys);
+																	path->pathkeys,
+																	&presorted_keys);
 
 				/*
 				 * Insert a Sort node, if required.  But there's no point in
@@ -6763,8 +6816,9 @@ create_partial_grouping_paths(PlannerInfo *root,
 	 * aggregating the rows from the input relation.
 	 */
 	RelOptInfo *partially_grouped_rel = fetch_upper_rel(root,
-											UPPERREL_PARTIAL_GROUP_AGG,
-											grouped_rel->relids);
+														UPPERREL_PARTIAL_GROUP_AGG,
+														grouped_rel->relids);
+
 	partially_grouped_rel->consider_parallel =
 		grouped_rel->consider_parallel;
 	partially_grouped_rel->reloptkind = grouped_rel->reloptkind;
@@ -6833,7 +6887,8 @@ create_partial_grouping_paths(PlannerInfo *root,
 			Path	   *path = (Path *) lfirst(lc);
 
 			bool		is_sorted = pathkeys_contained_in(root->group_pathkeys,
-											  path->pathkeys);
+														  path->pathkeys);
+
 			if (path == cheapest_total_path || is_sorted)
 			{
 				/* Sort the cheapest partial path, if it isn't already */
@@ -6882,8 +6937,8 @@ create_partial_grouping_paths(PlannerInfo *root,
 				int			presorted_keys;
 
 				bool		is_sorted = pathkeys_count_contained_in(root->group_pathkeys,
-														path->pathkeys,
-														&presorted_keys);
+																	path->pathkeys,
+																	&presorted_keys);
 
 				/* Ignore already sorted paths */
 				if (is_sorted)
@@ -6935,8 +6990,8 @@ create_partial_grouping_paths(PlannerInfo *root,
 			int			presorted_keys;
 
 			bool		is_sorted = pathkeys_count_contained_in(root->group_pathkeys,
-													path->pathkeys,
-													&presorted_keys);
+																path->pathkeys,
+																&presorted_keys);
 
 			if (path == cheapest_partial_path || is_sorted)
 			{
@@ -7101,15 +7156,17 @@ gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel)
 
 	/* Try cheapest partial path + explicit Sort + Gather Merge. */
 	Path	   *cheapest_partial_path = linitial(rel->partial_pathlist);
+
 	if (!pathkeys_contained_in(root->group_pathkeys,
 							   cheapest_partial_path->pathkeys))
 	{
 
 		double		total_groups =
-			cheapest_partial_path->rows * cheapest_partial_path->parallel_workers;
+		cheapest_partial_path->rows * cheapest_partial_path->parallel_workers;
 		Path	   *path = (Path *) create_sort_path(root, rel, cheapest_partial_path,
-										 root->group_pathkeys,
-										 -1.0);
+													 root->group_pathkeys,
+													 -1.0);
+
 		path = (Path *)
 			create_gather_merge_path(root,
 									 rel,
@@ -7140,8 +7197,8 @@ gather_grouping_paths(PlannerInfo *root, RelOptInfo *rel)
 		double		total_groups;
 
 		bool		is_sorted = pathkeys_count_contained_in(root->group_pathkeys,
-												path->pathkeys,
-												&presorted_keys);
+															path->pathkeys,
+															&presorted_keys);
 
 		if (is_sorted)
 			continue;
@@ -7304,7 +7361,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 		{
 
 			Path	   *newpath = (Path *) create_projection_path(root, rel, subpath,
-													  scanjoin_target);
+																  scanjoin_target);
+
 			lfirst(lc) = newpath;
 		}
 	}
@@ -7324,7 +7382,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 		{
 
 			Path	   *newpath = (Path *) create_projection_path(root, rel, subpath,
-													  scanjoin_target);
+																  scanjoin_target);
+
 			lfirst(lc) = newpath;
 		}
 	}
@@ -7379,7 +7438,8 @@ apply_scanjoin_target_to_paths(PlannerInfo *root,
 
 			/* Translate scan/join targets for this child. */
 			AppendRelInfo **appinfos = find_appinfos_by_relids(root, child_rel->relids,
-											   &nappinfos);
+															   &nappinfos);
+
 			foreach(lc, scanjoin_targets)
 			{
 				PathTarget *target = lfirst_node(PathTarget, lc);
@@ -7486,7 +7546,7 @@ create_partitionwise_grouping_paths(PlannerInfo *root,
 		memcpy(&child_extra, extra, sizeof(child_extra));
 
 		AppendRelInfo **appinfos = find_appinfos_by_relids(root, child_input_rel->relids,
-										   &nappinfos);
+														   &nappinfos);
 
 		child_target->exprs = (List *)
 			adjust_appendrel_attrs(root,
@@ -7515,9 +7575,9 @@ create_partitionwise_grouping_paths(PlannerInfo *root,
 		 * aggregation paths for the child.
 		 */
 		RelOptInfo *child_grouped_rel = make_grouping_rel(root, child_input_rel,
-											  child_target,
-											  extra->target_parallel_safe,
-											  child_extra.havingQual);
+														  child_target,
+														  extra->target_parallel_safe,
+														  child_extra.havingQual);
 
 		/* Create grouping paths for this child relation. */
 		create_ordinary_grouping_paths(root, child_input_rel,

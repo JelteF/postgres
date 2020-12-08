@@ -84,6 +84,7 @@ detoast_external_attr(struct varlena *attr)
 
 		ExpandedObjectHeader *eoh = DatumGetEOHP(PointerGetDatum(attr));
 		Size		resultsize = EOH_get_flat_size(eoh);
+
 		result = (struct varlena *) palloc(resultsize);
 		EOH_flatten_into(eoh, (void *) result, resultsize);
 	}
@@ -148,6 +149,7 @@ detoast_attr(struct varlena *attr)
 		{
 
 			struct varlena *result = (struct varlena *) palloc(VARSIZE_ANY(attr));
+
 			memcpy(result, attr, VARSIZE_ANY(attr));
 			attr = result;
 		}
@@ -177,6 +179,7 @@ detoast_attr(struct varlena *attr)
 		Size		new_size = data_size + VARHDRSZ;
 
 		struct varlena *new_attr = (struct varlena *) palloc(new_size);
+
 		SET_VARSIZE(new_attr, new_size);
 		memcpy(VARDATA(new_attr), VARDATA_SHORT(attr), data_size);
 		attr = new_attr;
@@ -226,7 +229,7 @@ detoast_attr_slice(struct varlena *attr,
 			 * of a given length (after decompression).
 			 */
 			int32		max_size = pglz_maximum_compressed_size(sliceoffset + slicelength,
-													toast_pointer.va_extsize);
+																toast_pointer.va_extsize);
 
 			/*
 			 * Fetch enough compressed slices (compressed marker will get set
@@ -296,6 +299,7 @@ detoast_attr_slice(struct varlena *attr,
 		slicelength = attrsize - sliceoffset;
 
 	struct varlena *result = (struct varlena *) palloc(slicelength + VARHDRSZ);
+
 	SET_VARSIZE(result, slicelength + VARHDRSZ);
 
 	memcpy(VARDATA(result), attrdata + sliceoffset, slicelength);
@@ -437,7 +441,8 @@ toast_decompress_datum(struct varlena *attr)
 	Assert(VARATT_IS_COMPRESSED(attr));
 
 	struct varlena *result = (struct varlena *)
-		palloc(TOAST_COMPRESS_RAWSIZE(attr) + VARHDRSZ);
+	palloc(TOAST_COMPRESS_RAWSIZE(attr) + VARHDRSZ);
+
 	SET_VARSIZE(result, TOAST_COMPRESS_RAWSIZE(attr) + VARHDRSZ);
 
 	if (pglz_decompress(TOAST_COMPRESS_RAWDATA(attr),
@@ -466,9 +471,10 @@ toast_decompress_datum_slice(struct varlena *attr, int32 slicelength)
 	struct varlena *result = (struct varlena *) palloc(slicelength + VARHDRSZ);
 
 	int32		rawsize = pglz_decompress(TOAST_COMPRESS_RAWDATA(attr),
-							  VARSIZE(attr) - TOAST_COMPRESS_HDRSZ,
-							  VARDATA(result),
-							  slicelength, false);
+										  VARSIZE(attr) - TOAST_COMPRESS_HDRSZ,
+										  VARDATA(result),
+										  slicelength, false);
+
 	if (rawsize < 0)
 		elog(ERROR, "compressed data is corrupted");
 

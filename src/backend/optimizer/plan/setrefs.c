@@ -269,6 +269,7 @@ set_plan_references(PlannerInfo *root, Plan *plan)
 
 		/* flat copy is enough since all fields are scalars */
 		PlanRowMark *newrc = (PlanRowMark *) palloc(sizeof(PlanRowMark));
+
 		memcpy(newrc, rc, sizeof(PlanRowMark));
 
 		/* adjust indexes ... but *not* the rowmarkId */
@@ -341,6 +342,7 @@ add_rtes_to_flat_rtable(PlannerInfo *root, bool recursing)
 	 * flattened rangetable.
 	 */
 	Index		rti = 1;
+
 	foreach(lc, root->parse->rtable)
 	{
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
@@ -446,6 +448,7 @@ add_rte_to_flat_rtable(PlannerGlobal *glob, RangeTblEntry *rte)
 
 	/* flat copy to duplicate all the scalar fields */
 	RangeTblEntry *newrte = (RangeTblEntry *) palloc(sizeof(RangeTblEntry));
+
 	memcpy(newrte, rte, sizeof(RangeTblEntry));
 
 	/* zap unneeded sub-structure */
@@ -1167,6 +1170,7 @@ trivial_subqueryscan(SubqueryScan *plan)
 		return false;			/* tlists not same length */
 
 	int			attrno = 1;
+
 	forboth(lp, plan->scan.plan.targetlist, lc, plan->subplan->targetlist)
 	{
 		TargetEntry *ptle = (TargetEntry *) lfirst(lp);
@@ -1523,6 +1527,7 @@ set_hash_references(PlannerInfo *root, Plan *plan, int rtoffset)
 	 * inner plan of the HashJoin).
 	 */
 	indexed_tlist *outer_itlist = build_tlist_index(outer_plan->targetlist);
+
 	hplan->hashkeys = (List *)
 		fix_upper_expr(root,
 					   (Node *) hplan->hashkeys,
@@ -1551,6 +1556,7 @@ offset_relid_set(Relids relids, int rtoffset)
 	if (rtoffset == 0)
 		return relids;
 	int			rtindex = -1;
+
 	while ((rtindex = bms_next_member(relids, rtindex)) >= 0)
 		result = bms_add_member(result, rtindex + rtoffset);
 	return result;
@@ -1685,6 +1691,7 @@ fix_param_node(PlannerInfo *root, Param *p)
 			subqueryid > list_length(root->multiexpr_params))
 			elog(ERROR, "unexpected PARAM_MULTIEXPR ID: %d", p->paramid);
 		List	   *params = (List *) list_nth(root->multiexpr_params, subqueryid - 1);
+
 		if (colno <= 0 || colno > list_length(params))
 			elog(ERROR, "unexpected PARAM_MULTIEXPR ID: %d", p->paramid);
 		return copyObject(list_nth(params, colno - 1));
@@ -1726,6 +1733,7 @@ fix_alternative_subplan(PlannerInfo *root, AlternativeSubPlan *asplan,
 		SubPlan    *curplan = (SubPlan *) lfirst(lc);
 
 		Cost		curcost = curplan->startup_cost + num_exec * curplan->per_call_cost;
+
 		if (bestplan == NULL)
 		{
 			bestplan = curplan;
@@ -2052,6 +2060,7 @@ set_upper_references(PlannerInfo *root, Plan *plan, int rtoffset)
 	indexed_tlist *subplan_itlist = build_tlist_index(subplan->targetlist);
 
 	List	   *output_targetlist = NIL;
+
 	foreach(l, plan->targetlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(l);
@@ -2178,6 +2187,7 @@ convert_combining_aggrefs(Node *node, void *context)
 		 * than modifying it in-place.
 		 */
 		Aggref	   *child_agg = makeNode(Aggref);
+
 		memcpy(child_agg, orig_agg, sizeof(Aggref));
 
 		/*
@@ -2191,6 +2201,7 @@ convert_combining_aggrefs(Node *node, void *context)
 		child_agg->args = NIL;
 		child_agg->aggfilter = NULL;
 		Aggref	   *parent_agg = copyObject(child_agg);
+
 		child_agg->args = orig_agg->args;
 		child_agg->aggfilter = orig_agg->aggfilter;
 
@@ -2232,6 +2243,7 @@ set_dummy_tlist_references(Plan *plan, int rtoffset)
 	ListCell   *l;
 
 	List	   *output_targetlist = NIL;
+
 	foreach(l, plan->targetlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(l);
@@ -2251,11 +2263,12 @@ set_dummy_tlist_references(Plan *plan, int rtoffset)
 		}
 
 		Var		   *newvar = makeVar(OUTER_VAR,
-						 tle->resno,
-						 exprType((Node *) oldvar),
-						 exprTypmod((Node *) oldvar),
-						 exprCollation((Node *) oldvar),
-						 0);
+									 tle->resno,
+									 exprType((Node *) oldvar),
+									 exprTypmod((Node *) oldvar),
+									 exprCollation((Node *) oldvar),
+									 0);
+
 		if (IsA(oldvar, Var) &&
 			oldvar->varnosyn > 0)
 		{
@@ -2298,8 +2311,8 @@ build_tlist_index(List *tlist)
 
 	/* Create data structure with enough slots for all tlist entries */
 	indexed_tlist *itlist = (indexed_tlist *)
-		palloc(offsetof(indexed_tlist, vars) +
-			   list_length(tlist) * sizeof(tlist_vinfo));
+	palloc(offsetof(indexed_tlist, vars) +
+		   list_length(tlist) * sizeof(tlist_vinfo));
 
 	itlist->tlist = tlist;
 	itlist->has_ph_vars = false;
@@ -2307,6 +2320,7 @@ build_tlist_index(List *tlist)
 
 	/* Find the Vars and fill in the index array */
 	tlist_vinfo *vinfo = itlist->vars;
+
 	foreach(l, tlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(l);
@@ -2346,8 +2360,8 @@ build_tlist_index_other_vars(List *tlist, Index ignore_rel)
 
 	/* Create data structure with enough slots for all tlist entries */
 	indexed_tlist *itlist = (indexed_tlist *)
-		palloc(offsetof(indexed_tlist, vars) +
-			   list_length(tlist) * sizeof(tlist_vinfo));
+	palloc(offsetof(indexed_tlist, vars) +
+		   list_length(tlist) * sizeof(tlist_vinfo));
 
 	itlist->tlist = tlist;
 	itlist->has_ph_vars = false;
@@ -2355,6 +2369,7 @@ build_tlist_index_other_vars(List *tlist, Index ignore_rel)
 
 	/* Find the desired Vars and fill in the index array */
 	tlist_vinfo *vinfo = itlist->vars;
+
 	foreach(l, tlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(l);
@@ -2397,6 +2412,7 @@ search_indexed_tlist_for_var(Var *var, indexed_tlist *itlist,
 
 	tlist_vinfo *vinfo = itlist->vars;
 	int			i = itlist->num_vars;
+
 	while (i-- > 0)
 	{
 		if (vinfo->varno == varno && vinfo->varattno == varattno)
@@ -2442,11 +2458,13 @@ search_indexed_tlist_for_non_var(Expr *node,
 		return NULL;
 
 	TargetEntry *tle = tlist_member(node, itlist->tlist);
+
 	if (tle)
 	{
 		/* Found a matching subplan output expression */
 
 		Var		   *newvar = makeVarFromTargetEntry(newvarno, tle);
+
 		newvar->varnosyn = 0;	/* wasn't ever a plain Var */
 		newvar->varattnosyn = 0;
 		return newvar;
@@ -2483,6 +2501,7 @@ search_indexed_tlist_for_sortgroupref(Expr *node,
 			/* Found a matching subplan output expression */
 
 			Var		   *newvar = makeVarFromTargetEntry(newvarno, tle);
+
 			newvar->varnosyn = 0;	/* wasn't ever a plain Var */
 			newvar->varattnosyn = 0;
 			return newvar;

@@ -86,6 +86,7 @@ setup_simple_rel_arrays(PlannerInfo *root)
 
 	/* Arrays are accessed using RT indexes (1..N) */
 	int			size = list_length(root->parse->rtable) + 1;
+
 	root->simple_rel_array_size = size;
 
 	/*
@@ -99,6 +100,7 @@ setup_simple_rel_arrays(PlannerInfo *root)
 	root->simple_rte_array = (RangeTblEntry **)
 		palloc0(size * sizeof(RangeTblEntry *));
 	Index		rti = 1;
+
 	foreach(lc, root->parse->rtable)
 	{
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(lc);
@@ -198,9 +200,11 @@ build_simple_rel(PlannerInfo *root, int relid, RelOptInfo *parent)
 
 	/* Fetch RTE for relation */
 	RangeTblEntry *rte = root->simple_rte_array[relid];
+
 	Assert(rte != NULL);
 
 	RelOptInfo *rel = makeNode(RelOptInfo);
+
 	rel->reloptkind = parent ? RELOPT_OTHER_MEMBER_REL : RELOPT_BASEREL;
 	rel->relids = bms_make_singleton(relid);
 	rel->rows = 0;
@@ -401,9 +405,9 @@ build_join_rel_hash(PlannerInfo *root)
 	hash_ctl.match = bitmap_match;
 	hash_ctl.hcxt = CurrentMemoryContext;
 	HTAB	   *hashtab = hash_create("JoinRelHashTable",
-						  256L,
-						  &hash_ctl,
-						  HASH_ELEM | HASH_FUNCTION | HASH_COMPARE | HASH_CONTEXT);
+									  256L,
+									  &hash_ctl,
+									  HASH_ELEM | HASH_FUNCTION | HASH_COMPARE | HASH_CONTEXT);
 
 	/* Insert all the already-existing joinrels */
 	foreach(l, root->join_rel_list)
@@ -412,9 +416,10 @@ build_join_rel_hash(PlannerInfo *root)
 		bool		found;
 
 		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(hashtab,
-											   &(rel->relids),
-											   HASH_ENTER,
-											   &found);
+															  &(rel->relids),
+															  HASH_ENTER,
+															  &found);
+
 		Assert(!found);
 		hentry->join_rel = rel;
 	}
@@ -450,9 +455,10 @@ find_join_rel(PlannerInfo *root, Relids relids)
 		Relids		hashkey = relids;
 
 		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
-											   &hashkey,
-											   HASH_FIND,
-											   NULL);
+															  &hashkey,
+															  HASH_FIND,
+															  NULL);
+
 		if (hentry)
 			return hentry->join_rel;
 	}
@@ -539,9 +545,10 @@ add_join_rel(PlannerInfo *root, RelOptInfo *joinrel)
 		bool		found;
 
 		JoinHashEntry *hentry = (JoinHashEntry *) hash_search(root->join_rel_hash,
-											   &(joinrel->relids),
-											   HASH_ENTER,
-											   &found);
+															  &(joinrel->relids),
+															  HASH_ENTER,
+															  &found);
+
 		Assert(!found);
 		hentry->join_rel = joinrel;
 	}
@@ -694,7 +701,8 @@ build_join_rel(PlannerInfo *root,
 	 * for set_joinrel_size_estimates().)
 	 */
 	List	   *restrictlist = build_joinrel_restrictlist(root, joinrel,
-											  outer_rel, inner_rel);
+														  outer_rel, inner_rel);
+
 	if (restrictlist_ptr)
 		*restrictlist_ptr = restrictlist;
 	build_joinrel_joinlist(joinrel, outer_rel, inner_rel);
@@ -931,6 +939,7 @@ min_join_parameterization(PlannerInfo *root,
 	 * was already accounted for in the original baserel lateral_relids.
 	 */
 	Relids		result = bms_union(outer_rel->lateral_relids, inner_rel->lateral_relids);
+
 	result = bms_del_members(result, joinrelids);
 
 	/* Maintain invariant that result is exactly NULL if empty */
@@ -984,6 +993,7 @@ build_joinrel_tlist(PlannerInfo *root, RelOptInfo *joinrel,
 
 		/* Is it still needed above this joinrel? */
 		int			ndx = var->varattno - baserel->min_attr;
+
 		if (bms_nonempty_difference(baserel->attr_needed[ndx], relids))
 		{
 			/* Yup, add it to the output */
@@ -1049,6 +1059,7 @@ build_joinrel_restrictlist(PlannerInfo *root,
 	 * same clauses arriving from both input relations).
 	 */
 	List	   *result = subbuild_joinrel_restrictlist(joinrel, outer_rel->joininfo, NIL);
+
 	result = subbuild_joinrel_restrictlist(joinrel, inner_rel->joininfo, result);
 
 	/*
@@ -1077,6 +1088,7 @@ build_joinrel_joinlist(RelOptInfo *joinrel,
 	 * same clauses arriving from both input relations).
 	 */
 	List	   *result = subbuild_joinrel_joinlist(joinrel, outer_rel->joininfo, NIL);
+
 	result = subbuild_joinrel_joinlist(joinrel, inner_rel->joininfo, result);
 
 	joinrel->joininfo = result;
@@ -1281,6 +1293,7 @@ get_baserel_parampathinfo(PlannerInfo *root, RelOptInfo *baserel,
 	 */
 	Relids		joinrelids = bms_union(baserel->relids, required_outer);
 	List	   *pclauses = NIL;
+
 	foreach(lc, baserel->joininfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1375,6 +1388,7 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	 * that rel.
 	 */
 	Relids		join_and_req = bms_union(joinrel->relids, required_outer);
+
 	if (outer_path->param_info)
 		outer_and_req = bms_union(outer_path->parent->relids,
 								  PATH_REQ_OUTER(outer_path));
@@ -1387,6 +1401,7 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 		inner_and_req = NULL;	/* inner path does not accept parameters */
 
 	List	   *pclauses = NIL;
+
 	foreach(lc, joinrel->joininfo)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1405,11 +1420,13 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 
 	/* Consider joinclauses generated by EquivalenceClasses, too */
 	List	   *eclauses = generate_join_implied_equalities(root,
-												join_and_req,
-												required_outer,
-												joinrel);
+															join_and_req,
+															required_outer,
+															joinrel);
+
 	/* We only want ones that aren't movable to lower levels */
 	List	   *dropped_ecs = NIL;
+
 	foreach(lc, eclauses)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -1476,7 +1493,8 @@ get_joinrel_parampathinfo(PlannerInfo *root, RelOptInfo *joinrel,
 	{
 
 		Relids		real_outer_and_req = bms_union(outer_path->parent->relids,
-									   required_outer);
+												   required_outer);
+
 		eclauses =
 			generate_join_implied_equalities_for_ecs(root,
 													 dropped_ecs,
@@ -1737,9 +1755,11 @@ have_partkey_equi_join(RelOptInfo *joinrel,
 		 * partitionwise join.
 		 */
 		int			ipk1 = match_expr_to_partition_keys(expr1, rel1, strict_op);
+
 		if (ipk1 < 0)
 			continue;
 		int			ipk2 = match_expr_to_partition_keys(expr2, rel2, strict_op);
+
 		if (ipk2 < 0)
 			continue;
 

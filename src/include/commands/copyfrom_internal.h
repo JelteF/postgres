@@ -27,7 +27,7 @@ typedef enum CopySource
 	COPY_OLD_FE,				/* from frontend (2.0 protocol) */
 	COPY_NEW_FE,				/* from frontend (3.0 protocol) */
 	COPY_CALLBACK				/* from callback function */
-} CopySource;
+}			CopySource;
 
 /*
  *	Represents the end-of-line terminator type of the input
@@ -156,7 +156,7 @@ typedef struct CopyFromStateData
 	int			raw_buf_len;	/* total # of bytes stored */
 	/* Shorthand for number of unconsumed bytes available in raw_buf */
 #define RAW_BUF_BYTES(cstate) ((cstate)->raw_buf_len - (cstate)->raw_buf_index)
-} CopyFromStateData;
+}			CopyFromStateData;
 
 extern void ReceiveCopyBegin(CopyFromState cstate);
 extern void ReceiveCopyBinaryHeader(CopyFromState cstate);

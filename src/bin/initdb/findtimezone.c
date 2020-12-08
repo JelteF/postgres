@@ -240,6 +240,7 @@ score_timezone(const char *tzname, struct tztry *tt)
 
 	/* Load timezone definition */
 	pg_tz	   *tz = pg_load_tz(tzname);
+
 	if (!tz)
 		return -1;				/* unrecognized zone name */
 
@@ -359,6 +360,7 @@ identify_system_timezone(void)
 	 */
 	time_t		tnow = time(NULL);
 	struct tm  *tm = localtime(&tnow);
+
 	if (!tm)
 		return NULL;			/* give up if localtime is broken... */
 	int			thisyear = tm->tm_year + 1900;
@@ -401,6 +403,7 @@ identify_system_timezone(void)
 	/* No luck, so search for the best-matching timezone file */
 	strlcpy(tmptzdir, pg_TZDIR(), sizeof(tmptzdir));
 	int			bestscore = -1;
+
 	resultbuf[0] = '\0';
 	scan_available_timezones(tmptzdir, tmptzdir + strlen(tmptzdir) + 1,
 							 &tt,
@@ -545,6 +548,7 @@ check_system_link_file(const char *linkname, struct tztry *tt,
 	 * quietly fail; the precise reason needn't concern us.
 	 */
 	int			len = readlink(linkname, link_target, sizeof(link_target));
+
 	if (len < 0 || len >= sizeof(link_target))
 		return false;
 	link_target[len] = '\0';
@@ -652,6 +656,7 @@ scan_available_timezones(char *tzdir, char *tzdirsub, struct tztry *tt,
 	char	  **namep;
 
 	char	  **names = pgfnames(tzdir);
+
 	if (!names)
 		return;
 
@@ -1560,6 +1565,7 @@ identify_system_timezone(void)
 
 		memset(keyname, 0, sizeof(keyname));
 		DWORD		namesize = sizeof(keyname);
+
 		if ((r = RegEnumKeyEx(rootKey,
 							  idx,
 							  keyname,
@@ -1666,6 +1672,7 @@ validate_zone(const char *tzname)
 		return false;
 
 	pg_tz	   *tz = pg_load_tz(tzname);
+
 	if (!tz)
 		return false;
 

@@ -138,6 +138,7 @@ pgarch_start(void)
 	 * the postmaster main loop, we will get another chance later.
 	 */
 	time_t		curtime = time(NULL);
+
 	if ((unsigned int) (curtime - last_pgarch_start_time) <
 		(unsigned int) PGARCH_RESTART_INTERVAL)
 		return 0;
@@ -344,13 +345,15 @@ pgarch_MainLoop(void)
 			pg_time_t	curtime = (pg_time_t) time(NULL);
 
 			int			timeout = PGARCH_AUTOWAKE_INTERVAL - (curtime - last_copy_time);
+
 			if (timeout > 0)
 			{
 
 				int			rc = WaitLatch(MyLatch,
-							   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-							   timeout * 1000L,
-							   WAIT_EVENT_ARCHIVER_MAIN);
+										   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
+										   timeout * 1000L,
+										   WAIT_EVENT_ARCHIVER_MAIN);
+
 				if (rc & WL_TIMEOUT)
 					wakened = true;
 				if (rc & WL_POSTMASTER_DEATH)
@@ -519,6 +522,7 @@ pgarch_archiveXlog(char *xlog)
 	 */
 	char	   *dp = xlogarchcmd;
 	char	   *endp = xlogarchcmd + MAXPGPATH - 1;
+
 	*endp = '\0';
 
 	for (sp = XLogArchiveCommand; *sp; sp++)
@@ -570,6 +574,7 @@ pgarch_archiveXlog(char *xlog)
 	set_ps_display(activitymsg);
 
 	int			rc = system(xlogarchcmd);
+
 	if (rc != 0)
 	{
 		/*

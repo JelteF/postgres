@@ -656,6 +656,7 @@ getRowDescriptions(PGconn *conn)
 	int			i;
 
 	PGresult   *result = PQmakeEmptyPGresult(conn, PGRES_TUPLES_OK);
+
 	if (!result)
 	{
 		errmsg = NULL;			/* means "out of memory", see below */
@@ -797,6 +798,7 @@ getAnotherTuple(PGconn *conn, bool binary)
 
 	/* Resize row buffer if needed */
 	PGdataValue *rowbuf = conn->rowBuf;
+
 	if (nfields > conn->rowBufLen)
 	{
 		rowbuf = (PGdataValue *) realloc(rowbuf,
@@ -1126,6 +1128,7 @@ getNotify(PGconn *conn)
 	 */
 	int			nmlen = strlen(conn->workBuffer.data);
 	PGnotify   *newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + 1);
+
 	if (newNotify)
 	{
 		newNotify->relname = (char *) newNotify + sizeof(PGnotify);
@@ -1297,6 +1300,7 @@ pqGetlineAsync2(PGconn *conn, char *buffer, int bufsize)
 	conn->inCursor = conn->inStart;
 
 	int			avail = bufsize;
+
 	while (avail > 0 && conn->inCursor < conn->inEnd)
 	{
 		char		c = conn->inBuffer[conn->inCursor++];
@@ -1586,6 +1590,7 @@ pqBuildStartupPacket2(PGconn *conn, int *packetlen,
 
 	*packetlen = sizeof(StartupPacket);
 	StartupPacket *startpacket = (StartupPacket *) malloc(sizeof(StartupPacket));
+
 	if (!startpacket)
 		return NULL;
 

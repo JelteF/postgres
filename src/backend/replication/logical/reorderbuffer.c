@@ -303,11 +303,11 @@ ReorderBufferAllocate(void)
 
 	/* allocate memory in own context, to have better accountability */
 	MemoryContext new_ctx = AllocSetContextCreate(CurrentMemoryContext,
-									"ReorderBuffer",
-									ALLOCSET_DEFAULT_SIZES);
+												  "ReorderBuffer",
+												  ALLOCSET_DEFAULT_SIZES);
 
 	ReorderBuffer *buffer =
-		(ReorderBuffer *) MemoryContextAlloc(new_ctx, sizeof(ReorderBuffer));
+	(ReorderBuffer *) MemoryContextAlloc(new_ctx, sizeof(ReorderBuffer));
 
 	memset(&hash_ctl, 0, sizeof(hash_ctl));
 
@@ -389,7 +389,7 @@ ReorderBufferGetTXN(ReorderBuffer *rb)
 {
 
 	ReorderBufferTXN *txn = (ReorderBufferTXN *)
-		MemoryContextAlloc(rb->txn_context, sizeof(ReorderBufferTXN));
+	MemoryContextAlloc(rb->txn_context, sizeof(ReorderBufferTXN));
 
 	memset(txn, 0, sizeof(ReorderBufferTXN));
 
@@ -442,7 +442,7 @@ ReorderBufferGetChange(ReorderBuffer *rb)
 {
 
 	ReorderBufferChange *change = (ReorderBufferChange *)
-		MemoryContextAlloc(rb->change_context, sizeof(ReorderBufferChange));
+	MemoryContextAlloc(rb->change_context, sizeof(ReorderBufferChange));
 
 	memset(change, 0, sizeof(ReorderBufferChange));
 	return change;
@@ -526,9 +526,10 @@ ReorderBufferGetTupleBuf(ReorderBuffer *rb, Size tuple_len)
 	Size		alloc_len = tuple_len + SizeofHeapTupleHeader;
 
 	ReorderBufferTupleBuf *tuple = (ReorderBufferTupleBuf *)
-		MemoryContextAlloc(rb->tup_context,
-						   sizeof(ReorderBufferTupleBuf) +
-						   MAXIMUM_ALIGNOF + alloc_len);
+	MemoryContextAlloc(rb->tup_context,
+					   sizeof(ReorderBufferTupleBuf) +
+					   MAXIMUM_ALIGNOF + alloc_len);
+
 	tuple->alloc_tuple_size = alloc_len;
 	tuple->tuple.t_data = ReorderBufferTupleBufData(tuple);
 
@@ -620,10 +621,11 @@ ReorderBufferTXNByXid(ReorderBuffer *rb, TransactionId xid, bool create,
 
 	/* search the lookup table */
 	ReorderBufferTXNByIdEnt *ent = (ReorderBufferTXNByIdEnt *)
-		hash_search(rb->by_txn,
-					(void *) &xid,
-					create ? HASH_ENTER : HASH_FIND,
-					&found);
+	hash_search(rb->by_txn,
+				(void *) &xid,
+				create ? HASH_ENTER : HASH_FIND,
+				&found);
+
 	if (found)
 		txn = ent->txn;
 	else if (create)
@@ -789,6 +791,7 @@ ReorderBufferQueueMessage(ReorderBuffer *rb, TransactionId xid,
 		MemoryContext oldcontext = MemoryContextSwitchTo(rb->context);
 
 		ReorderBufferChange *change = ReorderBufferGetChange(rb);
+
 		change->action = REORDER_BUFFER_CHANGE_MESSAGE;
 		change->data.msg.prefix = pstrdup(prefix);
 		change->data.msg.message_size = message_size;
@@ -956,7 +959,8 @@ ReorderBufferGetOldestXmin(ReorderBuffer *rb)
 		return InvalidTransactionId;
 
 	ReorderBufferTXN *txn = dlist_head_element(ReorderBufferTXN, base_snapshot_node,
-							 &rb->txns_by_base_snapshot_lsn);
+											   &rb->txns_by_base_snapshot_lsn);
+
 	return txn->base_snapshot->xmin;
 }
 
@@ -1097,7 +1101,7 @@ ReorderBufferCommitChild(ReorderBuffer *rb, TransactionId xid,
 {
 
 	ReorderBufferTXN *subtxn = ReorderBufferTXNByXid(rb, subxid, false, NULL,
-								   InvalidXLogRecPtr, false);
+													 InvalidXLogRecPtr, false);
 
 	/*
 	 * No need to do anything if that subtxn didn't contain any changes
@@ -1189,9 +1193,9 @@ ReorderBufferIterTXNInit(ReorderBuffer *rb, ReorderBufferTXN *txn,
 
 	/* allocate iteration state */
 	ReorderBufferIterTXNState *state = (ReorderBufferIterTXNState *)
-		MemoryContextAllocZero(rb->context,
-							   sizeof(ReorderBufferIterTXNState) +
-							   sizeof(ReorderBufferIterTXNEntry) * nr_txns);
+	MemoryContextAllocZero(rb->context,
+						   sizeof(ReorderBufferIterTXNState) +
+						   sizeof(ReorderBufferIterTXNEntry) * nr_txns);
 
 	state->nr_txns = nr_txns;
 	dlist_init(&state->old_change);
@@ -1230,7 +1234,7 @@ ReorderBufferIterTXNInit(ReorderBuffer *rb, ReorderBufferTXN *txn,
 		}
 
 		ReorderBufferChange *cur_change = dlist_head_element(ReorderBufferChange, node,
-										&txn->changes);
+															 &txn->changes);
 
 		state->entries[off].lsn = cur_change->lsn;
 		state->entries[off].change = cur_change;
@@ -1257,7 +1261,7 @@ ReorderBufferIterTXNInit(ReorderBuffer *rb, ReorderBufferTXN *txn,
 											&state->entries[off].segno);
 			}
 			ReorderBufferChange *cur_change = dlist_head_element(ReorderBufferChange, node,
-											&cur_txn->changes);
+																 &cur_txn->changes);
 
 			state->entries[off].lsn = cur_change->lsn;
 			state->entries[off].change = cur_change;
@@ -1378,7 +1382,8 @@ ReorderBufferIterTXNFinish(ReorderBuffer *rb,
 	{
 
 		ReorderBufferChange *change = dlist_container(ReorderBufferChange, node,
-								 dlist_pop_head_node(&state->old_change));
+													  dlist_pop_head_node(&state->old_change));
+
 		ReorderBufferReturnChange(rb, change, true);
 		Assert(dlist_is_empty(&state->old_change));
 	}
@@ -1620,10 +1625,11 @@ ReorderBufferBuildTupleCidHash(ReorderBuffer *rb, ReorderBufferTXN *txn)
 						&key.tid);
 
 		ReorderBufferTupleCidEnt *ent = (ReorderBufferTupleCidEnt *)
-			hash_search(txn->tuplecid_hash,
-						(void *) &key,
-						HASH_ENTER | HASH_FIND,
-						&found);
+		hash_search(txn->tuplecid_hash,
+					(void *) &key,
+					HASH_ENTER | HASH_FIND,
+					&found);
+
 		if (!found)
 		{
 			ent->cmin = change->data.tuplecid.cmin;
@@ -1663,10 +1669,11 @@ ReorderBufferCopySnap(ReorderBuffer *rb, Snapshot orig_snap,
 	int			i = 0;
 
 	Size		size = sizeof(SnapshotData) +
-		sizeof(TransactionId) * orig_snap->xcnt +
-		sizeof(TransactionId) * (txn->nsubtxns + 1);
+	sizeof(TransactionId) * orig_snap->xcnt +
+	sizeof(TransactionId) * (txn->nsubtxns + 1);
 
 	Snapshot	snap = MemoryContextAllocZero(rb->context, size);
+
 	memcpy(snap, orig_snap, sizeof(SnapshotData));
 
 	snap->copied = true;
@@ -1695,6 +1702,7 @@ ReorderBufferCopySnap(ReorderBuffer *rb, Snapshot orig_snap,
 	{
 
 		ReorderBufferTXN *sub_txn = dlist_container(ReorderBufferTXN, node, iter.cur);
+
 		snap->subxip[i++] = sub_txn->xid;
 		snap->subxcnt++;
 	}
@@ -2136,6 +2144,7 @@ ReorderBufferProcessTXN(ReorderBuffer *rb, ReorderBufferTXN *txn,
 						int			nrelations = 0;
 
 						Relation   *relations = palloc0(nrelids * sizeof(Relation));
+
 						for (i = 0; i < nrelids; i++)
 						{
 							Oid			relid = change->data.truncate.relids[i];
@@ -2389,7 +2398,7 @@ ReorderBufferCommit(ReorderBuffer *rb, TransactionId xid,
 	CommandId	command_id = FirstCommandId;
 
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
-								false);
+												  false);
 
 	/* unknown transaction, nothing to replay */
 	if (txn == NULL)
@@ -2452,7 +2461,7 @@ ReorderBufferAbort(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
 {
 
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
-								false);
+												  false);
 
 	/* unknown, nothing to remove */
 	if (txn == NULL)
@@ -2535,7 +2544,7 @@ ReorderBufferForget(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
 {
 
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
-								false);
+												  false);
 
 	/* unknown, nothing to forget */
 	if (txn == NULL)
@@ -2649,6 +2658,7 @@ ReorderBufferSetBaseSnapshot(ReorderBuffer *rb, TransactionId xid,
 	 * operate on its top-level transaction instead.
 	 */
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, true, &is_new, lsn, true);
+
 	if (rbtxn_is_known_subxact(txn))
 		txn = ReorderBufferTXNByXid(rb, txn->toplevel_xid, false,
 									NULL, InvalidXLogRecPtr, false);
@@ -2827,6 +2837,7 @@ ReorderBufferAddInvalidations(ReorderBuffer *rb, TransactionId xid,
 	}
 
 	ReorderBufferChange *change = ReorderBufferGetChange(rb);
+
 	change->action = REORDER_BUFFER_CHANGE_INVALIDATION;
 	change->data.inval.ninvalidations = nmsgs;
 	change->data.inval.invalidations = (SharedInvalidationMessage *)
@@ -2883,7 +2894,8 @@ ReorderBufferXidHasCatalogChanges(ReorderBuffer *rb, TransactionId xid)
 {
 
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, false, NULL, InvalidXLogRecPtr,
-								false);
+												  false);
+
 	if (txn == NULL)
 		return false;
 
@@ -2899,7 +2911,7 @@ ReorderBufferXidHasBaseSnapshot(ReorderBuffer *rb, TransactionId xid)
 {
 
 	ReorderBufferTXN *txn = ReorderBufferTXNByXid(rb, xid, false,
-								NULL, InvalidXLogRecPtr, false);
+												  NULL, InvalidXLogRecPtr, false);
 
 	/* transaction isn't known yet, ergo no snapshot */
 	if (txn == NULL)
@@ -3110,6 +3122,7 @@ ReorderBufferSerializeTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 	{
 
 		ReorderBufferTXN *subtxn = dlist_container(ReorderBufferTXN, node, subtxn_i.cur);
+
 		ReorderBufferSerializeTXN(rb, subtxn);
 	}
 
@@ -3188,6 +3201,7 @@ ReorderBufferSerializeChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
 	ReorderBufferSerializeReserve(rb, sz);
 
 	ReorderBufferDiskChange *ondisk = (ReorderBufferDiskChange *) rb->outbuf;
+
 	memcpy(&ondisk->change, change, sizeof(ReorderBufferChange));
 
 	switch (change->action)
@@ -3335,6 +3349,7 @@ ReorderBufferSerializeChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
 
 				/* account for the OIDs of truncated relations */
 				Size		size = sizeof(Oid) * change->data.truncate.nrelids;
+
 				sz += size;
 
 				/* make sure we have enough space */
@@ -3464,6 +3479,7 @@ ReorderBufferStreamTXN(ReorderBuffer *rb, ReorderBufferTXN *txn)
 		{
 
 			ReorderBufferTXN *subtxn = dlist_container(ReorderBufferTXN, node, subxact_i.cur);
+
 			ReorderBufferTransferSnapToParent(txn, subtxn);
 		}
 
@@ -3690,8 +3706,8 @@ ReorderBufferRestoreChanges(ReorderBuffer *rb, ReorderBufferTXN *txn,
 		 */
 		ReorderBufferSerializeReserve(rb, sizeof(ReorderBufferDiskChange));
 		int			readBytes = FileRead(file->vfd, rb->outbuf,
-							 sizeof(ReorderBufferDiskChange),
-							 file->curOffset, WAIT_EVENT_REORDER_BUFFER_READ);
+										 sizeof(ReorderBufferDiskChange),
+										 file->curOffset, WAIT_EVENT_REORDER_BUFFER_READ);
 
 		/* eof */
 		if (readBytes == 0)
@@ -3870,8 +3886,8 @@ ReorderBufferRestoreChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
 				Snapshot	oldsnap = (Snapshot) data;
 
 				Size		size = sizeof(SnapshotData) +
-					sizeof(TransactionId) * oldsnap->xcnt +
-					sizeof(TransactionId) * (oldsnap->subxcnt + 0);
+				sizeof(TransactionId) * oldsnap->xcnt +
+				sizeof(TransactionId) * (oldsnap->subxcnt + 0);
 
 				change->data.snapshot = MemoryContextAllocZero(rb->context, size);
 
@@ -3889,7 +3905,8 @@ ReorderBufferRestoreChange(ReorderBuffer *rb, ReorderBufferTXN *txn,
 			{
 
 				Oid		   *relids = ReorderBufferGetRelids(rb,
-												change->data.truncate.nrelids);
+															change->data.truncate.nrelids);
+
 				memcpy(relids, data, change->data.truncate.nrelids * sizeof(Oid));
 				change->data.truncate.relids = relids;
 
@@ -3962,6 +3979,7 @@ ReorderBufferCleanupSerializedTXNs(const char *slotname)
 		return;
 
 	DIR		   *spill_dir = AllocateDir(path);
+
 	while ((spill_de = ReadDirExtended(spill_dir, path, INFO)) != NULL)
 	{
 		/* only look at names that can be ours */
@@ -4010,6 +4028,7 @@ StartupReorderBuffer(void)
 	struct dirent *logical_de;
 
 	DIR		   *logical_dir = AllocateDir("pg_replslot");
+
 	while ((logical_de = ReadDir(logical_dir, "pg_replslot")) != NULL)
 	{
 		if (strcmp(logical_de->d_name, ".") == 0 ||
@@ -4074,15 +4093,17 @@ ReorderBufferToastAppendChunk(ReorderBuffer *rb, ReorderBufferTXN *txn,
 
 	ReorderBufferTupleBuf *newtup = change->data.tp.newtuple;
 	Oid			chunk_id = DatumGetObjectId(fastgetattr(&newtup->tuple, 1, desc, &isnull));
+
 	Assert(!isnull);
 	int32		chunk_seq = DatumGetInt32(fastgetattr(&newtup->tuple, 2, desc, &isnull));
+
 	Assert(!isnull);
 
 	ReorderBufferToastEnt *ent = (ReorderBufferToastEnt *)
-		hash_search(txn->toast_hash,
-					(void *) &chunk_id,
-					HASH_ENTER,
-					&found);
+	hash_search(txn->toast_hash,
+				(void *) &chunk_id,
+				HASH_ENTER,
+				&found);
 
 	if (!found)
 	{
@@ -4102,6 +4123,7 @@ ReorderBufferToastAppendChunk(ReorderBuffer *rb, ReorderBufferTXN *txn,
 			 chunk_seq, chunk_id, ent->last_chunk_seq + 1);
 
 	Pointer		chunk = DatumGetPointer(fastgetattr(&newtup->tuple, 3, desc, &isnull));
+
 	Assert(!isnull);
 
 	/* calculate size so we can allocate the right size at once later */
@@ -4164,6 +4186,7 @@ ReorderBufferToastReplace(ReorderBuffer *rb, ReorderBufferTXN *txn,
 	TupleDesc	desc = RelationGetDescr(relation);
 
 	Relation	toast_rel = RelationIdGetRelation(relation->rd_rel->reltoastrelid);
+
 	if (!RelationIsValid(toast_rel))
 		elog(ERROR, "could not open relation with OID %u",
 			 relation->rd_rel->reltoastrelid);
@@ -4218,15 +4241,16 @@ ReorderBufferToastReplace(ReorderBuffer *rb, ReorderBufferTXN *txn,
 		 * Check whether the toast tuple changed, replace if so.
 		 */
 		ReorderBufferToastEnt *ent = (ReorderBufferToastEnt *)
-			hash_search(txn->toast_hash,
-						(void *) &toast_pointer.va_valueid,
-						HASH_FIND,
-						NULL);
+		hash_search(txn->toast_hash,
+					(void *) &toast_pointer.va_valueid,
+					HASH_FIND,
+					NULL);
+
 		if (ent == NULL)
 			continue;
 
 		struct varlena *new_datum =
-			(struct varlena *) palloc0(INDIRECT_POINTER_SIZE);
+		(struct varlena *) palloc0(INDIRECT_POINTER_SIZE);
 
 		free[natt] = true;
 
@@ -4276,6 +4300,7 @@ ReorderBufferToastReplace(ReorderBuffer *rb, ReorderBufferTXN *txn,
 	 * the tuplebuf because attrs[] will point back into the current content.
 	 */
 	HeapTuple	tmphtup = heap_form_tuple(desc, attrs, isnull);
+
 	Assert(newtup->tuple.t_len <= MaxHeapTupleSize);
 	Assert(ReorderBufferTupleBufData(newtup) == newtup->tuple.t_data);
 
@@ -4414,6 +4439,7 @@ ApplyLogicalMappingFile(HTAB *tuplecid_data, Oid relid, const char *fname)
 
 	sprintf(path, "pg_logical/mappings/%s", fname);
 	int			fd = OpenTransientFile(path, O_RDONLY | PG_BINARY);
+
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -4452,10 +4478,10 @@ ApplyLogicalMappingFile(HTAB *tuplecid_data, Oid relid, const char *fname)
 
 
 		ReorderBufferTupleCidEnt *ent = (ReorderBufferTupleCidEnt *)
-			hash_search(tuplecid_data,
-						(void *) &key,
-						HASH_FIND,
-						NULL);
+		hash_search(tuplecid_data,
+					(void *) &key,
+					HASH_FIND,
+					NULL);
 
 		/* no existing mapping, no need to update */
 		if (!ent)
@@ -4466,10 +4492,10 @@ ApplyLogicalMappingFile(HTAB *tuplecid_data, Oid relid, const char *fname)
 						&key.tid);
 
 		ReorderBufferTupleCidEnt *new_ent = (ReorderBufferTupleCidEnt *)
-			hash_search(tuplecid_data,
-						(void *) &key,
-						HASH_ENTER,
-						&found);
+		hash_search(tuplecid_data,
+					(void *) &key,
+					HASH_ENTER,
+					&found);
 
 		if (found)
 		{
@@ -4536,6 +4562,7 @@ UpdateLogicalMappings(HTAB *tuplecid_data, Oid relid, Snapshot snapshot)
 	Oid			dboid = IsSharedRelation(relid) ? InvalidOid : MyDatabaseId;
 
 	DIR		   *mapping_dir = AllocateDir("pg_logical/mappings");
+
 	while ((mapping_de = ReadDir(mapping_dir, "pg_logical/mappings")) != NULL)
 	{
 		Oid			f_dboid;
@@ -4578,6 +4605,7 @@ UpdateLogicalMappings(HTAB *tuplecid_data, Oid relid, Snapshot snapshot)
 
 		/* ok, relevant, queue for apply */
 		RewriteMappingFile *f = palloc(sizeof(RewriteMappingFile));
+
 		f->lsn = f_lsn;
 		strcpy(f->fname, mapping_de->d_name);
 		files = lappend(files, f);

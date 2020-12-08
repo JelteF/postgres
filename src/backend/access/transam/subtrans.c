@@ -83,6 +83,7 @@ SubTransSetParent(TransactionId xid, TransactionId parent)
 
 	int			slotno = SimpleLruReadPage(SubTransCtl, pageno, true, xid);
 	TransactionId *ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+
 	ptr += entryno;
 
 	/*
@@ -120,6 +121,7 @@ SubTransGetParent(TransactionId xid)
 
 	int			slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
 	TransactionId *ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+
 	ptr += entryno;
 
 	TransactionId parent = *ptr;
@@ -356,8 +358,10 @@ SubTransPagePrecedes(int page1, int page2)
 {
 
 	TransactionId xid1 = ((TransactionId) page1) * SUBTRANS_XACTS_PER_PAGE;
+
 	xid1 += FirstNormalTransactionId;
 	TransactionId xid2 = ((TransactionId) page2) * SUBTRANS_XACTS_PER_PAGE;
+
 	xid2 += FirstNormalTransactionId;
 
 	return TransactionIdPrecedes(xid1, xid2);

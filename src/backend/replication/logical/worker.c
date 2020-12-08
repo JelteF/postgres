@@ -225,7 +225,7 @@ static void maybe_reread_subscription(void);
 static void apply_dispatch(StringInfo s);
 
 static void apply_handle_commit_internal(StringInfo s,
-										 LogicalRepCommitData* commit_data);
+										 LogicalRepCommitData *commit_data);
 static void apply_handle_insert_internal(ResultRelInfo *relinfo,
 										 EState *estate, TupleTableSlot *remoteslot);
 static void apply_handle_update_internal(ResultRelInfo *relinfo,
@@ -346,6 +346,7 @@ create_estate_for_relation(LogicalRepRelMapEntry *rel)
 	EState	   *estate = CreateExecutorState();
 
 	RangeTblEntry *rte = makeNode(RangeTblEntry);
+
 	rte->rtekind = RTE_RELATION;
 	rte->relid = RelationGetRelid(rel->localrel);
 	rte->relkind = rel->localrel->rd_rel->relkind;
@@ -431,6 +432,7 @@ slot_store_error_callback(void *arg)
 		return;
 
 	LogicalRepRelMapEntry *rel = errarg->rel;
+
 	remotetypoid = rel->remoterel.atttyps[errarg->remote_attnum];
 
 	/* Fetch remote type name from the LogicalRepTypMap cache */
@@ -743,10 +745,10 @@ apply_handle_stream_start(StringInfo s)
 
 	/*
 	 * Start a transaction on stream start, this transaction will be committed
-	 * on the stream stop unless it is a tablesync worker in which case it will
-	 * be committed after processing all the messages. We need the transaction
-	 * for handling the buffile, used for serializing the streaming data and
-	 * subxact info.
+	 * on the stream stop unless it is a tablesync worker in which case it
+	 * will be committed after processing all the messages. We need the
+	 * transaction for handling the buffile, used for serializing the
+	 * streaming data and subxact info.
 	 */
 	ensure_transaction();
 
@@ -855,6 +857,7 @@ apply_handle_stream_abort(StringInfo s)
 		char		path[MAXPGPATH];
 
 		int64		subidx = -1;
+
 		ensure_transaction();
 		subxact_info_read(MyLogicalRepWorker->subid, xid);
 
@@ -886,9 +889,10 @@ apply_handle_stream_abort(StringInfo s)
 		Assert((subidx >= 0) && (subidx < subxact_data.nsubxacts));
 
 		StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-											(void *) &xid,
-											HASH_FIND,
-											&found);
+														   (void *) &xid,
+														   HASH_FIND,
+														   &found);
+
 		Assert(found);
 
 		/* open the changes file */
@@ -941,13 +945,15 @@ apply_handle_stream_commit(StringInfo s)
 	changes_filename(path, MyLogicalRepWorker->subid, xid);
 	elog(DEBUG1, "replaying changes from file \"%s\"", path);
 	StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-										(void *) &xid,
-										HASH_FIND,
-										&found);
+													   (void *) &xid,
+													   HASH_FIND,
+													   &found);
+
 	Assert(found);
 	BufFile    *fd = BufFileOpenShared(ent->stream_fileset, path, O_RDONLY);
 
 	char	   *buffer = palloc(BLCKSZ);
+
 	initStringInfo(&s2);
 
 	MemoryContextSwitchTo(oldcxt);
@@ -966,6 +972,7 @@ apply_handle_stream_commit(StringInfo s)
 	 * apply_dispatch.
 	 */
 	int			nchanges = 0;
+
 	while (true)
 	{
 		int			len;
@@ -1041,7 +1048,7 @@ apply_handle_stream_commit(StringInfo s)
  * Helper function for apply_handle_commit and apply_handle_stream_commit.
  */
 static void
-apply_handle_commit_internal(StringInfo s, LogicalRepCommitData* commit_data)
+apply_handle_commit_internal(StringInfo s, LogicalRepCommitData *commit_data)
 {
 	/* The synchronization worker runs in single transaction. */
 	if (IsTransactionState() && !am_tablesync_worker())
@@ -1084,6 +1091,7 @@ apply_handle_relation(StringInfo s)
 		return;
 
 	LogicalRepRelation *rel = logicalrep_read_rel(s);
+
 	logicalrep_relmap_update(rel);
 }
 
@@ -1138,6 +1146,7 @@ apply_handle_insert(StringInfo s)
 
 	LogicalRepRelId relid = logicalrep_read_insert(s, &newtup);
 	LogicalRepRelMapEntry *rel = logicalrep_rel_open(relid, RowExclusiveLock);
+
 	if (!should_apply_changes_for_rel(rel))
 	{
 		/*
@@ -1151,9 +1160,10 @@ apply_handle_insert(StringInfo s)
 	/* Initialize the executor state. */
 	EState	   *estate = create_estate_for_relation(rel);
 	TupleTableSlot *remoteslot = ExecInitExtraTupleSlot(estate,
-										RelationGetDescr(rel->localrel),
-										&TTSOpsVirtual);
+														RelationGetDescr(rel->localrel),
+														&TTSOpsVirtual);
 	ResultRelInfo *resultRelInfo = makeNode(ResultRelInfo);
+
 	InitResultRelInfo(resultRelInfo, rel->localrel, 1, NULL, 0);
 
 	/* Input functions may need an active snapshot, so get one */
@@ -1161,6 +1171,7 @@ apply_handle_insert(StringInfo s)
 
 	/* Process and store remote tuple in the slot */
 	MemoryContext oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+
 	slot_store_data(remoteslot, rel, &newtup);
 	slot_fill_defaults(rel, estate, remoteslot);
 	MemoryContextSwitchTo(oldctx);
@@ -1251,8 +1262,9 @@ apply_handle_update(StringInfo s)
 	ensure_transaction();
 
 	LogicalRepRelId relid = logicalrep_read_update(s, &has_oldtup, &oldtup,
-								   &newtup);
+												   &newtup);
 	LogicalRepRelMapEntry *rel = logicalrep_rel_open(relid, RowExclusiveLock);
+
 	if (!should_apply_changes_for_rel(rel))
 	{
 		/*
@@ -1269,9 +1281,10 @@ apply_handle_update(StringInfo s)
 	/* Initialize the executor state. */
 	EState	   *estate = create_estate_for_relation(rel);
 	TupleTableSlot *remoteslot = ExecInitExtraTupleSlot(estate,
-										RelationGetDescr(rel->localrel),
-										&TTSOpsVirtual);
+														RelationGetDescr(rel->localrel),
+														&TTSOpsVirtual);
 	ResultRelInfo *resultRelInfo = makeNode(ResultRelInfo);
+
 	InitResultRelInfo(resultRelInfo, rel->localrel, 1, NULL, 0);
 
 	/*
@@ -1282,6 +1295,7 @@ apply_handle_update(StringInfo s)
 	 * on the subscriber, since we are not touching those.
 	 */
 	RangeTblEntry *target_rte = list_nth(estate->es_range_table, 0);
+
 	for (int i = 0; i < remoteslot->tts_tupleDescriptor->natts; i++)
 	{
 		Form_pg_attribute att = TupleDescAttr(remoteslot->tts_tupleDescriptor, i);
@@ -1304,6 +1318,7 @@ apply_handle_update(StringInfo s)
 
 	/* Build the search tuple. */
 	MemoryContext oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+
 	slot_store_data(remoteslot, rel,
 					has_oldtup ? &oldtup : &newtup);
 	MemoryContextSwitchTo(oldctx);
@@ -1345,8 +1360,9 @@ apply_handle_update_internal(ResultRelInfo *relinfo,
 	ExecOpenIndices(relinfo, false);
 
 	bool		found = FindReplTupleInLocalRel(estate, localrel,
-									&relmapentry->remoterel,
-									remoteslot, &localslot);
+												&relmapentry->remoterel,
+												remoteslot, &localslot);
+
 	ExecClearTuple(remoteslot);
 
 	/*
@@ -1402,6 +1418,7 @@ apply_handle_delete(StringInfo s)
 
 	LogicalRepRelId relid = logicalrep_read_delete(s, &oldtup);
 	LogicalRepRelMapEntry *rel = logicalrep_rel_open(relid, RowExclusiveLock);
+
 	if (!should_apply_changes_for_rel(rel))
 	{
 		/*
@@ -1418,15 +1435,17 @@ apply_handle_delete(StringInfo s)
 	/* Initialize the executor state. */
 	EState	   *estate = create_estate_for_relation(rel);
 	TupleTableSlot *remoteslot = ExecInitExtraTupleSlot(estate,
-										RelationGetDescr(rel->localrel),
-										&TTSOpsVirtual);
+														RelationGetDescr(rel->localrel),
+														&TTSOpsVirtual);
 	ResultRelInfo *resultRelInfo = makeNode(ResultRelInfo);
+
 	InitResultRelInfo(resultRelInfo, rel->localrel, 1, NULL, 0);
 
 	PushActiveSnapshot(GetTransactionSnapshot());
 
 	/* Build the search tuple. */
 	MemoryContext oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
+
 	slot_store_data(remoteslot, rel, &oldtup);
 	MemoryContextSwitchTo(oldctx);
 
@@ -1465,7 +1484,7 @@ apply_handle_delete_internal(ResultRelInfo *relinfo, EState *estate,
 	ExecOpenIndices(relinfo, false);
 
 	bool		found = FindReplTupleInLocalRel(estate, localrel, remoterel,
-									remoteslot, &localslot);
+												remoteslot, &localslot);
 
 	/* If found delete it. */
 	if (found)
@@ -1507,6 +1526,7 @@ FindReplTupleInLocalRel(EState *estate, Relation localrel,
 	*localslot = table_slot_create(localrel, &estate->es_tupleTable);
 
 	Oid			idxoid = GetRelationIdentityOrPK(localrel);
+
 	Assert(OidIsValid(idxoid) ||
 		   (remoterel->replident == REPLICA_IDENTITY_FULL));
 
@@ -1536,6 +1556,7 @@ apply_handle_tuple_routing(ResultRelInfo *relinfo,
 
 	/* ModifyTableState is needed for ExecFindPartition(). */
 	ModifyTableState *mtstate = makeNode(ModifyTableState);
+
 	mtstate->ps.plan = NULL;
 	mtstate->ps.state = estate;
 	mtstate->operation = operation;
@@ -1548,7 +1569,8 @@ apply_handle_tuple_routing(ResultRelInfo *relinfo,
 	Assert(remoteslot != NULL);
 	MemoryContext oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 	ResultRelInfo *partrelinfo = ExecFindPartition(mtstate, relinfo, proute,
-									remoteslot, estate);
+												   remoteslot, estate);
+
 	Assert(partrelinfo != NULL);
 	Relation	partrel = partrelinfo->ri_RelationDesc;
 
@@ -1558,9 +1580,11 @@ apply_handle_tuple_routing(ResultRelInfo *relinfo,
 	 * slot to store the tuple in any case.
 	 */
 	TupleTableSlot *remoteslot_part = partrelinfo->ri_PartitionTupleSlot;
+
 	if (remoteslot_part == NULL)
 		remoteslot_part = table_slot_create(partrel, &estate->es_tupleTable);
 	TupleConversionMap *map = partrelinfo->ri_RootToPartitionMap;
+
 	if (map != NULL)
 		remoteslot_part = execute_attr_map_slot(map->attrMap, remoteslot,
 												remoteslot_part);
@@ -1598,12 +1622,12 @@ apply_handle_tuple_routing(ResultRelInfo *relinfo,
 				ResultRelInfo *partrelinfo_new;
 
 				LogicalRepRelMapEntry *part_entry = logicalrep_partition_open(relmapentry, partrel,
-													   attrmap);
+																			  attrmap);
 
 				/* Get the matching local tuple from the partition. */
 				bool		found = FindReplTupleInLocalRel(estate, partrel,
-												&part_entry->remoterel,
-												remoteslot_part, &localslot);
+															&part_entry->remoterel,
+															remoteslot_part, &localslot);
 
 				oldctx = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
 				if (found)
@@ -1764,6 +1788,7 @@ apply_handle_truncate(StringInfo s)
 		LogicalRepRelId relid = lfirst_oid(lc);
 
 		LogicalRepRelMapEntry *rel = logicalrep_rel_open(relid, RowExclusiveLock);
+
 		if (!should_apply_changes_for_rel(rel))
 		{
 			/*
@@ -1979,6 +2004,7 @@ store_flush_position(XLogRecPtr remote_lsn)
 
 	/* Track commit lsn  */
 	FlushPosition *flushpos = (FlushPosition *) palloc(sizeof(FlushPosition));
+
 	flushpos->local_end = XactLastCommitEnd;
 	flushpos->remote_end = remote_lsn;
 
@@ -2157,10 +2183,10 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 			wait_time = NAPTIME_PER_CYCLE;
 
 		int			rc = WaitLatchOrSocket(MyLatch,
-							   WL_SOCKET_READABLE | WL_LATCH_SET |
-							   WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-							   fd, wait_time,
-							   WAIT_EVENT_LOGICAL_APPLY_MAIN);
+										   WL_SOCKET_READABLE | WL_LATCH_SET |
+										   WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+										   fd, wait_time,
+										   WAIT_EVENT_LOGICAL_APPLY_MAIN);
 
 		if (rc & WL_LATCH_SET)
 		{
@@ -2195,8 +2221,8 @@ LogicalRepApplyLoop(XLogRecPtr last_received)
 				TimestampTz now = GetCurrentTimestamp();
 
 				TimestampTz timeout =
-					TimestampTzPlusMilliseconds(last_recv_timestamp,
-												wal_receiver_timeout);
+				TimestampTzPlusMilliseconds(last_recv_timestamp,
+											wal_receiver_timeout);
 
 				if (now >= timeout)
 					ereport(ERROR,
@@ -2439,9 +2465,10 @@ subxact_info_write(Oid subid, TransactionId xid)
 
 	/* find the xid entry in the xidhash */
 	StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-										(void *) &xid,
-										HASH_FIND,
-										&found);
+													   (void *) &xid,
+													   HASH_FIND,
+													   &found);
+
 	/* we must found the entry for its top transaction by this time */
 	Assert(found);
 
@@ -2475,6 +2502,7 @@ subxact_info_write(Oid subid, TransactionId xid)
 		 * start/stop calls.  So, need to allocate it in a persistent context.
 		 */
 		MemoryContext oldctx = MemoryContextSwitchTo(ApplyContext);
+
 		ent->subxact_fileset = palloc(sizeof(SharedFileSet));
 		SharedFileSetInit(ent->subxact_fileset, NULL);
 		MemoryContextSwitchTo(oldctx);
@@ -2516,9 +2544,9 @@ subxact_info_read(Oid subid, TransactionId xid)
 
 	/* Find the stream xid entry in the xidhash */
 	StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-										(void *) &xid,
-										HASH_FIND,
-										&found);
+													   (void *) &xid,
+													   HASH_FIND,
+													   &found);
 
 	/*
 	 * If subxact_fileset is not valid that mean we don't have any subxact
@@ -2552,6 +2580,7 @@ subxact_info_read(Oid subid, TransactionId xid)
 	 * to the subxact file and reset the logical streaming context.
 	 */
 	MemoryContext oldctx = MemoryContextSwitchTo(LogicalStreamingContext);
+
 	subxact_data.subxacts = palloc(subxact_data.nsubxacts_max *
 								   sizeof(SubXactInfo));
 	MemoryContextSwitchTo(oldctx);
@@ -2621,6 +2650,7 @@ subxact_info_add(TransactionId xid)
 		 * subxact_info_read.
 		 */
 		MemoryContext oldctx = MemoryContextSwitchTo(LogicalStreamingContext);
+
 		subxacts = palloc(subxact_data.nsubxacts_max * sizeof(SubXactInfo));
 		MemoryContextSwitchTo(oldctx);
 	}
@@ -2673,9 +2703,10 @@ stream_cleanup_files(Oid subid, TransactionId xid)
 
 	/* Remove the xid entry from the stream xid hash */
 	StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-										(void *) &xid,
-										HASH_REMOVE,
-										NULL);
+													   (void *) &xid,
+													   HASH_REMOVE,
+													   NULL);
+
 	/* By this time we must have created the transaction entry */
 	Assert(ent != NULL);
 
@@ -2721,9 +2752,10 @@ stream_open_file(Oid subid, TransactionId xid, bool first_segment)
 
 	/* create or find the xid entry in the xidhash */
 	StreamXidHash *ent = (StreamXidHash *) hash_search(xidhash,
-										(void *) &xid,
-										HASH_ENTER | HASH_FIND,
-										&found);
+													   (void *) &xid,
+													   HASH_ENTER | HASH_FIND,
+													   &found);
+
 	Assert(first_segment || found);
 	changes_filename(path, subid, xid);
 	elog(DEBUG1, "opening file \"%s\" for streamed changes", path);
@@ -2969,6 +3001,7 @@ ApplyWorkerMain(Datum main_arg)
 		StartTransactionCommand();
 		snprintf(originname, sizeof(originname), "pg_%u", MySubscription->oid);
 		RepOriginId originid = replorigin_by_name(originname, true);
+
 		if (!OidIsValid(originid))
 			originid = replorigin_create(originname);
 		replorigin_session_setup(originid);

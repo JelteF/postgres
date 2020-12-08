@@ -37,7 +37,7 @@
 #define NUM_EMULATION_SEMAPHORES (NUM_SPINLOCK_SEMAPHORES + NUM_ATOMICS_SEMAPHORES)
 #else
 #define NUM_EMULATION_SEMAPHORES (NUM_SPINLOCK_SEMAPHORES)
-#endif /* DISABLE_ATOMICS */
+#endif							/* DISABLE_ATOMICS */
 
 PGSemaphore *SpinlockSemaArray;
 
@@ -84,6 +84,7 @@ SpinlockSemaInit(void)
 	 * ShmemAlloc() obviously can't be ready yet.
 	 */
 	PGSemaphore *spinsemas = (PGSemaphore *) ShmemAllocUnlocked(SpinlockSemaSize());
+
 	for (i = 0; i < nsemas; ++i)
 		spinsemas[i] = PGSemaphoreCreate();
 	SpinlockSemaArray = spinsemas;

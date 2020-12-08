@@ -74,6 +74,7 @@ find_inheritance_children(Oid parentrelId, LOCKMODE lockmode)
 	 */
 	maxoids = 32;
 	Oid		   *oidarr = (Oid *) palloc(maxoids * sizeof(Oid));
+
 	numoids = 0;
 
 	Relation	relation = table_open(InheritsRelationId, AccessShareLock);
@@ -84,7 +85,7 @@ find_inheritance_children(Oid parentrelId, LOCKMODE lockmode)
 				ObjectIdGetDatum(parentrelId));
 
 	SysScanDesc scan = systable_beginscan(relation, InheritsParentIndexId, true,
-							  NULL, 1, key);
+										  NULL, 1, key);
 
 	while ((inheritsTuple = systable_getnext(scan)) != NULL)
 	{
@@ -173,9 +174,9 @@ find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 	ctl.hcxt = CurrentMemoryContext;
 
 	HTAB	   *seen_rels = hash_create("find_all_inheritors temporary table",
-							32, /* start small and extend */
-							&ctl,
-							HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+										32, /* start small and extend */
+										&ctl,
+										HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/*
 	 * We build a list starting with the given rel and adding all direct and
@@ -210,12 +211,14 @@ find_all_inheritors(Oid parentrelId, LOCKMODE lockmode, List **numparents)
 			bool		found;
 
 			SeenRelsEntry *hash_entry = hash_search(seen_rels, &child_oid, HASH_ENTER, &found);
+
 			if (found)
 			{
 				/* if the rel is already there, bump number-of-parents counter */
 
 				ListCell   *numparents_cell = list_nth_cell(rel_numparents,
-												hash_entry->list_index);
+															hash_entry->list_index);
+
 				lfirst_int(numparents_cell)++;
 			}
 			else
@@ -260,10 +263,12 @@ has_subclass(Oid relationId)
 {
 
 	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relationId));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relationId);
 
 	bool		result = ((Form_pg_class) GETSTRUCT(tuple))->relhassubclass;
+
 	ReleaseSysCache(tuple);
 	return result;
 }
@@ -279,11 +284,13 @@ has_superclass(Oid relationId)
 	ScanKeyData skey;
 
 	Relation	catalog = table_open(InheritsRelationId, AccessShareLock);
+
 	ScanKeyInit(&skey, Anum_pg_inherits_inhrelid, BTEqualStrategyNumber,
 				F_OIDEQ, ObjectIdGetDatum(relationId));
 	SysScanDesc scan = systable_beginscan(catalog, InheritsRelidSeqnoIndexId, true,
-							  NULL, 1, &skey);
+										  NULL, 1, &skey);
 	bool		result = HeapTupleIsValid(systable_getnext(scan));
+
 	systable_endscan(scan);
 	table_close(catalog, AccessShareLock);
 
@@ -309,9 +316,11 @@ typeInheritsFrom(Oid subclassTypeId, Oid superclassTypeId)
 
 	/* We need to work with the associated relation OIDs */
 	Oid			subclassRelid = typeOrDomainTypeRelid(subclassTypeId);
+
 	if (subclassRelid == InvalidOid)
 		return false;			/* not a complex type or domain over one */
 	Oid			superclassRelid = typeidTypeRelid(superclassTypeId);
+
 	if (superclassRelid == InvalidOid)
 		return false;			/* not a complex type */
 
@@ -361,7 +370,7 @@ typeInheritsFrom(Oid subclassTypeId, Oid superclassTypeId)
 					ObjectIdGetDatum(this_relid));
 
 		SysScanDesc inhscan = systable_beginscan(inhrel, InheritsRelidSeqnoIndexId, true,
-									 NULL, 1, &skey);
+												 NULL, 1, &skey);
 
 		while ((inhtup = systable_getnext(inhscan)) != NULL)
 		{
@@ -443,18 +452,20 @@ DeleteInheritsTuple(Oid inhrelid, Oid inhparent)
 	 * Find pg_inherits entries by inhrelid.
 	 */
 	Relation	catalogRelation = table_open(InheritsRelationId, RowExclusiveLock);
+
 	ScanKeyInit(&key,
 				Anum_pg_inherits_inhrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(inhrelid));
 	SysScanDesc scan = systable_beginscan(catalogRelation, InheritsRelidSeqnoIndexId,
-							  true, NULL, 1, &key);
+										  true, NULL, 1, &key);
 
 	while (HeapTupleIsValid(inheritsTuple = systable_getnext(scan)))
 	{
 
 		/* Compare inhparent if it was given, and do the actual deletion. */
 		Oid			parent = ((Form_pg_inherits) GETSTRUCT(inheritsTuple))->inhparent;
+
 		if (!OidIsValid(inhparent) || parent == inhparent)
 		{
 			CatalogTupleDelete(catalogRelation, &inheritsTuple->t_self);

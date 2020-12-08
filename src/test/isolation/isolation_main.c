@@ -97,6 +97,7 @@ isolation_start_test(const char *testname,
 	}
 
 	char	   *appnameenv = psprintf("PGAPPNAME=isolation/%s", testname);
+
 	putenv(appnameenv);
 
 	PID_TYPE	pid = spawn_process(psql_cmd);
@@ -128,6 +129,7 @@ isolation_init(int argc, char **argv)
 	 * and do the lookup the first time through isolation_start_test().
 	 */
 	size_t		argv0_len = strlcpy(saved_argv0, argv[0], MAXPGPATH);
+
 	if (argv0_len >= MAXPGPATH)
 	{
 		fprintf(stderr, _("path for isolationtester executable is longer than %d bytes\n"),

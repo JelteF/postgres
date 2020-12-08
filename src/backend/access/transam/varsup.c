@@ -77,6 +77,7 @@ GetNewTransactionId(bool isSubXact)
 	LWLockAcquire(XidGenLock, LW_EXCLUSIVE);
 
 	FullTransactionId full_xid = ShmemVariableCache->nextXid;
+
 	xid = XidFromFullTransactionId(full_xid);
 
 	/*----------
@@ -178,10 +179,10 @@ GetNewTransactionId(bool isSubXact)
 	ExtendSUBTRANS(xid);
 
 	/*
-	 * Now advance the nextXid counter.  This must not happen until after
-	 * we have successfully completed ExtendCLOG() --- if that routine fails,
-	 * we want the next incoming transaction to try it again.  We cannot
-	 * assign more XIDs until there is CLOG space for them.
+	 * Now advance the nextXid counter.  This must not happen until after we
+	 * have successfully completed ExtendCLOG() --- if that routine fails, we
+	 * want the next incoming transaction to try it again.  We cannot assign
+	 * more XIDs until there is CLOG space for them.
 	 */
 	FullTransactionIdAdvance(&ShmemVariableCache->nextXid);
 
@@ -191,8 +192,8 @@ GetNewTransactionId(bool isSubXact)
 	 * latestCompletedXid is present in the ProcArray, which is essential for
 	 * correct OldestXmin tracking; see src/backend/access/transam/README.
 	 *
-	 * Note that readers of ProcGlobal->xids/PGPROC->xid should be careful
-	 * to fetch the value for each proc only once, rather than assume they can
+	 * Note that readers of ProcGlobal->xids/PGPROC->xid should be careful to
+	 * fetch the value for each proc only once, rather than assume they can
 	 * read a value multiple times and get the same answer each time.  Note we
 	 * are assuming that TransactionId and int fetch/store are atomic.
 	 *
@@ -262,6 +263,7 @@ ReadNextFullTransactionId(void)
 
 	LWLockAcquire(XidGenLock, LW_SHARED);
 	FullTransactionId fullXid = ShmemVariableCache->nextXid;
+
 	LWLockRelease(XidGenLock);
 
 	return fullXid;
@@ -276,14 +278,15 @@ AdvanceNextFullTransactionIdPastXid(TransactionId xid)
 {
 
 	/*
-	 * It is safe to read nextXid without a lock, because this is only
-	 * called from the startup process or single-process mode, meaning that no
-	 * other process can modify it.
+	 * It is safe to read nextXid without a lock, because this is only called
+	 * from the startup process or single-process mode, meaning that no other
+	 * process can modify it.
 	 */
 	Assert(AmStartupProcess() || !IsUnderPostmaster);
 
 	/* Fast return if this isn't an xid high enough to move the needle. */
 	TransactionId next_xid = XidFromFullTransactionId(ShmemVariableCache->nextXid);
+
 	if (!TransactionIdFollowsOrEquals(xid, next_xid))
 		return;
 
@@ -297,6 +300,7 @@ AdvanceNextFullTransactionIdPastXid(TransactionId xid)
 	 */
 	TransactionIdAdvance(xid);
 	uint32		epoch = EpochFromFullTransactionId(ShmemVariableCache->nextXid);
+
 	if (unlikely(xid < next_xid))
 		++epoch;
 	FullTransactionId newNextFullXid = FullTransactionIdFromEpochAndXid(epoch, xid);
@@ -350,6 +354,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	 * so it doesn't matter.)
 	 */
 	TransactionId xidWrapLimit = oldest_datfrozenxid + (MaxTransactionId >> 1);
+
 	if (xidWrapLimit < FirstNormalTransactionId)
 		xidWrapLimit += FirstNormalTransactionId;
 
@@ -366,6 +371,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	 * outside of single-user mode.
 	 */
 	TransactionId xidStopLimit = xidWrapLimit - 3000000;
+
 	if (xidStopLimit < FirstNormalTransactionId)
 		xidStopLimit -= FirstNormalTransactionId;
 
@@ -380,6 +386,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	 * not get in this kind of trouble in the first place.)
 	 */
 	TransactionId xidWarnLimit = xidWrapLimit - 40000000;
+
 	if (xidWarnLimit < FirstNormalTransactionId)
 		xidWarnLimit -= FirstNormalTransactionId;
 
@@ -399,6 +406,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	 * SetMultiXactIdLimit.
 	 */
 	TransactionId xidVacLimit = oldest_datfrozenxid + autovacuum_freeze_max_age;
+
 	if (xidVacLimit < FirstNormalTransactionId)
 		xidVacLimit += FirstNormalTransactionId;
 
@@ -411,6 +419,7 @@ SetTransactionIdLimit(TransactionId oldest_datfrozenxid, Oid oldest_datoid)
 	ShmemVariableCache->xidWrapLimit = xidWrapLimit;
 	ShmemVariableCache->oldestXidDB = oldest_datoid;
 	TransactionId curXid = XidFromFullTransactionId(ShmemVariableCache->nextXid);
+
 	LWLockRelease(XidGenLock);
 
 	/* Log the info */
@@ -486,6 +495,7 @@ ForceTransactionIdLimitUpdate(void)
 	TransactionId xidVacLimit = ShmemVariableCache->xidVacLimit;
 	TransactionId oldestXid = ShmemVariableCache->oldestXid;
 	Oid			oldestXidDB = ShmemVariableCache->oldestXidDB;
+
 	LWLockRelease(XidGenLock);
 
 	if (!TransactionIdIsNormal(oldestXid))
@@ -600,8 +610,8 @@ AssertTransactionIdInAllowableRange(TransactionId xid)
 	 * We can't acquire XidGenLock, as this may be called with XidGenLock
 	 * already held (or with other locks that don't allow XidGenLock to be
 	 * nested). That's ok for our purposes though, since we already rely on
-	 * 32bit reads to be atomic. While nextXid is 64 bit, we only look at
-	 * the lower 32bit, so a skewed read doesn't hurt.
+	 * 32bit reads to be atomic. While nextXid is 64 bit, we only look at the
+	 * lower 32bit, so a skewed read doesn't hurt.
 	 *
 	 * There's no increased danger of falling outside [oldest, next] by
 	 * accessing them without a lock. xid needs to have been created with

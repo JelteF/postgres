@@ -47,12 +47,14 @@ commit_ts_desc(StringInfo buf, XLogReaderState *record)
 						 xlrec->nodeid,
 						 xlrec->mainxid);
 		int			nsubxids = ((XLogRecGetDataLen(record) - SizeOfCommitTsSet) /
-					sizeof(TransactionId));
+								sizeof(TransactionId));
+
 		if (nsubxids > 0)
 		{
 			int			i;
 
 			TransactionId *subxids = palloc(sizeof(TransactionId) * nsubxids);
+
 			memcpy(subxids,
 				   XLogRecGetData(record) + SizeOfCommitTsSet,
 				   sizeof(TransactionId) * nsubxids);

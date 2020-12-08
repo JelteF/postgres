@@ -195,6 +195,7 @@ BuildIndexValueDescription(Relation indexRelation,
 	 */
 	Form_pg_index idxrec = indexRelation->rd_index;
 	Oid			indrelid = idxrec->indrelid;
+
 	Assert(indexrelid == idxrec->indexrelid);
 
 	/* RLS check- if RLS is enabled then we don't return anything. */
@@ -203,6 +204,7 @@ BuildIndexValueDescription(Relation indexRelation,
 
 	/* Table-level SELECT is enough, if the user has it */
 	AclResult	aclresult = pg_class_aclcheck(indrelid, GetUserId(), ACL_SELECT);
+
 	if (aclresult != ACLCHECK_OK)
 	{
 		/*
@@ -294,6 +296,7 @@ index_compute_xid_horizon_for_tuples(Relation irel,
 	{
 
 		ItemId		iitemid = PageGetItemId(ipage, itemnos[i]);
+
 		itup = (IndexTuple) PageGetItem(ipage, iitemid);
 
 		ItemPointerCopy(&itup->t_tid, &ttids[i]);
@@ -301,7 +304,7 @@ index_compute_xid_horizon_for_tuples(Relation irel,
 
 	/* determine the actual xid horizon */
 	TransactionId latestRemovedXid =
-		table_compute_xid_horizon_for_tuples(hrel, ttids, nitems);
+	table_compute_xid_horizon_for_tuples(hrel, ttids, nitems);
 
 	pfree(ttids);
 
@@ -538,8 +541,8 @@ systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup)
 	Snapshot	freshsnap = GetCatalogSnapshot(RelationGetRelid(sysscan->heap_rel));
 
 	bool		result = table_tuple_satisfies_snapshot(sysscan->heap_rel,
-											sysscan->slot,
-											freshsnap);
+														sysscan->slot,
+														freshsnap);
 
 	/*
 	 * Handle the concurrent abort while fetching the catalog tuple during
@@ -576,8 +579,8 @@ systable_endscan(SysScanDesc sysscan)
 		UnregisterSnapshot(sysscan->snapshot);
 
 	/*
-	 * Reset the bsysscan flag at the end of the systable scan.  See
-	 * detailed comments in xact.c where these variables are declared.
+	 * Reset the bsysscan flag at the end of the systable scan.  See detailed
+	 * comments in xact.c where these variables are declared.
 	 */
 	if (TransactionIdIsValid(CheckXidAlive))
 		bsysscan = false;

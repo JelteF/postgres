@@ -85,6 +85,7 @@ pg_start_backup(PG_FUNCTION_ARGS)
 		 * they are read in pg_stop_backup.
 		 */
 		MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+
 		label_file = makeStringInfo();
 		tblspc_map_file = makeStringInfo();
 		MemoryContextSwitchTo(oldcontext);
@@ -190,6 +191,7 @@ pg_stop_backup_v2(PG_FUNCTION_ARGS)
 	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
 	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
+
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;
@@ -440,6 +442,7 @@ pg_walfile_name_offset(PG_FUNCTION_ARGS)
 	 * function's pg_proc entry!
 	 */
 	TupleDesc	resultTupleDesc = CreateTemplateTupleDesc(2);
+
 	TupleDescInitEntry(resultTupleDesc, (AttrNumber) 1, "file_name",
 					   TEXTOID, -1, 0);
 	TupleDescInitEntry(resultTupleDesc, (AttrNumber) 2, "file_offset",
@@ -578,6 +581,7 @@ pg_last_xact_replay_timestamp(PG_FUNCTION_ARGS)
 {
 
 	TimestampTz xtime = GetLatestXTime();
+
 	if (xtime == 0)
 		PG_RETURN_NULL();
 
@@ -601,8 +605,8 @@ pg_wal_lsn_diff(PG_FUNCTION_ARGS)
 {
 
 	Datum		result = DirectFunctionCall2(pg_lsn_mi,
-								 PG_GETARG_DATUM(0),
-								 PG_GETARG_DATUM(1));
+											 PG_GETARG_DATUM(0),
+											 PG_GETARG_DATUM(1));
 
 	PG_RETURN_NUMERIC(result);
 }
@@ -632,6 +636,7 @@ pg_backup_start_time(PG_FUNCTION_ARGS)
 	 * See if label file is present
 	 */
 	FILE	   *lfp = AllocateFile(BACKUP_LABEL_FILE, "r");
+
 	if (lfp == NULL)
 	{
 		if (errno != ENOENT)
@@ -673,9 +678,9 @@ pg_backup_start_time(PG_FUNCTION_ARGS)
 	 * Convert the time string read from file to TimestampTz form.
 	 */
 	Datum		xtime = DirectFunctionCall3(timestamptz_in,
-								CStringGetDatum(backup_start_time),
-								ObjectIdGetDatum(InvalidOid),
-								Int32GetDatum(-1));
+											CStringGetDatum(backup_start_time),
+											ObjectIdGetDatum(InvalidOid),
+											Int32GetDatum(-1));
 
 	PG_RETURN_DATUM(xtime);
 }
@@ -706,6 +711,7 @@ pg_promote(PG_FUNCTION_ARGS)
 
 	/* create the promote signal file */
 	FILE	   *promote_file = AllocateFile(PROMOTE_SIGNAL_FILE, "w");
+
 	if (!promote_file)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -744,9 +750,9 @@ pg_promote(PG_FUNCTION_ARGS)
 		CHECK_FOR_INTERRUPTS();
 
 		int			rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-					   1000L / WAITS_PER_SECOND,
-					   WAIT_EVENT_PROMOTE);
+								   WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
+								   1000L / WAITS_PER_SECOND,
+								   WAIT_EVENT_PROMOTE);
 
 		/*
 		 * Emergency bailout if postmaster has died.  This is to avoid the

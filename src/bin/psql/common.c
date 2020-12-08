@@ -136,6 +136,7 @@ psql_get_variable(const char *varname, PsqlScanQuoteType quote,
 		return NULL;
 
 	const char *value = GetVariable(pset.vars, varname);
+
 	if (!value)
 		return NULL;
 
@@ -295,6 +296,7 @@ CheckConnection(void)
 {
 
 	bool		OK = ConnectionUp();
+
 	if (!OK)
 	{
 		if (!pset.cur_cmd_interactive)
@@ -494,6 +496,7 @@ PrintTiming(double elapsed_msec)
 	 */
 	double		seconds = elapsed_msec / 1000.0;
 	double		minutes = floor(seconds / 60.0);
+
 	seconds -= 60.0 * minutes;
 	if (minutes < 60.0)
 	{
@@ -503,6 +506,7 @@ PrintTiming(double elapsed_msec)
 	}
 
 	double		hours = floor(minutes / 60.0);
+
 	minutes -= 60.0 * hours;
 	if (hours < 24.0)
 	{
@@ -512,6 +516,7 @@ PrintTiming(double elapsed_msec)
 	}
 
 	double		days = floor(hours / 24.0);
+
 	hours -= 24.0 * days;
 	printf(_("Time: %.3f ms (%.0f d %02d:%02d:%06.3f)\n"),
 		   elapsed_msec, days, (int) hours, (int) minutes, seconds);
@@ -919,6 +924,7 @@ ProcessResult(PGresult **results)
 		}
 
 		ExecStatusType result_status = PQresultStatus(*results);
+
 		switch (result_status)
 		{
 			case PGRES_EMPTY_QUERY:
@@ -1045,6 +1051,7 @@ ProcessResult(PGresult **results)
 		 * to process that may include other COPYs.  We keep the last result.
 		 */
 		PGresult   *next_result = PQgetResult(pset.db);
+
 		if (!next_result)
 			break;
 
@@ -1367,6 +1374,7 @@ SendQuery(const char *query)
 		{
 
 			PGresult   *svptres = PQexec(pset.db, svptcmd);
+
 			if (PQresultStatus(svptres) != PGRES_COMMAND_OK)
 			{
 				pg_log_info("%s", PQerrorMessage(pset.db));
@@ -1472,6 +1480,7 @@ DescribeQuery(const char *query, double *elapsed_msec)
 	 * good thing because libpq provides no easy way to do that.)
 	 */
 	PGresult   *results = PQprepare(pset.db, "", query, 0, NULL);
+
 	if (PQresultStatus(results) != PGRES_COMMAND_OK)
 	{
 		pg_log_info("%s", PQerrorMessage(pset.db));
@@ -1483,7 +1492,8 @@ DescribeQuery(const char *query, double *elapsed_msec)
 
 	results = PQdescribePrepared(pset.db, "");
 	bool		OK = AcceptResult(results) &&
-		(PQresultStatus(results) == PGRES_COMMAND_OK);
+	(PQresultStatus(results) == PGRES_COMMAND_OK);
+
 	if (OK && results)
 	{
 		if (PQnfields(results) > 0)
@@ -1899,6 +1909,7 @@ command_no_begin(const char *query)
 	 * Check word length (since "beginx" is not "begin").
 	 */
 	int			wordlen = 0;
+
 	while (isalpha((unsigned char) query[wordlen]))
 		wordlen += PQmblen(&query[wordlen], pset.encoding);
 
@@ -2120,6 +2131,7 @@ is_select_command(const char *query)
 	 * Check word length (since "selectx" is not "select").
 	 */
 	int			wordlen = 0;
+
 	while (isalpha((unsigned char) query[wordlen]))
 		wordlen += PQmblen(&query[wordlen], pset.encoding);
 
@@ -2192,6 +2204,7 @@ session_username(void)
 		return NULL;
 
 	const char *val = PQparameterStatus(pset.db, "session_authorization");
+
 	if (val)
 		return val;
 	else
@@ -2226,6 +2239,7 @@ expand_tilde(char **filename)
 		char		home[MAXPGPATH];
 
 		char	   *fn = *filename;
+
 		*home = '\0';
 
 		p = fn + 1;
@@ -2245,6 +2259,7 @@ expand_tilde(char **filename)
 		{
 
 			char	   *newfn = psprintf("%s%s", home, p);
+
 			free(fn);
 			*filename = newfn;
 		}

@@ -133,6 +133,7 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 
 			fieldNames[j] = s;
 			int			len = s ? strlen(s) : 0;
+
 			fieldMax[j] = len;
 			len += fs_len;
 			if (len > fieldMaxLen)
@@ -340,6 +341,7 @@ do_field(const PQprintOpt *po, const PGresult *res,
 	bool		skipit;
 
 	int			plen = PQgetlength(res, i, j);
+
 	pval = PQgetvalue(res, i, j);
 
 	if (plen < 1 || !pval || !*pval)
@@ -466,6 +468,7 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 			abort();
 		}
 		char	   *p = border;
+
 		if (po->standard)
 		{
 			char	   *fs = po->fieldSep;
@@ -694,6 +697,7 @@ PQprintTuples(const PGresult *res,
 		{
 
 			int			width = nFields * 14;
+
 			tborder = (char *) malloc(width + 1);
 			if (!tborder)
 			{
@@ -753,6 +757,7 @@ fill(int length, int max, char filler, FILE *fp)
 {
 
 	int			count = max - length;
+
 	while (count-- >= 0)
 		putc(filler, fp);
 }

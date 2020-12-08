@@ -58,6 +58,7 @@ md5_bytea(PG_FUNCTION_ARGS)
 	char		hexsum[MD5_HASH_LEN + 1];
 
 	size_t		len = VARSIZE_ANY_EXHDR(in);
+
 	if (pg_md5_hash(VARDATA_ANY(in), len, hexsum) == false)
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -81,6 +82,7 @@ sha224_bytea(PG_FUNCTION_ARGS)
 	const uint8 *data = (unsigned char *) VARDATA_ANY(in);
 
 	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA224);
+
 	if (pg_cryptohash_init(ctx) < 0)
 		elog(ERROR, "could not initialize %s context", "SHA224");
 	if (pg_cryptohash_update(ctx, data, len) < 0)
@@ -90,6 +92,7 @@ sha224_bytea(PG_FUNCTION_ARGS)
 	pg_cryptohash_free(ctx);
 
 	bytea	   *result = palloc(sizeof(buf) + VARHDRSZ);
+
 	SET_VARSIZE(result, sizeof(buf) + VARHDRSZ);
 	memcpy(VARDATA(result), buf, sizeof(buf));
 
@@ -106,6 +109,7 @@ sha256_bytea(PG_FUNCTION_ARGS)
 	const uint8 *data = (unsigned char *) VARDATA_ANY(in);
 
 	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA256);
+
 	if (pg_cryptohash_init(ctx) < 0)
 		elog(ERROR, "could not initialize %s context", "SHA256");
 	if (pg_cryptohash_update(ctx, data, len) < 0)
@@ -115,6 +119,7 @@ sha256_bytea(PG_FUNCTION_ARGS)
 	pg_cryptohash_free(ctx);
 
 	bytea	   *result = palloc(sizeof(buf) + VARHDRSZ);
+
 	SET_VARSIZE(result, sizeof(buf) + VARHDRSZ);
 	memcpy(VARDATA(result), buf, sizeof(buf));
 
@@ -131,6 +136,7 @@ sha384_bytea(PG_FUNCTION_ARGS)
 	const uint8 *data = (unsigned char *) VARDATA_ANY(in);
 
 	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA384);
+
 	if (pg_cryptohash_init(ctx) < 0)
 		elog(ERROR, "could not initialize %s context", "SHA384");
 	if (pg_cryptohash_update(ctx, data, len) < 0)
@@ -140,6 +146,7 @@ sha384_bytea(PG_FUNCTION_ARGS)
 	pg_cryptohash_free(ctx);
 
 	bytea	   *result = palloc(sizeof(buf) + VARHDRSZ);
+
 	SET_VARSIZE(result, sizeof(buf) + VARHDRSZ);
 	memcpy(VARDATA(result), buf, sizeof(buf));
 
@@ -156,6 +163,7 @@ sha512_bytea(PG_FUNCTION_ARGS)
 	const uint8 *data = (unsigned char *) VARDATA_ANY(in);
 
 	pg_cryptohash_ctx *ctx = pg_cryptohash_create(PG_SHA512);
+
 	if (pg_cryptohash_init(ctx) < 0)
 		elog(ERROR, "could not initialize %s context", "SHA512");
 	if (pg_cryptohash_update(ctx, data, len) < 0)
@@ -165,6 +173,7 @@ sha512_bytea(PG_FUNCTION_ARGS)
 	pg_cryptohash_free(ctx);
 
 	bytea	   *result = palloc(sizeof(buf) + VARHDRSZ);
+
 	SET_VARSIZE(result, sizeof(buf) + VARHDRSZ);
 	memcpy(VARDATA(result), buf, sizeof(buf));
 

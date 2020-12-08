@@ -245,6 +245,7 @@ spgPrepareScanKeys(IndexScanDesc scan)
 	bool		qual_ok = true;
 	bool		haveIsNull = haveNotNull = false;
 	int			nkeys = 0;
+
 	for (i = 0; i < scan->numberOfKeys; i++)
 	{
 		ScanKey		skey = &scan->keyData[i];
@@ -295,6 +296,7 @@ spgbeginscan(Relation rel, int keysz, int orderbysz)
 	IndexScanDesc scan = RelationGetIndexScan(rel, keysz, orderbysz);
 
 	SpGistScanOpaque so = (SpGistScanOpaque) palloc0(sizeof(SpGistScanOpaqueData));
+
 	if (keysz > 0)
 		so->keyData = (ScanKey) palloc(sizeof(ScanKeyData) * keysz);
 	else
@@ -672,7 +674,7 @@ spgInnerTest(SpGistScanOpaque so, SpGistSearchItem *item,
 			distances = out.distances ? out.distances[i] : so->infDistances;
 
 			SpGistSearchItem *innerItem = spgMakeInnerItem(so, item, node, &out, i, isnull,
-										 distances);
+														   distances);
 
 			spgAddSearchItemToQueue(so, innerItem);
 		}
@@ -799,6 +801,7 @@ redirect:
 			/* else new pointer points to the same page, no work needed */
 
 			Page		page = BufferGetPage(buffer);
+
 			TestForOldSnapshot(snapshot, index, page);
 
 			bool		isnull = SpGistPageStoresNulls(page) ? true : false;

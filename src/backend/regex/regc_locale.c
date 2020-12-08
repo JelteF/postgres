@@ -386,6 +386,7 @@ element(struct vars *v,			/* context */
 	/* generic:  one-chr names stand for themselves */
 	assert(startp < endp);
 	size_t		len = endp - startp;
+
 	if (len == 1)
 		return *startp;
 
@@ -446,6 +447,7 @@ range(struct vars *v,			/* context */
 	 * inside the loop below.
 	 */
 	int			nchrs = b - a + 1;
+
 	if (nchrs <= 0 || nchrs > 100000)
 		nchrs = 100000;
 
@@ -557,6 +559,7 @@ cclass(struct vars *v,			/* context */
 	 * Map the name to the corresponding enumerated value.
 	 */
 	size_t		len = endp - startp;
+
 	index = -1;
 	for (namePtr = classNames, i = 0; *namePtr != NULL; namePtr++, i++)
 	{
@@ -720,6 +723,7 @@ allcases(struct vars *v,		/* context */
 	uc = pg_wc_toupper(c);
 
 	struct cvec *cv = getcvec(v, 2, 0);
+
 	addchr(cv, lc);
 	if (lc != uc)
 		addchr(cv, uc);

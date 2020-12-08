@@ -1104,7 +1104,7 @@ DropRole(DropRoleStmt *stmt)
 					ObjectIdGetDatum(roleid));
 
 		SysScanDesc sscan = systable_beginscan(pg_auth_members_rel, AuthMemRoleMemIndexId,
-								   true, NULL, 1, &scankey);
+											   true, NULL, 1, &scankey);
 
 		while (HeapTupleIsValid(tmp_tuple = systable_getnext(sscan)))
 		{
@@ -1332,6 +1332,7 @@ GrantRole(GrantRoleStmt *stmt)
 					 errmsg("column names cannot be included in GRANT/REVOKE ROLE")));
 
 		Oid			roleid = get_role_oid(rolename, false);
+
 		if (stmt->is_grant)
 			AddRoleMems(rolename, roleid,
 						stmt->grantee_roles, grantee_ids,
@@ -1426,6 +1427,7 @@ roleSpecsToIds(List *memberNames)
 		RoleSpec   *rolespec = lfirst_node(RoleSpec, l);
 
 		Oid			roleid = get_rolespec_oid(rolespec, false);
+
 		result = lappend_oid(result, roleid);
 	}
 	return result;
@@ -1521,8 +1523,9 @@ AddRoleMems(const char *rolename, Oid roleid,
 		 * warning unless we are adding admin option.
 		 */
 		HeapTuple	authmem_tuple = SearchSysCache2(AUTHMEMROLEMEM,
-										ObjectIdGetDatum(roleid),
-										ObjectIdGetDatum(memberid));
+													ObjectIdGetDatum(roleid),
+													ObjectIdGetDatum(memberid));
+
 		if (HeapTupleIsValid(authmem_tuple) &&
 			(!admin_opt ||
 			 ((Form_pg_auth_members) GETSTRUCT(authmem_tuple))->admin_option))
@@ -1627,8 +1630,9 @@ DelRoleMems(const char *rolename, Oid roleid,
 		 * Find entry for this role/member
 		 */
 		HeapTuple	authmem_tuple = SearchSysCache2(AUTHMEMROLEMEM,
-										ObjectIdGetDatum(roleid),
-										ObjectIdGetDatum(memberid));
+													ObjectIdGetDatum(roleid),
+													ObjectIdGetDatum(memberid));
+
 		if (!HeapTupleIsValid(authmem_tuple))
 		{
 			ereport(WARNING,
@@ -1658,8 +1662,9 @@ DelRoleMems(const char *rolename, Oid roleid,
 			new_record_repl[Anum_pg_auth_members_admin_option - 1] = true;
 
 			HeapTuple	tuple = heap_modify_tuple(authmem_tuple, pg_authmem_dsc,
-									  new_record,
-									  new_record_nulls, new_record_repl);
+												  new_record,
+												  new_record_nulls, new_record_repl);
+
 			CatalogTupleUpdate(pg_authmem_rel, &tuple->t_self, tuple);
 		}
 

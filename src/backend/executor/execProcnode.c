@@ -381,12 +381,14 @@ ExecInitNode(Plan *node, EState *estate, int eflags)
 	 * a separate list for us.
 	 */
 	List	   *subps = NIL;
+
 	foreach(l, node->initPlan)
 	{
 		SubPlan    *subplan = (SubPlan *) lfirst(l);
 
 		Assert(IsA(subplan, SubPlan));
 		SubPlanState *sstate = ExecInitSubPlan(subplan, result);
+
 		subps = lappend(subps, sstate);
 	}
 	result->initPlan = subps;

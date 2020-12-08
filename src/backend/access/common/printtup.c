@@ -430,6 +430,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 			/* Text output */
 
 			char	   *outputstr = OutputFunctionCall(&thisState->finfo, attr);
+
 			pq_sendcountedtext(buf, outputstr, strlen(outputstr), false);
 		}
 		else
@@ -437,6 +438,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 			/* Binary output */
 
 			bytea	   *outputbytes = SendFunctionCall(&thisState->finfo, attr);
+
 			pq_sendint32(buf, VARSIZE(outputbytes) - VARHDRSZ);
 			pq_sendbytes(buf, VARDATA(outputbytes),
 						 VARSIZE(outputbytes) - VARHDRSZ);
@@ -516,6 +518,7 @@ printtup_20(TupleTableSlot *slot, DestReceiver *self)
 		Assert(thisState->format == 0);
 
 		char	   *outputstr = OutputFunctionCall(&thisState->finfo, attr);
+
 		pq_sendcountedtext(buf, outputstr, strlen(outputstr), true);
 	}
 
@@ -703,6 +706,7 @@ printtup_internal_20(TupleTableSlot *slot, DestReceiver *self)
 		Assert(thisState->format == 1);
 
 		bytea	   *outputbytes = SendFunctionCall(&thisState->finfo, attr);
+
 		pq_sendint32(buf, VARSIZE(outputbytes) - VARHDRSZ);
 		pq_sendbytes(buf, VARDATA(outputbytes),
 					 VARSIZE(outputbytes) - VARHDRSZ);

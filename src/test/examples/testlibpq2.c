@@ -76,7 +76,8 @@ main(int argc, char **argv)
 
 	/* Set always-secure search path, so malicious users can't take control. */
 	PGresult   *res = PQexec(conn,
-				 "SELECT pg_catalog.set_config('search_path', '', false)");
+							 "SELECT pg_catalog.set_config('search_path', '', false)");
+
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		fprintf(stderr, "SET failed: %s", PQerrorMessage(conn));
@@ -104,6 +105,7 @@ main(int argc, char **argv)
 
 	/* Quit after four notifies are received. */
 	int			nnotifies = 0;
+
 	while (nnotifies < 4)
 	{
 		/*

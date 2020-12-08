@@ -185,7 +185,7 @@ CreateComments(Oid oid, Oid classoid, int32 subid, const char *comment)
 	Relation	description = table_open(DescriptionRelationId, RowExclusiveLock);
 
 	SysScanDesc sd = systable_beginscan(description, DescriptionObjIndexId, true,
-							NULL, 3, skey);
+										NULL, 3, skey);
 
 	while ((oldtuple = systable_getnext(sd)) != NULL)
 	{
@@ -273,7 +273,7 @@ CreateSharedComments(Oid oid, Oid classoid, const char *comment)
 	Relation	shdescription = table_open(SharedDescriptionRelationId, RowExclusiveLock);
 
 	SysScanDesc sd = systable_beginscan(shdescription, SharedDescriptionObjIndexId, true,
-							NULL, 2, skey);
+										NULL, 2, skey);
 
 	while ((oldtuple = systable_getnext(sd)) != NULL)
 	{
@@ -349,7 +349,7 @@ DeleteComments(Oid oid, Oid classoid, int32 subid)
 	Relation	description = table_open(DescriptionRelationId, RowExclusiveLock);
 
 	SysScanDesc sd = systable_beginscan(description, DescriptionObjIndexId, true,
-							NULL, nkeys, skey);
+										NULL, nkeys, skey);
 
 	while ((oldtuple = systable_getnext(sd)) != NULL)
 		CatalogTupleDelete(description, &oldtuple->t_self);
@@ -383,7 +383,7 @@ DeleteSharedComments(Oid oid, Oid classoid)
 	Relation	shdescription = table_open(SharedDescriptionRelationId, RowExclusiveLock);
 
 	SysScanDesc sd = systable_beginscan(shdescription, SharedDescriptionObjIndexId, true,
-							NULL, 2, skey);
+										NULL, 2, skey);
 
 	while ((oldtuple = systable_getnext(sd)) != NULL)
 		CatalogTupleDelete(shdescription, &oldtuple->t_self);
@@ -422,15 +422,17 @@ GetComment(Oid oid, Oid classoid, int32 subid)
 	TupleDesc	tupdesc = RelationGetDescr(description);
 
 	SysScanDesc sd = systable_beginscan(description, DescriptionObjIndexId, true,
-							NULL, 3, skey);
+										NULL, 3, skey);
 
 	char	   *comment = NULL;
+
 	while ((tuple = systable_getnext(sd)) != NULL)
 	{
 		bool		isnull;
 
 		/* Found the tuple, get description field */
 		Datum		value = heap_getattr(tuple, Anum_pg_description_description, tupdesc, &isnull);
+
 		if (!isnull)
 			comment = TextDatumGetCString(value);
 		break;					/* Assume there can be only one match */

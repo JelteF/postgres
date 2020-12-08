@@ -91,6 +91,7 @@ IsTidEqualClause(RestrictInfo *rinfo, RelOptInfo *rel)
 	/* Look for CTID as either argument */
 	other = NULL;
 	Relids		other_relids = NULL;
+
 	if (arg1 && IsA(arg1, Var) &&
 		IsCTIDVar((Var *) arg1, rel))
 	{
@@ -346,6 +347,7 @@ BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
 
 		/* Compute required outer rels for this path */
 		Relids		required_outer = bms_union(rinfo->required_relids, rel->lateral_relids);
+
 		required_outer = bms_del_member(required_outer, rel->relid);
 
 		add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
@@ -407,10 +409,10 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 
 		/* Generate clauses, skipping any that join to lateral_referencers */
 		List	   *clauses = generate_implied_equalities_for_column(root,
-														 rel,
-														 ec_member_matches_ctid,
-														 NULL,
-														 rel->lateral_referencers);
+																	 rel,
+																	 ec_member_matches_ctid,
+																	 NULL,
+																	 rel->lateral_referencers);
 
 		/* Generate a path for each usable join clause */
 		BuildParameterizedTidPaths(root, rel, clauses);

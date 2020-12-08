@@ -1256,6 +1256,7 @@ word_matches(const char *pattern,
 
 		/* Find end of current alternative, and locate any wild card. */
 		const char *c = pattern;
+
 		while (*c != '\0' && *c != '|')
 		{
 			if (*c == '*')
@@ -4662,6 +4663,7 @@ complete_from_files(const char *text, int state)
 	}
 
 	char	   *unquoted_match = rl_filename_completion_function(unquoted_text, state);
+
 	if (unquoted_match)
 	{
 		struct stat statbuf;
@@ -4747,6 +4749,7 @@ escape_string(const char *text)
 	size_t		text_length = strlen(text);
 
 	char	   *result = pg_malloc(text_length * 2 + 1);
+
 	PQescapeStringConn(pset.db, result, text, text_length, NULL);
 
 	return result;
@@ -4827,6 +4830,7 @@ get_previous_words(int point, char **buffer, int *nwords)
 	 * doing a separate malloc() for each word.
 	 */
 	char	  **previous_words = (char **) pg_malloc(point * sizeof(char *));
+
 	*buffer = outptr = (char *) pg_malloc(point * 2);
 
 	/*
@@ -4932,6 +4936,7 @@ get_guctype(const char *varname)
 					  e_varname);
 
 	PGresult   *result = exec_query(query_buffer.data);
+
 	termPQExpBuffer(&query_buffer);
 	free(e_varname);
 
@@ -4958,9 +4963,10 @@ quote_file_name(char *fname, int match_type, char *quote_pointer)
 
 	/* Quote if needed. */
 	char	   *s = quote_if_needed(fname, " \t\r\n\"`",
-						'\'', *completion_charp,
-						completion_force_quote,
-						pset.encoding);
+									'\'', *completion_charp,
+									completion_force_quote,
+									pset.encoding);
+
 	if (!s)
 		s = pg_strdup(fname);
 

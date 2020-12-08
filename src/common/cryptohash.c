@@ -49,6 +49,7 @@ pg_cryptohash_create(pg_cryptohash_type type)
 {
 
 	pg_cryptohash_ctx *ctx = ALLOC(sizeof(pg_cryptohash_ctx));
+
 	if (ctx == NULL)
 		return NULL;
 

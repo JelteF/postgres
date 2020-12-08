@@ -1250,6 +1250,7 @@ PQenv2encoding(void)
 	int			encoding = PG_SQL_ASCII;
 
 	char	   *str = getenv("PGCLIENTENCODING");
+
 	if (str && *str != '\0')
 	{
 		encoding = pg_char_to_encoding(str);
@@ -1279,6 +1280,7 @@ libpq_binddomain(void)
 		already_bound = true;
 		/* No relocatable lookup here because the binary could be anywhere */
 		const char *ldir = getenv("PGLOCALEDIR");
+
 		if (!ldir)
 			ldir = LOCALEDIR;
 		bindtextdomain(PG_TEXTDOMAIN("libpq"), ldir);

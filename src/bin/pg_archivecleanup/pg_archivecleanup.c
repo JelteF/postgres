@@ -199,7 +199,8 @@ SetWALFileNameForCleanup(void)
 					seg = 0;
 
 		int			args = sscanf(restartWALFileName, "%08X%08X%08X.partial",
-					  &tli, &log, &seg);
+								  &tli, &log, &seg);
+
 		if (args == 3)
 		{
 			fnameOK = true;
@@ -219,6 +220,7 @@ SetWALFileNameForCleanup(void)
 					offset = 0;
 
 		int			args = sscanf(restartWALFileName, "%08X%08X%08X.%08X.backup", &tli, &log, &seg, &offset);
+
 		if (args == 4)
 		{
 			fnameOK = true;

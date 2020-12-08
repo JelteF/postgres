@@ -467,8 +467,8 @@ check_databases_are_compatible(void)
 static void
 check_for_new_tablespace_dir(ClusterInfo *new_cluster)
 {
-	int		tblnum;
-	char	new_tablespace_dir[MAXPGPATH];
+	int			tblnum;
+	char		new_tablespace_dir[MAXPGPATH];
 
 	prep_status("Checking for new cluster tablespace directories");
 
@@ -477,8 +477,8 @@ check_for_new_tablespace_dir(ClusterInfo *new_cluster)
 		struct stat statbuf;
 
 		snprintf(new_tablespace_dir, MAXPGPATH, "%s%s",
-				os_info.old_tablespaces[tblnum],
-				new_cluster->tablespace_suffix);
+				 os_info.old_tablespaces[tblnum],
+				 new_cluster->tablespace_suffix);
 
 		if (stat(new_tablespace_dir, &statbuf) == 0 || errno != ENOENT)
 			pg_fatal("new cluster tablespace directory already exists: \"%s\"\n",
@@ -630,10 +630,10 @@ check_is_install_user(ClusterInfo *cluster)
 
 	/* Can't use pg_authid because only superusers can view it. */
 	PGresult   *res = executeQueryOrDie(conn,
-							"SELECT rolsuper, oid "
-							"FROM pg_catalog.pg_roles "
-							"WHERE rolname = current_user "
-							"AND rolname !~ '^pg_'");
+										"SELECT rolsuper, oid "
+										"FROM pg_catalog.pg_roles "
+										"WHERE rolname = current_user "
+										"AND rolname !~ '^pg_'");
 
 	/*
 	 * We only allow the install user in the new cluster (see comment below)
@@ -682,13 +682,14 @@ check_proper_datallowconn(ClusterInfo *cluster)
 
 	/* get database names */
 	PGresult   *dbres = executeQueryOrDie(conn_template1,
-							  "SELECT	datname, datallowconn "
-							  "FROM	pg_catalog.pg_database");
+										  "SELECT	datname, datallowconn "
+										  "FROM	pg_catalog.pg_database");
 
 	int			i_datname = PQfnumber(dbres, "datname");
 	int			i_datallowconn = PQfnumber(dbres, "datallowconn");
 
 	int			ntups = PQntuples(dbres);
+
 	for (dbnum = 0; dbnum < ntups; dbnum++)
 	{
 		char	   *datname = PQgetvalue(dbres, dbnum, i_datname);
@@ -735,8 +736,8 @@ check_for_prepared_transactions(ClusterInfo *cluster)
 	prep_status("Checking for prepared transactions");
 
 	PGresult   *res = executeQueryOrDie(conn,
-							"SELECT * "
-							"FROM pg_catalog.pg_prepared_xacts");
+										"SELECT * "
+										"FROM pg_catalog.pg_prepared_xacts");
 
 	if (PQntuples(res) != 0)
 	{
@@ -793,13 +794,14 @@ check_for_isn_and_int8_passing_mismatch(ClusterInfo *cluster)
 
 		/* Find any functions coming from contrib/isn */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT n.nspname, p.proname "
-								"FROM	pg_catalog.pg_proc p, "
-								"		pg_catalog.pg_namespace n "
-								"WHERE	p.pronamespace = n.oid AND "
-								"		p.probin = '$libdir/isn'");
+											"SELECT n.nspname, p.proname "
+											"FROM	pg_catalog.pg_proc p, "
+											"		pg_catalog.pg_namespace n "
+											"WHERE	p.pronamespace = n.oid AND "
+											"		p.probin = '$libdir/isn'");
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_proname = PQfnumber(res, "proname");
 		for (rowno = 0; rowno < ntups; rowno++)
@@ -877,21 +879,22 @@ check_for_user_defined_postfix_ops(ClusterInfo *cluster)
 		 * used by pre-version 14 servers, not that of some future version.
 		 */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT o.oid AS oproid, "
-								"       n.nspname AS oprnsp, "
-								"       o.oprname, "
-								"       tn.nspname AS typnsp, "
-								"       t.typname "
-								"FROM pg_catalog.pg_operator o, "
-								"     pg_catalog.pg_namespace n, "
-								"     pg_catalog.pg_type t, "
-								"     pg_catalog.pg_namespace tn "
-								"WHERE o.oprnamespace = n.oid AND "
-								"      o.oprleft = t.oid AND "
-								"      t.typnamespace = tn.oid AND "
-								"      o.oprright = 0 AND "
-								"      o.oid >= 16384");
+											"SELECT o.oid AS oproid, "
+											"       n.nspname AS oprnsp, "
+											"       o.oprname, "
+											"       tn.nspname AS typnsp, "
+											"       t.typname "
+											"FROM pg_catalog.pg_operator o, "
+											"     pg_catalog.pg_namespace n, "
+											"     pg_catalog.pg_type t, "
+											"     pg_catalog.pg_namespace tn "
+											"WHERE o.oprnamespace = n.oid AND "
+											"      o.oprleft = t.oid AND "
+											"      t.typnamespace = tn.oid AND "
+											"      o.oprright = 0 AND "
+											"      o.oid >= 16384");
 		int			ntups = PQntuples(res);
+
 		i_oproid = PQfnumber(res, "oproid");
 		i_oprnsp = PQfnumber(res, "oprnsp");
 		i_oprname = PQfnumber(res, "oprname");
@@ -965,14 +968,15 @@ check_for_tables_with_oids(ClusterInfo *cluster)
 		PGconn	   *conn = connectToServer(cluster, active_db->db_name);
 
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT n.nspname, c.relname "
-								"FROM	pg_catalog.pg_class c, "
-								"		pg_catalog.pg_namespace n "
-								"WHERE	c.relnamespace = n.oid AND "
-								"		c.relhasoids AND"
-								"       n.nspname NOT IN ('pg_catalog')");
+											"SELECT n.nspname, c.relname "
+											"FROM	pg_catalog.pg_class c, "
+											"		pg_catalog.pg_namespace n "
+											"WHERE	c.relnamespace = n.oid AND "
+											"		c.relhasoids AND"
+											"       n.nspname NOT IN ('pg_catalog')");
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		for (rowno = 0; rowno < ntups; rowno++)
@@ -1052,34 +1056,35 @@ check_for_reg_data_type_usage(ClusterInfo *cluster)
 		 * relkinds.
 		 */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT n.nspname, c.relname, a.attname "
-								"FROM	pg_catalog.pg_class c, "
-								"		pg_catalog.pg_namespace n, "
-								"		pg_catalog.pg_attribute a, "
-								"		pg_catalog.pg_type t "
-								"WHERE	c.oid = a.attrelid AND "
-								"		NOT a.attisdropped AND "
-								"       a.atttypid = t.oid AND "
-								"       t.typnamespace = "
-								"           (SELECT oid FROM pg_namespace "
-								"            WHERE nspname = 'pg_catalog') AND"
-								"		t.typname IN ( "
+											"SELECT n.nspname, c.relname, a.attname "
+											"FROM	pg_catalog.pg_class c, "
+											"		pg_catalog.pg_namespace n, "
+											"		pg_catalog.pg_attribute a, "
+											"		pg_catalog.pg_type t "
+											"WHERE	c.oid = a.attrelid AND "
+											"		NOT a.attisdropped AND "
+											"       a.atttypid = t.oid AND "
+											"       t.typnamespace = "
+											"           (SELECT oid FROM pg_namespace "
+											"            WHERE nspname = 'pg_catalog') AND"
+											"		t.typname IN ( "
 		/* regclass.oid is preserved, so 'regclass' is OK */
-								"           'regcollation', "
-								"           'regconfig', "
-								"           'regdictionary', "
-								"           'regnamespace', "
-								"           'regoper', "
-								"           'regoperator', "
-								"           'regproc', "
-								"           'regprocedure' "
+											"           'regcollation', "
+											"           'regconfig', "
+											"           'regdictionary', "
+											"           'regnamespace', "
+											"           'regoper', "
+											"           'regoperator', "
+											"           'regproc', "
+											"           'regprocedure' "
 		/* regrole.oid is preserved, so 'regrole' is OK */
 		/* regtype.oid is preserved, so 'regtype' is OK */
-								"			) AND "
-								"		c.relnamespace = n.oid AND "
-								"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
+											"			) AND "
+											"		c.relnamespace = n.oid AND "
+											"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		i_attname = PQfnumber(res, "attname");
@@ -1156,19 +1161,20 @@ check_for_jsonb_9_4_usage(ClusterInfo *cluster)
 		 * relkinds.
 		 */
 		PGresult   *res = executeQueryOrDie(conn,
-								"SELECT n.nspname, c.relname, a.attname "
-								"FROM	pg_catalog.pg_class c, "
-								"		pg_catalog.pg_namespace n, "
-								"		pg_catalog.pg_attribute a "
-								"WHERE	c.oid = a.attrelid AND "
-								"		NOT a.attisdropped AND "
-								"		a.atttypid = 'pg_catalog.jsonb'::pg_catalog.regtype AND "
-								"		c.relnamespace = n.oid AND "
+											"SELECT n.nspname, c.relname, a.attname "
+											"FROM	pg_catalog.pg_class c, "
+											"		pg_catalog.pg_namespace n, "
+											"		pg_catalog.pg_attribute a "
+											"WHERE	c.oid = a.attrelid AND "
+											"		NOT a.attisdropped AND "
+											"		a.atttypid = 'pg_catalog.jsonb'::pg_catalog.regtype AND "
+											"		c.relnamespace = n.oid AND "
 		/* exclude possible orphaned temp tables */
-								"		n.nspname !~ '^pg_temp_' AND "
-								"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
+											"		n.nspname !~ '^pg_temp_' AND "
+											"		n.nspname NOT IN ('pg_catalog', 'information_schema')");
 
 		int			ntups = PQntuples(res);
+
 		i_nspname = PQfnumber(res, "nspname");
 		i_relname = PQfnumber(res, "relname");
 		i_attname = PQfnumber(res, "attname");
@@ -1224,9 +1230,9 @@ check_for_pg_role_prefix(ClusterInfo *cluster)
 	prep_status("Checking for roles starting with \"pg_\"");
 
 	PGresult   *res = executeQueryOrDie(conn,
-							"SELECT * "
-							"FROM pg_catalog.pg_roles "
-							"WHERE rolname ~ '^pg_'");
+										"SELECT * "
+										"FROM pg_catalog.pg_roles "
+										"WHERE rolname ~ '^pg_'");
 
 	if (PQntuples(res) != 0)
 	{
@@ -1256,6 +1262,7 @@ get_canonical_locale_name(int category, const char *locale)
 
 	/* get the current setting, so we can restore it. */
 	char	   *save = setlocale(category, NULL);
+
 	if (!save)
 		pg_fatal("failed to get the current locale\n");
 
