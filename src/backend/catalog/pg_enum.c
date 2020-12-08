@@ -261,10 +261,11 @@ AddEnumLabel(Oid enumTypeOid,
 	Relation	pg_enum = table_open(EnumRelationId, RowExclusiveLock);
 
 	/* If we have to renumber the existing members, we restart from here */
+	CatCList   *list;
 restart:
 
 	/* Get the list of existing members of the enum */
-	CatCList   *list = SearchSysCacheList1(ENUMTYPOIDNAME,
+	list = SearchSysCacheList1(ENUMTYPOIDNAME,
 							   ObjectIdGetDatum(enumTypeOid));
 	int			nelems = list->n_members;
 
