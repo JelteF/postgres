@@ -87,7 +87,6 @@ ecpg_start_test(const char *testname,
 				_stringlist **expectfiles,
 				_stringlist **tags)
 {
-	PID_TYPE	pid;
 	char		inprg[MAXPGPATH];
 	char		insource[MAXPGPATH];
 	StringInfoData testname_dash;
@@ -98,7 +97,6 @@ ecpg_start_test(const char *testname,
 	char		outfile_source[MAXPGPATH],
 				expectfile_source[MAXPGPATH];
 	char		cmd[MAXPGPATH * 3];
-	char	   *appnameenv;
 
 	snprintf(inprg, sizeof(inprg), "%s/%s", inputdir, testname);
 	snprintf(insource, sizeof(insource), "%s.c", testname);
@@ -147,10 +145,11 @@ ecpg_start_test(const char *testname,
 			 outfile_stdout,
 			 outfile_stderr);
 
-	appnameenv = psprintf("PGAPPNAME=ecpg/%s", testname_dash.data);
+	char	   *appnameenv = psprintf("PGAPPNAME=ecpg/%s", testname_dash.data);
+
 	putenv(appnameenv);
 
-	pid = spawn_process(cmd);
+	PID_TYPE	pid = spawn_process(cmd);
 
 	if (pid == INVALID_PID)
 	{

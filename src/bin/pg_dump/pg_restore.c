@@ -55,7 +55,6 @@ static void usage(const char *progname);
 int
 main(int argc, char **argv)
 {
-	RestoreOptions *opts;
 	int			c;
 	int			exit_code;
 	int			numWorkers = 1;
@@ -130,7 +129,7 @@ main(int argc, char **argv)
 
 	init_parallel_dump_utils();
 
-	opts = NewRestoreOptions();
+	RestoreOptions *opts = NewRestoreOptions();
 
 	progname = get_progname(argv[0]);
 

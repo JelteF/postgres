@@ -227,9 +227,8 @@ HeapTupleSatisfiesSelf(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 
 			if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 			{
-				TransactionId xmax;
 
-				xmax = HeapTupleGetUpdateXid(tuple);
+				TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 				/* not LOCKED_ONLY, so it has to have an xmax */
 				Assert(TransactionIdIsValid(xmax));
@@ -279,12 +278,11 @@ HeapTupleSatisfiesSelf(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 
 	if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 	{
-		TransactionId xmax;
 
 		if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
 			return true;
 
-		xmax = HeapTupleGetUpdateXid(tuple);
+		TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 		/* not LOCKED_ONLY, so it has to have an xmax */
 		Assert(TransactionIdIsValid(xmax));
@@ -516,9 +514,8 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
 
 			if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
 			{
-				TransactionId xmax;
 
-				xmax = HeapTupleHeaderGetRawXmax(tuple);
+				TransactionId xmax = HeapTupleHeaderGetRawXmax(tuple);
 
 				/*
 				 * Careful here: even though this tuple was created by our own
@@ -547,9 +544,8 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
 
 			if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 			{
-				TransactionId xmax;
 
-				xmax = HeapTupleGetUpdateXid(tuple);
+				TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 				/* not LOCKED_ONLY, so it has to have an xmax */
 				Assert(TransactionIdIsValid(xmax));
@@ -616,7 +612,6 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
 
 	if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 	{
-		TransactionId xmax;
 
 		if (HEAP_LOCKED_UPGRADED(tuple->t_infomask))
 			return TM_Ok;
@@ -630,7 +625,8 @@ HeapTupleSatisfiesUpdate(HeapTuple htup, CommandId curcid,
 			return TM_Ok;
 		}
 
-		xmax = HeapTupleGetUpdateXid(tuple);
+		TransactionId xmax = HeapTupleGetUpdateXid(tuple);
+
 		if (!TransactionIdIsValid(xmax))
 		{
 			if (MultiXactIdIsRunning(HeapTupleHeaderGetRawXmax(tuple), false))
@@ -807,9 +803,8 @@ HeapTupleSatisfiesDirty(HeapTuple htup, Snapshot snapshot,
 
 			if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 			{
-				TransactionId xmax;
 
-				xmax = HeapTupleGetUpdateXid(tuple);
+				TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 				/* not LOCKED_ONLY, so it has to have an xmax */
 				Assert(TransactionIdIsValid(xmax));
@@ -877,12 +872,11 @@ HeapTupleSatisfiesDirty(HeapTuple htup, Snapshot snapshot,
 
 	if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 	{
-		TransactionId xmax;
 
 		if (HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask))
 			return true;
 
-		xmax = HeapTupleGetUpdateXid(tuple);
+		TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 		/* not LOCKED_ONLY, so it has to have an xmax */
 		Assert(TransactionIdIsValid(xmax));
@@ -1024,9 +1018,8 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
 
 			if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 			{
-				TransactionId xmax;
 
-				xmax = HeapTupleGetUpdateXid(tuple);
+				TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 				/* not LOCKED_ONLY, so it has to have an xmax */
 				Assert(TransactionIdIsValid(xmax));
@@ -1084,12 +1077,11 @@ HeapTupleSatisfiesMVCC(HeapTuple htup, Snapshot snapshot,
 
 	if (tuple->t_infomask & HEAP_XMAX_IS_MULTI)
 	{
-		TransactionId xmax;
 
 		/* already checked above */
 		Assert(!HEAP_XMAX_IS_LOCKED_ONLY(tuple->t_infomask));
 
-		xmax = HeapTupleGetUpdateXid(tuple);
+		TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 		/* not LOCKED_ONLY, so it has to have an xmax */
 		Assert(TransactionIdIsValid(xmax));
@@ -1165,9 +1157,8 @@ HeapTupleSatisfiesVacuum(HeapTuple htup, TransactionId OldestXmin,
 						 Buffer buffer)
 {
 	TransactionId dead_after = InvalidTransactionId;
-	HTSV_Result res;
 
-	res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
+	HTSV_Result res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
 
 	if (res == HEAPTUPLE_RECENTLY_DEAD)
 	{
@@ -1432,9 +1423,8 @@ HeapTupleSatisfiesNonVacuumable(HeapTuple htup, Snapshot snapshot,
 								Buffer buffer)
 {
 	TransactionId dead_after = InvalidTransactionId;
-	HTSV_Result res;
 
-	res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
+	HTSV_Result res = HeapTupleSatisfiesVacuumHorizon(htup, buffer, &dead_after);
 
 	if (res == HEAPTUPLE_RECENTLY_DEAD)
 	{
@@ -1521,7 +1511,6 @@ HeapTupleIsSurelyDead(HeapTuple htup, GlobalVisState *vistest)
 bool
 HeapTupleHeaderIsOnlyLocked(HeapTupleHeader tuple)
 {
-	TransactionId xmax;
 
 	/* if there's no valid Xmax, then there's obviously no update either */
 	if (tuple->t_infomask & HEAP_XMAX_INVALID)
@@ -1542,7 +1531,7 @@ HeapTupleHeaderIsOnlyLocked(HeapTupleHeader tuple)
 		return false;
 
 	/* ... but if it's a multi, then perhaps the updating Xid aborted. */
-	xmax = HeapTupleGetUpdateXid(tuple);
+	TransactionId xmax = HeapTupleGetUpdateXid(tuple);
 
 	/* not LOCKED_ONLY, so it has to have an xmax */
 	Assert(TransactionIdIsValid(xmax));
@@ -1605,7 +1594,6 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
 	/* check if it's one of our txids, toplevel is also in there */
 	else if (TransactionIdInArray(xmin, snapshot->subxip, snapshot->subxcnt))
 	{
-		bool		resolved;
 		CommandId	cmin = HeapTupleHeaderGetRawCommandId(tuple);
 		CommandId	cmax = InvalidCommandId;
 
@@ -1614,9 +1602,9 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
 		 * cmin/cmax was stored in a combocid. So we need to lookup the actual
 		 * values externally.
 		 */
-		resolved = ResolveCminCmaxDuringDecoding(HistoricSnapshotGetTupleCids(), snapshot,
-												 htup, buffer,
-												 &cmin, &cmax);
+		bool		resolved = ResolveCminCmaxDuringDecoding(HistoricSnapshotGetTupleCids(), snapshot,
+															 htup, buffer,
+															 &cmin, &cmax);
 
 		/*
 		 * If we haven't resolved the combocid to cmin/cmax, that means we
@@ -1697,14 +1685,13 @@ HeapTupleSatisfiesHistoricMVCC(HeapTuple htup, Snapshot snapshot,
 	/* check if it's one of our txids, toplevel is also in there */
 	if (TransactionIdInArray(xmax, snapshot->subxip, snapshot->subxcnt))
 	{
-		bool		resolved;
 		CommandId	cmin;
 		CommandId	cmax = HeapTupleHeaderGetRawCommandId(tuple);
 
 		/* Lookup actual cmin/cmax values */
-		resolved = ResolveCminCmaxDuringDecoding(HistoricSnapshotGetTupleCids(), snapshot,
-												 htup, buffer,
-												 &cmin, &cmax);
+		bool		resolved = ResolveCminCmaxDuringDecoding(HistoricSnapshotGetTupleCids(), snapshot,
+															 htup, buffer,
+															 &cmin, &cmax);
 
 		/*
 		 * If we haven't resolved the combocid to cmin/cmax, that means we

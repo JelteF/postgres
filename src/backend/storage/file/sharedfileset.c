@@ -154,10 +154,9 @@ File
 SharedFileSetCreate(SharedFileSet *fileset, const char *name)
 {
 	char		path[MAXPGPATH];
-	File		file;
 
 	SharedFilePath(path, fileset, name);
-	file = PathNameCreateTemporaryFile(path, false);
+	File		file = PathNameCreateTemporaryFile(path, false);
 
 	/* If we failed, see if we need to create the directory on demand. */
 	if (file <= 0)
@@ -183,10 +182,9 @@ File
 SharedFileSetOpen(SharedFileSet *fileset, const char *name, int mode)
 {
 	char		path[MAXPGPATH];
-	File		file;
 
 	SharedFilePath(path, fileset, name);
-	file = PathNameOpenTemporaryFile(path, mode);
+	File		file = PathNameOpenTemporaryFile(path, mode);
 
 	return file;
 }
@@ -267,8 +265,8 @@ static void
 SharedFileSetDeleteOnProcExit(int status, Datum arg)
 {
 	/*
-	 * Remove all the pending shared fileset entries. We don't use foreach() here
-	 * because SharedFileSetDeleteAll will remove the current element in
+	 * Remove all the pending shared fileset entries. We don't use foreach()
+	 * here because SharedFileSetDeleteAll will remove the current element in
 	 * filesetlist. Though we have used foreach_delete_current() to remove the
 	 * element from filesetlist it could only fix up the state of one of the
 	 * loops, see SharedFileSetUnregister.

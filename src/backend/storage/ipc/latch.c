@@ -439,7 +439,6 @@ WaitLatchOrSocket(Latch *latch, int wakeEvents, pgsocket sock,
 				  long timeout, uint32 wait_event_info)
 {
 	int			ret = 0;
-	int			rc;
 	WaitEvent	event;
 	WaitEventSet *set = CreateWaitEventSet(CurrentMemoryContext, 3);
 
@@ -467,13 +466,13 @@ WaitLatchOrSocket(Latch *latch, int wakeEvents, pgsocket sock,
 
 	if (wakeEvents & WL_SOCKET_MASK)
 	{
-		int			ev;
 
-		ev = wakeEvents & WL_SOCKET_MASK;
+		int			ev = wakeEvents & WL_SOCKET_MASK;
+
 		AddWaitEventToSet(set, ev, sock, NULL, NULL);
 	}
 
-	rc = WaitEventSetWait(set, timeout, &event, 1, wait_event_info);
+	int			rc = WaitEventSetWait(set, timeout, &event, 1, wait_event_info);
 
 	if (rc == 0)
 		ret |= WL_TIMEOUT;
@@ -808,7 +807,6 @@ int
 AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd, Latch *latch,
 				  void *user_data)
 {
-	WaitEvent  *event;
 
 	/* not enough space */
 	Assert(set->nevents < set->nevents_space);
@@ -838,7 +836,8 @@ AddWaitEventToSet(WaitEventSet *set, uint32 events, pgsocket fd, Latch *latch,
 	if (fd == PGINVALID_SOCKET && (events & WL_SOCKET_MASK))
 		elog(ERROR, "cannot wait on socket event without a socket");
 
-	event = &set->events[set->nevents];
+	WaitEvent  *event = &set->events[set->nevents];
+
 	event->pos = set->nevents++;
 	event->fd = fd;
 	event->events = events;
@@ -927,6 +926,7 @@ ModifyWaitEvent(WaitEventSet *set, int pos, uint32 events, Latch *latch)
 		if (latch && latch->owner_pid != MyProcPid)
 			elog(ERROR, "cannot wait on a latch owned by another process");
 		set->latch = latch;
+
 		/*
 		 * On Unix, we don't need to modify the kernel object because the
 		 * underlying pipe is the same for all latches so we can return
@@ -961,7 +961,6 @@ static void
 WaitEventAdjustEpoll(WaitEventSet *set, WaitEvent *event, int action)
 {
 	struct epoll_event epoll_ev;
-	int			rc;
 
 	/* pointer to our event, returned by epoll_wait */
 	epoll_ev.data.ptr = event;
@@ -994,7 +993,7 @@ WaitEventAdjustEpoll(WaitEventSet *set, WaitEvent *event, int action)
 	 * EPOLL_CTL_DEL is passed as action.  There used to be an epoll bug
 	 * requiring that, and actually it makes the code simpler...
 	 */
-	rc = epoll_ctl(set->epoll_fd, action, event->fd, &epoll_ev);
+	int			rc = epoll_ctl(set->epoll_fd, action, event->fd, &epoll_ev);
 
 	if (rc < 0)
 		ereport(ERROR,
@@ -1078,7 +1077,6 @@ WaitEventAdjustKqueueAddPostmaster(struct kevent *k_ev, WaitEvent *event)
 static void
 WaitEventAdjustKqueue(WaitEventSet *set, WaitEvent *event, int old_events)
 {
-	int			rc;
 	struct kevent k_ev[2];
 	int			count = 0;
 	bool		new_filt_read = false;
@@ -1137,7 +1135,7 @@ WaitEventAdjustKqueue(WaitEventSet *set, WaitEvent *event, int old_events)
 	Assert(count > 0);
 	Assert(count <= 2);
 
-	rc = kevent(set->kqueue_fd, &k_ev[0], count, NULL, 0, NULL);
+	int			rc = kevent(set->kqueue_fd, &k_ev[0], count, NULL, 0, NULL);
 
 	/*
 	 * When adding the postmaster's pid, we have to consider that it might
@@ -1260,7 +1258,6 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
 #endif
 	while (returned_events == 0)
 	{
-		int			rc;
 
 		/*
 		 * Check if the latch is set already. If so, leave the loop
@@ -1307,8 +1304,8 @@ WaitEventSetWait(WaitEventSet *set, long timeout,
 		 * this file. If -1 is returned, a timeout has occurred, if 0 we have
 		 * to retry, everything >= 1 is the number of returned events.
 		 */
-		rc = WaitEventSetWaitBlock(set, cur_timeout,
-								   occurred_events, nevents);
+		int			rc = WaitEventSetWaitBlock(set, cur_timeout,
+											   occurred_events, nevents);
 
 		if (rc == -1)
 			break;				/* timeout occurred */
@@ -1350,13 +1347,12 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 					  WaitEvent *occurred_events, int nevents)
 {
 	int			returned_events = 0;
-	int			rc;
 	WaitEvent  *cur_event;
 	struct epoll_event *cur_epoll_event;
 
 	/* Sleep */
-	rc = epoll_wait(set->epoll_fd, set->epoll_ret_events,
-					nevents, cur_timeout);
+	int			rc = epoll_wait(set->epoll_fd, set->epoll_ret_events,
+								nevents, cur_timeout);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1478,7 +1474,6 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 					  WaitEvent *occurred_events, int nevents)
 {
 	int			returned_events = 0;
-	int			rc;
 	WaitEvent  *cur_event;
 	struct kevent *cur_kqueue_event;
 	struct timespec timeout;
@@ -1507,9 +1502,9 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 	}
 
 	/* Sleep */
-	rc = kevent(set->kqueue_fd, NULL, 0,
-				set->kqueue_ret_events, nevents,
-				timeout_p);
+	int			rc = kevent(set->kqueue_fd, NULL, 0,
+							set->kqueue_ret_events, nevents,
+							timeout_p);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1568,9 +1563,9 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 				 (cur_kqueue_event->fflags & NOTE_EXIT) != 0)
 		{
 			/*
-			 * The kernel will tell this kqueue object only once about the exit
-			 * of the postmaster, so let's remember that for next time so that
-			 * we provide level-triggered semantics.
+			 * The kernel will tell this kqueue object only once about the
+			 * exit of the postmaster, so let's remember that for next time so
+			 * that we provide level-triggered semantics.
 			 */
 			set->report_postmaster_not_running = true;
 
@@ -1624,12 +1619,11 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 					  WaitEvent *occurred_events, int nevents)
 {
 	int			returned_events = 0;
-	int			rc;
 	WaitEvent  *cur_event;
 	struct pollfd *cur_pollfd;
 
 	/* Sleep */
-	rc = poll(set->pollfds, set->nevents, (int) cur_timeout);
+	int			rc = poll(set->pollfds, set->nevents, (int) cur_timeout);
 
 	/* Check return code */
 	if (rc < 0)
@@ -1751,7 +1745,6 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 					  WaitEvent *occurred_events, int nevents)
 {
 	int			returned_events = 0;
-	DWORD		rc;
 	WaitEvent  *cur_event;
 
 	/* Reset any wait events that need it */
@@ -1781,12 +1774,12 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 			char		c;
 			WSABUF		buf;
 			DWORD		sent;
-			int			r;
 
 			buf.buf = &c;
 			buf.len = 0;
 
-			r = WSASend(cur_event->fd, &buf, 1, &sent, 0, NULL, NULL);
+			int			r = WSASend(cur_event->fd, &buf, 1, &sent, 0, NULL, NULL);
+
 			if (r == 0 || WSAGetLastError() != WSAEWOULDBLOCK)
 			{
 				occurred_events->pos = cur_event->pos;
@@ -1803,8 +1796,8 @@ WaitEventSetWaitBlock(WaitEventSet *set, int cur_timeout,
 	 *
 	 * Need to wait for ->nevents + 1, because signal handle is in [0].
 	 */
-	rc = WaitForMultipleObjects(set->nevents + 1, set->handles, FALSE,
-								cur_timeout);
+	DWORD		rc = WaitForMultipleObjects(set->nevents + 1, set->handles, FALSE,
+											cur_timeout);
 
 	/* Check return code */
 	if (rc == WAIT_FAILED)

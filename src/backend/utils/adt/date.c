@@ -46,10 +46,9 @@
 static int32
 anytime_typmodin(bool istz, ArrayType *ta)
 {
-	int32	   *tl;
 	int			n;
 
-	tl = ArrayGetIntegerTypmods(ta, &n);
+	int32	   *tl = ArrayGetIntegerTypmods(ta, &n);
 
 	/*
 	 * we're not too tense about good error message here because grammar
@@ -117,13 +116,13 @@ date_in(PG_FUNCTION_ARGS)
 	int			tzp;
 	int			dtype;
 	int			nf;
-	int			dterr;
 	char	   *field[MAXDATEFIELDS];
 	int			ftype[MAXDATEFIELDS];
 	char		workbuf[MAXDATELEN + 1];
 
-	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
-						  field, ftype, MAXDATEFIELDS, &nf);
+	int			dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
+									  field, ftype, MAXDATEFIELDS, &nf);
+
 	if (dterr == 0)
 		dterr = DecodeDateTime(field, ftype, nf, &dtype, tm, &fsec, &tzp);
 	if (dterr != 0)
@@ -175,7 +174,6 @@ Datum
 date_out(PG_FUNCTION_ARGS)
 {
 	DateADT		date = PG_GETARG_DATEADT(0);
-	char	   *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	char		buf[MAXDATELEN + 1];
@@ -189,7 +187,8 @@ date_out(PG_FUNCTION_ARGS)
 		EncodeDateOnly(tm, DateStyle, buf);
 	}
 
-	result = pstrdup(buf);
+	char	   *result = pstrdup(buf);
+
 	PG_RETURN_CSTRING(result);
 }
 
@@ -200,9 +199,8 @@ Datum
 date_recv(PG_FUNCTION_ARGS)
 {
 	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-	DateADT		result;
 
-	result = (DateADT) pq_getmsgint(buf, sizeof(DateADT));
+	DateADT		result = (DateADT) pq_getmsgint(buf, sizeof(DateADT));
 
 	/* Limit to the same range that date_in() accepts. */
 	if (DATE_NOT_FINITE(result))
@@ -236,8 +234,6 @@ Datum
 make_date(PG_FUNCTION_ARGS)
 {
 	struct pg_tm tm;
-	DateADT		date;
-	int			dterr;
 	bool		bc = false;
 
 	tm.tm_year = PG_GETARG_INT32(0);
@@ -251,7 +247,7 @@ make_date(PG_FUNCTION_ARGS)
 		tm.tm_year = -tm.tm_year;
 	}
 
-	dterr = ValidateDate(DTK_DATE_M, false, false, bc, &tm);
+	int			dterr = ValidateDate(DTK_DATE_M, false, false, bc, &tm);
 
 	if (dterr != 0)
 		ereport(ERROR,
@@ -266,7 +262,7 @@ make_date(PG_FUNCTION_ARGS)
 				 errmsg("date out of range: %d-%02d-%02d",
 						tm.tm_year, tm.tm_mon, tm.tm_mday)));
 
-	date = date2j(tm.tm_year, tm.tm_mon, tm.tm_mday) - POSTGRES_EPOCH_JDATE;
+	DateADT		date = date2j(tm.tm_year, tm.tm_mon, tm.tm_mday) - POSTGRES_EPOCH_JDATE;
 
 	/* Now check for just-out-of-range dates */
 	if (!IS_VALID_DATE(date))
@@ -332,7 +328,6 @@ GetSQLCurrentDate(void)
 TimeTzADT *
 GetSQLCurrentTime(int32 typmod)
 {
-	TimeTzADT  *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	fsec_t		fsec;
@@ -340,7 +335,8 @@ GetSQLCurrentTime(int32 typmod)
 
 	GetCurrentTimeUsec(tm, &fsec, &tz);
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+
 	tm2timetz(tm, fsec, tz, result);
 	AdjustTimeForTypmod(&(result->time), typmod);
 	return result;
@@ -509,12 +505,11 @@ date_pli(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
 	int32		days = PG_GETARG_INT32(1);
-	DateADT		result;
 
 	if (DATE_NOT_FINITE(dateVal))
 		PG_RETURN_DATEADT(dateVal); /* can't change infinity */
 
-	result = dateVal + days;
+	DateADT		result = dateVal + days;
 
 	/* Check for integer overflow and out-of-allowed-range */
 	if ((days >= 0 ? (result < dateVal) : (result > dateVal)) ||
@@ -533,12 +528,11 @@ date_mii(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
 	int32		days = PG_GETARG_INT32(1);
-	DateADT		result;
 
 	if (DATE_NOT_FINITE(dateVal))
 		PG_RETURN_DATEADT(dateVal); /* can't change infinity */
 
-	result = dateVal - days;
+	DateADT		result = dateVal - days;
 
 	/* Check for integer overflow and out-of-allowed-range */
 	if ((days >= 0 ? (result > dateVal) : (result < dateVal)) ||
@@ -746,10 +740,10 @@ date2timestamp_no_overflow(DateADT dateVal)
 int32
 date_cmp_timestamp_internal(DateADT dateVal, Timestamp dt2)
 {
-	Timestamp	dt1;
 	int			overflow;
 
-	dt1 = date2timestamp_opt_overflow(dateVal, &overflow);
+	Timestamp	dt1 = date2timestamp_opt_overflow(dateVal, &overflow);
+
 	if (overflow > 0)
 	{
 		/* dt1 is larger than any finite timestamp, but less than infinity */
@@ -826,10 +820,10 @@ date_cmp_timestamp(PG_FUNCTION_ARGS)
 int32
 date_cmp_timestamptz_internal(DateADT dateVal, TimestampTz dt2)
 {
-	TimestampTz dt1;
 	int			overflow;
 
-	dt1 = date2timestamptz_opt_overflow(dateVal, &overflow);
+	TimestampTz dt1 = date2timestamptz_opt_overflow(dateVal, &overflow);
+
 	if (overflow > 0)
 	{
 		/* dt1 is larger than any finite timestamp, but less than infinity */
@@ -1047,12 +1041,10 @@ in_range_date_interval(PG_FUNCTION_ARGS)
 	Interval   *offset = PG_GETARG_INTERVAL_P(2);
 	bool		sub = PG_GETARG_BOOL(3);
 	bool		less = PG_GETARG_BOOL(4);
-	Timestamp	valStamp;
-	Timestamp	baseStamp;
 
 	/* XXX we could support out-of-range cases here, perhaps */
-	valStamp = date2timestamp(val);
-	baseStamp = date2timestamp(base);
+	Timestamp	valStamp = date2timestamp(val);
+	Timestamp	baseStamp = date2timestamp(base);
 
 	return DirectFunctionCall5(in_range_timestamp_interval,
 							   TimestampGetDatum(valStamp),
@@ -1074,9 +1066,8 @@ date_pl_interval(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	Timestamp	dateStamp;
 
-	dateStamp = date2timestamp(dateVal);
+	Timestamp	dateStamp = date2timestamp(dateVal);
 
 	return DirectFunctionCall2(timestamp_pl_interval,
 							   TimestampGetDatum(dateStamp),
@@ -1094,9 +1085,8 @@ date_mi_interval(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	Timestamp	dateStamp;
 
-	dateStamp = date2timestamp(dateVal);
+	Timestamp	dateStamp = date2timestamp(dateVal);
 
 	return DirectFunctionCall2(timestamp_mi_interval,
 							   TimestampGetDatum(dateStamp),
@@ -1110,9 +1100,8 @@ Datum
 date_timestamp(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
-	Timestamp	result;
 
-	result = date2timestamp(dateVal);
+	Timestamp	result = date2timestamp(dateVal);
 
 	PG_RETURN_TIMESTAMP(result);
 }
@@ -1154,9 +1143,8 @@ Datum
 date_timestamptz(PG_FUNCTION_ARGS)
 {
 	DateADT		dateVal = PG_GETARG_DATEADT(0);
-	TimestampTz result;
 
-	result = date2timestamptz(dateVal);
+	TimestampTz result = date2timestamptz(dateVal);
 
 	PG_RETURN_TIMESTAMP(result);
 }
@@ -1212,14 +1200,14 @@ time_in(PG_FUNCTION_ARGS)
 			   *tm = &tt;
 	int			tz;
 	int			nf;
-	int			dterr;
 	char		workbuf[MAXDATELEN + 1];
 	char	   *field[MAXDATEFIELDS];
 	int			dtype;
 	int			ftype[MAXDATEFIELDS];
 
-	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
-						  field, ftype, MAXDATEFIELDS, &nf);
+	int			dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
+									  field, ftype, MAXDATEFIELDS, &nf);
+
 	if (dterr == 0)
 		dterr = DecodeTimeOnly(field, ftype, nf, &dtype, tm, &fsec, &tz);
 	if (dterr != 0)
@@ -1325,7 +1313,6 @@ Datum
 time_out(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
-	char	   *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	fsec_t		fsec;
@@ -1334,7 +1321,8 @@ time_out(PG_FUNCTION_ARGS)
 	time2tm(time, tm, &fsec);
 	EncodeTimeOnly(tm, fsec, false, 0, DateStyle, buf);
 
-	result = pstrdup(buf);
+	char	   *result = pstrdup(buf);
+
 	PG_RETURN_CSTRING(result);
 }
 
@@ -1350,9 +1338,8 @@ time_recv(PG_FUNCTION_ARGS)
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		typmod = PG_GETARG_INT32(2);
-	TimeADT		result;
 
-	result = pq_getmsgint64(buf);
+	TimeADT		result = pq_getmsgint64(buf);
 
 	if (result < INT64CONST(0) || result > USECS_PER_DAY)
 		ereport(ERROR,
@@ -1403,7 +1390,6 @@ make_time(PG_FUNCTION_ARGS)
 	int			tm_hour = PG_GETARG_INT32(0);
 	int			tm_min = PG_GETARG_INT32(1);
 	double		sec = PG_GETARG_FLOAT8(2);
-	TimeADT		time;
 
 	/* Check for time overflow */
 	if (float_time_overflows(tm_hour, tm_min, sec))
@@ -1413,8 +1399,8 @@ make_time(PG_FUNCTION_ARGS)
 						tm_hour, tm_min, sec)));
 
 	/* This should match tm2time */
-	time = (((tm_hour * MINS_PER_HOUR + tm_min) * SECS_PER_MINUTE)
-			* USECS_PER_SEC) + (int64) rint(sec * USECS_PER_SEC);
+	TimeADT		time = (((tm_hour * MINS_PER_HOUR + tm_min) * SECS_PER_MINUTE)
+						* USECS_PER_SEC) + (int64) rint(sec * USECS_PER_SEC);
 
 	PG_RETURN_TIMEADT(time);
 }
@@ -1450,9 +1436,9 @@ time_scale(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
 	int32		typmod = PG_GETARG_INT32(1);
-	TimeADT		result;
 
-	result = time;
+	TimeADT		result = time;
+
 	AdjustTimeForTypmod(&result, typmod);
 
 	PG_RETURN_TIMEADT(result);
@@ -1729,7 +1715,6 @@ Datum
 timestamp_time(PG_FUNCTION_ARGS)
 {
 	Timestamp	timestamp = PG_GETARG_TIMESTAMP(0);
-	TimeADT		result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	fsec_t		fsec;
@@ -1746,8 +1731,8 @@ timestamp_time(PG_FUNCTION_ARGS)
 	 * Could also do this with time = (timestamp / USECS_PER_DAY *
 	 * USECS_PER_DAY) - timestamp;
 	 */
-	result = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec) *
-			  USECS_PER_SEC) + fsec;
+	TimeADT		result = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec) *
+						  USECS_PER_SEC) + fsec;
 
 	PG_RETURN_TIMEADT(result);
 }
@@ -1759,7 +1744,6 @@ Datum
 timestamptz_time(PG_FUNCTION_ARGS)
 {
 	TimestampTz timestamp = PG_GETARG_TIMESTAMP(0);
-	TimeADT		result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	int			tz;
@@ -1777,8 +1761,8 @@ timestamptz_time(PG_FUNCTION_ARGS)
 	 * Could also do this with time = (timestamp / USECS_PER_DAY *
 	 * USECS_PER_DAY) - timestamp;
 	 */
-	result = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec) *
-			  USECS_PER_SEC) + fsec;
+	TimeADT		result = ((((tm->tm_hour * MINS_PER_HOUR + tm->tm_min) * SECS_PER_MINUTE) + tm->tm_sec) *
+						  USECS_PER_SEC) + fsec;
 
 	PG_RETURN_TIMEADT(result);
 }
@@ -1791,9 +1775,9 @@ datetime_timestamp(PG_FUNCTION_ARGS)
 {
 	DateADT		date = PG_GETARG_DATEADT(0);
 	TimeADT		time = PG_GETARG_TIMEADT(1);
-	Timestamp	result;
 
-	result = date2timestamp(date);
+	Timestamp	result = date2timestamp(date);
+
 	if (!TIMESTAMP_NOT_FINITE(result))
 	{
 		result += time;
@@ -1813,9 +1797,8 @@ Datum
 time_interval(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
-	Interval   *result;
 
-	result = (Interval *) palloc(sizeof(Interval));
+	Interval   *result = (Interval *) palloc(sizeof(Interval));
 
 	result->time = time;
 	result->day = 0;
@@ -1836,10 +1819,10 @@ Datum
 interval_time(PG_FUNCTION_ARGS)
 {
 	Interval   *span = PG_GETARG_INTERVAL_P(0);
-	TimeADT		result;
 	int64		days;
 
-	result = span->time;
+	TimeADT		result = span->time;
+
 	if (result >= USECS_PER_DAY)
 	{
 		days = result / USECS_PER_DAY;
@@ -1862,9 +1845,8 @@ time_mi_time(PG_FUNCTION_ARGS)
 {
 	TimeADT		time1 = PG_GETARG_TIMEADT(0);
 	TimeADT		time2 = PG_GETARG_TIMEADT(1);
-	Interval   *result;
 
-	result = (Interval *) palloc(sizeof(Interval));
+	Interval   *result = (Interval *) palloc(sizeof(Interval));
 
 	result->month = 0;
 	result->day = 0;
@@ -1881,9 +1863,9 @@ time_pl_interval(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	TimeADT		result;
 
-	result = time + span->time;
+	TimeADT		result = time + span->time;
+
 	result -= result / USECS_PER_DAY * USECS_PER_DAY;
 	if (result < INT64CONST(0))
 		result += USECS_PER_DAY;
@@ -1899,9 +1881,9 @@ time_mi_interval(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	TimeADT		result;
 
-	result = time - span->time;
+	TimeADT		result = time - span->time;
+
 	result -= result / USECS_PER_DAY * USECS_PER_DAY;
 	if (result < INT64CONST(0))
 		result += USECS_PER_DAY;
@@ -1960,11 +1942,10 @@ time_part(PG_FUNCTION_ARGS)
 	float8		result;
 	int			type,
 				val;
-	char	   *lowunits;
 
-	lowunits = downcase_truncate_identifier(VARDATA_ANY(units),
-											VARSIZE_ANY_EXHDR(units),
-											false);
+	char	   *lowunits = downcase_truncate_identifier(VARDATA_ANY(units),
+														VARSIZE_ANY_EXHDR(units),
+														false);
 
 	type = DecodeUnits(0, lowunits, &val);
 	if (type == UNKNOWN_FIELD)
@@ -2062,26 +2043,26 @@ timetz_in(PG_FUNCTION_ARGS)
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		typmod = PG_GETARG_INT32(2);
-	TimeTzADT  *result;
 	fsec_t		fsec;
 	struct pg_tm tt,
 			   *tm = &tt;
 	int			tz;
 	int			nf;
-	int			dterr;
 	char		workbuf[MAXDATELEN + 1];
 	char	   *field[MAXDATEFIELDS];
 	int			dtype;
 	int			ftype[MAXDATEFIELDS];
 
-	dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
-						  field, ftype, MAXDATEFIELDS, &nf);
+	int			dterr = ParseDateTime(str, workbuf, sizeof(workbuf),
+									  field, ftype, MAXDATEFIELDS, &nf);
+
 	if (dterr == 0)
 		dterr = DecodeTimeOnly(field, ftype, nf, &dtype, tm, &fsec, &tz);
 	if (dterr != 0)
 		DateTimeParseError(dterr, str, "time with time zone");
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+
 	tm2timetz(tm, fsec, tz, result);
 	AdjustTimeForTypmod(&(result->time), typmod);
 
@@ -2092,7 +2073,6 @@ Datum
 timetz_out(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
-	char	   *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	fsec_t		fsec;
@@ -2102,7 +2082,8 @@ timetz_out(PG_FUNCTION_ARGS)
 	timetz2tm(time, tm, &fsec, &tz);
 	EncodeTimeOnly(tm, fsec, true, tz, DateStyle, buf);
 
-	result = pstrdup(buf);
+	char	   *result = pstrdup(buf);
+
 	PG_RETURN_CSTRING(result);
 }
 
@@ -2118,9 +2099,8 @@ timetz_recv(PG_FUNCTION_ARGS)
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		typmod = PG_GETARG_INT32(2);
-	TimeTzADT  *result;
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = pq_getmsgint64(buf);
 
@@ -2204,9 +2184,8 @@ timetz_scale(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
 	int32		typmod = PG_GETARG_INT32(1);
-	TimeTzADT  *result;
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = time->time;
 	result->zone = time->zone;
@@ -2311,14 +2290,14 @@ Datum
 timetz_hash(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *key = PG_GETARG_TIMETZADT_P(0);
-	uint32		thash;
 
 	/*
 	 * To avoid any problems with padding bytes in the struct, we figure the
 	 * field hashes separately and XOR them.
 	 */
-	thash = DatumGetUInt32(DirectFunctionCall1(hashint8,
-											   Int64GetDatumFast(key->time)));
+	uint32		thash = DatumGetUInt32(DirectFunctionCall1(hashint8,
+														   Int64GetDatumFast(key->time)));
+
 	thash ^= DatumGetUInt32(hash_uint32(key->zone));
 	PG_RETURN_UINT32(thash);
 }
@@ -2328,12 +2307,12 @@ timetz_hash_extended(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *key = PG_GETARG_TIMETZADT_P(0);
 	Datum		seed = PG_GETARG_DATUM(1);
-	uint64		thash;
 
 	/* Same approach as timetz_hash */
-	thash = DatumGetUInt64(DirectFunctionCall2(hashint8extended,
-											   Int64GetDatumFast(key->time),
-											   seed));
+	uint64		thash = DatumGetUInt64(DirectFunctionCall2(hashint8extended,
+														   Int64GetDatumFast(key->time),
+														   seed));
+
 	thash ^= DatumGetUInt64(hash_uint32_extended(key->zone,
 												 DatumGetInt64(seed)));
 	PG_RETURN_UINT64(thash);
@@ -2375,9 +2354,8 @@ timetz_pl_interval(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	TimeTzADT  *result;
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = time->time + span->time;
 	result->time -= result->time / USECS_PER_DAY * USECS_PER_DAY;
@@ -2397,9 +2375,8 @@ timetz_mi_interval(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *time = PG_GETARG_TIMETZADT_P(0);
 	Interval   *span = PG_GETARG_INTERVAL_P(1);
-	TimeTzADT  *result;
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = time->time - span->time;
 	result->time -= result->time / USECS_PER_DAY * USECS_PER_DAY;
@@ -2581,10 +2558,9 @@ Datum
 timetz_time(PG_FUNCTION_ARGS)
 {
 	TimeTzADT  *timetz = PG_GETARG_TIMETZADT_P(0);
-	TimeADT		result;
 
 	/* swallow the time zone and just return the time */
-	result = timetz->time;
+	TimeADT		result = timetz->time;
 
 	PG_RETURN_TIMEADT(result);
 }
@@ -2594,17 +2570,15 @@ Datum
 time_timetz(PG_FUNCTION_ARGS)
 {
 	TimeADT		time = PG_GETARG_TIMEADT(0);
-	TimeTzADT  *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	fsec_t		fsec;
-	int			tz;
 
 	GetCurrentDateTime(tm);
 	time2tm(time, tm, &fsec);
-	tz = DetermineTimeZoneOffset(tm, session_timezone);
+	int			tz = DetermineTimeZoneOffset(tm, session_timezone);
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = time;
 	result->zone = tz;
@@ -2620,7 +2594,6 @@ Datum
 timestamptz_timetz(PG_FUNCTION_ARGS)
 {
 	TimestampTz timestamp = PG_GETARG_TIMESTAMP(0);
-	TimeTzADT  *result;
 	struct pg_tm tt,
 			   *tm = &tt;
 	int			tz;
@@ -2634,7 +2607,7 @@ timestamptz_timetz(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_DATETIME_VALUE_OUT_OF_RANGE),
 				 errmsg("timestamp out of range")));
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	tm2timetz(tm, fsec, tz, result);
 
@@ -2697,11 +2670,10 @@ timetz_part(PG_FUNCTION_ARGS)
 	float8		result;
 	int			type,
 				val;
-	char	   *lowunits;
 
-	lowunits = downcase_truncate_identifier(VARDATA_ANY(units),
-											VARSIZE_ANY_EXHDR(units),
-											false);
+	char	   *lowunits = downcase_truncate_identifier(VARDATA_ANY(units),
+														VARSIZE_ANY_EXHDR(units),
+														false);
 
 	type = DecodeUnits(0, lowunits, &val);
 	if (type == UNKNOWN_FIELD)
@@ -2794,10 +2766,8 @@ timetz_zone(PG_FUNCTION_ARGS)
 {
 	text	   *zone = PG_GETARG_TEXT_PP(0);
 	TimeTzADT  *t = PG_GETARG_TIMETZADT_P(1);
-	TimeTzADT  *result;
 	int			tz;
 	char		tzname[TZ_STRLEN_MAX + 1];
-	char	   *lowzone;
 	int			type,
 				val;
 	pg_tz	   *tzp;
@@ -2813,9 +2783,9 @@ timetz_zone(PG_FUNCTION_ARGS)
 	text_to_cstring_buffer(zone, tzname, sizeof(tzname));
 
 	/* DecodeTimezoneAbbrev requires lowercase input */
-	lowzone = downcase_truncate_identifier(tzname,
-										   strlen(tzname),
-										   false);
+	char	   *lowzone = downcase_truncate_identifier(tzname,
+													   strlen(tzname),
+													   false);
 
 	type = DecodeTimezoneAbbrev(0, lowzone, &val, &tzp);
 
@@ -2828,9 +2798,9 @@ timetz_zone(PG_FUNCTION_ARGS)
 	{
 		/* dynamic-offset abbreviation, resolve using current time */
 		pg_time_t	now = (pg_time_t) time(NULL);
-		struct pg_tm *tm;
 
-		tm = pg_localtime(&now, tzp);
+		struct pg_tm *tm = pg_localtime(&now, tzp);
+
 		tz = DetermineTimeZoneAbbrevOffset(tm, tzname, tzp);
 	}
 	else
@@ -2841,9 +2811,9 @@ timetz_zone(PG_FUNCTION_ARGS)
 		{
 			/* Get the offset-from-GMT that is valid today for the zone */
 			pg_time_t	now = (pg_time_t) time(NULL);
-			struct pg_tm *tm;
 
-			tm = pg_localtime(&now, tzp);
+			struct pg_tm *tm = pg_localtime(&now, tzp);
+
 			tz = -tm->tm_gmtoff;
 		}
 		else
@@ -2855,7 +2825,7 @@ timetz_zone(PG_FUNCTION_ARGS)
 		}
 	}
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = t->time + (t->zone - tz) * USECS_PER_SEC;
 	while (result->time < INT64CONST(0))
@@ -2876,8 +2846,6 @@ timetz_izone(PG_FUNCTION_ARGS)
 {
 	Interval   *zone = PG_GETARG_INTERVAL_P(0);
 	TimeTzADT  *time = PG_GETARG_TIMETZADT_P(1);
-	TimeTzADT  *result;
-	int			tz;
 
 	if (zone->month != 0 || zone->day != 0)
 		ereport(ERROR,
@@ -2886,9 +2854,9 @@ timetz_izone(PG_FUNCTION_ARGS)
 						DatumGetCString(DirectFunctionCall1(interval_out,
 															PointerGetDatum(zone))))));
 
-	tz = -(zone->time / USECS_PER_SEC);
+	int			tz = -(zone->time / USECS_PER_SEC);
 
-	result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
+	TimeTzADT  *result = (TimeTzADT *) palloc(sizeof(TimeTzADT));
 
 	result->time = time->time + (time->zone - tz) * USECS_PER_SEC;
 	while (result->time < INT64CONST(0))

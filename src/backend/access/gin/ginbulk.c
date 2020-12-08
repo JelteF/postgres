@@ -54,9 +54,9 @@ ginCombineData(RBTNode *existing, const RBTNode *newdata, void *arg)
 	/* If item pointers are not ordered, they will need to be sorted later */
 	if (eo->shouldSort == false)
 	{
-		int			res;
 
-		res = ginCompareItemPointers(eo->list + eo->count - 1, en->list);
+		int			res = ginCompareItemPointers(eo->list + eo->count - 1, en->list);
+
 		Assert(res != 0);
 
 		if (res > 0)
@@ -85,7 +85,6 @@ static RBTNode *
 ginAllocEntryAccumulator(void *arg)
 {
 	BuildAccumulator *accum = (BuildAccumulator *) arg;
-	GinEntryAccumulator *ea;
 
 	/*
 	 * Allocate memory by rather big chunks to decrease overhead.  We have no
@@ -99,7 +98,8 @@ ginAllocEntryAccumulator(void *arg)
 	}
 
 	/* Allocate new RBTNode from current chunk */
-	ea = accum->entryallocator + accum->eas_used;
+	GinEntryAccumulator *ea = accum->entryallocator + accum->eas_used;
+
 	accum->eas_used++;
 
 	return (RBTNode *) ea;
@@ -127,10 +127,10 @@ ginInitBA(BuildAccumulator *accum)
 static Datum
 getDatumCopy(BuildAccumulator *accum, OffsetNumber attnum, Datum value)
 {
-	Form_pg_attribute att;
 	Datum		res;
 
-	att = TupleDescAttr(accum->ginstate->origTupdesc, attnum - 1);
+	Form_pg_attribute att = TupleDescAttr(accum->ginstate->origTupdesc, attnum - 1);
+
 	if (att->attbyval)
 		res = value;
 	else
@@ -150,7 +150,6 @@ ginInsertBAEntry(BuildAccumulator *accum,
 				 Datum key, GinNullCategory category)
 {
 	GinEntryAccumulator eatmp;
-	GinEntryAccumulator *ea;
 	bool		isNew;
 
 	/*
@@ -163,8 +162,8 @@ ginInsertBAEntry(BuildAccumulator *accum,
 	/* temporarily set up single-entry itempointer list */
 	eatmp.list = heapptr;
 
-	ea = (GinEntryAccumulator *) rbt_insert(accum->tree, (RBTNode *) &eatmp,
-											&isNew);
+	GinEntryAccumulator *ea = (GinEntryAccumulator *) rbt_insert(accum->tree, (RBTNode *) &eatmp,
+																 &isNew);
 
 	if (isNew)
 	{
@@ -269,10 +268,8 @@ ginGetBAEntry(BuildAccumulator *accum,
 			  OffsetNumber *attnum, Datum *key, GinNullCategory *category,
 			  uint32 *n)
 {
-	GinEntryAccumulator *entry;
-	ItemPointerData *list;
 
-	entry = (GinEntryAccumulator *) rbt_iterate(&accum->tree_walk);
+	GinEntryAccumulator *entry = (GinEntryAccumulator *) rbt_iterate(&accum->tree_walk);
 
 	if (entry == NULL)
 		return NULL;			/* no more entries */
@@ -280,7 +277,8 @@ ginGetBAEntry(BuildAccumulator *accum,
 	*attnum = entry->attnum;
 	*key = entry->key;
 	*category = entry->category;
-	list = entry->list;
+	ItemPointerData *list = entry->list;
+
 	*n = entry->count;
 
 	Assert(list != NULL && entry->count > 0);

@@ -47,7 +47,6 @@ get_raw_page(PG_FUNCTION_ARGS)
 {
 	text	   *relname = PG_GETARG_TEXT_PP(0);
 	uint32		blkno = PG_GETARG_UINT32(1);
-	bytea	   *raw_page;
 
 	/*
 	 * We don't normally bother to check the number of arguments to a C
@@ -59,7 +58,7 @@ get_raw_page(PG_FUNCTION_ARGS)
 				(errmsg("wrong number of arguments to get_raw_page()"),
 				 errhint("Run the updated pageinspect.sql script.")));
 
-	raw_page = get_raw_page_internal(relname, MAIN_FORKNUM, blkno);
+	bytea	   *raw_page = get_raw_page_internal(relname, MAIN_FORKNUM, blkno);
 
 	PG_RETURN_BYTEA_P(raw_page);
 }
@@ -77,12 +76,10 @@ get_raw_page_fork(PG_FUNCTION_ARGS)
 	text	   *relname = PG_GETARG_TEXT_PP(0);
 	text	   *forkname = PG_GETARG_TEXT_PP(1);
 	uint32		blkno = PG_GETARG_UINT32(2);
-	bytea	   *raw_page;
-	ForkNumber	forknum;
 
-	forknum = forkname_to_number(text_to_cstring(forkname));
+	ForkNumber	forknum = forkname_to_number(text_to_cstring(forkname));
 
-	raw_page = get_raw_page_internal(relname, forknum, blkno);
+	bytea	   *raw_page = get_raw_page_internal(relname, forknum, blkno);
 
 	PG_RETURN_BYTEA_P(raw_page);
 }
@@ -93,19 +90,14 @@ get_raw_page_fork(PG_FUNCTION_ARGS)
 static bytea *
 get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 {
-	bytea	   *raw_page;
-	RangeVar   *relrv;
-	Relation	rel;
-	char	   *raw_page_data;
-	Buffer		buf;
 
 	if (!superuser())
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser to use raw page functions")));
 
-	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
-	rel = relation_openrv(relrv, AccessShareLock);
+	RangeVar   *relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
+	Relation	rel = relation_openrv(relrv, AccessShareLock);
 
 	/* Check that this relation has storage */
 	if (rel->rd_rel->relkind == RELKIND_VIEW)
@@ -151,13 +143,15 @@ get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 						blkno, RelationGetRelationName(rel))));
 
 	/* Initialize buffer to copy to */
-	raw_page = (bytea *) palloc(BLCKSZ + VARHDRSZ);
+	bytea	   *raw_page = (bytea *) palloc(BLCKSZ + VARHDRSZ);
+
 	SET_VARSIZE(raw_page, BLCKSZ + VARHDRSZ);
-	raw_page_data = VARDATA(raw_page);
+	char	   *raw_page_data = VARDATA(raw_page);
 
 	/* Take a verbatim copy of the page */
 
-	buf = ReadBufferExtended(rel, forknum, blkno, RBM_NORMAL, NULL);
+	Buffer		buf = ReadBufferExtended(rel, forknum, blkno, RBM_NORMAL, NULL);
+
 	LockBuffer(buf, BUFFER_LOCK_SHARE);
 
 	memcpy(raw_page_data, BufferGetPage(buf), BLCKSZ);
@@ -186,10 +180,8 @@ get_raw_page_internal(text *relname, ForkNumber forknum, BlockNumber blkno)
 Page
 get_page_from_raw(bytea *raw_page)
 {
-	Page		page;
-	int			raw_page_size;
 
-	raw_page_size = VARSIZE_ANY_EXHDR(raw_page);
+	int			raw_page_size = VARSIZE_ANY_EXHDR(raw_page);
 
 	if (raw_page_size != BLCKSZ)
 		ereport(ERROR,
@@ -198,7 +190,7 @@ get_page_from_raw(bytea *raw_page)
 				 errdetail("Expected %d bytes, got %d.",
 						   BLCKSZ, raw_page_size)));
 
-	page = palloc(raw_page_size);
+	Page		page = palloc(raw_page_size);
 
 	memcpy(page, VARDATA_ANY(raw_page), raw_page_size);
 
@@ -218,24 +210,19 @@ Datum
 page_header(PG_FUNCTION_ARGS)
 {
 	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	int			raw_page_size;
 
 	TupleDesc	tupdesc;
 
-	Datum		result;
-	HeapTuple	tuple;
 	Datum		values[9];
 	bool		nulls[9];
 
-	PageHeader	page;
-	XLogRecPtr	lsn;
 
 	if (!superuser())
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser to use raw page functions")));
 
-	raw_page_size = VARSIZE(raw_page) - VARHDRSZ;
+	int			raw_page_size = VARSIZE(raw_page) - VARHDRSZ;
 
 	/*
 	 * Check that enough data was supplied, so that we don't try to access
@@ -246,7 +233,7 @@ page_header(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("input page too small (%d bytes)", raw_page_size)));
 
-	page = (PageHeader) VARDATA(raw_page);
+	PageHeader	page = (PageHeader) VARDATA(raw_page);
 
 	/* Build a tuple descriptor for our result type */
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -254,7 +241,7 @@ page_header(PG_FUNCTION_ARGS)
 
 	/* Extract information from the page header */
 
-	lsn = PageGetLSN(page);
+	XLogRecPtr	lsn = PageGetLSN(page);
 
 	/* pageinspect >= 1.2 uses pg_lsn instead of text for the LSN field. */
 	if (TupleDescAttr(tupdesc, 0)->atttypid == TEXTOID)
@@ -280,8 +267,8 @@ page_header(PG_FUNCTION_ARGS)
 
 	memset(nulls, 0, sizeof(nulls));
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	result = HeapTupleGetDatum(tuple);
+	HeapTuple	tuple = heap_form_tuple(tupdesc, values, nulls);
+	Datum		result = HeapTupleGetDatum(tuple);
 
 	PG_RETURN_DATUM(result);
 }
@@ -299,15 +286,13 @@ page_checksum(PG_FUNCTION_ARGS)
 {
 	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
 	uint32		blkno = PG_GETARG_INT32(1);
-	int			raw_page_size;
-	PageHeader	page;
 
 	if (!superuser())
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser to use raw page functions")));
 
-	raw_page_size = VARSIZE(raw_page) - VARHDRSZ;
+	int			raw_page_size = VARSIZE(raw_page) - VARHDRSZ;
 
 	/*
 	 * Check that the supplied page is of the right size.
@@ -317,7 +302,7 @@ page_checksum(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("incorrect size of input page (%d bytes)", raw_page_size)));
 
-	page = (PageHeader) VARDATA(raw_page);
+	PageHeader	page = (PageHeader) VARDATA(raw_page);
 
 	PG_RETURN_INT16(pg_checksum_page((char *) page, blkno));
 }

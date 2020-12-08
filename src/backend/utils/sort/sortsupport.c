@@ -44,7 +44,6 @@ static int
 comparison_shim(Datum x, Datum y, SortSupport ssup)
 {
 	SortShimExtra *extra = (SortShimExtra *) ssup->ssup_extra;
-	Datum		result;
 
 	extra->fcinfo.args[0].value = x;
 	extra->fcinfo.args[1].value = y;
@@ -52,7 +51,7 @@ comparison_shim(Datum x, Datum y, SortSupport ssup)
 	/* just for paranoia's sake, we reset isnull each time */
 	extra->fcinfo.isnull = false;
 
-	result = FunctionCallInvoke(&extra->fcinfo);
+	Datum		result = FunctionCallInvoke(&extra->fcinfo);
 
 	/* Check for null result, since caller is clearly not expecting one */
 	if (extra->fcinfo.isnull)
@@ -68,10 +67,9 @@ comparison_shim(Datum x, Datum y, SortSupport ssup)
 void
 PrepareSortSupportComparisonShim(Oid cmpFunc, SortSupport ssup)
 {
-	SortShimExtra *extra;
 
-	extra = (SortShimExtra *) MemoryContextAlloc(ssup->ssup_cxt,
-												 SizeForSortShimExtra(2));
+	SortShimExtra *extra = (SortShimExtra *) MemoryContextAlloc(ssup->ssup_cxt,
+																SizeForSortShimExtra(2));
 
 	/* Lookup the comparison function */
 	fmgr_info_cxt(cmpFunc, &extra->flinfo, ssup->ssup_cxt);
@@ -94,11 +92,11 @@ PrepareSortSupportComparisonShim(Oid cmpFunc, SortSupport ssup)
 static void
 FinishSortSupportFunction(Oid opfamily, Oid opcintype, SortSupport ssup)
 {
-	Oid			sortSupportFunction;
 
 	/* Look for a sort support function */
-	sortSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
-											BTSORTSUPPORT_PROC);
+	Oid			sortSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
+														BTSORTSUPPORT_PROC);
+
 	if (OidIsValid(sortSupportFunction))
 	{
 		/*
@@ -110,10 +108,9 @@ FinishSortSupportFunction(Oid opfamily, Oid opcintype, SortSupport ssup)
 
 	if (ssup->comparator == NULL)
 	{
-		Oid			sortFunction;
 
-		sortFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
-										 BTORDER_PROC);
+		Oid			sortFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
+													 BTORDER_PROC);
 
 		if (!OidIsValid(sortFunction))
 			elog(ERROR, "missing support function %d(%u,%u) in opfamily %u",
@@ -190,7 +187,6 @@ PrepareSortSupportFromGistIndexRel(Relation indexRel, SortSupport ssup)
 {
 	Oid			opfamily = indexRel->rd_opfamily[ssup->ssup_attno - 1];
 	Oid			opcintype = indexRel->rd_opcintype[ssup->ssup_attno - 1];
-	Oid			sortSupportFunction;
 
 	Assert(ssup->comparator == NULL);
 
@@ -202,8 +198,9 @@ PrepareSortSupportFromGistIndexRel(Relation indexRel, SortSupport ssup)
 	 * Look up the sort support function. This is simpler than for B-tree
 	 * indexes because we don't support the old-style btree comparators.
 	 */
-	sortSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
-											GIST_SORTSUPPORT_PROC);
+	Oid			sortSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
+														GIST_SORTSUPPORT_PROC);
+
 	if (!OidIsValid(sortSupportFunction))
 		elog(ERROR, "missing support function %d(%u,%u) in opfamily %u",
 			 GIST_SORTSUPPORT_PROC, opcintype, opcintype, opfamily);

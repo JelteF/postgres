@@ -664,19 +664,19 @@ Setup_AF_UNIX(const char *sock_path)
 		elog(WARNING, "configuration item unix_socket_group is not supported on this platform");
 #else
 		char	   *endptr;
-		unsigned long val;
 		gid_t		gid;
 
-		val = strtoul(Unix_socket_group, &endptr, 10);
+		unsigned long val = strtoul(Unix_socket_group, &endptr, 10);
+
 		if (*endptr == '\0')
 		{						/* numeric group id */
 			gid = val;
 		}
 		else
 		{						/* convert group name to id */
-			struct group *gr;
 
-			gr = getgrnam(Unix_socket_group);
+			struct group *gr = getgrnam(Unix_socket_group);
+
 			if (!gr)
 			{
 				ereport(LOG,
@@ -960,10 +960,9 @@ pq_recvbuf(void)
 	/* Can fill buffer from PqRecvLength and upwards */
 	for (;;)
 	{
-		int			r;
 
-		r = secure_read(MyProcPort, PqRecvBuffer + PqRecvLength,
-						PQ_RECV_BUFFER_SIZE - PqRecvLength);
+		int			r = secure_read(MyProcPort, PqRecvBuffer + PqRecvLength,
+									PQ_RECV_BUFFER_SIZE - PqRecvLength);
 
 		if (r < 0)
 		{
@@ -1041,7 +1040,6 @@ pq_peekbyte(void)
 int
 pq_getbyte_if_available(unsigned char *c)
 {
-	int			r;
 
 	Assert(PqCommReadingMsg);
 
@@ -1054,7 +1052,8 @@ pq_getbyte_if_available(unsigned char *c)
 	/* Put the socket into non-blocking mode */
 	socket_set_nonblocking(true);
 
-	r = secure_read(MyProcPort, c, 1);
+	int			r = secure_read(MyProcPort, c, 1);
+
 	if (r < 0)
 	{
 		/*
@@ -1354,7 +1353,6 @@ pq_getmessage(StringInfo s, int maxlen)
 int
 pq_putbytes(const char *s, size_t len)
 {
-	int			res;
 
 	/* Should only be called by old-style COPY OUT */
 	Assert(DoingCopyOut);
@@ -1362,7 +1360,8 @@ pq_putbytes(const char *s, size_t len)
 	if (PqCommBusy)
 		return 0;
 	PqCommBusy = true;
-	res = internal_putbytes(s, len);
+	int			res = internal_putbytes(s, len);
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1401,14 +1400,14 @@ internal_putbytes(const char *s, size_t len)
 static int
 socket_flush(void)
 {
-	int			res;
 
 	/* No-op if reentrant call */
 	if (PqCommBusy)
 		return 0;
 	PqCommBusy = true;
 	socket_set_nonblocking(false);
-	res = internal_flush();
+	int			res = internal_flush();
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1430,9 +1429,8 @@ internal_flush(void)
 
 	while (bufptr < bufend)
 	{
-		int			r;
 
-		r = secure_write(MyProcPort, bufptr, bufend - bufptr);
+		int			r = secure_write(MyProcPort, bufptr, bufend - bufptr);
 
 		if (r <= 0)
 		{
@@ -1496,7 +1494,6 @@ internal_flush(void)
 static int
 socket_flush_if_writable(void)
 {
-	int			res;
 
 	/* Quick exit if nothing to do */
 	if (PqSendPointer == PqSendStart)
@@ -1510,7 +1507,8 @@ socket_flush_if_writable(void)
 	socket_set_nonblocking(true);
 
 	PqCommBusy = true;
-	res = internal_flush();
+	int			res = internal_flush();
+
 	PqCommBusy = false;
 	return res;
 }
@@ -1569,9 +1567,9 @@ socket_putmessage(char msgtype, const char *s, size_t len)
 			goto fail;
 	if (PG_PROTOCOL_MAJOR(FrontendProtocol) >= 3)
 	{
-		uint32		n32;
 
-		n32 = pg_hton32((uint32) (len + 4));
+		uint32		n32 = pg_hton32((uint32) (len + 4));
+
 		if (internal_putbytes((char *) &n32, 4))
 			goto fail;
 	}
@@ -1595,13 +1593,13 @@ static void
 socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 {
 	int			res PG_USED_FOR_ASSERTS_ONLY;
-	int			required;
 
 	/*
 	 * Ensure we have enough space in the output buffer for the message header
 	 * as well as the message itself.
 	 */
-	required = PqSendPointer + 1 + 4 + len;
+	int			required = PqSendPointer + 1 + 4 + len;
+
 	if (required > PqSendBufferSize)
 	{
 		PqSendBuffer = repalloc(PqSendBuffer, required);

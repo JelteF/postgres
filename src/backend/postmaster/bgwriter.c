@@ -94,8 +94,6 @@ void
 BackgroundWriterMain(void)
 {
 	sigjmp_buf	local_sigjmp_buf;
-	MemoryContext bgwriter_context;
-	bool		prev_hibernate;
 	WritebackContext wb_context;
 
 	/*
@@ -127,9 +125,10 @@ BackgroundWriterMain(void)
 	 * possible memory leaks.  Formerly this code just ran in
 	 * TopMemoryContext, but resetting that would be a really bad idea.
 	 */
-	bgwriter_context = AllocSetContextCreate(TopMemoryContext,
-											 "Background Writer",
-											 ALLOCSET_DEFAULT_SIZES);
+	MemoryContext bgwriter_context = AllocSetContextCreate(TopMemoryContext,
+														   "Background Writer",
+														   ALLOCSET_DEFAULT_SIZES);
+
 	MemoryContextSwitchTo(bgwriter_context);
 
 	WritebackContextInit(&wb_context, &bgwriter_flush_after);
@@ -223,15 +222,13 @@ BackgroundWriterMain(void)
 	/*
 	 * Reset hibernation state after any error.
 	 */
-	prev_hibernate = false;
+	bool		prev_hibernate = false;
 
 	/*
 	 * Loop forever
 	 */
 	for (;;)
 	{
-		bool		can_hibernate;
-		int			rc;
 
 		/* Clear any already-pending wakeups */
 		ResetLatch(MyLatch);
@@ -241,7 +238,7 @@ BackgroundWriterMain(void)
 		/*
 		 * Do one cycle of dirty-buffer writing.
 		 */
-		can_hibernate = BgBufferSync(&wb_context);
+		bool		can_hibernate = BgBufferSync(&wb_context);
 
 		/*
 		 * Send off activity statistics to the stats collector
@@ -280,11 +277,10 @@ BackgroundWriterMain(void)
 		 */
 		if (XLogStandbyInfoActive() && !RecoveryInProgress())
 		{
-			TimestampTz timeout = 0;
 			TimestampTz now = GetCurrentTimestamp();
 
-			timeout = TimestampTzPlusMilliseconds(last_snapshot_ts,
-												  LOG_SNAPSHOT_INTERVAL_MS);
+			TimestampTz timeout = TimestampTzPlusMilliseconds(last_snapshot_ts,
+															  LOG_SNAPSHOT_INTERVAL_MS);
 
 			/*
 			 * Only log if enough time has passed and interesting records have
@@ -311,9 +307,9 @@ BackgroundWriterMain(void)
 		 * down with latch events that are likely to happen frequently during
 		 * normal operation.
 		 */
-		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-					   BgWriterDelay /* ms */ , WAIT_EVENT_BGWRITER_MAIN);
+		int			rc = WaitLatch(MyLatch,
+								   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+								   BgWriterDelay /* ms */ , WAIT_EVENT_BGWRITER_MAIN);
 
 		/*
 		 * If no latch event and BgBufferSync says nothing's happening, extend

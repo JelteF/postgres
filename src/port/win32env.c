@@ -19,8 +19,6 @@
 int
 pgwin32_putenv(const char *envval)
 {
-	char	   *envcpy;
-	char	   *cp;
 	typedef int (_cdecl * PUTENVPROC) (const char *);
 	static const char *const modulenames[] = {
 		"msvcrt",				/* Visual Studio 6.0 / MinGW */
@@ -53,10 +51,12 @@ pgwin32_putenv(const char *envval)
 	 *
 	 * Need a copy of the string so we can modify it.
 	 */
-	envcpy = strdup(envval);
+	char	   *envcpy = strdup(envval);
+
 	if (!envcpy)
 		return -1;
-	cp = strchr(envcpy, '=');
+	char	   *cp = strchr(envcpy, '=');
+
 	if (cp == NULL)
 	{
 		free(envcpy);
@@ -93,9 +93,9 @@ pgwin32_putenv(const char *envval)
 
 		if (res != 0 && hmodule != NULL)
 		{
-			PUTENVPROC	putenvFunc;
 
-			putenvFunc = (PUTENVPROC) (pg_funcptr_t) GetProcAddress(hmodule, "_putenv");
+			PUTENVPROC	putenvFunc = (PUTENVPROC) (pg_funcptr_t) GetProcAddress(hmodule, "_putenv");
+
 			if (putenvFunc)
 				putenvFunc(envval);
 			FreeLibrary(hmodule);
@@ -113,9 +113,9 @@ pgwin32_putenv(const char *envval)
 void
 pgwin32_unsetenv(const char *name)
 {
-	char	   *envbuf;
 
-	envbuf = (char *) malloc(strlen(name) + 2);
+	char	   *envbuf = (char *) malloc(strlen(name) + 2);
+
 	if (!envbuf)
 		return;
 

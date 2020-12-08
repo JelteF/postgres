@@ -91,8 +91,6 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 				output = GSS_C_EMPTY_BUFFER;
 	ssize_t		ret = -1;
 	size_t		bytes_sent = 0;
-	size_t		bytes_to_encrypt;
-	size_t		bytes_encrypted;
 	gss_ctx_id_t gctx = conn->gctx;
 
 	/*
@@ -113,8 +111,8 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 	}
 
 	/* Discount whatever source data we already encrypted. */
-	bytes_to_encrypt = len - PqGSSSendConsumed;
-	bytes_encrypted = PqGSSSendConsumed;
+	size_t		bytes_to_encrypt = len - PqGSSSendConsumed;
+	size_t		bytes_encrypted = PqGSSSendConsumed;
 
 	/*
 	 * Loop through encrypting data and sending it out until it's all done or
@@ -135,10 +133,10 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 		 */
 		if (PqGSSSendLength)
 		{
-			ssize_t		ret;
 			ssize_t		amount = PqGSSSendLength - PqGSSSendNext;
 
-			ret = pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext, amount);
+			ssize_t		ret = pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext, amount);
+
 			if (ret <= 0)
 			{
 				/*

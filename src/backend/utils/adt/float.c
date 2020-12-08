@@ -162,8 +162,6 @@ Datum
 float4in(PG_FUNCTION_ARGS)
 {
 	char	   *num = PG_GETARG_CSTRING(0);
-	char	   *orig_num;
-	float		val;
 	char	   *endptr;
 
 	/*
@@ -171,7 +169,7 @@ float4in(PG_FUNCTION_ARGS)
 	 * as a valid floating point number. orig_num points to the original input
 	 * string.
 	 */
-	orig_num = num;
+	char	   *orig_num = num;
 
 	/* skip leading whitespace */
 	while (*num != '\0' && isspace((unsigned char) *num))
@@ -188,7 +186,7 @@ float4in(PG_FUNCTION_ARGS)
 						"real", orig_num)));
 
 	errno = 0;
-	val = strtof(num, &endptr);
+	float		val = strtof(num, &endptr);
 
 	/* did we not see anything that looks like a double? */
 	if (endptr == num || errno != 0)
@@ -380,7 +378,6 @@ float8in_internal_opt_error(char *num, char **endptr_p,
 							const char *type_name, const char *orig_string,
 							bool *have_error)
 {
-	double		val;
 	char	   *endptr;
 
 	if (have_error)
@@ -402,7 +399,7 @@ float8in_internal_opt_error(char *num, char **endptr_p,
 					 have_error);
 
 	errno = 0;
-	val = strtod(num, &endptr);
+	double		val = strtod(num, &endptr);
 
 	/* did we not see anything that looks like a double? */
 	if (endptr == num || errno != 0)
@@ -606,9 +603,9 @@ Datum
 float4um(PG_FUNCTION_ARGS)
 {
 	float4		arg1 = PG_GETARG_FLOAT4(0);
-	float4		result;
 
-	result = -arg1;
+	float4		result = -arg1;
+
 	PG_RETURN_FLOAT4(result);
 }
 
@@ -673,9 +670,9 @@ Datum
 float8um(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
-	result = -arg1;
+	float8		result = -arg1;
+
 	PG_RETURN_FLOAT8(result);
 }
 
@@ -1199,9 +1196,9 @@ Datum
 dtof(PG_FUNCTION_ARGS)
 {
 	float8		num = PG_GETARG_FLOAT8(0);
-	float4		result;
 
-	result = (float4) num;
+	float4		result = (float4) num;
+
 	if (unlikely(isinf(result)) && !isinf(num))
 		float_overflow_error();
 	if (unlikely(result == 0.0f) && num != 0.0)
@@ -1450,14 +1447,14 @@ Datum
 dsqrt(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	if (arg1 < 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_POWER_FUNCTION),
 				 errmsg("cannot take square root of a negative number")));
 
-	result = sqrt(arg1);
+	float8		result = sqrt(arg1);
+
 	if (unlikely(isinf(result)) && !isinf(arg1))
 		float_overflow_error();
 	if (unlikely(result == 0.0) && arg1 != 0.0)
@@ -1474,9 +1471,9 @@ Datum
 dcbrt(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
-	result = cbrt(arg1);
+	float8		result = cbrt(arg1);
+
 	if (unlikely(isinf(result)) && !isinf(arg1))
 		float_overflow_error();
 	if (unlikely(result == 0.0) && arg1 != 0.0)
@@ -1694,7 +1691,6 @@ Datum
 dlog1(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/*
 	 * Emit particular SQLSTATE error codes for ln(). This is required by the
@@ -1709,7 +1705,8 @@ dlog1(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_LOG),
 				 errmsg("cannot take logarithm of a negative number")));
 
-	result = log(arg1);
+	float8		result = log(arg1);
+
 	if (unlikely(isinf(result)) && !isinf(arg1))
 		float_overflow_error();
 	if (unlikely(result == 0.0) && arg1 != 1.0)
@@ -1726,7 +1723,6 @@ Datum
 dlog10(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/*
 	 * Emit particular SQLSTATE error codes for log(). The SQL spec doesn't
@@ -1742,7 +1738,8 @@ dlog10(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_ARGUMENT_FOR_LOG),
 				 errmsg("cannot take logarithm of a negative number")));
 
-	result = log10(arg1);
+	float8		result = log10(arg1);
+
 	if (unlikely(isinf(result)) && !isinf(arg1))
 		float_overflow_error();
 	if (unlikely(result == 0.0) && arg1 != 1.0)
@@ -1759,7 +1756,6 @@ Datum
 dacos(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1775,7 +1771,8 @@ dacos(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 				 errmsg("input is out of range")));
 
-	result = acos(arg1);
+	float8		result = acos(arg1);
+
 	if (unlikely(isinf(result)))
 		float_overflow_error();
 
@@ -1790,7 +1787,6 @@ Datum
 dasin(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1806,7 +1802,8 @@ dasin(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 				 errmsg("input is out of range")));
 
-	result = asin(arg1);
+	float8		result = asin(arg1);
+
 	if (unlikely(isinf(result)))
 		float_overflow_error();
 
@@ -1821,7 +1818,6 @@ Datum
 datan(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1832,7 +1828,8 @@ datan(PG_FUNCTION_ARGS)
 	 * values in the range [-Pi/2, Pi/2], so the result should always be
 	 * finite, even if the input is infinite.
 	 */
-	result = atan(arg1);
+	float8		result = atan(arg1);
+
 	if (unlikely(isinf(result)))
 		float_overflow_error();
 
@@ -1848,7 +1845,6 @@ datan2(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
 	float8		arg2 = PG_GETARG_FLOAT8(1);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if either input is NaN */
 	if (isnan(arg1) || isnan(arg2))
@@ -1858,7 +1854,8 @@ datan2(PG_FUNCTION_ARGS)
 	 * atan2 maps all inputs to values in the range [-Pi, Pi], so the result
 	 * should always be finite, even if the inputs are infinite.
 	 */
-	result = atan2(arg1, arg2);
+	float8		result = atan2(arg1, arg2);
+
 	if (unlikely(isinf(result)))
 		float_overflow_error();
 
@@ -1873,7 +1870,6 @@ Datum
 dcos(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1895,7 +1891,8 @@ dcos(PG_FUNCTION_ARGS)
 	 * inputs.
 	 */
 	errno = 0;
-	result = cos(arg1);
+	float8		result = cos(arg1);
+
 	if (errno != 0 || isinf(arg1))
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
@@ -1914,7 +1911,6 @@ Datum
 dcot(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1922,7 +1918,8 @@ dcot(PG_FUNCTION_ARGS)
 
 	/* Be sure to throw an error if the input is infinite --- see dcos() */
 	errno = 0;
-	result = tan(arg1);
+	float8		result = tan(arg1);
+
 	if (errno != 0 || isinf(arg1))
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
@@ -1942,7 +1939,6 @@ Datum
 dsin(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1950,7 +1946,8 @@ dsin(PG_FUNCTION_ARGS)
 
 	/* Be sure to throw an error if the input is infinite --- see dcos() */
 	errno = 0;
-	result = sin(arg1);
+	float8		result = sin(arg1);
+
 	if (errno != 0 || isinf(arg1))
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
@@ -1969,7 +1966,6 @@ Datum
 dtan(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -1977,7 +1973,8 @@ dtan(PG_FUNCTION_ARGS)
 
 	/* Be sure to throw an error if the input is infinite --- see dcos() */
 	errno = 0;
-	result = tan(arg1);
+	float8		result = tan(arg1);
+
 	if (errno != 0 || isinf(arg1))
 		ereport(ERROR,
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
@@ -2186,8 +2183,6 @@ Datum
 datand(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
-	volatile float8 atan_arg1;
 
 	/* Per the POSIX spec, return NaN if the input is NaN */
 	if (isnan(arg1))
@@ -2201,8 +2196,8 @@ datand(PG_FUNCTION_ARGS)
 	 * even if the input is infinite.  Additionally, we take care to ensure
 	 * than when arg1 is 1, the result is exactly 45.
 	 */
-	atan_arg1 = atan(arg1);
-	result = (atan_arg1 / atan_1_0) * 45.0;
+	volatile float8 atan_arg1 = atan(arg1);
+	float8		result = (atan_arg1 / atan_1_0) * 45.0;
 
 	if (unlikely(isinf(result)))
 		float_overflow_error();
@@ -2219,8 +2214,6 @@ datan2d(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
 	float8		arg2 = PG_GETARG_FLOAT8(1);
-	float8		result;
-	volatile float8 atan2_arg1_arg2;
 
 	/* Per the POSIX spec, return NaN if either input is NaN */
 	if (isnan(arg1) || isnan(arg2))
@@ -2237,8 +2230,8 @@ datan2d(PG_FUNCTION_ARGS)
 	 * some point, requiring us to decide exactly what inputs we think we're
 	 * going to guarantee an exact result for.
 	 */
-	atan2_arg1_arg2 = atan2(arg1, arg2);
-	result = (atan2_arg1_arg2 / atan_1_0) * 45.0;
+	volatile float8 atan2_arg1_arg2 = atan2(arg1, arg2);
+	float8		result = (atan2_arg1_arg2 / atan_1_0) * 45.0;
 
 	if (unlikely(isinf(result)))
 		float_overflow_error();
@@ -2322,7 +2315,6 @@ Datum
 dcosd(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 	int			sign = 1;
 
 	/*
@@ -2361,7 +2353,7 @@ dcosd(PG_FUNCTION_ARGS)
 		sign = -sign;
 	}
 
-	result = sign * cosd_q1(arg1);
+	float8		result = sign * cosd_q1(arg1);
 
 	if (unlikely(isinf(result)))
 		float_overflow_error();
@@ -2377,8 +2369,6 @@ Datum
 dcotd(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
-	volatile float8 cot_arg1;
 	int			sign = 1;
 
 	/*
@@ -2419,8 +2409,8 @@ dcotd(PG_FUNCTION_ARGS)
 		sign = -sign;
 	}
 
-	cot_arg1 = cosd_q1(arg1) / sind_q1(arg1);
-	result = sign * (cot_arg1 / cot_45);
+	volatile float8 cot_arg1 = cosd_q1(arg1) / sind_q1(arg1);
+	float8		result = sign * (cot_arg1 / cot_45);
 
 	/*
 	 * On some machines we get cotd(270) = minus zero, but this isn't always
@@ -2443,7 +2433,6 @@ Datum
 dsind(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 	int			sign = 1;
 
 	/*
@@ -2483,7 +2472,7 @@ dsind(PG_FUNCTION_ARGS)
 		arg1 = 180.0 - arg1;
 	}
 
-	result = sign * sind_q1(arg1);
+	float8		result = sign * sind_q1(arg1);
 
 	if (unlikely(isinf(result)))
 		float_overflow_error();
@@ -2499,8 +2488,6 @@ Datum
 dtand(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
-	volatile float8 tan_arg1;
 	int			sign = 1;
 
 	/*
@@ -2541,8 +2528,8 @@ dtand(PG_FUNCTION_ARGS)
 		sign = -sign;
 	}
 
-	tan_arg1 = sind_q1(arg1) / cosd_q1(arg1);
-	result = sign * (tan_arg1 / tan_45);
+	volatile float8 tan_arg1 = sind_q1(arg1) / cosd_q1(arg1);
+	float8		result = sign * (tan_arg1 / tan_45);
 
 	/*
 	 * On some machines we get tand(180) = minus zero, but this isn't always
@@ -2602,10 +2589,9 @@ Datum
 dsinh(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	errno = 0;
-	result = sinh(arg1);
+	float8		result = sinh(arg1);
 
 	/*
 	 * if an ERANGE error occurs, it means there is an overflow.  For sinh,
@@ -2631,10 +2617,9 @@ Datum
 dcosh(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	errno = 0;
-	result = cosh(arg1);
+	float8		result = cosh(arg1);
 
 	/*
 	 * if an ERANGE error occurs, it means there is an overflow.  As cosh is
@@ -2656,12 +2641,11 @@ Datum
 dtanh(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/*
 	 * For tanh, we don't need an errno check because it never overflows.
 	 */
-	result = tanh(arg1);
+	float8		result = tanh(arg1);
 
 	if (unlikely(isinf(result)))
 		float_overflow_error();
@@ -2676,12 +2660,11 @@ Datum
 dasinh(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/*
 	 * For asinh, we don't need an errno check because it never overflows.
 	 */
-	result = asinh(arg1);
+	float8		result = asinh(arg1);
 
 	PG_RETURN_FLOAT8(result);
 }
@@ -2693,7 +2676,6 @@ Datum
 dacosh(PG_FUNCTION_ARGS)
 {
 	float8		arg1 = PG_GETARG_FLOAT8(0);
-	float8		result;
 
 	/*
 	 * acosh is only defined for inputs >= 1.0.  By checking this ourselves,
@@ -2706,7 +2688,7 @@ dacosh(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 				 errmsg("input is out of range")));
 
-	result = acosh(arg1);
+	float8		result = acosh(arg1);
 
 	PG_RETURN_FLOAT8(result);
 }
@@ -2752,7 +2734,6 @@ datanh(PG_FUNCTION_ARGS)
 Datum
 drandom(PG_FUNCTION_ARGS)
 {
-	float8		result;
 
 	/* Initialize random seed, if not done yet in this process */
 	if (unlikely(!drandom_seed_set))
@@ -2765,10 +2746,10 @@ drandom(PG_FUNCTION_ARGS)
 		if (!pg_strong_random(drandom_seed, sizeof(drandom_seed)))
 		{
 			TimestampTz now = GetCurrentTimestamp();
-			uint64		iseed;
 
 			/* Mix the PID with the most predictable bits of the timestamp */
-			iseed = (uint64) now ^ ((uint64) MyProcPid << 32);
+			uint64		iseed = (uint64) now ^ ((uint64) MyProcPid << 32);
+
 			drandom_seed[0] = (unsigned short) iseed;
 			drandom_seed[1] = (unsigned short) (iseed >> 16);
 			drandom_seed[2] = (unsigned short) (iseed >> 32);
@@ -2777,7 +2758,7 @@ drandom(PG_FUNCTION_ARGS)
 	}
 
 	/* pg_erand48 produces desired result range [0.0 - 1.0) */
-	result = pg_erand48(drandom_seed);
+	float8		result = pg_erand48(drandom_seed);
 
 	PG_RETURN_FLOAT8(result);
 }
@@ -2790,7 +2771,6 @@ Datum
 setseed(PG_FUNCTION_ARGS)
 {
 	float8		seed = PG_GETARG_FLOAT8(0);
-	uint64		iseed;
 
 	if (seed < -1 || seed > 1 || isnan(seed))
 		ereport(ERROR,
@@ -2799,7 +2779,8 @@ setseed(PG_FUNCTION_ARGS)
 						seed)));
 
 	/* Use sign bit + 47 fractional bits to fill drandom_seed[] */
-	iseed = (int64) (seed * (float8) UINT64CONST(0x7FFFFFFFFFFF));
+	uint64		iseed = (int64) (seed * (float8) UINT64CONST(0x7FFFFFFFFFFF));
+
 	drandom_seed[0] = (unsigned short) iseed;
 	drandom_seed[1] = (unsigned short) (iseed >> 16);
 	drandom_seed[2] = (unsigned short) (iseed >> 32);
@@ -2887,8 +2868,6 @@ float8_combine(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray1 = PG_GETARG_ARRAYTYPE_P(0);
 	ArrayType  *transarray2 = PG_GETARG_ARRAYTYPE_P(1);
-	float8	   *transvalues1;
-	float8	   *transvalues2;
 	float8		N1,
 				Sx1,
 				Sxx1,
@@ -2900,8 +2879,8 @@ float8_combine(PG_FUNCTION_ARGS)
 				Sx,
 				Sxx;
 
-	transvalues1 = check_float8_array(transarray1, "float8_combine", 3);
-	transvalues2 = check_float8_array(transarray2, "float8_combine", 3);
+	float8	   *transvalues1 = check_float8_array(transarray1, "float8_combine", 3);
+	float8	   *transvalues2 = check_float8_array(transarray2, "float8_combine", 3);
 
 	N1 = transvalues1[0];
 	Sx1 = transvalues1[1];
@@ -2962,15 +2941,14 @@ float8_combine(PG_FUNCTION_ARGS)
 	else
 	{
 		Datum		transdatums[3];
-		ArrayType  *result;
 
 		transdatums[0] = Float8GetDatumFast(N);
 		transdatums[1] = Float8GetDatumFast(Sx);
 		transdatums[2] = Float8GetDatumFast(Sxx);
 
-		result = construct_array(transdatums, 3,
-								 FLOAT8OID,
-								 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
+		ArrayType  *result = construct_array(transdatums, 3,
+											 FLOAT8OID,
+											 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 		PG_RETURN_ARRAYTYPE_P(result);
 	}
@@ -2981,13 +2959,13 @@ float8_accum(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
 	float8		newval = PG_GETARG_FLOAT8(1);
-	float8	   *transvalues;
 	float8		N,
 				Sx,
 				Sxx,
 				tmp;
 
-	transvalues = check_float8_array(transarray, "float8_accum", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_accum", 3);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 	Sxx = transvalues[2];
@@ -3045,15 +3023,14 @@ float8_accum(PG_FUNCTION_ARGS)
 	else
 	{
 		Datum		transdatums[3];
-		ArrayType  *result;
 
 		transdatums[0] = Float8GetDatumFast(N);
 		transdatums[1] = Float8GetDatumFast(Sx);
 		transdatums[2] = Float8GetDatumFast(Sxx);
 
-		result = construct_array(transdatums, 3,
-								 FLOAT8OID,
-								 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
+		ArrayType  *result = construct_array(transdatums, 3,
+											 FLOAT8OID,
+											 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 		PG_RETURN_ARRAYTYPE_P(result);
 	}
@@ -3066,13 +3043,13 @@ float4_accum(PG_FUNCTION_ARGS)
 
 	/* do computations as float8 */
 	float8		newval = PG_GETARG_FLOAT4(1);
-	float8	   *transvalues;
 	float8		N,
 				Sx,
 				Sxx,
 				tmp;
 
-	transvalues = check_float8_array(transarray, "float4_accum", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float4_accum", 3);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 	Sxx = transvalues[2];
@@ -3130,15 +3107,14 @@ float4_accum(PG_FUNCTION_ARGS)
 	else
 	{
 		Datum		transdatums[3];
-		ArrayType  *result;
 
 		transdatums[0] = Float8GetDatumFast(N);
 		transdatums[1] = Float8GetDatumFast(Sx);
 		transdatums[2] = Float8GetDatumFast(Sxx);
 
-		result = construct_array(transdatums, 3,
-								 FLOAT8OID,
-								 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
+		ArrayType  *result = construct_array(transdatums, 3,
+											 FLOAT8OID,
+											 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 		PG_RETURN_ARRAYTYPE_P(result);
 	}
@@ -3148,11 +3124,11 @@ Datum
 float8_avg(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sx;
 
-	transvalues = check_float8_array(transarray, "float8_avg", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_avg", 3);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 	/* ignore Sxx */
@@ -3168,11 +3144,11 @@ Datum
 float8_var_pop(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx;
 
-	transvalues = check_float8_array(transarray, "float8_var_pop", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_var_pop", 3);
+
 	N = transvalues[0];
 	/* ignore Sx */
 	Sxx = transvalues[2];
@@ -3190,11 +3166,11 @@ Datum
 float8_var_samp(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx;
 
-	transvalues = check_float8_array(transarray, "float8_var_samp", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_var_samp", 3);
+
 	N = transvalues[0];
 	/* ignore Sx */
 	Sxx = transvalues[2];
@@ -3212,11 +3188,11 @@ Datum
 float8_stddev_pop(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx;
 
-	transvalues = check_float8_array(transarray, "float8_stddev_pop", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_stddev_pop", 3);
+
 	N = transvalues[0];
 	/* ignore Sx */
 	Sxx = transvalues[2];
@@ -3234,11 +3210,11 @@ Datum
 float8_stddev_samp(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx;
 
-	transvalues = check_float8_array(transarray, "float8_stddev_samp", 3);
+	float8	   *transvalues = check_float8_array(transarray, "float8_stddev_samp", 3);
+
 	N = transvalues[0];
 	/* ignore Sx */
 	Sxx = transvalues[2];
@@ -3279,7 +3255,6 @@ float8_regr_accum(PG_FUNCTION_ARGS)
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
 	float8		newvalY = PG_GETARG_FLOAT8(1);
 	float8		newvalX = PG_GETARG_FLOAT8(2);
-	float8	   *transvalues;
 	float8		N,
 				Sx,
 				Sxx,
@@ -3290,7 +3265,8 @@ float8_regr_accum(PG_FUNCTION_ARGS)
 				tmpY,
 				scale;
 
-	transvalues = check_float8_array(transarray, "float8_regr_accum", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_accum", 6);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 	Sxx = transvalues[2];
@@ -3372,7 +3348,6 @@ float8_regr_accum(PG_FUNCTION_ARGS)
 	else
 	{
 		Datum		transdatums[6];
-		ArrayType  *result;
 
 		transdatums[0] = Float8GetDatumFast(N);
 		transdatums[1] = Float8GetDatumFast(Sx);
@@ -3381,9 +3356,9 @@ float8_regr_accum(PG_FUNCTION_ARGS)
 		transdatums[4] = Float8GetDatumFast(Syy);
 		transdatums[5] = Float8GetDatumFast(Sxy);
 
-		result = construct_array(transdatums, 6,
-								 FLOAT8OID,
-								 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
+		ArrayType  *result = construct_array(transdatums, 6,
+											 FLOAT8OID,
+											 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 		PG_RETURN_ARRAYTYPE_P(result);
 	}
@@ -3402,8 +3377,6 @@ float8_regr_combine(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray1 = PG_GETARG_ARRAYTYPE_P(0);
 	ArrayType  *transarray2 = PG_GETARG_ARRAYTYPE_P(1);
-	float8	   *transvalues1;
-	float8	   *transvalues2;
 	float8		N1,
 				Sx1,
 				Sxx1,
@@ -3425,8 +3398,8 @@ float8_regr_combine(PG_FUNCTION_ARGS)
 				Syy,
 				Sxy;
 
-	transvalues1 = check_float8_array(transarray1, "float8_regr_combine", 6);
-	transvalues2 = check_float8_array(transarray2, "float8_regr_combine", 6);
+	float8	   *transvalues1 = check_float8_array(transarray1, "float8_regr_combine", 6);
+	float8	   *transvalues2 = check_float8_array(transarray2, "float8_regr_combine", 6);
 
 	N1 = transvalues1[0];
 	Sx1 = transvalues1[1];
@@ -3513,7 +3486,6 @@ float8_regr_combine(PG_FUNCTION_ARGS)
 	else
 	{
 		Datum		transdatums[6];
-		ArrayType  *result;
 
 		transdatums[0] = Float8GetDatumFast(N);
 		transdatums[1] = Float8GetDatumFast(Sx);
@@ -3522,9 +3494,9 @@ float8_regr_combine(PG_FUNCTION_ARGS)
 		transdatums[4] = Float8GetDatumFast(Syy);
 		transdatums[5] = Float8GetDatumFast(Sxy);
 
-		result = construct_array(transdatums, 6,
-								 FLOAT8OID,
-								 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
+		ArrayType  *result = construct_array(transdatums, 6,
+											 FLOAT8OID,
+											 sizeof(float8), FLOAT8PASSBYVAL, TYPALIGN_DOUBLE);
 
 		PG_RETURN_ARRAYTYPE_P(result);
 	}
@@ -3535,11 +3507,11 @@ Datum
 float8_regr_sxx(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx;
 
-	transvalues = check_float8_array(transarray, "float8_regr_sxx", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_sxx", 6);
+
 	N = transvalues[0];
 	Sxx = transvalues[2];
 
@@ -3556,11 +3528,11 @@ Datum
 float8_regr_syy(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Syy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_syy", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_syy", 6);
+
 	N = transvalues[0];
 	Syy = transvalues[4];
 
@@ -3577,11 +3549,11 @@ Datum
 float8_regr_sxy(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_sxy", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_sxy", 6);
+
 	N = transvalues[0];
 	Sxy = transvalues[5];
 
@@ -3598,11 +3570,11 @@ Datum
 float8_regr_avgx(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sx;
 
-	transvalues = check_float8_array(transarray, "float8_regr_avgx", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_avgx", 6);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 
@@ -3617,11 +3589,11 @@ Datum
 float8_regr_avgy(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_avgy", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_avgy", 6);
+
 	N = transvalues[0];
 	Sy = transvalues[3];
 
@@ -3636,11 +3608,11 @@ Datum
 float8_covar_pop(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_covar_pop", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_covar_pop", 6);
+
 	N = transvalues[0];
 	Sxy = transvalues[5];
 
@@ -3655,11 +3627,11 @@ Datum
 float8_covar_samp(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_covar_samp", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_covar_samp", 6);
+
 	N = transvalues[0];
 	Sxy = transvalues[5];
 
@@ -3674,13 +3646,13 @@ Datum
 float8_corr(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx,
 				Syy,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_corr", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_corr", 6);
+
 	N = transvalues[0];
 	Sxx = transvalues[2];
 	Syy = transvalues[4];
@@ -3703,13 +3675,13 @@ Datum
 float8_regr_r2(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx,
 				Syy,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_r2", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_r2", 6);
+
 	N = transvalues[0];
 	Sxx = transvalues[2];
 	Syy = transvalues[4];
@@ -3736,12 +3708,12 @@ Datum
 float8_regr_slope(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sxx,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_slope", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_slope", 6);
+
 	N = transvalues[0];
 	Sxx = transvalues[2];
 	Sxy = transvalues[5];
@@ -3763,14 +3735,14 @@ Datum
 float8_regr_intercept(PG_FUNCTION_ARGS)
 {
 	ArrayType  *transarray = PG_GETARG_ARRAYTYPE_P(0);
-	float8	   *transvalues;
 	float8		N,
 				Sx,
 				Sxx,
 				Sy,
 				Sxy;
 
-	transvalues = check_float8_array(transarray, "float8_regr_intercept", 6);
+	float8	   *transvalues = check_float8_array(transarray, "float8_regr_intercept", 6);
+
 	N = transvalues[0];
 	Sx = transvalues[1];
 	Sxx = transvalues[2];

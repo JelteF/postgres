@@ -101,9 +101,9 @@ static void ProcessBarrierPlaceholder(void);
 Size
 ProcSignalShmemSize(void)
 {
-	Size		size;
 
-	size = mul_size(NumProcSignalSlots, sizeof(ProcSignalSlot));
+	Size		size = mul_size(NumProcSignalSlots, sizeof(ProcSignalSlot));
+
 	size = add_size(size, offsetof(ProcSignalHeader, psh_slot));
 	return size;
 }
@@ -150,12 +150,10 @@ ProcSignalShmemInit(void)
 void
 ProcSignalInit(int pss_idx)
 {
-	volatile ProcSignalSlot *slot;
-	uint64		barrier_generation;
 
 	Assert(pss_idx >= 1 && pss_idx <= NumProcSignalSlots);
 
-	slot = &ProcSignal->psh_slot[pss_idx - 1];
+	volatile ProcSignalSlot *slot = &ProcSignal->psh_slot[pss_idx - 1];
 
 	/* sanity check */
 	if (slot->pss_pid != 0)
@@ -177,8 +175,9 @@ ProcSignalInit(int pss_idx)
 	 * sure that any later reads of memory happen strictly after this.
 	 */
 	pg_atomic_write_u32(&slot->pss_barrierCheckMask, 0);
-	barrier_generation =
-		pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration);
+	uint64		barrier_generation =
+	pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration);
+
 	pg_atomic_write_u64(&slot->pss_barrierGeneration, barrier_generation);
 	pg_memory_barrier();
 
@@ -202,9 +201,9 @@ static void
 CleanupProcSignalState(int status, Datum arg)
 {
 	int			pss_idx = DatumGetInt32(arg);
-	volatile ProcSignalSlot *slot;
 
-	slot = &ProcSignal->psh_slot[pss_idx - 1];
+	volatile ProcSignalSlot *slot = &ProcSignal->psh_slot[pss_idx - 1];
+
 	Assert(slot == MyProcSignalSlot);
 
 	/*
@@ -321,7 +320,6 @@ uint64
 EmitProcSignalBarrier(ProcSignalBarrierType type)
 {
 	uint32		flagbit = 1 << (uint32) type;
-	uint64		generation;
 
 	/*
 	 * Set all the flags.
@@ -341,8 +339,8 @@ EmitProcSignalBarrier(ProcSignalBarrierType type)
 	/*
 	 * Increment the generation counter.
 	 */
-	generation =
-		pg_atomic_add_fetch_u64(&ProcSignal->psh_barrierGeneration, 1);
+	uint64		generation =
+	pg_atomic_add_fetch_u64(&ProcSignal->psh_barrierGeneration, 1);
 
 	/*
 	 * Signal all the processes, so that they update their advertised barrier
@@ -392,19 +390,19 @@ WaitForProcSignalBarrier(uint64 generation)
 	for (int i = NumProcSignalSlots - 1; i >= 0; i--)
 	{
 		volatile ProcSignalSlot *slot = &ProcSignal->psh_slot[i];
-		uint64		oldval;
 
-		oldval = pg_atomic_read_u64(&slot->pss_barrierGeneration);
+		uint64		oldval = pg_atomic_read_u64(&slot->pss_barrierGeneration);
+
 		while (oldval < generation)
 		{
-			int			events;
 
 			CHECK_FOR_INTERRUPTS();
 
-			events =
-				WaitLatch(MyLatch,
-						  WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-						  timeout, WAIT_EVENT_PROC_SIGNAL_BARRIER);
+			int			events =
+			WaitLatch(MyLatch,
+					  WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+					  timeout, WAIT_EVENT_PROC_SIGNAL_BARRIER);
+
 			ResetLatch(MyLatch);
 
 			oldval = pg_atomic_read_u64(&slot->pss_barrierGeneration);
@@ -451,9 +449,6 @@ HandleProcSignalBarrierInterrupt(void)
 void
 ProcessProcSignalBarrier(void)
 {
-	uint64		local_gen;
-	uint64		shared_gen;
-	uint32		flags;
 
 	Assert(MyProcSignalSlot);
 
@@ -468,8 +463,8 @@ ProcessProcSignalBarrier(void)
 	 * response to subsequent signals, exit early if we already have processed
 	 * all of them.
 	 */
-	local_gen = pg_atomic_read_u64(&MyProcSignalSlot->pss_barrierGeneration);
-	shared_gen = pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration);
+	uint64		local_gen = pg_atomic_read_u64(&MyProcSignalSlot->pss_barrierGeneration);
+	uint64		shared_gen = pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration);
 
 	Assert(local_gen <= shared_gen);
 
@@ -483,7 +478,7 @@ ProcessProcSignalBarrier(void)
 	 * extract the flags, and that any subsequent state changes happen
 	 * afterward.
 	 */
-	flags = pg_atomic_exchange_u32(&MyProcSignalSlot->pss_barrierCheckMask, 0);
+	uint32		flags = pg_atomic_exchange_u32(&MyProcSignalSlot->pss_barrierCheckMask, 0);
 
 	/*
 	 * Process each type of barrier. It's important that nothing we call from

@@ -24,7 +24,7 @@ typedef struct ParallelSlot
 
 extern ParallelSlot *ParallelSlotsGetIdle(ParallelSlot *slots, int numslots);
 
-extern ParallelSlot *ParallelSlotsSetup(const ConnParams *cparams,
+extern ParallelSlot *ParallelSlotsSetup(const ConnParams * cparams,
 										const char *progname, bool echo,
 										PGconn *conn, int numslots);
 

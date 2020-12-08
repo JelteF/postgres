@@ -56,13 +56,13 @@ static bool ReadEndOfStreamingResult(PGresult *res, XLogRecPtr *startpos,
 static bool
 mark_file_as_archived(StreamCtl *stream, const char *fname)
 {
-	Walfile    *f;
 	static char tmppath[MAXPGPATH];
 
 	snprintf(tmppath, sizeof(tmppath), "archive_status/%s.done",
 			 fname);
 
-	f = stream->walmethod->open_for_write(tmppath, NULL, 0);
+	Walfile    *f = stream->walmethod->open_for_write(tmppath, NULL, 0);
+
 	if (f == NULL)
 	{
 		pg_log_error("could not create archive status file \"%s\": %s",
@@ -176,13 +176,13 @@ open_walfile(StreamCtl *stream, XLogRecPtr startpoint)
 static bool
 close_walfile(StreamCtl *stream, XLogRecPtr pos)
 {
-	off_t		currpos;
 	int			r;
 
 	if (walfile == NULL)
 		return true;
 
-	currpos = stream->walmethod->get_current_pos(walfile);
+	off_t		currpos = stream->walmethod->get_current_pos(walfile);
+
 	if (currpos == -1)
 	{
 		pg_log_error("could not determine seek position in file \"%s\": %s",
@@ -259,7 +259,6 @@ writeTimeLineHistoryFile(StreamCtl *stream, char *filename, char *content)
 {
 	int			size = strlen(content);
 	char		histfname[MAXFNAMELEN];
-	Walfile    *f;
 
 	/*
 	 * Check that the server's idea of how timeline history files should be
@@ -273,7 +272,8 @@ writeTimeLineHistoryFile(StreamCtl *stream, char *filename, char *content)
 		return false;
 	}
 
-	f = stream->walmethod->open_for_write(histfname, ".tmp", 0);
+	Walfile    *f = stream->walmethod->open_for_write(histfname, ".tmp", 0);
+
 	if (f == NULL)
 	{
 		pg_log_error("could not create timeline history file \"%s\": %s",
@@ -358,7 +358,6 @@ CheckServerVersionForStreaming(PGconn *conn)
 {
 	int			minServerMajor,
 				maxServerMajor;
-	int			serverMajor;
 
 	/*
 	 * The message format used in streaming replication changed in 9.3, so we
@@ -368,7 +367,8 @@ CheckServerVersionForStreaming(PGconn *conn)
 	 */
 	minServerMajor = 903;
 	maxServerMajor = PG_VERSION_NUM / 100;
-	serverMajor = PQserverVersion(conn) / 100;
+	int			serverMajor = PQserverVersion(conn) / 100;
+
 	if (serverMajor < minServerMajor)
 	{
 		const char *serverver = PQparameterStatus(conn, "server_version");
@@ -599,9 +599,9 @@ ReceiveXlogStream(PGconn *conn, StreamCtl *stream)
 			 * old timeline.
 			 */
 			uint32		newtimeline;
-			bool		parsed;
 
-			parsed = ReadEndOfStreamingResult(res, &stream->startpos, &newtimeline);
+			bool		parsed = ReadEndOfStreamingResult(res, &stream->startpos, &newtimeline);
+
 			PQclear(res);
 			if (!parsed)
 				goto error;
@@ -859,14 +859,12 @@ error:
 static int
 CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
 {
-	int			ret;
 	fd_set		input_mask;
-	int			connsocket;
-	int			maxfd;
 	struct timeval timeout;
 	struct timeval *timeoutptr;
 
-	connsocket = PQsocket(conn);
+	int			connsocket = PQsocket(conn);
+
 	if (connsocket < 0)
 	{
 		pg_log_error("invalid socket: %s", PQerrorMessage(conn));
@@ -875,7 +873,8 @@ CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
 
 	FD_ZERO(&input_mask);
 	FD_SET(connsocket, &input_mask);
-	maxfd = connsocket;
+	int			maxfd = connsocket;
+
 	if (stop_socket != PGINVALID_SOCKET)
 	{
 		FD_SET(stop_socket, &input_mask);
@@ -891,7 +890,7 @@ CopyStreamPoll(PGconn *conn, long timeout_ms, pgsocket stop_socket)
 		timeoutptr = &timeout;
 	}
 
-	ret = select(maxfd + 1, &input_mask, NULL, NULL, timeoutptr);
+	int			ret = select(maxfd + 1, &input_mask, NULL, NULL, timeoutptr);
 
 	if (ret < 0)
 	{
@@ -923,24 +922,24 @@ CopyStreamReceive(PGconn *conn, long timeout, pgsocket stop_socket,
 				  char **buffer)
 {
 	char	   *copybuf = NULL;
-	int			rawlen;
 
 	if (*buffer != NULL)
 		PQfreemem(*buffer);
 	*buffer = NULL;
 
 	/* Try to receive a CopyData message */
-	rawlen = PQgetCopyData(conn, &copybuf, 1);
+	int			rawlen = PQgetCopyData(conn, &copybuf, 1);
+
 	if (rawlen == 0)
 	{
-		int			ret;
 
 		/*
 		 * No data available.  Wait for some to appear, but not longer than
 		 * the specified timeout, so that we can ping the server.  Also stop
 		 * waiting if input appears on stop_socket.
 		 */
-		ret = CopyStreamPoll(conn, timeout, stop_socket);
+		int			ret = CopyStreamPoll(conn, timeout, stop_socket);
+
 		if (ret <= 0)
 			return ret;
 
@@ -977,15 +976,14 @@ static bool
 ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 					XLogRecPtr blockpos, TimestampTz *last_status)
 {
-	int			pos;
-	bool		replyRequested;
 	TimestampTz now;
 
 	/*
 	 * Parse the keepalive message, enclosed in the CopyData message. We just
 	 * check if the server requested a reply, and ignore the rest.
 	 */
-	pos = 1;					/* skip msgtype 'k' */
+	int			pos = 1;		/* skip msgtype 'k' */
+
 	pos += 8;					/* skip walEnd */
 	pos += 8;					/* skip sendTime */
 
@@ -994,7 +992,7 @@ ProcessKeepaliveMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 		pg_log_error("streaming header too small: %d", len);
 		return false;
 	}
-	replyRequested = copybuf[pos];
+	bool		replyRequested = copybuf[pos];
 
 	/* If the server requested an immediate reply, send one. */
 	if (replyRequested && still_sending)
@@ -1034,10 +1032,6 @@ static bool
 ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 				   XLogRecPtr *blockpos)
 {
-	int			xlogoff;
-	int			bytes_left;
-	int			bytes_written;
-	int			hdr_len;
 
 	/*
 	 * Once we've decided we don't want to receive any more, just ignore any
@@ -1051,7 +1045,8 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	 * message. We only need the WAL location field (dataStart), the rest of
 	 * the header is ignored.
 	 */
-	hdr_len = 1;				/* msgtype 'w' */
+	int			hdr_len = 1;	/* msgtype 'w' */
+
 	hdr_len += 8;				/* dataStart */
 	hdr_len += 8;				/* walEnd */
 	hdr_len += 8;				/* sendTime */
@@ -1063,7 +1058,7 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 	*blockpos = fe_recvint64(&copybuf[1]);
 
 	/* Extract WAL location for this block */
-	xlogoff = XLogSegmentOffset(*blockpos, WalSegSz);
+	int			xlogoff = XLogSegmentOffset(*blockpos, WalSegSz);
 
 	/*
 	 * Verify that the initial location in the stream matches where we think
@@ -1090,8 +1085,8 @@ ProcessXLogDataMsg(PGconn *conn, StreamCtl *stream, char *copybuf, int len,
 		}
 	}
 
-	bytes_left = len - hdr_len;
-	bytes_written = 0;
+	int			bytes_left = len - hdr_len;
+	int			bytes_written = 0;
 
 	while (bytes_left)
 	{

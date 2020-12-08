@@ -205,16 +205,16 @@ ParallelSlotsGetIdle(ParallelSlot *slots, int numslots)
  * set.
  */
 ParallelSlot *
-ParallelSlotsSetup(const ConnParams *cparams,
+ParallelSlotsSetup(const ConnParams * cparams,
 				   const char *progname, bool echo,
 				   PGconn *conn, int numslots)
 {
-	ParallelSlot *slots;
 	int			i;
 
 	Assert(conn != NULL);
 
-	slots = (ParallelSlot *) pg_malloc(sizeof(ParallelSlot) * numslots);
+	ParallelSlot *slots = (ParallelSlot *) pg_malloc(sizeof(ParallelSlot) * numslots);
+
 	init_slot(slots, conn);
 	if (numslots > 1)
 	{

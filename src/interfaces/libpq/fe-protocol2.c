@@ -651,12 +651,12 @@ pqParseInput2(PGconn *conn)
 static int
 getRowDescriptions(PGconn *conn)
 {
-	PGresult   *result;
 	int			nfields;
 	const char *errmsg;
 	int			i;
 
-	result = PQmakeEmptyPGresult(conn, PGRES_TUPLES_OK);
+	PGresult   *result = PQmakeEmptyPGresult(conn, PGRES_TUPLES_OK);
+
 	if (!result)
 	{
 		errmsg = NULL;			/* means "out of memory", see below */
@@ -785,7 +785,6 @@ getAnotherTuple(PGconn *conn, bool binary)
 	PGresult   *result = conn->result;
 	int			nfields = result->numAttributes;
 	const char *errmsg;
-	PGdataValue *rowbuf;
 
 	/* the backend sends us a bitmap of which attributes are null */
 	char		std_bitmap[64]; /* used unless it doesn't fit */
@@ -798,7 +797,8 @@ getAnotherTuple(PGconn *conn, bool binary)
 	int			vlen;			/* length of the current field value */
 
 	/* Resize row buffer if needed */
-	rowbuf = conn->rowBuf;
+	PGdataValue *rowbuf = conn->rowBuf;
+
 	if (nfields > conn->rowBufLen)
 	{
 		rowbuf = (PGdataValue *) realloc(rowbuf,
@@ -1115,8 +1115,6 @@ static int
 getNotify(PGconn *conn)
 {
 	int			be_pid;
-	int			nmlen;
-	PGnotify   *newNotify;
 
 	if (pqGetInt(&be_pid, 4, conn))
 		return EOF;
@@ -1128,8 +1126,9 @@ getNotify(PGconn *conn)
 	 * all be freed at once.  We don't use NAMEDATALEN because we don't want
 	 * to tie this interface to a specific server name length.
 	 */
-	nmlen = strlen(conn->workBuffer.data);
-	newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + 1);
+	int			nmlen = strlen(conn->workBuffer.data);
+	PGnotify   *newNotify = (PGnotify *) malloc(sizeof(PGnotify) + nmlen + 1);
+
 	if (newNotify)
 	{
 		newNotify->relname = (char *) newNotify + sizeof(PGnotify);
@@ -1286,7 +1285,6 @@ pqGetline2(PGconn *conn, char *s, int maxlen)
 int
 pqGetlineAsync2(PGconn *conn, char *buffer, int bufsize)
 {
-	int			avail;
 
 	if (conn->asyncStatus != PGASYNC_COPY_OUT)
 		return -1;				/* we are not doing a copy... */
@@ -1301,7 +1299,8 @@ pqGetlineAsync2(PGconn *conn, char *buffer, int bufsize)
 
 	conn->inCursor = conn->inStart;
 
-	avail = bufsize;
+	int			avail = bufsize;
+
 	while (avail > 0 && conn->inCursor < conn->inEnd)
 	{
 		char		c = conn->inBuffer[conn->inCursor++];
@@ -1344,7 +1343,6 @@ pqGetlineAsync2(PGconn *conn, char *buffer, int bufsize)
 int
 pqEndcopy2(PGconn *conn)
 {
-	PGresult   *result;
 
 	if (conn->asyncStatus != PGASYNC_COPY_IN &&
 		conn->asyncStatus != PGASYNC_COPY_OUT)
@@ -1370,7 +1368,7 @@ pqEndcopy2(PGconn *conn)
 	resetPQExpBuffer(&conn->errorMessage);
 
 	/* Wait for the completion response */
-	result = PQgetResult(conn);
+	PGresult   *result = PQgetResult(conn);
 
 	/* Expecting a successful result */
 	if (result && result->resultStatus == PGRES_COMMAND_OK)
@@ -1589,10 +1587,10 @@ char *
 pqBuildStartupPacket2(PGconn *conn, int *packetlen,
 					  const PQEnvironmentOption *options)
 {
-	StartupPacket *startpacket;
 
 	*packetlen = sizeof(StartupPacket);
-	startpacket = (StartupPacket *) malloc(sizeof(StartupPacket));
+	StartupPacket *startpacket = (StartupPacket *) malloc(sizeof(StartupPacket));
+
 	if (!startpacket)
 		return NULL;
 

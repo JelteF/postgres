@@ -96,13 +96,13 @@ typedef struct CopyToStateData
 	FmgrInfo   *out_functions;	/* lookup info for output functions */
 	MemoryContext rowcontext;	/* per-row evaluation context */
 
-} CopyToStateData;
+}			CopyToStateData;
 
 /* DestReceiver for COPY (query) TO */
 typedef struct
 {
 	DestReceiver pub;			/* publicly-known function pointers */
-	CopyToState	cstate;			/* CopyToStateData for the command */
+	CopyToState cstate;			/* CopyToStateData for the command */
 	uint64		processed;		/* # of tuples processed */
 } DR_copy;
 
@@ -301,9 +301,9 @@ CopySendEndOfRow(CopyToState cstate)
 static inline void
 CopySendInt32(CopyToState cstate, int32 val)
 {
-	uint32		buf;
 
-	buf = pg_hton32((uint32) val);
+	uint32		buf = pg_hton32((uint32) val);
+
 	CopySendData(cstate, &buf, sizeof(buf));
 }
 
@@ -313,9 +313,9 @@ CopySendInt32(CopyToState cstate, int32 val)
 static inline void
 CopySendInt16(CopyToState cstate, int16 val)
 {
-	uint16		buf;
 
-	buf = pg_hton16((uint16) val);
+	uint16		buf = pg_hton16((uint16) val);
+
 	CopySendData(cstate, &buf, sizeof(buf));
 }
 
@@ -325,11 +325,11 @@ CopySendInt16(CopyToState cstate, int16 val)
 static void
 ClosePipeToProgram(CopyToState cstate)
 {
-	int			pclose_rc;
 
 	Assert(cstate->is_program);
 
-	pclose_rc = ClosePipeStream(cstate->copy_file);
+	int			pclose_rc = ClosePipeStream(cstate->copy_file);
+
 	if (pclose_rc == -1)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -380,11 +380,8 @@ BeginCopyTo(ParseState *pstate,
 			List *attnamelist,
 			List *options)
 {
-	CopyToState	cstate;
 	bool		pipe = (filename == NULL);
 	TupleDesc	tupDesc;
-	int			num_phys_attrs;
-	MemoryContext oldcontext;
 
 	if (rel != NULL && rel->rd_rel->relkind != RELKIND_RELATION)
 	{
@@ -426,7 +423,7 @@ BeginCopyTo(ParseState *pstate,
 
 
 	/* Allocate workspace and zero all fields */
-	cstate = (CopyToStateData *) palloc0(sizeof(CopyToStateData));
+	CopyToState cstate = (CopyToStateData *) palloc0(sizeof(CopyToStateData));
 
 	/*
 	 * We allocate everything used by a cstate in a new memory context. This
@@ -436,10 +433,10 @@ BeginCopyTo(ParseState *pstate,
 												"COPY",
 												ALLOCSET_DEFAULT_SIZES);
 
-	oldcontext = MemoryContextSwitchTo(cstate->copycontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(cstate->copycontext);
 
 	/* Extract options from the statement node tree */
-	ProcessCopyOptions(pstate, &cstate->opts, false /* is_from */, options);
+	ProcessCopyOptions(pstate, &cstate->opts, false /* is_from */ , options);
 
 	/* Process the source/target relation or query */
 	if (rel)
@@ -452,10 +449,6 @@ BeginCopyTo(ParseState *pstate,
 	}
 	else
 	{
-		List	   *rewritten;
-		Query	   *query;
-		PlannedStmt *plan;
-		DestReceiver *dest;
 
 		cstate->rel = NULL;
 
@@ -469,9 +462,9 @@ BeginCopyTo(ParseState *pstate,
 		 * function and is executed repeatedly.  (See also the same hack in
 		 * DECLARE CURSOR and PREPARE.)  XXX FIXME someday.
 		 */
-		rewritten = pg_analyze_and_rewrite(copyObject(raw_query),
-										   pstate->p_sourcetext, NULL, 0,
-										   NULL);
+		List	   *rewritten = pg_analyze_and_rewrite(copyObject(raw_query),
+													   pstate->p_sourcetext, NULL, 0,
+													   NULL);
 
 		/* check that we got back something we can work with */
 		if (rewritten == NIL)
@@ -504,7 +497,7 @@ BeginCopyTo(ParseState *pstate,
 					 errmsg("multi-statement DO INSTEAD rules are not supported for COPY")));
 		}
 
-		query = linitial_node(Query, rewritten);
+		Query	   *query = linitial_node(Query, rewritten);
 
 		/* The grammar allows SELECT INTO, but we don't support that */
 		if (query->utilityStmt != NULL &&
@@ -532,8 +525,8 @@ BeginCopyTo(ParseState *pstate,
 		}
 
 		/* plan the query */
-		plan = pg_plan_query(query, pstate->p_sourcetext,
-							 CURSOR_OPT_PARALLEL_OK, NULL);
+		PlannedStmt *plan = pg_plan_query(query, pstate->p_sourcetext,
+										  CURSOR_OPT_PARALLEL_OK, NULL);
 
 		/*
 		 * With row level security and a user using "COPY relation TO", we
@@ -568,7 +561,8 @@ BeginCopyTo(ParseState *pstate,
 		UpdateActiveSnapshotCommandId();
 
 		/* Create dest receiver for COPY OUT */
-		dest = CreateDestReceiver(DestCopyOut);
+		DestReceiver *dest = CreateDestReceiver(DestCopyOut);
+
 		((DR_copy *) dest)->cstate = cstate;
 
 		/* Create a QueryDesc requesting no output */
@@ -590,7 +584,7 @@ BeginCopyTo(ParseState *pstate,
 	/* Generate or convert list of attributes to process */
 	cstate->attnumlist = CopyGetAttnums(tupDesc, cstate->rel, attnamelist);
 
-	num_phys_attrs = tupDesc->natts;
+	int			num_phys_attrs = tupDesc->natts;
 
 	/* Convert FORCE_QUOTE name list to per-column flags, check validity */
 	cstate->opts.force_quote_flags = (bool *) palloc0(num_phys_attrs * sizeof(bool));
@@ -603,10 +597,9 @@ BeginCopyTo(ParseState *pstate,
 	}
 	else if (cstate->opts.force_quote)
 	{
-		List	   *attnums;
 		ListCell   *cur;
 
-		attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_quote);
+		List	   *attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_quote);
 
 		foreach(cur, attnums)
 		{
@@ -626,10 +619,9 @@ BeginCopyTo(ParseState *pstate,
 	cstate->opts.force_notnull_flags = (bool *) palloc0(num_phys_attrs * sizeof(bool));
 	if (cstate->opts.force_notnull)
 	{
-		List	   *attnums;
 		ListCell   *cur;
 
-		attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_notnull);
+		List	   *attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_notnull);
 
 		foreach(cur, attnums)
 		{
@@ -649,10 +641,9 @@ BeginCopyTo(ParseState *pstate,
 	cstate->opts.force_null_flags = (bool *) palloc0(num_phys_attrs * sizeof(bool));
 	if (cstate->opts.force_null)
 	{
-		List	   *attnums;
 		ListCell   *cur;
 
-		attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_null);
+		List	   *attnums = CopyGetAttnums(tupDesc, cstate->rel, cstate->opts.force_null);
 
 		foreach(cur, attnums)
 		{
@@ -827,7 +818,6 @@ static uint64
 CopyTo(CopyToState cstate)
 {
 	TupleDesc	tupDesc;
-	int			num_phys_attrs;
 	ListCell   *cur;
 	uint64		processed;
 
@@ -835,8 +825,9 @@ CopyTo(CopyToState cstate)
 		tupDesc = RelationGetDescr(cstate->rel);
 	else
 		tupDesc = cstate->queryDesc->tupDesc;
-	num_phys_attrs = tupDesc->natts;
-	cstate->opts.null_print_client = cstate->opts.null_print; /* default */
+	int			num_phys_attrs = tupDesc->natts;
+
+	cstate->opts.null_print_client = cstate->opts.null_print;	/* default */
 
 	/* We use fe_msgbuf as a per-row buffer regardless of copy_dest */
 	cstate->fe_msgbuf = makeStringInfo();
@@ -874,12 +865,12 @@ CopyTo(CopyToState cstate)
 	if (cstate->opts.binary)
 	{
 		/* Generate header for a binary copy */
-		int32		tmp;
 
 		/* Signature */
 		CopySendData(cstate, BinarySignature, 11);
 		/* Flags field */
-		tmp = 0;
+		int32		tmp = 0;
+
 		CopySendInt32(cstate, tmp);
 		/* No header extension */
 		tmp = 0;
@@ -893,8 +884,8 @@ CopyTo(CopyToState cstate)
 		 */
 		if (cstate->need_transcoding)
 			cstate->opts.null_print_client = pg_server_to_any(cstate->opts.null_print,
-														 cstate->opts.null_print_len,
-														 cstate->file_encoding);
+															  cstate->opts.null_print_len,
+															  cstate->file_encoding);
 
 		/* if a header has been requested send the line */
 		if (cstate->opts.header_line)
@@ -904,13 +895,12 @@ CopyTo(CopyToState cstate)
 			foreach(cur, cstate->attnumlist)
 			{
 				int			attnum = lfirst_int(cur);
-				char	   *colname;
 
 				if (hdr_delim)
 					CopySendChar(cstate, cstate->opts.delim[0]);
 				hdr_delim = true;
 
-				colname = NameStr(TupleDescAttr(tupDesc, attnum - 1)->attname);
+				char	   *colname = NameStr(TupleDescAttr(tupDesc, attnum - 1)->attname);
 
 				CopyAttributeOutCSV(cstate, colname, false,
 									list_length(cstate->attnumlist) == 1);
@@ -922,11 +912,9 @@ CopyTo(CopyToState cstate)
 
 	if (cstate->rel)
 	{
-		TupleTableSlot *slot;
-		TableScanDesc scandesc;
 
-		scandesc = table_beginscan(cstate->rel, GetActiveSnapshot(), 0, NULL);
-		slot = table_slot_create(cstate->rel, NULL);
+		TableScanDesc scandesc = table_beginscan(cstate->rel, GetActiveSnapshot(), 0, NULL);
+		TupleTableSlot *slot = table_slot_create(cstate->rel, NULL);
 
 		processed = 0;
 		while (table_scan_getnextslot(scandesc, ForwardScanDirection, slot))
@@ -972,12 +960,11 @@ CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 {
 	bool		need_delim = false;
 	FmgrInfo   *out_functions = cstate->out_functions;
-	MemoryContext oldcontext;
 	ListCell   *cur;
 	char	   *string;
 
 	MemoryContextReset(cstate->rowcontext);
-	oldcontext = MemoryContextSwitchTo(cstate->rowcontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(cstate->rowcontext);
 
 	if (cstate->opts.binary)
 	{
@@ -1023,10 +1010,10 @@ CopyOneRowTo(CopyToState cstate, TupleTableSlot *slot)
 			}
 			else
 			{
-				bytea	   *outputbytes;
 
-				outputbytes = SendFunctionCall(&out_functions[attnum - 1],
-											   value);
+				bytea	   *outputbytes = SendFunctionCall(&out_functions[attnum - 1],
+														   value);
+
 				CopySendInt32(cstate, VARSIZE(outputbytes) - VARHDRSZ);
 				CopySendData(cstate, VARDATA(outputbytes),
 							 VARSIZE(outputbytes) - VARHDRSZ);
@@ -1299,7 +1286,7 @@ static bool
 copy_dest_receive(TupleTableSlot *slot, DestReceiver *self)
 {
 	DR_copy    *myState = (DR_copy *) self;
-	CopyToState	cstate = myState->cstate;
+	CopyToState cstate = myState->cstate;
 
 	/* Send the data */
 	CopyOneRowTo(cstate, slot);

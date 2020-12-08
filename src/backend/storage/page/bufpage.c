@@ -88,11 +88,9 @@ bool
 PageIsVerifiedExtended(Page page, BlockNumber blkno, int flags)
 {
 	PageHeader	p = (PageHeader) page;
-	size_t	   *pagebytes;
 	int			i;
 	bool		checksum_failure = false;
 	bool		header_sane = false;
-	bool		all_zeroes = false;
 	uint16		checksum = 0;
 
 	/*
@@ -126,8 +124,9 @@ PageIsVerifiedExtended(Page page, BlockNumber blkno, int flags)
 	}
 
 	/* Check all-zeroes case */
-	all_zeroes = true;
-	pagebytes = (size_t *) page;
+	bool		all_zeroes = true;
+	size_t	   *pagebytes = (size_t *) page;
+
 	for (i = 0; i < (BLCKSZ / sizeof(size_t)); i++)
 	{
 		if (pagebytes[i] != 0)
@@ -198,11 +197,8 @@ PageAddItemExtended(Page page,
 					int flags)
 {
 	PageHeader	phdr = (PageHeader) page;
-	Size		alignedSize;
 	int			lower;
-	int			upper;
 	ItemId		itemId;
-	OffsetNumber limit;
 	bool		needshuffle = false;
 
 	/*
@@ -220,7 +216,7 @@ PageAddItemExtended(Page page,
 	/*
 	 * Select offsetNumber to place the new item at
 	 */
-	limit = OffsetNumberNext(PageGetMaxOffsetNumber(page));
+	OffsetNumber limit = OffsetNumberNext(PageGetMaxOffsetNumber(page));
 
 	/* was offsetNumber passed in? */
 	if (OffsetNumberIsValid(offsetNumber))
@@ -299,9 +295,9 @@ PageAddItemExtended(Page page,
 	else
 		lower = phdr->pd_lower;
 
-	alignedSize = MAXALIGN(size);
+	Size		alignedSize = MAXALIGN(size);
 
-	upper = (int) phdr->pd_upper - (int) alignedSize;
+	int			upper = (int) phdr->pd_upper - (int) alignedSize;
 
 	if (lower > upper)
 		return InvalidOffsetNumber;
@@ -351,11 +347,9 @@ PageAddItemExtended(Page page,
 Page
 PageGetTempPage(Page page)
 {
-	Size		pageSize;
-	Page		temp;
 
-	pageSize = PageGetPageSize(page);
-	temp = (Page) palloc(pageSize);
+	Size		pageSize = PageGetPageSize(page);
+	Page		temp = (Page) palloc(pageSize);
 
 	return temp;
 }
@@ -368,11 +362,9 @@ PageGetTempPage(Page page)
 Page
 PageGetTempPageCopy(Page page)
 {
-	Size		pageSize;
-	Page		temp;
 
-	pageSize = PageGetPageSize(page);
-	temp = (Page) palloc(pageSize);
+	Size		pageSize = PageGetPageSize(page);
+	Page		temp = (Page) palloc(pageSize);
 
 	memcpy(temp, page, pageSize);
 
@@ -388,11 +380,9 @@ PageGetTempPageCopy(Page page)
 Page
 PageGetTempPageCopySpecial(Page page)
 {
-	Size		pageSize;
-	Page		temp;
 
-	pageSize = PageGetPageSize(page);
-	temp = (Page) palloc(pageSize);
+	Size		pageSize = PageGetPageSize(page);
+	Page		temp = (Page) palloc(pageSize);
 
 	PageInit(temp, pageSize, PageGetSpecialSize(page));
 	memcpy(PageGetSpecialPointer(temp),
@@ -410,9 +400,9 @@ PageGetTempPageCopySpecial(Page page)
 void
 PageRestoreTempPage(Page tempPage, Page oldPage)
 {
-	Size		pageSize;
 
-	pageSize = PageGetPageSize(tempPage);
+	Size		pageSize = PageGetPageSize(tempPage);
+
 	memcpy((char *) oldPage, (char *) tempPage, pageSize);
 
 	pfree(tempPage);
@@ -426,8 +416,8 @@ typedef struct itemIdCompactData
 	uint16		offsetindex;	/* linp array index */
 	int16		itemoff;		/* page offset of item data */
 	uint16		alignedlen;		/* MAXALIGN(item data len) */
-} itemIdCompactData;
-typedef itemIdCompactData *itemIdCompact;
+}			itemIdCompactData;
+typedef itemIdCompactData * itemIdCompact;
 
 /*
  * After removing or marking some line pointers unused, move the tuples to
@@ -525,10 +515,9 @@ compactify_tuples(itemIdCompact itemidbase, int nitems, Page page, bool presorte
 		copy_tail = copy_head = itemidptr->itemoff + itemidptr->alignedlen;
 		for (; i < nitems; i++)
 		{
-			ItemId		lp;
 
 			itemidptr = &itemidbase[i];
-			lp = PageGetItemId(page, itemidptr->offsetindex + 1);
+			ItemId		lp = PageGetItemId(page, itemidptr->offsetindex + 1);
 
 			if (copy_head != itemidptr->itemoff + itemidptr->alignedlen)
 			{
@@ -630,10 +619,9 @@ compactify_tuples(itemIdCompact itemidbase, int nitems, Page page, bool presorte
 		copy_tail = copy_head = itemidptr->itemoff + itemidptr->alignedlen;
 		for (; i < nitems; i++)
 		{
-			ItemId		lp;
 
 			itemidptr = &itemidbase[i];
-			lp = PageGetItemId(page, itemidptr->offsetindex + 1);
+			ItemId		lp = PageGetItemId(page, itemidptr->offsetindex + 1);
 
 			/* copy pending tuples when we detect a gap */
 			if (copy_head != itemidptr->itemoff + itemidptr->alignedlen)
@@ -684,9 +672,7 @@ PageRepairFragmentation(Page page)
 	Offset		pd_lower = ((PageHeader) page)->pd_lower;
 	Offset		pd_upper = ((PageHeader) page)->pd_upper;
 	Offset		pd_special = ((PageHeader) page)->pd_special;
-	Offset		last_offset;
 	itemIdCompactData itemidbase[MaxHeapTuplesPerPage];
-	itemIdCompact itemidptr;
 	ItemId		lp;
 	int			nline,
 				nstorage,
@@ -716,9 +702,11 @@ PageRepairFragmentation(Page page)
 	 * Run through the line pointer array and collect data about live items.
 	 */
 	nline = PageGetMaxOffsetNumber(page);
-	itemidptr = itemidbase;
+	itemIdCompact itemidptr = itemidbase;
+
 	nunused = totallen = 0;
-	last_offset = pd_special;
+	Offset		last_offset = pd_special;
+
 	for (i = FirstOffsetNumber; i <= nline; i++)
 	{
 		lp = PageGetItemId(page, i);
@@ -789,14 +777,13 @@ PageRepairFragmentation(Page page)
 Size
 PageGetFreeSpace(Page page)
 {
-	int			space;
 
 	/*
 	 * Use signed arithmetic here so that we behave sensibly if pd_lower >
 	 * pd_upper.
 	 */
-	space = (int) ((PageHeader) page)->pd_upper -
-		(int) ((PageHeader) page)->pd_lower;
+	int			space = (int) ((PageHeader) page)->pd_upper -
+	(int) ((PageHeader) page)->pd_lower;
 
 	if (space < (int) sizeof(ItemIdData))
 		return 0;
@@ -816,14 +803,13 @@ PageGetFreeSpace(Page page)
 Size
 PageGetFreeSpaceForMultipleTuples(Page page, int ntups)
 {
-	int			space;
 
 	/*
 	 * Use signed arithmetic here so that we behave sensibly if pd_lower >
 	 * pd_upper.
 	 */
-	space = (int) ((PageHeader) page)->pd_upper -
-		(int) ((PageHeader) page)->pd_lower;
+	int			space = (int) ((PageHeader) page)->pd_upper -
+	(int) ((PageHeader) page)->pd_lower;
 
 	if (space < (int) (ntups * sizeof(ItemIdData)))
 		return 0;
@@ -840,14 +826,13 @@ PageGetFreeSpaceForMultipleTuples(Page page, int ntups)
 Size
 PageGetExactFreeSpace(Page page)
 {
-	int			space;
 
 	/*
 	 * Use signed arithmetic here so that we behave sensibly if pd_lower >
 	 * pd_upper.
 	 */
-	space = (int) ((PageHeader) page)->pd_upper -
-		(int) ((PageHeader) page)->pd_lower;
+	int			space = (int) ((PageHeader) page)->pd_upper -
+	(int) ((PageHeader) page)->pd_lower;
 
 	if (space < 0)
 		return 0;
@@ -873,9 +858,9 @@ PageGetExactFreeSpace(Page page)
 Size
 PageGetHeapFreeSpace(Page page)
 {
-	Size		space;
 
-	space = PageGetFreeSpace(page);
+	Size		space = PageGetFreeSpace(page);
+
 	if (space > 0)
 	{
 		OffsetNumber offnum,
@@ -935,13 +920,6 @@ void
 PageIndexTupleDelete(Page page, OffsetNumber offnum)
 {
 	PageHeader	phdr = (PageHeader) page;
-	char	   *addr;
-	ItemId		tup;
-	Size		size;
-	unsigned	offset;
-	int			nbytes;
-	int			offidx;
-	int			nline;
 
 	/*
 	 * As with PageRepairFragmentation, paranoia seems justified.
@@ -956,17 +934,19 @@ PageIndexTupleDelete(Page page, OffsetNumber offnum)
 				 errmsg("corrupted page pointers: lower = %u, upper = %u, special = %u",
 						phdr->pd_lower, phdr->pd_upper, phdr->pd_special)));
 
-	nline = PageGetMaxOffsetNumber(page);
+	int			nline = PageGetMaxOffsetNumber(page);
+
 	if ((int) offnum <= 0 || (int) offnum > nline)
 		elog(ERROR, "invalid index offnum: %u", offnum);
 
 	/* change offset number to offset index */
-	offidx = offnum - 1;
+	int			offidx = offnum - 1;
 
-	tup = PageGetItemId(page, offnum);
+	ItemId		tup = PageGetItemId(page, offnum);
+
 	Assert(ItemIdHasStorage(tup));
-	size = ItemIdGetLength(tup);
-	offset = ItemIdGetOffset(tup);
+	Size		size = ItemIdGetLength(tup);
+	unsigned	offset = ItemIdGetOffset(tup);
 
 	if (offset < phdr->pd_upper || (offset + size) > phdr->pd_special ||
 		offset != MAXALIGN(offset))
@@ -984,8 +964,8 @@ PageIndexTupleDelete(Page page, OffsetNumber offnum)
 	 * PageGetItemId, because we are manipulating the _array_, not individual
 	 * linp's.
 	 */
-	nbytes = phdr->pd_lower -
-		((char *) &phdr->pd_linp[offidx + 1] - (char *) phdr);
+	int			nbytes = phdr->pd_lower -
+	((char *) &phdr->pd_linp[offidx + 1] - (char *) phdr);
 
 	if (nbytes > 0)
 		memmove((char *) &(phdr->pd_linp[offidx]),
@@ -1000,7 +980,7 @@ PageIndexTupleDelete(Page page, OffsetNumber offnum)
 	 */
 
 	/* beginning of tuple space */
-	addr = (char *) page + phdr->pd_upper;
+	char	   *addr = (char *) page + phdr->pd_upper;
 
 	if (offset > phdr->pd_upper)
 		memmove(addr + size, addr, offset - phdr->pd_upper);
@@ -1047,17 +1027,13 @@ PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems)
 	Offset		pd_lower = phdr->pd_lower;
 	Offset		pd_upper = phdr->pd_upper;
 	Offset		pd_special = phdr->pd_special;
-	Offset		last_offset;
 	itemIdCompactData itemidbase[MaxIndexTuplesPerPage];
 	ItemIdData	newitemids[MaxIndexTuplesPerPage];
-	itemIdCompact itemidptr;
 	ItemId		lp;
 	int			nline,
 				nused;
-	Size		totallen;
 	Size		size;
 	unsigned	offset;
-	int			nextitm;
 	OffsetNumber offnum;
 	bool		presorted = true;	/* For now */
 
@@ -1097,11 +1073,13 @@ PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems)
 	 * still validity-checking.
 	 */
 	nline = PageGetMaxOffsetNumber(page);
-	itemidptr = itemidbase;
-	totallen = 0;
+	itemIdCompact itemidptr = itemidbase;
+	Size		totallen = 0;
+
 	nused = 0;
-	nextitm = 0;
-	last_offset = pd_special;
+	int			nextitm = 0;
+	Offset		last_offset = pd_special;
+
 	for (offnum = FirstOffsetNumber; offnum <= nline; offnum = OffsetNumberNext(offnum))
 	{
 		lp = PageGetItemId(page, offnum);
@@ -1178,11 +1156,6 @@ void
 PageIndexTupleDeleteNoCompact(Page page, OffsetNumber offnum)
 {
 	PageHeader	phdr = (PageHeader) page;
-	char	   *addr;
-	ItemId		tup;
-	Size		size;
-	unsigned	offset;
-	int			nline;
 
 	/*
 	 * As with PageRepairFragmentation, paranoia seems justified.
@@ -1197,14 +1170,16 @@ PageIndexTupleDeleteNoCompact(Page page, OffsetNumber offnum)
 				 errmsg("corrupted page pointers: lower = %u, upper = %u, special = %u",
 						phdr->pd_lower, phdr->pd_upper, phdr->pd_special)));
 
-	nline = PageGetMaxOffsetNumber(page);
+	int			nline = PageGetMaxOffsetNumber(page);
+
 	if ((int) offnum <= 0 || (int) offnum > nline)
 		elog(ERROR, "invalid index offnum: %u", offnum);
 
-	tup = PageGetItemId(page, offnum);
+	ItemId		tup = PageGetItemId(page, offnum);
+
 	Assert(ItemIdHasStorage(tup));
-	size = ItemIdGetLength(tup);
-	offset = ItemIdGetOffset(tup);
+	Size		size = ItemIdGetLength(tup);
+	unsigned	offset = ItemIdGetOffset(tup);
 
 	if (offset < phdr->pd_upper || (offset + size) > phdr->pd_special ||
 		offset != MAXALIGN(offset))
@@ -1237,7 +1212,7 @@ PageIndexTupleDeleteNoCompact(Page page, OffsetNumber offnum)
 	 */
 
 	/* beginning of tuple space */
-	addr = (char *) page + phdr->pd_upper;
+	char	   *addr = (char *) page + phdr->pd_upper;
 
 	if (offset > phdr->pd_upper)
 		memmove(addr + size, addr, offset - phdr->pd_upper);
@@ -1289,12 +1264,6 @@ PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
 						Item newtup, Size newsize)
 {
 	PageHeader	phdr = (PageHeader) page;
-	ItemId		tupid;
-	int			oldsize;
-	unsigned	offset;
-	Size		alignednewsize;
-	int			size_diff;
-	int			itemcount;
 
 	/*
 	 * As with PageRepairFragmentation, paranoia seems justified.
@@ -1309,14 +1278,16 @@ PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
 				 errmsg("corrupted page pointers: lower = %u, upper = %u, special = %u",
 						phdr->pd_lower, phdr->pd_upper, phdr->pd_special)));
 
-	itemcount = PageGetMaxOffsetNumber(page);
+	int			itemcount = PageGetMaxOffsetNumber(page);
+
 	if ((int) offnum <= 0 || (int) offnum > itemcount)
 		elog(ERROR, "invalid index offnum: %u", offnum);
 
-	tupid = PageGetItemId(page, offnum);
+	ItemId		tupid = PageGetItemId(page, offnum);
+
 	Assert(ItemIdHasStorage(tupid));
-	oldsize = ItemIdGetLength(tupid);
-	offset = ItemIdGetOffset(tupid);
+	int			oldsize = ItemIdGetLength(tupid);
+	unsigned	offset = ItemIdGetOffset(tupid);
 
 	if (offset < phdr->pd_upper || (offset + oldsize) > phdr->pd_special ||
 		offset != MAXALIGN(offset))
@@ -1329,7 +1300,8 @@ PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
 	 * Determine actual change in space requirement, check for page overflow.
 	 */
 	oldsize = MAXALIGN(oldsize);
-	alignednewsize = MAXALIGN(newsize);
+	Size		alignednewsize = MAXALIGN(newsize);
+
 	if (alignednewsize > oldsize + (phdr->pd_upper - phdr->pd_lower))
 		return false;
 
@@ -1341,7 +1313,8 @@ PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
 	 * as the amount by which the tuple's size is decreasing, making it the
 	 * delta to add to pd_upper and affected line pointers.
 	 */
-	size_diff = oldsize - (int) alignednewsize;
+	int			size_diff = oldsize - (int) alignednewsize;
+
 	if (size_diff != 0)
 	{
 		char	   *addr = (char *) page + phdr->pd_upper;

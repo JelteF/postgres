@@ -464,12 +464,6 @@ pg_nextoid(PG_FUNCTION_ARGS)
 	Oid			reloid = PG_GETARG_OID(0);
 	Name		attname = PG_GETARG_NAME(1);
 	Oid			idxoid = PG_GETARG_OID(2);
-	Relation	rel;
-	Relation	idx;
-	HeapTuple	atttuple;
-	Form_pg_attribute attform;
-	AttrNumber	attno;
-	Oid			newoid;
 
 	/*
 	 * As this function is not intended to be used during normal running, and
@@ -482,8 +476,8 @@ pg_nextoid(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser to call pg_nextoid()")));
 
-	rel = table_open(reloid, RowExclusiveLock);
-	idx = index_open(idxoid, RowExclusiveLock);
+	Relation	rel = table_open(reloid, RowExclusiveLock);
+	Relation	idx = index_open(idxoid, RowExclusiveLock);
 
 	if (!IsSystemRelation(rel))
 		ereport(ERROR,
@@ -497,15 +491,16 @@ pg_nextoid(PG_FUNCTION_ARGS)
 						RelationGetRelationName(idx),
 						RelationGetRelationName(rel))));
 
-	atttuple = SearchSysCacheAttName(reloid, NameStr(*attname));
+	HeapTuple	atttuple = SearchSysCacheAttName(reloid, NameStr(*attname));
+
 	if (!HeapTupleIsValid(atttuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_COLUMN),
 				 errmsg("column \"%s\" of relation \"%s\" does not exist",
 						NameStr(*attname), RelationGetRelationName(rel))));
 
-	attform = ((Form_pg_attribute) GETSTRUCT(atttuple));
-	attno = attform->attnum;
+	Form_pg_attribute attform = ((Form_pg_attribute) GETSTRUCT(atttuple));
+	AttrNumber	attno = attform->attnum;
 
 	if (attform->atttypid != OIDOID)
 		ereport(ERROR,
@@ -521,7 +516,7 @@ pg_nextoid(PG_FUNCTION_ARGS)
 						RelationGetRelationName(idx),
 						NameStr(*attname))));
 
-	newoid = GetNewOidWithIndex(rel, idxoid, attno);
+	Oid			newoid = GetNewOidWithIndex(rel, idxoid, attno);
 
 	ReleaseSysCache(atttuple);
 	table_close(rel, RowExclusiveLock);

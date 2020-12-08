@@ -317,12 +317,12 @@ static bool
 dir_existsfile(const char *pathname)
 {
 	static char tmppath[MAXPGPATH];
-	int			fd;
 
 	snprintf(tmppath, sizeof(tmppath), "%s/%s",
 			 dir_data->basedir, pathname);
 
-	fd = open(tmppath, O_RDONLY | PG_BINARY, 0);
+	int			fd = open(tmppath, O_RDONLY | PG_BINARY, 0);
+
 	if (fd < 0)
 		return false;
 	close(fd);
@@ -348,9 +348,9 @@ dir_finish(void)
 WalWriteMethod *
 CreateWalDirectoryMethod(const char *basedir, int compression, bool sync)
 {
-	WalWriteMethod *method;
 
-	method = pg_malloc0(sizeof(WalWriteMethod));
+	WalWriteMethod *method = pg_malloc0(sizeof(WalWriteMethod));
+
 	method->open_for_write = dir_open_for_write;
 	method->write = dir_write;
 	method->get_current_pos = dir_get_current_pos;
@@ -430,9 +430,9 @@ tar_write_compressed_data(void *buf, size_t count, bool flush)
 
 	while (tar_data->zp->avail_in || flush)
 	{
-		int			r;
 
-		r = deflate(tar_data->zp, flush ? Z_FINISH : Z_NO_FLUSH);
+		int			r = deflate(tar_data->zp, flush ? Z_FINISH : Z_NO_FLUSH);
+
 		if (r == Z_STREAM_ERROR)
 		{
 			tar_set_error("could not compress data");
@@ -720,8 +720,6 @@ tar_sync(Walfile f)
 static int
 tar_close(Walfile f, WalCloseMethod method)
 {
-	ssize_t		filesize;
-	int			padding;
 	TarMethodFile *tf = (TarMethodFile *) f;
 
 	Assert(f != NULL);
@@ -785,8 +783,9 @@ tar_close(Walfile f, WalCloseMethod method)
 	 * Get the size of the file, and pad out to a multiple of the tar block
 	 * size.
 	 */
-	filesize = tar_get_current_pos(f);
-	padding = tarPaddingBytesRequired(filesize);
+	ssize_t		filesize = tar_get_current_pos(f);
+	int			padding = tarPaddingBytesRequired(filesize);
+
 	if (padding)
 	{
 		char		zerobuf[TAR_BLOCK_SIZE];
@@ -923,9 +922,8 @@ tar_finish(void)
 		tar_data->zp->avail_in = 0;
 		while (true)
 		{
-			int			r;
 
-			r = deflate(tar_data->zp, Z_FINISH);
+			int			r = deflate(tar_data->zp, Z_FINISH);
 
 			if (r == Z_STREAM_ERROR)
 			{
@@ -986,10 +984,10 @@ tar_finish(void)
 WalWriteMethod *
 CreateWalTarMethod(const char *tarbase, int compression, bool sync)
 {
-	WalWriteMethod *method;
 	const char *suffix = (compression != 0) ? ".tar.gz" : ".tar";
 
-	method = pg_malloc0(sizeof(WalWriteMethod));
+	WalWriteMethod *method = pg_malloc0(sizeof(WalWriteMethod));
+
 	method->open_for_write = tar_open_for_write;
 	method->write = tar_write;
 	method->get_current_pos = tar_get_current_pos;

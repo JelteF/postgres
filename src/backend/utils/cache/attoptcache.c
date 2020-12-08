@@ -104,8 +104,6 @@ AttributeOpts *
 get_attribute_options(Oid attrelid, int attnum)
 {
 	AttoptCacheKey key;
-	AttoptCacheEntry *attopt;
-	AttributeOpts *result;
 	HeapTuple	tp;
 
 	/* Find existing cache entry, if any. */
@@ -114,11 +112,11 @@ get_attribute_options(Oid attrelid, int attnum)
 	memset(&key, 0, sizeof(key));	/* make sure any padding bits are unset */
 	key.attrelid = attrelid;
 	key.attnum = attnum;
-	attopt =
-		(AttoptCacheEntry *) hash_search(AttoptCacheHash,
-										 (void *) &key,
-										 HASH_FIND,
-										 NULL);
+	AttoptCacheEntry *attopt =
+	(AttoptCacheEntry *) hash_search(AttoptCacheHash,
+									 (void *) &key,
+									 HASH_FIND,
+									 NULL);
 
 	/* Not found in Attopt cache.  Construct new cache entry. */
 	if (!attopt)
@@ -138,13 +136,13 @@ get_attribute_options(Oid attrelid, int attnum)
 			opts = NULL;
 		else
 		{
-			Datum		datum;
 			bool		isNull;
 
-			datum = SysCacheGetAttr(ATTNUM,
-									tp,
-									Anum_pg_attribute_attoptions,
-									&isNull);
+			Datum		datum = SysCacheGetAttr(ATTNUM,
+												tp,
+												Anum_pg_attribute_attoptions,
+												&isNull);
+
 			if (isNull)
 				opts = NULL;
 			else
@@ -172,7 +170,8 @@ get_attribute_options(Oid attrelid, int attnum)
 	/* Return results in caller's memory context. */
 	if (attopt->opts == NULL)
 		return NULL;
-	result = palloc(VARSIZE(attopt->opts));
+	AttributeOpts *result = palloc(VARSIZE(attopt->opts));
+
 	memcpy(result, attopt->opts, VARSIZE(attopt->opts));
 	return result;
 }

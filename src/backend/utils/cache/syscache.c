@@ -1204,9 +1204,9 @@ SearchSysCacheExists(int cacheId,
 					 Datum key3,
 					 Datum key4)
 {
-	HeapTuple	tuple;
 
-	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+	HeapTuple	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+
 	if (!HeapTupleIsValid(tuple))
 		return false;
 	ReleaseSysCache(tuple);
@@ -1228,16 +1228,16 @@ GetSysCacheOid(int cacheId,
 			   Datum key3,
 			   Datum key4)
 {
-	HeapTuple	tuple;
 	bool		isNull;
-	Oid			result;
 
-	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+	HeapTuple	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+
 	if (!HeapTupleIsValid(tuple))
 		return InvalidOid;
-	result = heap_getattr(tuple, oidcol,
-						  SysCache[cacheId]->cc_tupdesc,
-						  &isNull);
+	Oid			result = heap_getattr(tuple, oidcol,
+									  SysCache[cacheId]->cc_tupdesc,
+									  &isNull);
+
 	Assert(!isNull);			/* columns used as oids should never be NULL */
 	ReleaseSysCache(tuple);
 	return result;
@@ -1255,11 +1255,11 @@ GetSysCacheOid(int cacheId,
 HeapTuple
 SearchSysCacheAttName(Oid relid, const char *attname)
 {
-	HeapTuple	tuple;
 
-	tuple = SearchSysCache2(ATTNAME,
-							ObjectIdGetDatum(relid),
-							CStringGetDatum(attname));
+	HeapTuple	tuple = SearchSysCache2(ATTNAME,
+										ObjectIdGetDatum(relid),
+										CStringGetDatum(attname));
+
 	if (!HeapTupleIsValid(tuple))
 		return NULL;
 	if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped)
@@ -1297,9 +1297,9 @@ SearchSysCacheCopyAttName(Oid relid, const char *attname)
 bool
 SearchSysCacheExistsAttName(Oid relid, const char *attname)
 {
-	HeapTuple	tuple;
 
-	tuple = SearchSysCacheAttName(relid, attname);
+	HeapTuple	tuple = SearchSysCacheAttName(relid, attname);
+
 	if (!HeapTupleIsValid(tuple))
 		return false;
 	ReleaseSysCache(tuple);
@@ -1318,11 +1318,11 @@ SearchSysCacheExistsAttName(Oid relid, const char *attname)
 HeapTuple
 SearchSysCacheAttNum(Oid relid, int16 attnum)
 {
-	HeapTuple	tuple;
 
-	tuple = SearchSysCache2(ATTNUM,
-							ObjectIdGetDatum(relid),
-							Int16GetDatum(attnum));
+	HeapTuple	tuple = SearchSysCache2(ATTNUM,
+										ObjectIdGetDatum(relid),
+										Int16GetDatum(attnum));
+
 	if (!HeapTupleIsValid(tuple))
 		return NULL;
 	if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped)

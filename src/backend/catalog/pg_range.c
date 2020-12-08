@@ -37,15 +37,12 @@ RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
 			Oid rangeSubOpclass, RegProcedure rangeCanonical,
 			RegProcedure rangeSubDiff)
 {
-	Relation	pg_range;
 	Datum		values[Natts_pg_range];
 	bool		nulls[Natts_pg_range];
-	HeapTuple	tup;
 	ObjectAddress myself;
 	ObjectAddress referenced;
-	ObjectAddresses *addrs;
 
-	pg_range = table_open(RangeRelationId, RowExclusiveLock);
+	Relation	pg_range = table_open(RangeRelationId, RowExclusiveLock);
 
 	memset(nulls, 0, sizeof(nulls));
 
@@ -56,13 +53,13 @@ RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
 	values[Anum_pg_range_rngcanonical - 1] = ObjectIdGetDatum(rangeCanonical);
 	values[Anum_pg_range_rngsubdiff - 1] = ObjectIdGetDatum(rangeSubDiff);
 
-	tup = heap_form_tuple(RelationGetDescr(pg_range), values, nulls);
+	HeapTuple	tup = heap_form_tuple(RelationGetDescr(pg_range), values, nulls);
 
 	CatalogTupleInsert(pg_range, tup);
 	heap_freetuple(tup);
 
 	/* record type's dependencies on range-related items */
-	addrs = new_object_addresses();
+	ObjectAddresses *addrs = new_object_addresses();
 
 	ObjectAddressSet(myself, TypeRelationId, rangeTypeOid);
 
@@ -104,20 +101,18 @@ RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
 void
 RangeDelete(Oid rangeTypeOid)
 {
-	Relation	pg_range;
 	ScanKeyData key[1];
-	SysScanDesc scan;
 	HeapTuple	tup;
 
-	pg_range = table_open(RangeRelationId, RowExclusiveLock);
+	Relation	pg_range = table_open(RangeRelationId, RowExclusiveLock);
 
 	ScanKeyInit(&key[0],
 				Anum_pg_range_rngtypid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(rangeTypeOid));
 
-	scan = systable_beginscan(pg_range, RangeTypidIndexId, true,
-							  NULL, 1, key);
+	SysScanDesc scan = systable_beginscan(pg_range, RangeTypidIndexId, true,
+										  NULL, 1, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{

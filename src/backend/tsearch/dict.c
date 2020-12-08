@@ -27,14 +27,11 @@ ts_lexize(PG_FUNCTION_ARGS)
 {
 	Oid			dictId = PG_GETARG_OID(0);
 	text	   *in = PG_GETARG_TEXT_PP(1);
-	ArrayType  *a;
-	TSDictionaryCacheEntry *dict;
 	TSLexeme   *res,
 			   *ptr;
-	Datum	   *da;
 	DictSubState dstate = {false, false, NULL};
 
-	dict = lookup_ts_dictionary_cache(dictId);
+	TSDictionaryCacheEntry *dict = lookup_ts_dictionary_cache(dictId);
 
 	res = (TSLexeme *) DatumGetPointer(FunctionCall4(&dict->lexize,
 													 PointerGetDatum(dict->dictData),
@@ -60,7 +57,8 @@ ts_lexize(PG_FUNCTION_ARGS)
 	ptr = res;
 	while (ptr->lexeme)
 		ptr++;
-	da = (Datum *) palloc(sizeof(Datum) * (ptr - res));
+	Datum	   *da = (Datum *) palloc(sizeof(Datum) * (ptr - res));
+
 	ptr = res;
 	while (ptr->lexeme)
 	{
@@ -68,12 +66,12 @@ ts_lexize(PG_FUNCTION_ARGS)
 		ptr++;
 	}
 
-	a = construct_array(da,
-						ptr - res,
-						TEXTOID,
-						-1,
-						false,
-						TYPALIGN_INT);
+	ArrayType  *a = construct_array(da,
+									ptr - res,
+									TEXTOID,
+									-1,
+									false,
+									TYPALIGN_INT);
 
 	ptr = res;
 	while (ptr->lexeme)

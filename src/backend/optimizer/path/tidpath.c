@@ -72,16 +72,14 @@ IsCTIDVar(Var *var, RelOptInfo *rel)
 static bool
 IsTidEqualClause(RestrictInfo *rinfo, RelOptInfo *rel)
 {
-	OpExpr	   *node;
 	Node	   *arg1,
 			   *arg2,
 			   *other;
-	Relids		other_relids;
 
 	/* Must be an OpExpr */
 	if (!is_opclause(rinfo->clause))
 		return false;
-	node = (OpExpr *) rinfo->clause;
+	OpExpr	   *node = (OpExpr *) rinfo->clause;
 
 	/* Operator must be tideq */
 	if (node->opno != TIDEqualOperator)
@@ -92,7 +90,8 @@ IsTidEqualClause(RestrictInfo *rinfo, RelOptInfo *rel)
 
 	/* Look for CTID as either argument */
 	other = NULL;
-	other_relids = NULL;
+	Relids		other_relids = NULL;
+
 	if (arg1 && IsA(arg1, Var) &&
 		IsCTIDVar((Var *) arg1, rel))
 	{
@@ -125,14 +124,13 @@ IsTidEqualClause(RestrictInfo *rinfo, RelOptInfo *rel)
 static bool
 IsTidEqualAnyClause(RestrictInfo *rinfo, RelOptInfo *rel)
 {
-	ScalarArrayOpExpr *node;
 	Node	   *arg1,
 			   *arg2;
 
 	/* Must be a ScalarArrayOpExpr */
 	if (!(rinfo->clause && IsA(rinfo->clause, ScalarArrayOpExpr)))
 		return false;
-	node = (ScalarArrayOpExpr *) rinfo->clause;
+	ScalarArrayOpExpr *node = (ScalarArrayOpExpr *) rinfo->clause;
 
 	/* Operator must be tideq */
 	if (node->opno != TIDEqualOperator)
@@ -164,12 +162,11 @@ IsTidEqualAnyClause(RestrictInfo *rinfo, RelOptInfo *rel)
 static bool
 IsCurrentOfClause(RestrictInfo *rinfo, RelOptInfo *rel)
 {
-	CurrentOfExpr *node;
 
 	/* Must be a CurrentOfExpr */
 	if (!(rinfo->clause && IsA(rinfo->clause, CurrentOfExpr)))
 		return false;
-	node = (CurrentOfExpr *) rinfo->clause;
+	CurrentOfExpr *node = (CurrentOfExpr *) rinfo->clause;
 
 	/* If it references this rel, we're good */
 	if (node->cvarno == rel->relid)
@@ -317,8 +314,6 @@ BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
 	foreach(l, clauses)
 	{
 		RestrictInfo *rinfo = lfirst_node(RestrictInfo, l);
-		List	   *tidquals;
-		Relids		required_outer;
 
 		/*
 		 * Validate whether each clause is actually usable; we must check this
@@ -348,10 +343,11 @@ BuildParameterizedTidPaths(PlannerInfo *root, RelOptInfo *rel, List *clauses)
 			continue;
 
 		/* OK, make list of clauses for this path */
-		tidquals = list_make1(rinfo);
+		List	   *tidquals = list_make1(rinfo);
 
 		/* Compute required outer rels for this path */
-		required_outer = bms_union(rinfo->required_relids, rel->lateral_relids);
+		Relids		required_outer = bms_union(rinfo->required_relids, rel->lateral_relids);
+
 		required_outer = bms_del_member(required_outer, rel->relid);
 
 		add_path(rel, (Path *) create_tidscan_path(root, rel, tidquals,
@@ -384,13 +380,12 @@ ec_member_matches_ctid(PlannerInfo *root, RelOptInfo *rel,
 void
 create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 {
-	List	   *tidquals;
 
 	/*
 	 * If any suitable quals exist in the rel's baserestrict list, generate a
 	 * plain (unparameterized) TidPath with them.
 	 */
-	tidquals = TidQualFromRestrictInfoList(rel->baserestrictinfo, rel);
+	List	   *tidquals = TidQualFromRestrictInfoList(rel->baserestrictinfo, rel);
 
 	if (tidquals)
 	{
@@ -411,14 +406,13 @@ create_tidscan_paths(PlannerInfo *root, RelOptInfo *rel)
 	 */
 	if (rel->has_eclass_joins)
 	{
-		List	   *clauses;
 
 		/* Generate clauses, skipping any that join to lateral_referencers */
-		clauses = generate_implied_equalities_for_column(root,
-														 rel,
-														 ec_member_matches_ctid,
-														 NULL,
-														 rel->lateral_referencers);
+		List	   *clauses = generate_implied_equalities_for_column(root,
+																	 rel,
+																	 ec_member_matches_ctid,
+																	 NULL,
+																	 rel->lateral_referencers);
 
 		/* Generate a path for each usable join clause */
 		BuildParameterizedTidPaths(root, rel, clauses);

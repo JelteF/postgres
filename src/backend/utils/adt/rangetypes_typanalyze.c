@@ -43,11 +43,10 @@ Datum
 range_typanalyze(PG_FUNCTION_ARGS)
 {
 	VacAttrStats *stats = (VacAttrStats *) PG_GETARG_POINTER(0);
-	TypeCacheEntry *typcache;
 	Form_pg_attribute attr = stats->attr;
 
 	/* Get information about range type; note column might be a domain */
-	typcache = range_get_typcache(fcinfo, getBaseType(stats->attrtypid));
+	TypeCacheEntry *typcache = range_get_typcache(fcinfo, getBaseType(stats->attrtypid));
 
 	if (attr->attstattarget < 0)
 		attr->attstattarget = default_statistics_target;
@@ -104,10 +103,8 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 	int			non_empty_cnt = 0;
 	int			empty_cnt = 0;
 	int			range_no;
-	int			slot_idx;
 	int			num_bins = stats->attr->attstattarget;
 	int			num_hist;
-	float8	   *lengths;
 	RangeBound *lowers,
 			   *uppers;
 	double		total_width = 0;
@@ -115,22 +112,21 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 	/* Allocate memory to hold range bounds and lengths of the sample ranges. */
 	lowers = (RangeBound *) palloc(sizeof(RangeBound) * samplerows);
 	uppers = (RangeBound *) palloc(sizeof(RangeBound) * samplerows);
-	lengths = (float8 *) palloc(sizeof(float8) * samplerows);
+	float8	   *lengths = (float8 *) palloc(sizeof(float8) * samplerows);
 
 	/* Loop over the sample ranges. */
 	for (range_no = 0; range_no < samplerows; range_no++)
 	{
-		Datum		value;
 		bool		isnull,
 					empty;
-		RangeType  *range;
 		RangeBound	lower,
 					upper;
 		float8		length;
 
 		vacuum_delay_point();
 
-		value = fetchfunc(stats, range_no, &isnull);
+		Datum		value = fetchfunc(stats, range_no, &isnull);
+
 		if (isnull)
 		{
 			/* range is null, just count that */
@@ -145,7 +141,8 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 		total_width += VARSIZE_ANY(DatumGetPointer(value));
 
 		/* Get range and deserialize it for further analysis. */
-		range = DatumGetRangeTypeP(value);
+		RangeType  *range = DatumGetRangeTypeP(value);
+
 		range_deserialize(typcache, range, &lower, &upper, &empty);
 
 		if (!empty)
@@ -184,7 +181,7 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 		non_null_cnt++;
 	}
 
-	slot_idx = 0;
+	int			slot_idx = 0;
 
 	/* We can only compute real stats if we found some non-null values. */
 	if (non_null_cnt > 0)
@@ -196,8 +193,6 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 					delta,
 					deltafrac,
 					i;
-		MemoryContext old_cxt;
-		float4	   *emptyfrac;
 
 		stats->stats_valid = true;
 		/* Do the simple null-frac and width stats */
@@ -208,7 +203,7 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 		stats->stadistinct = -1.0 * (1.0 - stats->stanullfrac);
 
 		/* Must copy the target values into anl_context */
-		old_cxt = MemoryContextSwitchTo(stats->anl_context);
+		MemoryContext old_cxt = MemoryContextSwitchTo(stats->anl_context);
 
 		/*
 		 * Generate a bounds histogram slot entry if there are at least two
@@ -330,7 +325,8 @@ compute_range_stats(VacAttrStats *stats, AnalyzeAttrFetchFunc fetchfunc,
 		stats->statypalign[slot_idx] = 'd';
 
 		/* Store the fraction of empty ranges */
-		emptyfrac = (float4 *) palloc(sizeof(float4));
+		float4	   *emptyfrac = (float4 *) palloc(sizeof(float4));
+
 		*emptyfrac = ((double) empty_cnt) / ((double) non_null_cnt);
 		stats->stanumbers[slot_idx] = emptyfrac;
 		stats->numnumbers[slot_idx] = 1;

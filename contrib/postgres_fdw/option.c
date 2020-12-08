@@ -116,10 +116,10 @@ postgres_fdw_validator(PG_FUNCTION_ARGS)
 				 strcmp(def->defname, "fdw_tuple_cost") == 0)
 		{
 			/* these must have a non-negative numeric value */
-			double		val;
 			char	   *endp;
 
-			val = strtod(defGetString(def), &endp);
+			double		val = strtod(defGetString(def), &endp);
+
 			if (*endp || val < 0)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
@@ -133,9 +133,9 @@ postgres_fdw_validator(PG_FUNCTION_ARGS)
 		}
 		else if (strcmp(def->defname, "fetch_size") == 0)
 		{
-			int			fetch_size;
 
-			fetch_size = strtol(defGetString(def), NULL, 10);
+			int			fetch_size = strtol(defGetString(def), NULL, 10);
+
 			if (fetch_size <= 0)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
@@ -180,9 +180,7 @@ postgres_fdw_validator(PG_FUNCTION_ARGS)
 static void
 InitPgFdwOptions(void)
 {
-	int			num_libpq_opts;
 	PQconninfoOption *lopt;
-	PgFdwOption *popt;
 
 	/* non-libpq FDW-specific FDW options */
 	static const PgFdwOption non_libpq_options[] = {
@@ -235,7 +233,8 @@ InitPgFdwOptions(void)
 				 errdetail("Could not get libpq's default connection options.")));
 
 	/* Count how many libpq options are available. */
-	num_libpq_opts = 0;
+	int			num_libpq_opts = 0;
+
 	for (lopt = libpq_options; lopt->keyword; lopt++)
 		num_libpq_opts++;
 
@@ -256,7 +255,8 @@ InitPgFdwOptions(void)
 				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 				 errmsg("out of memory")));
 
-	popt = postgres_fdw_options;
+	PgFdwOption *popt = postgres_fdw_options;
+
 	for (lopt = libpq_options; lopt->keyword; lopt++)
 	{
 		/* Hide debug options, as well as settings we override internally. */
@@ -334,12 +334,12 @@ ExtractConnectionOptions(List *defelems, const char **keywords,
 						 const char **values)
 {
 	ListCell   *lc;
-	int			i;
 
 	/* Build our options lists if we didn't yet. */
 	InitPgFdwOptions();
 
-	i = 0;
+	int			i = 0;
+
 	foreach(lc, defelems)
 	{
 		DefElem    *d = (DefElem *) lfirst(lc);

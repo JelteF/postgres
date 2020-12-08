@@ -66,16 +66,10 @@ int
 main(int argc, char **argv)
 {
 	const char *conninfo;
-	const char *env_wait;
-	TestSpec   *testspec;
 	int			i,
 				j;
-	int			n;
-	PGresult   *res;
 	PQExpBufferData wait_query;
 	int			opt;
-	int			nallsteps;
-	Step	  **allsteps;
 
 	while ((opt = getopt(argc, argv, "V")) != -1)
 	{
@@ -112,22 +106,25 @@ main(int argc, char **argv)
 	 * If PGISOLATIONTIMEOUT is set in the environment, adopt its value (given
 	 * in seconds) as the max time to wait for any one step to complete.
 	 */
-	env_wait = getenv("PGISOLATIONTIMEOUT");
+	const char *env_wait = getenv("PGISOLATIONTIMEOUT");
+
 	if (env_wait != NULL)
 		max_step_wait = ((int64) atoi(env_wait)) * USECS_PER_SEC;
 
 	/* Read the test spec from stdin */
 	spec_yyparse();
-	testspec = &parseresult;
+	TestSpec   *testspec = &parseresult;
 
 	/* Create a lookup table of all steps. */
-	nallsteps = 0;
+	int			nallsteps = 0;
+
 	for (i = 0; i < testspec->nsessions; i++)
 		nallsteps += testspec->sessions[i]->nsteps;
 
-	allsteps = pg_malloc(nallsteps * sizeof(Step *));
+	Step	  **allsteps = pg_malloc(nallsteps * sizeof(Step *));
 
-	n = 0;
+	int			n = 0;
+
 	for (i = 0; i < testspec->nsessions; i++)
 	{
 		for (j = 0; j < testspec->sessions[i]->nsteps; j++)
@@ -219,7 +216,8 @@ main(int argc, char **argv)
 		appendPQExpBuffer(&wait_query, ",%s", backend_pid_strs[i]);
 	appendPQExpBufferStr(&wait_query, "}')");
 
-	res = PQprepare(conns[0], PREP_WAITING, wait_query.data, 0, NULL);
+	PGresult   *res = PQprepare(conns[0], PREP_WAITING, wait_query.data, 0, NULL);
+
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
 		fprintf(stderr, "prepare of lock wait query failed: %s",
@@ -272,16 +270,15 @@ run_testspec(TestSpec *testspec)
 static void
 run_all_permutations(TestSpec *testspec)
 {
-	int			nsteps;
 	int			i;
-	Step	  **steps;
 
 	/* Count the total number of steps in all sessions */
-	nsteps = 0;
+	int			nsteps = 0;
+
 	for (i = 0; i < testspec->nsessions; i++)
 		nsteps += testspec->sessions[i]->nsteps;
 
-	steps = pg_malloc(sizeof(Step *) * nsteps);
+	Step	  **steps = pg_malloc(sizeof(Step *) * nsteps);
 
 	/*
 	 * To generate the permutations, we conceptually put the steps of each
@@ -338,9 +335,8 @@ run_named_permutations(TestSpec *testspec)
 	for (i = 0; i < testspec->npermutations; i++)
 	{
 		Permutation *p = testspec->permutations[i];
-		Step	  **steps;
 
-		steps = pg_malloc(p->nsteps * sizeof(Step *));
+		Step	  **steps = pg_malloc(p->nsteps * sizeof(Step *));
 
 		/* Find all the named steps using the lookup table */
 		for (j = 0; j < p->nsteps; j++)
@@ -455,11 +451,9 @@ run_permutation(TestSpec *testspec, int nsteps, Step **steps)
 	int			w;
 	int			nwaiting = 0;
 	int			nerrorstep = 0;
-	Step	  **waiting;
-	Step	  **errorstep;
 
-	waiting = pg_malloc(sizeof(Step *) * testspec->nsessions);
-	errorstep = pg_malloc(sizeof(Step *) * testspec->nsessions);
+	Step	  **waiting = pg_malloc(sizeof(Step *) * testspec->nsessions);
+	Step	  **errorstep = pg_malloc(sizeof(Step *) * testspec->nsessions);
 
 	printf("\nstarting permutation:");
 	for (i = 0; i < nsteps; i++)
@@ -513,7 +507,6 @@ run_permutation(TestSpec *testspec, int nsteps, Step **steps)
 		Step	   *step = steps[i];
 		PGconn	   *conn = conns[1 + step->session];
 		Step	   *oldstep = NULL;
-		bool		mustwait;
 
 		/*
 		 * Check whether the session that needs to perform the next step is
@@ -588,7 +581,7 @@ run_permutation(TestSpec *testspec, int nsteps, Step **steps)
 		}
 
 		/* Try to complete this step without blocking.  */
-		mustwait = try_complete_step(testspec, step, STEP_NONBLOCK);
+		bool		mustwait = try_complete_step(testspec, step, STEP_NONBLOCK);
 
 		/* Check for completion of any steps that were previously waiting. */
 		w = 0;
@@ -720,12 +713,10 @@ try_complete_step(TestSpec *testspec, Step *step, int flags)
 		else if (ret == 0)		/* select() timeout: check for lock wait */
 		{
 			struct timeval current_time;
-			int64		td;
 
 			/* If it's OK for the step to block, check whether it has. */
 			if (flags & STEP_NONBLOCK)
 			{
-				bool		waiting;
 
 				res = PQexecPrepared(conns[0], PREP_WAITING, 1,
 									 &backend_pid_strs[step->session + 1],
@@ -737,7 +728,8 @@ try_complete_step(TestSpec *testspec, Step *step, int flags)
 							PQerrorMessage(conns[0]));
 					exit(1);
 				}
-				waiting = ((PQgetvalue(res, 0, 0))[0] == 't');
+				bool		waiting = ((PQgetvalue(res, 0, 0))[0] == 't');
+
 				PQclear(res);
 
 				if (waiting)	/* waiting to acquire a lock */
@@ -774,7 +766,8 @@ try_complete_step(TestSpec *testspec, Step *step, int flags)
 
 			/* Figure out how long we've been waiting for this step. */
 			gettimeofday(&current_time, NULL);
-			td = (int64) current_time.tv_sec - (int64) start_time.tv_sec;
+			int64		td = (int64) current_time.tv_sec - (int64) start_time.tv_sec;
+
 			td *= USECS_PER_SEC;
 			td += (int64) current_time.tv_usec - (int64) start_time.tv_usec;
 
@@ -913,12 +906,12 @@ try_complete_step(TestSpec *testspec, Step *step, int flags)
 static void
 printResultSet(PGresult *res)
 {
-	int			nFields;
 	int			i,
 				j;
 
 	/* first, print out the attribute names */
-	nFields = PQnfields(res);
+	int			nFields = PQnfields(res);
+
 	for (i = 0; i < nFields; i++)
 		printf("%-15s", PQfname(res, i));
 	printf("\n\n");

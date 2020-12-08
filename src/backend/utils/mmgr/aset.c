@@ -382,9 +382,7 @@ AllocSetContextCreateInternal(MemoryContext parent,
 							  Size maxBlockSize)
 {
 	int			freeListIndex;
-	Size		firstBlockSize;
 	AllocSet	set;
-	AllocBlock	block;
 
 	/* Assert we padded AllocChunkData properly */
 	StaticAssertStmt(ALLOC_CHUNKHDRSZ == MAXALIGN(ALLOC_CHUNKHDRSZ),
@@ -454,8 +452,9 @@ AllocSetContextCreateInternal(MemoryContext parent,
 	}
 
 	/* Determine size of initial block */
-	firstBlockSize = MAXALIGN(sizeof(AllocSetContext)) +
-		ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
+	Size		firstBlockSize = MAXALIGN(sizeof(AllocSetContext)) +
+	ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
+
 	if (minContextSize != 0)
 		firstBlockSize = Max(firstBlockSize, minContextSize);
 	else
@@ -483,7 +482,8 @@ AllocSetContextCreateInternal(MemoryContext parent,
 	 */
 
 	/* Fill in the initial block's block header */
-	block = (AllocBlock) (((char *) set) + MAXALIGN(sizeof(AllocSetContext)));
+	AllocBlock	block = (AllocBlock) (((char *) set) + MAXALIGN(sizeof(AllocSetContext)));
+
 	block->aset = set;
 	block->freeptr = ((char *) block) + ALLOC_BLOCKHDRSZ;
 	block->endptr = ((char *) set) + firstBlockSize;
@@ -896,7 +896,6 @@ AllocSetAlloc(MemoryContext context, Size size)
 	 */
 	if (block == NULL)
 	{
-		Size		required_size;
 
 		/*
 		 * The first such block has size initBlockSize, and we double the
@@ -911,7 +910,8 @@ AllocSetAlloc(MemoryContext context, Size size)
 		 * If initBlockSize is less than ALLOC_CHUNK_LIMIT, we could need more
 		 * space... but try to keep it a power of 2.
 		 */
-		required_size = chunk_size + ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
+		Size		required_size = chunk_size + ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
+
 		while (blksize < required_size)
 			blksize <<= 1;
 
@@ -1075,12 +1075,11 @@ AllocSetRealloc(MemoryContext context, void *pointer, Size size)
 {
 	AllocSet	set = (AllocSet) context;
 	AllocChunk	chunk = AllocPointerGetChunk(pointer);
-	Size		oldsize;
 
 	/* Allow access to private part of chunk header. */
 	VALGRIND_MAKE_MEM_DEFINED(chunk, ALLOCCHUNK_PRIVATE_LEN);
 
-	oldsize = chunk->size;
+	Size		oldsize = chunk->size;
 
 #ifdef MEMORY_CONTEXT_CHECKING
 	/* Test for someone scribbling on unused space in chunk */
@@ -1098,9 +1097,6 @@ AllocSetRealloc(MemoryContext context, void *pointer, Size size)
 		 * minimum space wastage.
 		 */
 		AllocBlock	block = (AllocBlock) (((char *) chunk) - ALLOC_BLOCKHDRSZ);
-		Size		chksize;
-		Size		blksize;
-		Size		oldblksize;
 
 		/*
 		 * Try to verify that we have a sane block pointer: it should
@@ -1119,12 +1115,13 @@ AllocSetRealloc(MemoryContext context, void *pointer, Size size)
 		 * chunk->size to be bigger than set->allocChunkLimit, so we don't get
 		 * confused about the chunk's status in future calls.
 		 */
-		chksize = Max(size, set->allocChunkLimit + 1);
+		Size		chksize = Max(size, set->allocChunkLimit + 1);
+
 		chksize = MAXALIGN(chksize);
 
 		/* Do the realloc */
-		blksize = chksize + ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
-		oldblksize = block->endptr - ((char *) block);
+		Size		blksize = chksize + ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
+		Size		oldblksize = block->endptr - ((char *) block);
 
 		block = (AllocBlock) realloc(block, blksize);
 		if (block == NULL)
@@ -1256,10 +1253,9 @@ AllocSetRealloc(MemoryContext context, void *pointer, Size size)
 		 * wrong freelist for the next initial palloc request, and so we leak
 		 * memory indefinitely.  See pgsql-hackers archives for 2007-08-11.)
 		 */
-		AllocPointer newPointer;
 
 		/* allocate new chunk */
-		newPointer = AllocSetAlloc((MemoryContext) set, size);
+		AllocPointer newPointer = AllocSetAlloc((MemoryContext) set, size);
 
 		/* leave immediately if request was not completed */
 		if (newPointer == NULL)
@@ -1303,10 +1299,10 @@ static Size
 AllocSetGetChunkSpace(MemoryContext context, void *pointer)
 {
 	AllocChunk	chunk = AllocPointerGetChunk(pointer);
-	Size		result;
 
 	VALGRIND_MAKE_MEM_DEFINED(chunk, ALLOCCHUNK_PRIVATE_LEN);
-	result = chunk->size + ALLOC_CHUNKHDRSZ;
+	Size		result = chunk->size + ALLOC_CHUNKHDRSZ;
+
 	VALGRIND_MAKE_MEM_NOACCESS(chunk, ALLOCCHUNK_PRIVATE_LEN);
 	return result;
 }
@@ -1345,13 +1341,12 @@ AllocSetStats(MemoryContext context,
 	AllocSet	set = (AllocSet) context;
 	Size		nblocks = 0;
 	Size		freechunks = 0;
-	Size		totalspace;
 	Size		freespace = 0;
 	AllocBlock	block;
 	int			fidx;
 
 	/* Include context header in totalspace */
-	totalspace = MAXALIGN(sizeof(AllocSetContext));
+	Size		totalspace = MAXALIGN(sizeof(AllocSetContext));
 
 	for (block = set->blocks; block != NULL; block = block->next)
 	{

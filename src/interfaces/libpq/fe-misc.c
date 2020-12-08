@@ -121,7 +121,6 @@ pqGets_internal(PQExpBuffer buf, PGconn *conn, bool resetbuffer)
 	char	   *inBuffer = conn->inBuffer;
 	int			inCursor = conn->inCursor;
 	int			inEnd = conn->inEnd;
-	int			slen;
 
 	while (inCursor < inEnd && inBuffer[inCursor])
 		inCursor++;
@@ -129,7 +128,7 @@ pqGets_internal(PQExpBuffer buf, PGconn *conn, bool resetbuffer)
 	if (inCursor >= inEnd)
 		return EOF;
 
-	slen = inCursor - conn->inCursor;
+	int			slen = inCursor - conn->inCursor;
 
 	if (resetbuffer)
 		resetPQExpBuffer(buf);
@@ -1047,9 +1046,8 @@ pqWait(int forRead, int forWrite, PGconn *conn)
 int
 pqWaitTimed(int forRead, int forWrite, PGconn *conn, time_t finish_time)
 {
-	int			result;
 
-	result = pqSocketCheck(conn, forRead, forWrite, finish_time);
+	int			result = pqSocketCheck(conn, forRead, forWrite, finish_time);
 
 	if (result < 0)
 		return -1;				/* errorMessage is already set */
@@ -1249,10 +1247,10 @@ PQdsplen(const char *s, int encoding)
 int
 PQenv2encoding(void)
 {
-	char	   *str;
 	int			encoding = PG_SQL_ASCII;
 
-	str = getenv("PGCLIENTENCODING");
+	char	   *str = getenv("PGCLIENTENCODING");
+
 	if (str && *str != '\0')
 	{
 		encoding = pg_char_to_encoding(str);
@@ -1278,11 +1276,11 @@ libpq_binddomain(void)
 #else
 		int			save_errno = errno;
 #endif
-		const char *ldir;
 
 		already_bound = true;
 		/* No relocatable lookup here because the binary could be anywhere */
-		ldir = getenv("PGLOCALEDIR");
+		const char *ldir = getenv("PGLOCALEDIR");
+
 		if (!ldir)
 			ldir = LOCALEDIR;
 		bindtextdomain(PG_TEXTDOMAIN("libpq"), ldir);

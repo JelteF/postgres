@@ -186,18 +186,11 @@ Datum
 verify_heapam(PG_FUNCTION_ARGS)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	MemoryContext old_context;
-	bool		random_access;
 	HeapCheckContext ctx;
 	Buffer		vmbuffer = InvalidBuffer;
-	Oid			relid;
-	bool		on_error_stop;
-	bool		check_toast;
 	SkipPages	skip_option = SKIP_PAGES_NONE;
 	BlockNumber first_block;
 	BlockNumber last_block;
-	BlockNumber nblocks;
-	const char *skip;
 
 	/* Check to see if caller supports us returning a tuplestore */
 	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
@@ -214,25 +207,26 @@ verify_heapam(PG_FUNCTION_ARGS)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("relation cannot be null")));
-	relid = PG_GETARG_OID(0);
+	Oid			relid = PG_GETARG_OID(0);
 
 	if (PG_ARGISNULL(1))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("on_error_stop cannot be null")));
-	on_error_stop = PG_GETARG_BOOL(1);
+	bool		on_error_stop = PG_GETARG_BOOL(1);
 
 	if (PG_ARGISNULL(2))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("check_toast cannot be null")));
-	check_toast = PG_GETARG_BOOL(2);
+	bool		check_toast = PG_GETARG_BOOL(2);
 
 	if (PG_ARGISNULL(3))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("skip cannot be null")));
-	skip = text_to_cstring(PG_GETARG_TEXT_PP(3));
+	const char *skip = text_to_cstring(PG_GETARG_TEXT_PP(3));
+
 	if (pg_strcasecmp(skip, "all-visible") == 0)
 		skip_option = SKIP_PAGES_ALL_VISIBLE;
 	else if (pg_strcasecmp(skip, "all-frozen") == 0)
@@ -256,8 +250,9 @@ verify_heapam(PG_FUNCTION_ARGS)
 	ctx.attnum = -1;
 
 	/* The tupdesc and tuplestore must be created in ecxt_per_query_memory */
-	old_context = MemoryContextSwitchTo(rsinfo->econtext->ecxt_per_query_memory);
-	random_access = (rsinfo->allowedModes & SFRM_Materialize_Random) != 0;
+	MemoryContext old_context = MemoryContextSwitchTo(rsinfo->econtext->ecxt_per_query_memory);
+	bool		random_access = (rsinfo->allowedModes & SFRM_Materialize_Random) != 0;
+
 	ctx.tupdesc = verify_heapam_tupdesc();
 	ctx.tupstore = tuplestore_begin_heap(random_access, false, work_mem);
 	rsinfo->returnMode = SFRM_Materialize;
@@ -270,7 +265,8 @@ verify_heapam(PG_FUNCTION_ARGS)
 	sanity_check_relation(ctx.rel);
 
 	/* Early exit if the relation is empty */
-	nblocks = RelationGetNumberOfBlocks(ctx.rel);
+	BlockNumber nblocks = RelationGetNumberOfBlocks(ctx.rel);
+
 	if (!nblocks)
 	{
 		relation_close(ctx.rel, AccessShareLock);
@@ -312,15 +308,15 @@ verify_heapam(PG_FUNCTION_ARGS)
 	/* Optionally open the toast relation, if any. */
 	if (ctx.rel->rd_rel->reltoastrelid && check_toast)
 	{
-		int			offset;
 
 		/* Main relation has associated toast relation */
 		ctx.toast_rel = table_open(ctx.rel->rd_rel->reltoastrelid,
 								   AccessShareLock);
-		offset = toast_open_indexes(ctx.toast_rel,
-									AccessShareLock,
-									&(ctx.toast_indexes),
-									&(ctx.num_toast_indexes));
+		int			offset = toast_open_indexes(ctx.toast_rel,
+												AccessShareLock,
+												&(ctx.toast_indexes),
+												&(ctx.num_toast_indexes));
+
 		ctx.valid_toast_index = ctx.toast_indexes[offset];
 	}
 	else
@@ -345,15 +341,14 @@ verify_heapam(PG_FUNCTION_ARGS)
 
 	for (ctx.blkno = first_block; ctx.blkno <= last_block; ctx.blkno++)
 	{
-		OffsetNumber maxoff;
 
 		/* Optionally skip over all-frozen or all-visible blocks */
 		if (skip_option != SKIP_PAGES_NONE)
 		{
-			int32		mapbits;
 
-			mapbits = (int32) visibilitymap_get_status(ctx.rel, ctx.blkno,
-													   &vmbuffer);
+			int32		mapbits = (int32) visibilitymap_get_status(ctx.rel, ctx.blkno,
+																   &vmbuffer);
+
 			if (skip_option == SKIP_PAGES_ALL_FROZEN)
 			{
 				if ((mapbits & VISIBILITYMAP_ALL_FROZEN) != 0)
@@ -374,7 +369,8 @@ verify_heapam(PG_FUNCTION_ARGS)
 		ctx.page = BufferGetPage(ctx.buffer);
 
 		/* Perform tuple checks */
-		maxoff = PageGetMaxOffsetNumber(ctx.page);
+		OffsetNumber maxoff = PageGetMaxOffsetNumber(ctx.page);
+
 		for (ctx.offnum = FirstOffsetNumber; ctx.offnum <= maxoff;
 			 ctx.offnum = OffsetNumberNext(ctx.offnum))
 		{
@@ -391,7 +387,6 @@ verify_heapam(PG_FUNCTION_ARGS)
 			if (ItemIdIsRedirected(ctx.itemid))
 			{
 				OffsetNumber rdoffnum = ItemIdGetRedirect(ctx.itemid);
-				ItemId		rditem;
 
 				if (rdoffnum < FirstOffsetNumber)
 				{
@@ -409,7 +404,8 @@ verify_heapam(PG_FUNCTION_ARGS)
 											   (unsigned) maxoff));
 					continue;
 				}
-				rditem = PageGetItemId(ctx.page, rdoffnum);
+				ItemId		rditem = PageGetItemId(ctx.page, rdoffnum);
+
 				if (!ItemIdIsUsed(rditem))
 					report_corruption(&ctx,
 									  psprintf("line pointer redirection to unused item at offset %u",
@@ -509,7 +505,6 @@ report_corruption(HeapCheckContext *ctx, char *msg)
 {
 	Datum		values[HEAPCHECK_RELATION_COLS];
 	bool		nulls[HEAPCHECK_RELATION_COLS];
-	HeapTuple	tuple;
 
 	MemSet(values, 0, sizeof(values));
 	MemSet(nulls, 0, sizeof(nulls));
@@ -529,7 +524,8 @@ report_corruption(HeapCheckContext *ctx, char *msg)
 	 */
 	pfree(msg);
 
-	tuple = heap_form_tuple(ctx->tupdesc, values, nulls);
+	HeapTuple	tuple = heap_form_tuple(ctx->tupdesc, values, nulls);
+
 	tuplestore_puttuple(ctx->tupstore, tuple);
 	ctx->is_corrupt = true;
 }
@@ -541,10 +537,10 @@ report_corruption(HeapCheckContext *ctx, char *msg)
 static TupleDesc
 verify_heapam_tupdesc(void)
 {
-	TupleDesc	tupdesc;
 	AttrNumber	a = 0;
 
-	tupdesc = CreateTemplateTupleDesc(HEAPCHECK_RELATION_COLS);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(HEAPCHECK_RELATION_COLS);
+
 	TupleDescInitEntry(tupdesc, ++a, "blkno", INT8OID, -1, 0);
 	TupleDescInitEntry(tupdesc, ++a, "offnum", INT4OID, -1, 0);
 	TupleDescInitEntry(tupdesc, ++a, "attnum", INT4OID, -1, 0);
@@ -835,25 +831,24 @@ check_tuple_header_and_visibilty(HeapTupleHeader tuphdr, HeapCheckContext *ctx)
 static void
 check_toast_tuple(HeapTuple toasttup, HeapCheckContext *ctx)
 {
-	int32		curchunk;
-	Pointer		chunk;
 	bool		isnull;
 	int32		chunksize;
-	int32		expected_size;
 
 	/*
 	 * Have a chunk, extract the sequence number and the data
 	 */
-	curchunk = DatumGetInt32(fastgetattr(toasttup, 2,
-										 ctx->toast_rel->rd_att, &isnull));
+	int32		curchunk = DatumGetInt32(fastgetattr(toasttup, 2,
+													 ctx->toast_rel->rd_att, &isnull));
+
 	if (isnull)
 	{
 		report_corruption(ctx,
 						  pstrdup("toast chunk sequence number is null"));
 		return;
 	}
-	chunk = DatumGetPointer(fastgetattr(toasttup, 3,
-										ctx->toast_rel->rd_att, &isnull));
+	Pointer		chunk = DatumGetPointer(fastgetattr(toasttup, 3,
+													ctx->toast_rel->rd_att, &isnull));
+
 	if (isnull)
 	{
 		report_corruption(ctx,
@@ -898,8 +893,9 @@ check_toast_tuple(HeapTuple toasttup, HeapCheckContext *ctx)
 		return;
 	}
 
-	expected_size = curchunk < ctx->totalchunks - 1 ? TOAST_MAX_CHUNK_SIZE
-		: ctx->attrsize - ((ctx->totalchunks - 1) * TOAST_MAX_CHUNK_SIZE);
+	int32		expected_size = curchunk < ctx->totalchunks - 1 ? TOAST_MAX_CHUNK_SIZE
+	: ctx->attrsize - ((ctx->totalchunks - 1) * TOAST_MAX_CHUNK_SIZE);
+
 	if (chunksize != expected_size)
 	{
 		report_corruption(ctx,
@@ -934,18 +930,12 @@ check_tuple_attribute(HeapCheckContext *ctx)
 {
 	struct varatt_external toast_pointer;
 	ScanKeyData toastkey;
-	SysScanDesc toastscan;
 	SnapshotData SnapshotToast;
 	HeapTuple	toasttup;
-	bool		found_toasttup;
-	Datum		attdatum;
-	struct varlena *attr;
 	char	   *tp;				/* pointer to the tuple data */
-	uint16		infomask;
-	Form_pg_attribute thisatt;
 
-	infomask = ctx->tuphdr->t_infomask;
-	thisatt = TupleDescAttr(RelationGetDescr(ctx->rel), ctx->attnum);
+	uint16		infomask = ctx->tuphdr->t_infomask;
+	Form_pg_attribute thisatt = TupleDescAttr(RelationGetDescr(ctx->rel), ctx->attnum);
 
 	tp = (char *) ctx->tuphdr + ctx->tuphdr->t_hoff;
 
@@ -988,7 +978,7 @@ check_tuple_attribute(HeapCheckContext *ctx)
 									tp + ctx->offset);
 
 	/* Get the (possibly corrupt) varlena datum */
-	attdatum = fetchatt(thisatt, tp + ctx->offset);
+	Datum		attdatum = fetchatt(thisatt, tp + ctx->offset);
 
 	/*
 	 * We have the datum, but we cannot decode it carelessly, as it may still
@@ -1036,7 +1026,7 @@ check_tuple_attribute(HeapCheckContext *ctx)
 	 * We go further, because we need to check if the toast datum is corrupt.
 	 */
 
-	attr = (struct varlena *) DatumGetPointer(attdatum);
+	struct varlena *attr = (struct varlena *) DatumGetPointer(attdatum);
 
 	/*
 	 * Now we follow the logic of detoast_external_attr(), with the same
@@ -1093,12 +1083,14 @@ check_tuple_attribute(HeapCheckContext *ctx)
 	 * accessible via the index.
 	 */
 	init_toast_snapshot(&SnapshotToast);
-	toastscan = systable_beginscan_ordered(ctx->toast_rel,
-										   ctx->valid_toast_index,
-										   &SnapshotToast, 1,
-										   &toastkey);
+	SysScanDesc toastscan = systable_beginscan_ordered(ctx->toast_rel,
+													   ctx->valid_toast_index,
+													   &SnapshotToast, 1,
+													   &toastkey);
+
 	ctx->chunkno = 0;
-	found_toasttup = false;
+	bool		found_toasttup = false;
+
 	while ((toasttup =
 			systable_getnext_ordered(toastscan,
 									 ForwardScanDirection)) != NULL)
@@ -1127,13 +1119,12 @@ check_tuple_attribute(HeapCheckContext *ctx)
 static void
 check_tuple(HeapCheckContext *ctx)
 {
-	TransactionId xmin;
-	TransactionId xmax;
 	bool		fatal = false;
 	uint16		infomask = ctx->tuphdr->t_infomask;
 
 	/* If xmin is normal, it should be within valid range */
-	xmin = HeapTupleHeaderGetXmin(ctx->tuphdr);
+	TransactionId xmin = HeapTupleHeaderGetXmin(ctx->tuphdr);
+
 	switch (get_xid_status(xmin, ctx, NULL))
 	{
 		case XID_INVALID:
@@ -1165,7 +1156,7 @@ check_tuple(HeapCheckContext *ctx)
 			break;
 	}
 
-	xmax = HeapTupleHeaderGetRawXmax(ctx->tuphdr);
+	TransactionId xmax = HeapTupleHeaderGetRawXmax(ctx->tuphdr);
 
 	if (infomask & HEAP_XMAX_IS_MULTI)
 	{
@@ -1294,11 +1285,11 @@ check_tuple(HeapCheckContext *ctx)
 static FullTransactionId
 FullTransactionIdFromXidAndCtx(TransactionId xid, const HeapCheckContext *ctx)
 {
-	uint32		epoch;
 
 	if (!TransactionIdIsNormal(xid))
 		return FullTransactionIdFromEpochAndXid(0, xid);
-	epoch = EpochFromFullTransactionId(ctx->next_fxid);
+	uint32		epoch = EpochFromFullTransactionId(ctx->next_fxid);
+
 	if (xid > ctx->next_xid)
 		epoch--;
 	return FullTransactionIdFromEpochAndXid(epoch, xid);
@@ -1370,9 +1361,9 @@ check_mxid_in_range(MultiXactId mxid, HeapCheckContext *ctx)
 static XidBoundsViolation
 check_mxid_valid_in_rel(MultiXactId mxid, HeapCheckContext *ctx)
 {
-	XidBoundsViolation result;
 
-	result = check_mxid_in_range(mxid, ctx);
+	XidBoundsViolation result = check_mxid_in_range(mxid, ctx);
+
 	if (result == XID_BOUNDS_OK)
 		return XID_BOUNDS_OK;
 
@@ -1403,8 +1394,6 @@ static XidBoundsViolation
 get_xid_status(TransactionId xid, HeapCheckContext *ctx,
 			   XidCommitStatus *status)
 {
-	FullTransactionId fxid;
-	FullTransactionId clog_horizon;
 
 	/* Quick check for special xids */
 	if (!TransactionIdIsValid(xid))
@@ -1417,7 +1406,8 @@ get_xid_status(TransactionId xid, HeapCheckContext *ctx,
 	}
 
 	/* Check if the xid is within bounds */
-	fxid = FullTransactionIdFromXidAndCtx(xid, ctx);
+	FullTransactionId fxid = FullTransactionIdFromXidAndCtx(xid, ctx);
+
 	if (!fxid_in_cached_range(fxid, ctx))
 	{
 		/*
@@ -1449,9 +1439,10 @@ get_xid_status(TransactionId xid, HeapCheckContext *ctx,
 
 	*status = XID_COMMITTED;
 	LWLockAcquire(XactTruncationLock, LW_SHARED);
-	clog_horizon =
-		FullTransactionIdFromXidAndCtx(ShmemVariableCache->oldestClogXid,
-									   ctx);
+	FullTransactionId clog_horizon =
+	FullTransactionIdFromXidAndCtx(ShmemVariableCache->oldestClogXid,
+								   ctx);
+
 	if (FullTransactionIdPrecedesOrEquals(clog_horizon, fxid))
 	{
 		if (TransactionIdIsCurrentTransactionId(xid))

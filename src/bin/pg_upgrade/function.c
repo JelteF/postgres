@@ -52,13 +52,11 @@ library_name_compare(const void *p1, const void *p2)
 void
 get_loadable_libraries(void)
 {
-	PGresult  **ress;
-	int			totaltups;
 	int			dbnum;
 	bool		found_public_plpython_handler = false;
 
-	ress = (PGresult **) pg_malloc(old_cluster.dbarr.ndbs * sizeof(PGresult *));
-	totaltups = 0;
+	PGresult  **ress = (PGresult **) pg_malloc(old_cluster.dbarr.ndbs * sizeof(PGresult *));
+	int			totaltups = 0;
 
 	/* Fetch all library names, removing duplicates within each DB */
 	for (dbnum = 0; dbnum < old_cluster.dbarr.ndbs; dbnum++)
@@ -92,20 +90,20 @@ get_loadable_libraries(void)
 		 */
 		if (GET_MAJOR_VERSION(old_cluster.major_version) <= 900)
 		{
-			PGresult   *res;
 
-			res = executeQueryOrDie(conn,
-									"SELECT 1 "
-									"FROM pg_catalog.pg_proc p "
-									"    JOIN pg_catalog.pg_namespace n "
-									"    ON pronamespace = n.oid "
-									"WHERE proname = 'plpython_call_handler' AND "
-									"nspname = 'public' AND "
-									"prolang = %u AND "
-									"probin = '$libdir/plpython' AND "
-									"p.oid >= %u;",
-									ClanguageId,
-									FirstNormalObjectId);
+			PGresult   *res = executeQueryOrDie(conn,
+												"SELECT 1 "
+												"FROM pg_catalog.pg_proc p "
+												"    JOIN pg_catalog.pg_namespace n "
+												"    ON pronamespace = n.oid "
+												"WHERE proname = 'plpython_call_handler' AND "
+												"nspname = 'public' AND "
+												"prolang = %u AND "
+												"probin = '$libdir/plpython' AND "
+												"p.oid >= %u;",
+												ClanguageId,
+												FirstNormalObjectId);
+
 			if (PQntuples(res) > 0)
 			{
 				if (!found_public_plpython_handler)
@@ -147,10 +145,10 @@ get_loadable_libraries(void)
 	for (dbnum = 0; dbnum < old_cluster.dbarr.ndbs; dbnum++)
 	{
 		PGresult   *res = ress[dbnum];
-		int			ntups;
 		int			rowno;
 
-		ntups = PQntuples(res);
+		int			ntups = PQntuples(res);
+
 		for (rowno = 0; rowno < ntups; rowno++)
 		{
 			char	   *lib = PQgetvalue(res, rowno, 0);

@@ -203,16 +203,14 @@ OutputFsync(TimestampTz now)
 static void
 StreamLogicalLog(void)
 {
-	PGresult   *res;
 	char	   *copybuf = NULL;
 	TimestampTz last_status = -1;
 	int			i;
-	PQExpBuffer query;
 
 	output_written_lsn = InvalidXLogRecPtr;
 	output_fsync_lsn = InvalidXLogRecPtr;
 
-	query = createPQExpBuffer();
+	PQExpBuffer query = createPQExpBuffer();
 
 	/*
 	 * Connect in replication mode to the server
@@ -256,7 +254,8 @@ StreamLogicalLog(void)
 	if (noptions)
 		appendPQExpBufferChar(query, ')');
 
-	res = PQexec(conn, query->data);
+	PGresult   *res = PQexec(conn, query->data);
+
 	if (PQresultStatus(res) != PGRES_COPY_BOTH)
 	{
 		pg_log_error("could not send replication command \"%s\": %s",
@@ -275,7 +274,6 @@ StreamLogicalLog(void)
 		int			r;
 		int			bytes_left;
 		int			bytes_written;
-		TimestampTz now;
 		int			hdr_len;
 		XLogRecPtr	cur_record_lsn = InvalidXLogRecPtr;
 
@@ -288,7 +286,7 @@ StreamLogicalLog(void)
 		/*
 		 * Potentially send a status message to the primary.
 		 */
-		now = feGetCurrentTimestamp();
+		TimestampTz now = feGetCurrentTimestamp();
 
 		if (outfd != -1 &&
 			feTimestampDifferenceExceeds(output_last_fsync, now,
@@ -378,11 +376,10 @@ StreamLogicalLog(void)
 			/* Now compute when to wakeup. */
 			if (message_target > 0 || fsync_target > 0)
 			{
-				TimestampTz targettime;
 				long		secs;
 				int			usecs;
 
-				targettime = message_target;
+				TimestampTz targettime = message_target;
 
 				if (fsync_target > 0 && fsync_target < targettime)
 					targettime = fsync_target;
@@ -440,9 +437,7 @@ StreamLogicalLog(void)
 		/* Check the message type. */
 		if (copybuf[0] == 'k')
 		{
-			int			pos;
 			bool		replyRequested;
-			XLogRecPtr	walEnd;
 			bool		endposReached = false;
 
 			/*
@@ -450,8 +445,9 @@ StreamLogicalLog(void)
 			 * We just check if the server requested a reply, and ignore the
 			 * rest.
 			 */
-			pos = 1;			/* skip msgtype 'k' */
-			walEnd = fe_recvint64(&copybuf[pos]);
+			int			pos = 1;	/* skip msgtype 'k' */
+			XLogRecPtr	walEnd = fe_recvint64(&copybuf[pos]);
+
 			output_written_lsn = Max(walEnd, output_written_lsn);
 
 			pos += 8;			/* read walEnd */
@@ -541,11 +537,10 @@ StreamLogicalLog(void)
 
 		while (bytes_left)
 		{
-			int			ret;
 
-			ret = write(outfd,
-						copybuf + hdr_len + bytes_written,
-						bytes_left);
+			int			ret = write(outfd,
+									copybuf + hdr_len + bytes_written,
+									bytes_left);
 
 			if (ret < 0)
 			{
@@ -592,14 +587,14 @@ StreamLogicalLog(void)
 		 */
 		while (1)
 		{
-			int			r;
 
 			if (copybuf != NULL)
 			{
 				PQfreemem(copybuf);
 				copybuf = NULL;
 			}
-			r = PQgetCopyData(conn, &copybuf, 0);
+			int			r = PQgetCopyData(conn, &copybuf, 0);
+
 			if (r == -1)
 				break;
 			if (r == -2)

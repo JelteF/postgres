@@ -45,10 +45,8 @@ longest(struct vars *v,
 		chr *stop,				/* match must end at or before here */
 		int *hitstopp)			/* record whether hit v->stop, if non-NULL */
 {
-	chr		   *cp;
 	chr		   *realstop = (stop == v->stop) ? stop : stop + 1;
 	color		co;
-	struct sset *css;
 	struct sset *ss;
 	chr		   *post;
 	int			i;
@@ -59,10 +57,11 @@ longest(struct vars *v,
 		*hitstopp = 0;
 
 	/* initialize */
-	css = initialize(v, d, start);
+	struct sset *css = initialize(v, d, start);
+
 	if (css == NULL)
 		return NULL;
-	cp = start;
+	chr		   *cp = start;
 
 	/* startup */
 	FDEBUG(("+++ startup +++\n"));
@@ -173,12 +172,9 @@ shortest(struct vars *v,
 		 chr **coldp,			/* store coldstart pointer here, if non-NULL */
 		 int *hitstopp)			/* record whether hit v->stop, if non-NULL */
 {
-	chr		   *cp;
 	chr		   *realmin = (min == v->stop) ? min : min + 1;
 	chr		   *realmax = (max == v->stop) ? max : max + 1;
 	color		co;
-	struct sset *css;
-	struct sset *ss;
 	struct colormap *cm = d->cm;
 
 	/* prevent "uninitialized variable" warnings */
@@ -188,10 +184,11 @@ shortest(struct vars *v,
 		*hitstopp = 0;
 
 	/* initialize */
-	css = initialize(v, d, start);
+	struct sset *css = initialize(v, d, start);
+
 	if (css == NULL)
 		return NULL;
-	cp = start;
+	chr		   *cp = start;
 
 	/* startup */
 	FDEBUG(("--- startup ---\n"));
@@ -209,7 +206,7 @@ shortest(struct vars *v,
 	if (css == NULL)
 		return NULL;
 	css->lastseen = cp;
-	ss = css;
+	struct sset *ss = css;
 
 	/*
 	 * This is the main text-scanning loop.  It seems worth having two copies
@@ -309,7 +306,6 @@ matchuntil(struct vars *v,
 	chr		   *cp = *lastcp;
 	color		co;
 	struct sset *css = *lastcss;
-	struct sset *ss;
 	struct colormap *cm = d->cm;
 
 	/* initialize and startup, or restart, if necessary */
@@ -334,7 +330,7 @@ matchuntil(struct vars *v,
 		/* we previously found that no match is possible beyond *lastcp */
 		return 0;
 	}
-	ss = css;
+	struct sset *ss = css;
 
 	/*
 	 * This is the main text-scanning loop.  It seems worth having two copies
@@ -418,10 +414,10 @@ lastcold(struct vars *v,
 		 struct dfa *d)
 {
 	struct sset *ss;
-	chr		   *nopr;
 	int			i;
 
-	nopr = d->lastnopr;
+	chr		   *nopr = d->lastnopr;
+
 	if (nopr == NULL)
 		nopr = v->start;
 	for (ss = d->ssets, i = d->nssused; i > 0; ss++, i--)
@@ -542,9 +538,9 @@ hash(unsigned *uv,
 	 int n)
 {
 	int			i;
-	unsigned	h;
 
-	h = 0;
+	unsigned	h = 0;
+
 	for (i = 0; i < n; i++)
 		h ^= uv[i];
 	return h;
@@ -609,14 +605,8 @@ miss(struct vars *v,
 {
 	struct cnfa *cnfa = d->cnfa;
 	int			i;
-	unsigned	h;
 	struct carc *ca;
 	struct sset *p;
-	int			ispost;
-	int			noprogress;
-	int			gotstate;
-	int			dolacons;
-	int			sawlacons;
 
 	/* for convenience, we can be called even if it might not be a miss */
 	if (css->outs[co] != NULL)
@@ -643,9 +633,10 @@ miss(struct vars *v,
 	 */
 	for (i = 0; i < d->wordsper; i++)
 		d->work[i] = 0;			/* build new stateset bitmap in d->work */
-	ispost = 0;
-	noprogress = 1;
-	gotstate = 0;
+	int			ispost = 0;
+	int			noprogress = 1;
+	int			gotstate = 0;
+
 	for (i = 0; i < d->nstates; i++)
 		if (ISBSET(css->states, i))
 			for (ca = cnfa->states[i]; ca->co != COLORLESS; ca++)
@@ -661,8 +652,9 @@ miss(struct vars *v,
 				}
 	if (!gotstate)
 		return NULL;			/* character cannot reach any new state */
-	dolacons = (cnfa->flags & HASLACONS);
-	sawlacons = 0;
+	int			dolacons = (cnfa->flags & HASLACONS);
+	int			sawlacons = 0;
+
 	/* outer loop handles transitive closure of reachable-by-LACON states */
 	while (dolacons)
 	{
@@ -693,7 +685,7 @@ miss(struct vars *v,
 					FDEBUG(("%d :> %d\n", i, ca->to));
 				}
 	}
-	h = HASH(d->work, d->wordsper);
+	unsigned	h = HASH(d->work, d->wordsper);
 
 	/* Is this stateset already in the cache? */
 	for (p = d->ssets, i = d->nssused; i > 0; p++, i--)
@@ -745,9 +737,6 @@ lacon(struct vars *v,
 	  chr *cp,
 	  color co)					/* "color" of the lookaround constraint */
 {
-	int			n;
-	struct subre *sub;
-	struct dfa *d;
 	chr		   *end;
 	int			satisfied;
 
@@ -758,11 +747,13 @@ lacon(struct vars *v,
 		return 0;
 	}
 
-	n = co - pcnfa->ncolors;
+	int			n = co - pcnfa->ncolors;
+
 	assert(n > 0 && n < v->g->nlacons && v->g->lacons != NULL);
 	FDEBUG(("=== testing lacon %d\n", n));
-	sub = &v->g->lacons[n];
-	d = getladfa(v, n);
+	struct subre *sub = &v->g->lacons[n];
+	struct dfa *d = getladfa(v, n);
+
 	if (d == NULL)
 		return 0;
 	if (LATYPE_IS_AHEAD(sub->subno))
@@ -803,18 +794,18 @@ getvacant(struct vars *v,
 		  chr *start)
 {
 	int			i;
-	struct sset *ss;
 	struct sset *p;
-	struct arcp ap;
 	color		co;
 
-	ss = pickss(v, d, cp, start);
+	struct sset *ss = pickss(v, d, cp, start);
+
 	if (ss == NULL)
 		return NULL;
 	assert(!(ss->flags & LOCKED));
 
 	/* clear out its inarcs, including self-referential ones */
-	ap = ss->ins;
+	struct arcp ap = ss->ins;
+
 	while ((p = ap.ss) != NULL)
 	{
 		co = ap.co;

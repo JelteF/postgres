@@ -79,8 +79,6 @@ pg_create_physical_replication_slot(PG_FUNCTION_ARGS)
 	Datum		values[2];
 	bool		nulls[2];
 	TupleDesc	tupdesc;
-	HeapTuple	tuple;
-	Datum		result;
 
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
@@ -105,8 +103,8 @@ pg_create_physical_replication_slot(PG_FUNCTION_ARGS)
 	else
 		nulls[1] = true;
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	result = HeapTupleGetDatum(tuple);
+	HeapTuple	tuple = heap_form_tuple(tupdesc, values, nulls);
+	Datum		result = HeapTupleGetDatum(tuple);
 
 	ReplicationSlotRelease();
 
@@ -127,7 +125,6 @@ create_logical_replication_slot(char *name, char *plugin,
 								bool temporary, XLogRecPtr restart_lsn,
 								bool find_startpoint)
 {
-	LogicalDecodingContext *ctx = NULL;
 
 	Assert(!MyReplicationSlot);
 
@@ -149,13 +146,13 @@ create_logical_replication_slot(char *name, char *plugin,
 	 * Note: when !find_startpoint this is still important, because it's at
 	 * this point that the output plugin is validated.
 	 */
-	ctx = CreateInitDecodingContext(plugin, NIL,
-									false,	/* just catalogs is OK */
-									restart_lsn,
-									XL_ROUTINE(.page_read = read_local_xlog_page,
-											   .segment_open = wal_segment_open,
-											   .segment_close = wal_segment_close),
-									NULL, NULL, NULL);
+	LogicalDecodingContext *ctx = CreateInitDecodingContext(plugin, NIL,
+															false,	/* just catalogs is OK */
+															restart_lsn,
+															XL_ROUTINE(.page_read = read_local_xlog_page,
+																	   .segment_open = wal_segment_open,
+																	   .segment_close = wal_segment_close),
+															NULL, NULL, NULL);
 
 	/*
 	 * If caller needs us to determine the decoding start point, do so now.
@@ -177,9 +174,7 @@ pg_create_logical_replication_slot(PG_FUNCTION_ARGS)
 	Name		name = PG_GETARG_NAME(0);
 	Name		plugin = PG_GETARG_NAME(1);
 	bool		temporary = PG_GETARG_BOOL(2);
-	Datum		result;
 	TupleDesc	tupdesc;
-	HeapTuple	tuple;
 	Datum		values[2];
 	bool		nulls[2];
 
@@ -201,8 +196,8 @@ pg_create_logical_replication_slot(PG_FUNCTION_ARGS)
 
 	memset(nulls, 0, sizeof(nulls));
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	result = HeapTupleGetDatum(tuple);
+	HeapTuple	tuple = heap_form_tuple(tupdesc, values, nulls);
+	Datum		result = HeapTupleGetDatum(tuple);
 
 	/* ok, slot is now fully created, mark it as persistent if needed */
 	if (!temporary)
@@ -239,10 +234,6 @@ pg_get_replication_slots(PG_FUNCTION_ARGS)
 #define PG_GET_REPLICATION_SLOTS_COLS 13
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	TupleDesc	tupdesc;
-	Tuplestorestate *tupstore;
-	MemoryContext per_query_ctx;
-	MemoryContext oldcontext;
-	XLogRecPtr	currlsn;
 	int			slotno;
 
 	/* check to see if caller supports us returning a tuplestore */
@@ -265,40 +256,41 @@ pg_get_replication_slots(PG_FUNCTION_ARGS)
 	 * name, which shouldn't contain anything particularly sensitive.
 	 */
 
-	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	MemoryContext per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
-	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
+
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;
 
 	MemoryContextSwitchTo(oldcontext);
 
-	currlsn = GetXLogWriteRecPtr();
+	XLogRecPtr	currlsn = GetXLogWriteRecPtr();
 
 	LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
 	for (slotno = 0; slotno < max_replication_slots; slotno++)
 	{
 		ReplicationSlot *slot = &ReplicationSlotCtl->replication_slots[slotno];
-		ReplicationSlot slot_contents;
 		Datum		values[PG_GET_REPLICATION_SLOTS_COLS];
 		bool		nulls[PG_GET_REPLICATION_SLOTS_COLS];
 		WALAvailability walstate;
-		int			i;
 
 		if (!slot->in_use)
 			continue;
 
 		/* Copy slot contents while holding spinlock, then examine at leisure */
 		SpinLockAcquire(&slot->mutex);
-		slot_contents = *slot;
+		ReplicationSlot slot_contents = *slot;
+
 		SpinLockRelease(&slot->mutex);
 
 		memset(values, 0, sizeof(values));
 		memset(nulls, 0, sizeof(nulls));
 
-		i = 0;
+		int			i = 0;
+
 		values[i++] = NameGetDatum(&slot_contents.data.name);
 
 		if (slot_contents.data.database == InvalidOid)
@@ -387,10 +379,10 @@ pg_get_replication_slots(PG_FUNCTION_ARGS)
 				 */
 				if (!XLogRecPtrIsInvalid(slot_contents.data.restart_lsn))
 				{
-					int			pid;
 
 					SpinLockAcquire(&slot->mutex);
-					pid = slot->active_pid;
+					int			pid = slot->active_pid;
+
 					slot_contents.data.restart_lsn = slot->data.restart_lsn;
 					SpinLockRelease(&slot->mutex);
 					if (pid != 0)
@@ -412,21 +404,20 @@ pg_get_replication_slots(PG_FUNCTION_ARGS)
 			nulls[i++] = true;
 		else
 		{
-			XLogSegNo   targetSeg;
-			uint64   slotKeepSegs;
-			uint64   keepSegs;
-			XLogSegNo   failSeg;
-			XLogRecPtr  failLSN;
+			XLogSegNo	targetSeg;
+			XLogRecPtr	failLSN;
 
 			XLByteToSeg(slot_contents.data.restart_lsn, targetSeg, wal_segment_size);
 
 			/* determine how many segments slots can be kept by slots */
-			slotKeepSegs = XLogMBVarToSegs(max_slot_wal_keep_size_mb, wal_segment_size);
+			uint64		slotKeepSegs = XLogMBVarToSegs(max_slot_wal_keep_size_mb, wal_segment_size);
+
 			/* ditto for wal_keep_size */
-			keepSegs = XLogMBVarToSegs(wal_keep_size_mb, wal_segment_size);
+			uint64		keepSegs = XLogMBVarToSegs(wal_keep_size_mb, wal_segment_size);
 
 			/* if currpos reaches failLSN, we lose our segment */
-			failSeg = targetSeg + Max(slotKeepSegs, keepSegs) + 1;
+			XLogSegNo	failSeg = targetSeg + Max(slotKeepSegs, keepSegs) + 1;
+
 			XLogSegNoOffsetToRecPtr(failSeg, 0, wal_segment_size, failLSN);
 
 			values[i++] = Int64GetDatum(failLSN - currlsn);
@@ -525,13 +516,13 @@ pg_logical_replication_slot_advance(XLogRecPtr moveto)
 		while (ctx->reader->EndRecPtr < moveto)
 		{
 			char	   *errm = NULL;
-			XLogRecord *record;
 
 			/*
 			 * Read records.  No changes are generated in fast_forward mode,
 			 * but snapbuilder/slot statuses are updated properly.
 			 */
-			record = XLogReadRecord(ctx->reader, &errm);
+			XLogRecord *record = XLogReadRecord(ctx->reader, &errm);
+
 			if (errm)
 				elog(ERROR, "%s", errm);
 
@@ -609,8 +600,6 @@ pg_replication_slot_advance(PG_FUNCTION_ARGS)
 	TupleDesc	tupdesc;
 	Datum		values[2];
 	bool		nulls[2];
-	HeapTuple	tuple;
-	Datum		result;
 
 	Assert(!MyReplicationSlot);
 
@@ -684,8 +673,8 @@ pg_replication_slot_advance(PG_FUNCTION_ARGS)
 	values[1] = LSNGetDatum(endlsn);
 	nulls[1] = false;
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	result = HeapTupleGetDatum(tuple);
+	HeapTuple	tuple = heap_form_tuple(tupdesc, values, nulls);
+	Datum		result = HeapTupleGetDatum(tuple);
 
 	PG_RETURN_DATUM(result);
 }
@@ -701,9 +690,6 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 	ReplicationSlot *src = NULL;
 	ReplicationSlot first_slot_contents;
 	ReplicationSlot second_slot_contents;
-	XLogRecPtr	src_restart_lsn;
-	bool		src_islogical;
-	bool		temporary;
 	char	   *plugin;
 	Datum		values[2];
 	bool		nulls[2];
@@ -756,9 +742,10 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("replication slot \"%s\" does not exist", NameStr(*src_name))));
 
-	src_islogical = SlotIsLogical(&first_slot_contents);
-	src_restart_lsn = first_slot_contents.data.restart_lsn;
-	temporary = (first_slot_contents.data.persistency == RS_TEMPORARY);
+	bool		src_islogical = SlotIsLogical(&first_slot_contents);
+	XLogRecPtr	src_restart_lsn = first_slot_contents.data.restart_lsn;
+	bool		temporary = (first_slot_contents.data.persistency == RS_TEMPORARY);
+
 	plugin = logical_slot ? NameStr(first_slot_contents.data.plugin) : NULL;
 
 	/* Check type of replication slot */
@@ -811,31 +798,23 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 	 * recheck that the source slot is still the one we saw previously.
 	 */
 	{
-		TransactionId copy_effective_xmin;
-		TransactionId copy_effective_catalog_xmin;
-		TransactionId copy_xmin;
-		TransactionId copy_catalog_xmin;
-		XLogRecPtr	copy_restart_lsn;
-		XLogRecPtr	copy_confirmed_flush;
-		bool		copy_islogical;
-		char	   *copy_name;
 
 		/* Copy data of source slot again */
 		SpinLockAcquire(&src->mutex);
 		second_slot_contents = *src;
 		SpinLockRelease(&src->mutex);
 
-		copy_effective_xmin = second_slot_contents.effective_xmin;
-		copy_effective_catalog_xmin = second_slot_contents.effective_catalog_xmin;
+		TransactionId copy_effective_xmin = second_slot_contents.effective_xmin;
+		TransactionId copy_effective_catalog_xmin = second_slot_contents.effective_catalog_xmin;
 
-		copy_xmin = second_slot_contents.data.xmin;
-		copy_catalog_xmin = second_slot_contents.data.catalog_xmin;
-		copy_restart_lsn = second_slot_contents.data.restart_lsn;
-		copy_confirmed_flush = second_slot_contents.data.confirmed_flush;
+		TransactionId copy_xmin = second_slot_contents.data.xmin;
+		TransactionId copy_catalog_xmin = second_slot_contents.data.catalog_xmin;
+		XLogRecPtr	copy_restart_lsn = second_slot_contents.data.restart_lsn;
+		XLogRecPtr	copy_confirmed_flush = second_slot_contents.data.confirmed_flush;
 
 		/* for existence check */
-		copy_name = NameStr(second_slot_contents.data.name);
-		copy_islogical = SlotIsLogical(&second_slot_contents);
+		char	   *copy_name = NameStr(second_slot_contents.data.name);
+		bool		copy_islogical = SlotIsLogical(&second_slot_contents);
 
 		/*
 		 * Check if the source slot still exists and is valid. We regard it as

@@ -432,10 +432,10 @@ maybe_send_schema(LogicalDecodingContext *ctx,
 		Relation	ancestor = RelationIdGetRelation(relentry->publish_as_relid);
 		TupleDesc	indesc = RelationGetDescr(relation);
 		TupleDesc	outdesc = RelationGetDescr(ancestor);
-		MemoryContext oldctx;
 
 		/* Map must live as long as the session does. */
-		oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+		MemoryContext oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+
 		relentry->map = convert_tuples_by_name(CreateTupleDescCopy(indesc),
 											   CreateTupleDescCopy(outdesc));
 		MemoryContextSwitchTo(oldctx);
@@ -499,8 +499,6 @@ pgoutput_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 				Relation relation, ReorderBufferChange *change)
 {
 	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	MemoryContext old;
-	RelationSyncEntry *relentry;
 	TransactionId xid = InvalidTransactionId;
 
 	if (!is_publishable_relation(relation))
@@ -515,7 +513,7 @@ pgoutput_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	if (in_streaming)
 		xid = change->txn->xid;
 
-	relentry = get_rel_sync_entry(data, RelationGetRelid(relation));
+	RelationSyncEntry *relentry = get_rel_sync_entry(data, RelationGetRelid(relation));
 
 	/* First check the table filter */
 	switch (change->action)
@@ -537,7 +535,7 @@ pgoutput_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 	}
 
 	/* Avoid leaking memory by using and resetting our own context */
-	old = MemoryContextSwitchTo(data->context);
+	MemoryContext old = MemoryContextSwitchTo(data->context);
 
 	maybe_send_schema(ctx, txn, change, relation, relentry);
 
@@ -626,21 +624,18 @@ pgoutput_truncate(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 				  int nrelations, Relation relations[], ReorderBufferChange *change)
 {
 	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	MemoryContext old;
 	RelationSyncEntry *relentry;
 	int			i;
-	int			nrelids;
-	Oid		   *relids;
 	TransactionId xid = InvalidTransactionId;
 
 	/* Remember the xid for the change in streaming mode. See pgoutput_change. */
 	if (in_streaming)
 		xid = change->txn->xid;
 
-	old = MemoryContextSwitchTo(data->context);
+	MemoryContext old = MemoryContextSwitchTo(data->context);
 
-	relids = palloc0(nrelations * sizeof(Oid));
-	nrelids = 0;
+	Oid		   *relids = palloc0(nrelations * sizeof(Oid));
+	int			nrelids = 0;
 
 	for (i = 0; i < nrelations; i++)
 	{
@@ -811,7 +806,6 @@ pgoutput_stream_abort(struct LogicalDecodingContext *ctx,
 					  ReorderBufferTXN *txn,
 					  XLogRecPtr abort_lsn)
 {
-	ReorderBufferTXN *toptxn;
 
 	/*
 	 * The abort should happen outside streaming block, even for streamed
@@ -820,7 +814,7 @@ pgoutput_stream_abort(struct LogicalDecodingContext *ctx,
 	Assert(!in_streaming);
 
 	/* determine the toplevel transaction */
-	toptxn = (txn->toptxn) ? txn->toptxn : txn;
+	ReorderBufferTXN *toptxn = (txn->toptxn) ? txn->toptxn : txn;
 
 	Assert(rbtxn_is_streamed(toptxn));
 
@@ -867,7 +861,6 @@ static void
 init_rel_sync_cache(MemoryContext cachectx)
 {
 	HASHCTL		ctl;
-	MemoryContext old_ctxt;
 
 	if (RelationSyncCache != NULL)
 		return;
@@ -878,7 +871,8 @@ init_rel_sync_cache(MemoryContext cachectx)
 	ctl.entrysize = sizeof(RelationSyncEntry);
 	ctl.hcxt = cachectx;
 
-	old_ctxt = MemoryContextSwitchTo(cachectx);
+	MemoryContext old_ctxt = MemoryContextSwitchTo(cachectx);
+
 	RelationSyncCache = hash_create("logical replication output relation cache",
 									128, &ctl,
 									HASH_ELEM | HASH_CONTEXT | HASH_BLOBS);
@@ -916,9 +910,8 @@ get_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 static void
 set_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 {
-	MemoryContext oldctx;
 
-	oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+	MemoryContext oldctx = MemoryContextSwitchTo(CacheMemoryContext);
 
 	entry->streamed_txns = lappend_int(entry->streamed_txns, xid);
 
@@ -937,7 +930,6 @@ set_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 static RelationSyncEntry *
 get_rel_sync_entry(PGOutputData *data, Oid relid)
 {
-	RelationSyncEntry *entry;
 	bool		am_partition = get_rel_relispartition(relid);
 	char		relkind = get_rel_relkind(relid);
 	bool		found;
@@ -946,9 +938,10 @@ get_rel_sync_entry(PGOutputData *data, Oid relid)
 	Assert(RelationSyncCache != NULL);
 
 	/* Find cached relation info, creating if not found */
-	entry = (RelationSyncEntry *) hash_search(RelationSyncCache,
-											  (void *) &relid,
-											  HASH_ENTER, &found);
+	RelationSyncEntry *entry = (RelationSyncEntry *) hash_search(RelationSyncCache,
+																 (void *) &relid,
+																 HASH_ENTER, &found);
+
 	Assert(entry != NULL);
 
 	/* Not found means schema wasn't sent */
@@ -1114,7 +1107,6 @@ cleanup_rel_sync_cache(TransactionId xid, bool is_commit)
 static void
 rel_sync_cache_relation_cb(Datum arg, Oid relid)
 {
-	RelationSyncEntry *entry;
 
 	/*
 	 * We can get here if the plugin was used in SQL interface as the
@@ -1136,8 +1128,8 @@ rel_sync_cache_relation_cb(Datum arg, Oid relid)
 	 * entirely normal, since there's no way to unregister for an invalidation
 	 * event. So we don't care if it's found or not.
 	 */
-	entry = (RelationSyncEntry *) hash_search(RelationSyncCache, &relid,
-											  HASH_FIND, NULL);
+	RelationSyncEntry *entry = (RelationSyncEntry *) hash_search(RelationSyncCache, &relid,
+																 HASH_FIND, NULL);
 
 	/*
 	 * Reset schema sent status as the relation definition may have changed.

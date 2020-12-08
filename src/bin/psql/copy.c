@@ -77,9 +77,9 @@ free_copy_options(struct copy_options *ptr)
 static void
 xstrcat(char **var, const char *more)
 {
-	char	   *newvar;
 
-	newvar = psprintf("%s%s", *var, more);
+	char	   *newvar = psprintf("%s%s", *var, more);
+
 	free(*var);
 	*var = newvar;
 }
@@ -88,8 +88,6 @@ xstrcat(char **var, const char *more)
 static struct copy_options *
 parse_slash_copy(const char *args)
 {
-	struct copy_options *result;
-	char	   *token;
 	const char *whitespace = " \t\n\r";
 	char		nonstd_backslash = standard_strings() ? 0 : '\\';
 
@@ -99,12 +97,13 @@ parse_slash_copy(const char *args)
 		return NULL;
 	}
 
-	result = pg_malloc0(sizeof(struct copy_options));
+	struct copy_options *result = pg_malloc0(sizeof(struct copy_options));
 
 	result->before_tofrom = pg_strdup("");	/* initialize for appending */
 
-	token = strtokx(args, whitespace, ".,()", "\"",
-					0, false, false, pset.encoding);
+	char	   *token = strtokx(args, whitespace, ".,()", "\"",
+								0, false, false, pset.encoding);
+
 	if (!token)
 		goto error;
 
@@ -269,11 +268,9 @@ do_copy(const char *args)
 {
 	PQExpBufferData query;
 	FILE	   *copystream;
-	struct copy_options *options;
-	bool		success;
 
 	/* parse options */
-	options = parse_slash_copy(args);
+	struct copy_options *options = parse_slash_copy(args);
 
 	if (!options)
 		return false;
@@ -369,7 +366,8 @@ do_copy(const char *args)
 
 	/* run it like a user command, but with copystream as data source/sink */
 	pset.copyStream = copystream;
-	success = SendQuery(query.data);
+	bool		success = SendQuery(query.data);
+
 	pset.copyStream = NULL;
 	termPQExpBuffer(&query);
 
@@ -559,12 +557,11 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 
 		for (;;)
 		{
-			int			buflen;
 
 			/* enable longjmp while waiting for input */
 			sigint_interrupt_enabled = true;
 
-			buflen = fread(buf, 1, COPYBUFSIZ, copystream);
+			int			buflen = fread(buf, 1, COPYBUFSIZ, copystream);
 
 			sigint_interrupt_enabled = false;
 
@@ -584,8 +581,6 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 
 		while (!copydone)
 		{						/* for each input line ... */
-			bool		firstload;
-			bool		linedone;
 
 			if (showprompt)
 			{
@@ -595,18 +590,16 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 				fflush(stdout);
 			}
 
-			firstload = true;
-			linedone = false;
+			bool		firstload = true;
+			bool		linedone = false;
 
 			while (!linedone)
 			{					/* for each bufferload in line ... */
-				int			linelen;
-				char	   *fgresult;
 
 				/* enable longjmp while waiting for input */
 				sigint_interrupt_enabled = true;
 
-				fgresult = fgets(buf, sizeof(buf), copystream);
+				char	   *fgresult = fgets(buf, sizeof(buf), copystream);
 
 				sigint_interrupt_enabled = false;
 
@@ -616,7 +609,7 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 					break;
 				}
 
-				linelen = strlen(buf);
+				int			linelen = strlen(buf);
 
 				/* current line is done? */
 				if (linelen > 0 && buf[linelen - 1] == '\n')

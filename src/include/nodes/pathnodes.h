@@ -2623,6 +2623,6 @@ typedef struct AggTransInfo
 	Datum		initValue;
 	bool		initValueIsNull;
 
-} AggTransInfo;
+}			AggTransInfo;
 
 #endif							/* PATHNODES_H */

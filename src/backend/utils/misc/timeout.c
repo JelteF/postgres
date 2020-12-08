@@ -434,15 +434,14 @@ reschedule_timeouts(void)
 void
 enable_timeout_after(TimeoutId id, int delay_ms)
 {
-	TimestampTz now;
-	TimestampTz fin_time;
 
 	/* Disable timeout interrupts for safety. */
 	disable_alarm();
 
 	/* Queue the timeout at the appropriate time. */
-	now = GetCurrentTimestamp();
-	fin_time = TimestampTzPlusMilliseconds(now, delay_ms);
+	TimestampTz now = GetCurrentTimestamp();
+	TimestampTz fin_time = TimestampTzPlusMilliseconds(now, delay_ms);
+
 	enable_timeout(id, now, fin_time);
 
 	/* Set the timer interrupt. */
@@ -459,13 +458,13 @@ enable_timeout_after(TimeoutId id, int delay_ms)
 void
 enable_timeout_at(TimeoutId id, TimestampTz fin_time)
 {
-	TimestampTz now;
 
 	/* Disable timeout interrupts for safety. */
 	disable_alarm();
 
 	/* Queue the timeout at the appropriate time. */
-	now = GetCurrentTimestamp();
+	TimestampTz now = GetCurrentTimestamp();
+
 	enable_timeout(id, now, fin_time);
 
 	/* Set the timer interrupt. */
@@ -482,14 +481,13 @@ enable_timeout_at(TimeoutId id, TimestampTz fin_time)
 void
 enable_timeouts(const EnableTimeoutParams *timeouts, int count)
 {
-	TimestampTz now;
 	int			i;
 
 	/* Disable timeout interrupts for safety. */
 	disable_alarm();
 
 	/* Queue the timeout(s) at the appropriate times. */
-	now = GetCurrentTimestamp();
+	TimestampTz now = GetCurrentTimestamp();
 
 	for (i = 0; i < count; i++)
 	{

@@ -163,7 +163,6 @@ wait_for_relation_state_change(Oid relid, char expected_state)
 
 	for (;;)
 	{
-		LogicalRepWorker *worker;
 		XLogRecPtr	statelsn;
 
 		CHECK_FOR_INTERRUPTS();
@@ -180,8 +179,9 @@ wait_for_relation_state_change(Oid relid, char expected_state)
 
 		/* Check if the sync worker is still running and bail if not. */
 		LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
-		worker = logicalrep_worker_find(MyLogicalRepWorker->subid, relid,
-										false);
+		LogicalRepWorker *worker = logicalrep_worker_find(MyLogicalRepWorker->subid, relid,
+														  false);
+
 		LWLockRelease(LogicalRepWorkerLock);
 		if (!worker)
 			break;
@@ -211,7 +211,6 @@ wait_for_worker_state_change(char expected_state)
 
 	for (;;)
 	{
-		LogicalRepWorker *worker;
 
 		CHECK_FOR_INTERRUPTS();
 
@@ -227,8 +226,9 @@ wait_for_worker_state_change(char expected_state)
 		 * waiting.
 		 */
 		LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
-		worker = logicalrep_worker_find(MyLogicalRepWorker->subid,
-										InvalidOid, false);
+		LogicalRepWorker *worker = logicalrep_worker_find(MyLogicalRepWorker->subid,
+														  InvalidOid, false);
+
 		if (worker && worker->proc)
 			logicalrep_worker_wakeup_ptr(worker);
 		LWLockRelease(LogicalRepWorkerLock);
@@ -335,8 +335,6 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 	/* We need up-to-date sync state info for subscription tables here. */
 	if (!table_states_valid)
 	{
-		MemoryContext oldctx;
-		List	   *rstates;
 		ListCell   *lc;
 		SubscriptionRelState *rstate;
 
@@ -348,10 +346,11 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 		started_tx = true;
 
 		/* Fetch all non-ready tables. */
-		rstates = GetSubscriptionNotReadyRelations(MySubscription->oid);
+		List	   *rstates = GetSubscriptionNotReadyRelations(MySubscription->oid);
 
 		/* Allocate the tracking info in a permanent memory context. */
-		oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+		MemoryContext oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+
 		foreach(lc, rstates)
 		{
 			rstate = palloc(sizeof(SubscriptionRelState));
@@ -420,15 +419,14 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 		}
 		else
 		{
-			LogicalRepWorker *syncworker;
 
 			/*
 			 * Look for a sync worker for this relation.
 			 */
 			LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 
-			syncworker = logicalrep_worker_find(MyLogicalRepWorker->subid,
-												rstate->relid, false);
+			LogicalRepWorker *syncworker = logicalrep_worker_find(MyLogicalRepWorker->subid,
+																  rstate->relid, false);
 
 			if (syncworker)
 			{
@@ -494,11 +492,10 @@ process_syncing_tables_for_apply(XLogRecPtr current_lsn)
 				if (nsyncworkers < max_sync_workers_per_subscription)
 				{
 					TimestampTz now = GetCurrentTimestamp();
-					struct tablesync_start_time_mapping *hentry;
 					bool		found;
 
-					hentry = hash_search(last_start_times, &rstate->relid,
-										 HASH_ENTER, &found);
+					struct tablesync_start_time_mapping *hentry = hash_search(last_start_times, &rstate->relid,
+																			  HASH_ENTER, &found);
 
 					if (!found ||
 						TimestampDifferenceExceeds(hentry->last_start_time, now,
@@ -562,10 +559,10 @@ static int
 copy_read_data(void *outbuf, int minread, int maxread)
 {
 	int			bytesread = 0;
-	int			avail;
 
 	/* If there are some leftover data from previous read, use it. */
-	avail = copybuf->len - copybuf->cursor;
+	int			avail = copybuf->len - copybuf->cursor;
+
 	if (avail)
 	{
 		if (avail > maxread)
@@ -637,13 +634,10 @@ static void
 fetch_remote_table_info(char *nspname, char *relname,
 						LogicalRepRelation *lrel)
 {
-	WalRcvExecResult *res;
 	StringInfoData cmd;
-	TupleTableSlot *slot;
 	Oid			tableRow[] = {OIDOID, CHAROID, CHAROID};
 	Oid			attrRow[] = {TEXTOID, OIDOID, INT4OID, BOOLOID};
 	bool		isnull;
-	int			natt;
 
 	lrel->nspname = nspname;
 	lrel->relname = relname;
@@ -658,14 +652,15 @@ fetch_remote_table_info(char *nspname, char *relname,
 					 "   AND c.relname = %s",
 					 quote_literal_cstr(nspname),
 					 quote_literal_cstr(relname));
-	res = walrcv_exec(wrconn, cmd.data, lengthof(tableRow), tableRow);
+	WalRcvExecResult *res = walrcv_exec(wrconn, cmd.data, lengthof(tableRow), tableRow);
 
 	if (res->status != WALRCV_OK_TUPLES)
 		ereport(ERROR,
 				(errmsg("could not fetch table info for table \"%s.%s\" from publisher: %s",
 						nspname, relname, res->err)));
 
-	slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
+	TupleTableSlot *slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
+
 	if (!tuplestore_gettupleslot(res->tuplestore, true, false, slot))
 		ereport(ERROR,
 				(errmsg("table \"%s.%s\" not found on publisher",
@@ -710,7 +705,8 @@ fetch_remote_table_info(char *nspname, char *relname,
 	lrel->atttyps = palloc0(MaxTupleAttributeNumber * sizeof(Oid));
 	lrel->attkeys = NULL;
 
-	natt = 0;
+	int			natt = 0;
+
 	slot = MakeSingleTupleTableSlot(res->tupledesc, &TTSOpsMinimalTuple);
 	while (tuplestore_gettupleslot(res->tuplestore, true, false, slot))
 	{
@@ -745,13 +741,8 @@ fetch_remote_table_info(char *nspname, char *relname,
 static void
 copy_table(Relation rel)
 {
-	LogicalRepRelMapEntry *relmapentry;
 	LogicalRepRelation lrel;
-	WalRcvExecResult *res;
 	StringInfoData cmd;
-	CopyFromState cstate;
-	List	   *attnamelist;
-	ParseState *pstate;
 
 	/* Get the publisher relation info. */
 	fetch_remote_table_info(get_namespace_name(RelationGetNamespace(rel)),
@@ -761,7 +752,8 @@ copy_table(Relation rel)
 	logicalrep_relmap_update(&lrel);
 
 	/* Map the publisher relation to local one. */
-	relmapentry = logicalrep_rel_open(lrel.remoteid, NoLock);
+	LogicalRepRelMapEntry *relmapentry = logicalrep_rel_open(lrel.remoteid, NoLock);
+
 	Assert(rel == relmapentry->localrel);
 
 	/* Start copy on the publisher. */
@@ -785,7 +777,8 @@ copy_table(Relation rel)
 		appendStringInfo(&cmd, " FROM %s) TO STDOUT",
 						 quote_qualified_identifier(lrel.nspname, lrel.relname));
 	}
-	res = walrcv_exec(wrconn, cmd.data, 0, NULL);
+	WalRcvExecResult *res = walrcv_exec(wrconn, cmd.data, 0, NULL);
+
 	pfree(cmd.data);
 	if (res->status != WALRCV_OK_COPY_OUT)
 		ereport(ERROR,
@@ -795,12 +788,13 @@ copy_table(Relation rel)
 
 	copybuf = makeStringInfo();
 
-	pstate = make_parsestate(NULL);
+	ParseState *pstate = make_parsestate(NULL);
+
 	(void) addRangeTableEntryForRelation(pstate, rel, AccessShareLock,
 										 NULL, false, false);
 
-	attnamelist = make_copy_attnamelist(relmapentry);
-	cstate = BeginCopyFrom(pstate, rel, NULL, NULL, false, copy_read_data, attnamelist, NIL);
+	List	   *attnamelist = make_copy_attnamelist(relmapentry);
+	CopyFromState cstate = BeginCopyFrom(pstate, rel, NULL, NULL, false, copy_read_data, attnamelist, NIL);
 
 	/* Do the copy */
 	(void) CopyFrom(cstate);
@@ -819,18 +813,15 @@ copy_table(Relation rel)
 char *
 LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 {
-	char	   *slotname;
 	char	   *err;
-	char		relstate;
 	XLogRecPtr	relstate_lsn;
-	Relation	rel;
-	WalRcvExecResult *res;
 
 	/* Check the state of the table synchronization. */
 	StartTransactionCommand();
-	relstate = GetSubscriptionRelState(MyLogicalRepWorker->subid,
-									   MyLogicalRepWorker->relid,
-									   &relstate_lsn);
+	char		relstate = GetSubscriptionRelState(MyLogicalRepWorker->subid,
+												   MyLogicalRepWorker->relid,
+												   &relstate_lsn);
+
 	CommitTransactionCommand();
 
 	SpinLockAcquire(&MyLogicalRepWorker->relmutex);
@@ -858,11 +849,11 @@ LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 	 * reasonably if that is different.)
 	 */
 	StaticAssertStmt(NAMEDATALEN >= 32, "NAMEDATALEN too small");	/* for sanity */
-	slotname = psprintf("%.*s_%u_sync_%u",
-						NAMEDATALEN - 28,
-						MySubscription->slotname,
-						MySubscription->oid,
-						MyLogicalRepWorker->relid);
+	char	   *slotname = psprintf("%.*s_%u_sync_%u",
+									NAMEDATALEN - 28,
+									MySubscription->slotname,
+									MySubscription->oid,
+									MyLogicalRepWorker->relid);
 
 	/*
 	 * Here we use the slot name instead of the subscription name as the
@@ -902,16 +893,17 @@ LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 	 * the main apply process from working and it has to open the relation in
 	 * RowExclusiveLock when remapping remote relation id to local one.
 	 */
-	rel = table_open(MyLogicalRepWorker->relid, RowExclusiveLock);
+	Relation	rel = table_open(MyLogicalRepWorker->relid, RowExclusiveLock);
 
 	/*
 	 * Start a transaction in the remote node in REPEATABLE READ mode.  This
 	 * ensures that both the replication slot we create (see below) and the
 	 * COPY are consistent with each other.
 	 */
-	res = walrcv_exec(wrconn,
-					  "BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ",
-					  0, NULL);
+	WalRcvExecResult *res = walrcv_exec(wrconn,
+										"BEGIN READ ONLY ISOLATION LEVEL REPEATABLE READ",
+										0, NULL);
+
 	if (res->status != WALRCV_OK_COMMAND)
 		ereport(ERROR,
 				(errmsg("table copy could not start transaction on publisher"),

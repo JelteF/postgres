@@ -134,14 +134,13 @@ transformTargetList(ParseState *pstate, List *targetlist,
 					ParseExprKind exprKind)
 {
 	List	   *p_target = NIL;
-	bool		expand_star;
 	ListCell   *o_target;
 
 	/* Shouldn't have any leftover multiassign items at start */
 	Assert(pstate->p_multiassign_exprs == NIL);
 
 	/* Expand "something.*" in SELECT and RETURNING, but not UPDATE */
-	expand_star = (exprKind != EXPR_KIND_UPDATE_SOURCE);
+	bool		expand_star = (exprKind != EXPR_KIND_UPDATE_SOURCE);
 
 	foreach(o_target, targetlist)
 	{
@@ -356,15 +355,12 @@ static void
 markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
 					 Var *var, int levelsup)
 {
-	int			netlevelsup;
-	RangeTblEntry *rte;
-	AttrNumber	attnum;
 
 	if (var == NULL || !IsA(var, Var))
 		return;
-	netlevelsup = var->varlevelsup + levelsup;
-	rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
-	attnum = var->varattno;
+	int			netlevelsup = var->varlevelsup + levelsup;
+	RangeTblEntry *rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
+	AttrNumber	attnum = var->varattno;
 
 	switch (rte->rtekind)
 	{
@@ -408,9 +404,9 @@ markTargetListOrigin(ParseState *pstate, TargetEntry *tle,
 			if (attnum != InvalidAttrNumber && !rte->self_reference)
 			{
 				CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
-				TargetEntry *ste;
 
-				ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+				TargetEntry *ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+
 				if (ste == NULL || ste->resjunk)
 					elog(ERROR, "CTE %s does not have attribute %d",
 						 rte->eref->aliasname, attnum);
@@ -458,9 +454,7 @@ transformAssignedExpr(ParseState *pstate,
 	Relation	rd = pstate->p_target_relation;
 	Oid			type_id;		/* type of value provided */
 	Oid			attrtype;		/* type of target column */
-	int32		attrtypmod;
 	Oid			attrcollation;	/* collation of target column */
-	ParseExprKind sv_expr_kind;
 
 	/*
 	 * Save and restore identity of expression type we're parsing.  We must
@@ -468,7 +462,8 @@ transformAssignedExpr(ParseState *pstate,
 	 * through transformExpr().
 	 */
 	Assert(exprKind != EXPR_KIND_NONE);
-	sv_expr_kind = pstate->p_expr_kind;
+	ParseExprKind sv_expr_kind = pstate->p_expr_kind;
+
 	pstate->p_expr_kind = exprKind;
 
 	Assert(rd != NULL);
@@ -479,7 +474,8 @@ transformAssignedExpr(ParseState *pstate,
 						colname),
 				 parser_errposition(pstate, location)));
 	attrtype = attnumTypeId(rd, attrno);
-	attrtypmod = TupleDescAttr(rd->rd_att, attrno - 1)->atttypmod;
+	int32		attrtypmod = TupleDescAttr(rd->rd_att, attrno - 1)->atttypmod;
+
 	attrcollation = TupleDescAttr(rd->rd_att, attrno - 1)->attcollation;
 
 	/*
@@ -541,10 +537,10 @@ transformAssignedExpr(ParseState *pstate,
 			/*
 			 * Build a Var for the column to be updated.
 			 */
-			Var		   *var;
 
-			var = makeVar(pstate->p_target_nsitem->p_rtindex, attrno,
-						  attrtype, attrtypmod, attrcollation, 0);
+			Var		   *var = makeVar(pstate->p_target_nsitem->p_rtindex, attrno,
+									  attrtype, attrtypmod, attrcollation, 0);
+
 			var->location = location;
 
 			colVar = (Node *) var;
@@ -685,7 +681,6 @@ transformAssignmentIndirection(ParseState *pstate,
 							   Node *rhs,
 							   int location)
 {
-	Node	   *result;
 	List	   *subscripts = NIL;
 	bool		isSlice = false;
 	ListCell   *i;
@@ -731,11 +726,6 @@ transformAssignmentIndirection(ParseState *pstate,
 		}
 		else
 		{
-			FieldStore *fstore;
-			Oid			baseTypeId;
-			int32		baseTypeMod;
-			Oid			typrelid;
-			AttrNumber	attnum;
 			Oid			fieldTypeId;
 			int32		fieldTypMod;
 			Oid			fieldCollation;
@@ -766,10 +756,11 @@ transformAssignmentIndirection(ParseState *pstate,
 			 * Look up the composite type, accounting for possibility that
 			 * what we are given is a domain over composite.
 			 */
-			baseTypeMod = targetTypMod;
-			baseTypeId = getBaseTypeAndTypmod(targetTypeId, &baseTypeMod);
+			int32		baseTypeMod = targetTypMod;
+			Oid			baseTypeId = getBaseTypeAndTypmod(targetTypeId, &baseTypeMod);
 
-			typrelid = typeidTypeRelid(baseTypeId);
+			Oid			typrelid = typeidTypeRelid(baseTypeId);
+
 			if (!typrelid)
 				ereport(ERROR,
 						(errcode(ERRCODE_DATATYPE_MISMATCH),
@@ -778,7 +769,8 @@ transformAssignmentIndirection(ParseState *pstate,
 								format_type_be(targetTypeId)),
 						 parser_errposition(pstate, location)));
 
-			attnum = get_attnum(typrelid, strVal(n));
+			AttrNumber	attnum = get_attnum(typrelid, strVal(n));
+
 			if (attnum == InvalidAttrNumber)
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -810,7 +802,8 @@ transformAssignmentIndirection(ParseState *pstate,
 												 location);
 
 			/* and build a FieldStore node */
-			fstore = makeNode(FieldStore);
+			FieldStore *fstore = makeNode(FieldStore);
+
 			fstore->arg = (Expr *) basenode;
 			fstore->newvals = list_make1(rhs);
 			fstore->fieldnums = list_make1_int(attnum);
@@ -850,12 +843,13 @@ transformAssignmentIndirection(ParseState *pstate,
 
 	/* base case: just coerce RHS to match target type ID */
 
-	result = coerce_to_target_type(pstate,
-								   rhs, exprType(rhs),
-								   targetTypeId, targetTypMod,
-								   COERCION_ASSIGNMENT,
-								   COERCE_IMPLICIT_CAST,
-								   -1);
+	Node	   *result = coerce_to_target_type(pstate,
+											   rhs, exprType(rhs),
+											   targetTypeId, targetTypMod,
+											   COERCION_ASSIGNMENT,
+											   COERCE_IMPLICIT_CAST,
+											   -1);
+
 	if (result == NULL)
 	{
 		if (targetIsSubscripting)
@@ -900,22 +894,17 @@ transformAssignmentSubscripts(ParseState *pstate,
 							  Node *rhs,
 							  int location)
 {
-	Node	   *result;
-	Oid			containerType;
-	int32		containerTypMod;
-	Oid			elementTypeId;
-	Oid			typeNeeded;
 	Oid			collationNeeded;
 
 	Assert(subscripts != NIL);
 
 	/* Identify the actual array type and element type involved */
-	containerType = targetTypeId;
-	containerTypMod = targetTypMod;
-	elementTypeId = transformContainerType(&containerType, &containerTypMod);
+	Oid			containerType = targetTypeId;
+	int32		containerTypMod = targetTypMod;
+	Oid			elementTypeId = transformContainerType(&containerType, &containerTypMod);
 
 	/* Identify type that RHS must provide */
-	typeNeeded = isSlice ? containerType : elementTypeId;
+	Oid			typeNeeded = isSlice ? containerType : elementTypeId;
 
 	/*
 	 * container normally has same collation as elements, but there's an
@@ -941,13 +930,13 @@ transformAssignmentSubscripts(ParseState *pstate,
 										 location);
 
 	/* process subscripts */
-	result = (Node *) transformContainerSubscripts(pstate,
-												   basenode,
-												   containerType,
-												   elementTypeId,
-												   containerTypMod,
-												   subscripts,
-												   rhs);
+	Node	   *result = (Node *) transformContainerSubscripts(pstate,
+															   basenode,
+															   containerType,
+															   elementTypeId,
+															   containerTypMod,
+															   subscripts,
+															   rhs);
 
 	/* If target was a domain over container, need to coerce up to the domain */
 	if (containerType != targetTypeId)
@@ -996,15 +985,14 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
 
 		for (i = 0; i < numcol; i++)
 		{
-			ResTarget  *col;
-			Form_pg_attribute attr;
 
-			attr = TupleDescAttr(pstate->p_target_relation->rd_att, i);
+			Form_pg_attribute attr = TupleDescAttr(pstate->p_target_relation->rd_att, i);
 
 			if (attr->attisdropped)
 				continue;
 
-			col = makeNode(ResTarget);
+			ResTarget  *col = makeNode(ResTarget);
+
 			col->name = pstrdup(NameStr(attr->attname));
 			col->indirection = NIL;
 			col->val = NULL;
@@ -1026,10 +1014,10 @@ checkInsertTargets(ParseState *pstate, List *cols, List **attrnos)
 		{
 			ResTarget  *col = (ResTarget *) lfirst(tl);
 			char	   *name = col->name;
-			int			attrno;
 
 			/* Lookup column name, ereport on failure */
-			attrno = attnameAttNum(pstate->p_target_relation, name, false);
+			int			attrno = attnameAttNum(pstate->p_target_relation, name, false);
+
 			if (attrno == InvalidAttrNumber)
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_COLUMN),
@@ -1138,9 +1126,9 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 		 */
 		if (pstate->p_pre_columnref_hook != NULL)
 		{
-			Node	   *node;
 
-			node = pstate->p_pre_columnref_hook(pstate, cref);
+			Node	   *node = pstate->p_pre_columnref_hook(pstate, cref);
+
 			if (node != NULL)
 				return ExpandRowReference(pstate, node, make_target_entry);
 		}
@@ -1195,10 +1183,10 @@ ExpandColumnRefStar(ParseState *pstate, ColumnRef *cref,
 		 */
 		if (pstate->p_post_columnref_hook != NULL)
 		{
-			Node	   *node;
 
-			node = pstate->p_post_columnref_hook(pstate, cref,
-												 (Node *) (nsitem ? nsitem->p_rte : NULL));
+			Node	   *node = pstate->p_post_columnref_hook(pstate, cref,
+															 (Node *) (nsitem ? nsitem->p_rte : NULL));
+
 			if (node != NULL)
 			{
 				if (nsitem != NULL)
@@ -1313,7 +1301,6 @@ static List *
 ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
 					  bool make_target_entry, ParseExprKind exprKind)
 {
-	Node	   *expr;
 
 	/* Strip off the '*' to create a reference to the rowtype object */
 	ind = copyObject(ind);
@@ -1321,7 +1308,7 @@ ExpandIndirectionStar(ParseState *pstate, A_Indirection *ind,
 									 list_length(ind->indirection) - 1);
 
 	/* And transform that */
-	expr = transformExpr(pstate, (Node *) ind, exprKind);
+	Node	   *expr = transformExpr(pstate, (Node *) ind, exprKind);
 
 	/* Expand the rowtype expression into individual fields */
 	return ExpandRowReference(pstate, expr, make_target_entry);
@@ -1348,10 +1335,9 @@ ExpandSingleTable(ParseState *pstate, ParseNamespaceItem *nsitem,
 	else
 	{
 		RangeTblEntry *rte = nsitem->p_rte;
-		List	   *vars;
 		ListCell   *l;
 
-		vars = expandNSItemVars(nsitem, sublevels_up, location, NULL);
+		List	   *vars = expandNSItemVars(nsitem, sublevels_up, location, NULL);
 
 		/*
 		 * Require read access to the table.  This is normally redundant with
@@ -1385,7 +1371,6 @@ ExpandRowReference(ParseState *pstate, Node *expr,
 {
 	List	   *result = NIL;
 	TupleDesc	tupleDesc;
-	int			numAttrs;
 	int			i;
 
 	/*
@@ -1401,9 +1386,9 @@ ExpandRowReference(ParseState *pstate, Node *expr,
 		((Var *) expr)->varattno == InvalidAttrNumber)
 	{
 		Var		   *var = (Var *) expr;
-		ParseNamespaceItem *nsitem;
 
-		nsitem = GetNSItemByRangeTablePosn(pstate, var->varno, var->varlevelsup);
+		ParseNamespaceItem *nsitem = GetNSItemByRangeTablePosn(pstate, var->varno, var->varlevelsup);
+
 		return ExpandSingleTable(pstate, nsitem, var->varlevelsup, var->location, make_target_entry);
 	}
 
@@ -1428,16 +1413,17 @@ ExpandRowReference(ParseState *pstate, Node *expr,
 	Assert(tupleDesc);
 
 	/* Generate a list of references to the individual fields */
-	numAttrs = tupleDesc->natts;
+	int			numAttrs = tupleDesc->natts;
+
 	for (i = 0; i < numAttrs; i++)
 	{
 		Form_pg_attribute att = TupleDescAttr(tupleDesc, i);
-		FieldSelect *fselect;
 
 		if (att->attisdropped)
 			continue;
 
-		fselect = makeNode(FieldSelect);
+		FieldSelect *fselect = makeNode(FieldSelect);
+
 		fselect->arg = (Expr *) copyObject(expr);
 		fselect->fieldnum = i + 1;
 		fselect->resulttype = att->atttypid;
@@ -1448,12 +1434,12 @@ ExpandRowReference(ParseState *pstate, Node *expr,
 		if (make_target_entry)
 		{
 			/* add TargetEntry decoration */
-			TargetEntry *te;
 
-			te = makeTargetEntry((Expr *) fselect,
-								 (AttrNumber) pstate->p_next_resno++,
-								 pstrdup(NameStr(att->attname)),
-								 false);
+			TargetEntry *te = makeTargetEntry((Expr *) fselect,
+											  (AttrNumber) pstate->p_next_resno++,
+											  pstrdup(NameStr(att->attname)),
+											  false);
+
 			result = lappend(result, te);
 		}
 		else
@@ -1478,10 +1464,6 @@ TupleDesc
 expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 {
 	TupleDesc	tupleDesc;
-	int			netlevelsup;
-	RangeTblEntry *rte;
-	AttrNumber	attnum;
-	Node	   *expr;
 
 	/* Check my caller didn't mess up */
 	Assert(IsA(var, Var));
@@ -1493,9 +1475,9 @@ expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 	 * for some of the recursion cases below, where we have consed up a
 	 * ParseState that lacks p_namespace data.
 	 */
-	netlevelsup = var->varlevelsup + levelsup;
-	rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
-	attnum = var->varattno;
+	int			netlevelsup = var->varlevelsup + levelsup;
+	RangeTblEntry *rte = GetRTEByRangeTablePosn(pstate, var->varno, netlevelsup);
+	AttrNumber	attnum = var->varattno;
 
 	if (attnum == InvalidAttrNumber)
 	{
@@ -1504,13 +1486,13 @@ expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 				   *vars;
 		ListCell   *lname,
 				   *lvar;
-		int			i;
 
 		expandRTE(rte, var->varno, 0, var->location, false,
 				  &names, &vars);
 
 		tupleDesc = CreateTemplateTupleDesc(list_length(vars));
-		i = 1;
+		int			i = 1;
+
 		forboth(lname, names, lvar, vars)
 		{
 			char	   *label = strVal(lfirst(lname));
@@ -1530,7 +1512,7 @@ expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 		return tupleDesc;
 	}
 
-	expr = (Node *) var;		/* default if we can't drill down */
+	Node	   *expr = (Node *) var;	/* default if we can't drill down */
 
 	switch (rte->rtekind)
 	{
@@ -1602,9 +1584,9 @@ expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
 			if (!rte->self_reference)
 			{
 				CommonTableExpr *cte = GetCTEForRTE(pstate, rte, netlevelsup);
-				TargetEntry *ste;
 
-				ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+				TargetEntry *ste = get_tle_by_resno(GetCTETargetList(cte), attnum);
+
 				if (ste == NULL || ste->resjunk)
 					elog(ERROR, "CTE %s does not have attribute %d",
 						 rte->eref->aliasname, attnum);

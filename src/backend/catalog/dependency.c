@@ -313,14 +313,12 @@ void
 performDeletion(const ObjectAddress *object,
 				DropBehavior behavior, int flags)
 {
-	Relation	depRel;
-	ObjectAddresses *targetObjects;
 
 	/*
 	 * We save some cycles by opening pg_depend just once and passing the
 	 * Relation pointer down to all the recursive deletion steps.
 	 */
-	depRel = table_open(DependRelationId, RowExclusiveLock);
+	Relation	depRel = table_open(DependRelationId, RowExclusiveLock);
 
 	/*
 	 * Acquire deletion lock on the target object.  (Ideally the caller has
@@ -332,7 +330,7 @@ performDeletion(const ObjectAddress *object,
 	 * Construct a list of objects to delete (ie, the given object plus
 	 * everything directly or indirectly dependent on it).
 	 */
-	targetObjects = new_object_addresses();
+	ObjectAddresses *targetObjects = new_object_addresses();
 
 	findDependentObjects(object,
 						 DEPFLAG_ORIGINAL,
@@ -372,8 +370,6 @@ void
 performMultipleDeletions(const ObjectAddresses *objects,
 						 DropBehavior behavior, int flags)
 {
-	Relation	depRel;
-	ObjectAddresses *targetObjects;
 	int			i;
 
 	/* No work if no objects... */
@@ -384,7 +380,7 @@ performMultipleDeletions(const ObjectAddresses *objects,
 	 * We save some cycles by opening pg_depend just once and passing the
 	 * Relation pointer down to all the recursive deletion steps.
 	 */
-	depRel = table_open(DependRelationId, RowExclusiveLock);
+	Relation	depRel = table_open(DependRelationId, RowExclusiveLock);
 
 	/*
 	 * Construct a list of objects to delete (ie, the given objects plus
@@ -394,7 +390,7 @@ performMultipleDeletions(const ObjectAddresses *objects,
 	 * dependent on another one in the list; we'll just skip that object and
 	 * delete it when we reach its owner.
 	 */
-	targetObjects = new_object_addresses();
+	ObjectAddresses *targetObjects = new_object_addresses();
 
 	for (i = 0; i < objects->numrefs; i++)
 	{
@@ -444,9 +440,7 @@ visitDependenciesOf(const ObjectAddress *object,
 					VisitDependenciesOfCB callback,
 					void *userdata)
 {
-	Relation	depRel;
 	ScanKeyData key[3];
-	SysScanDesc scan;
 	HeapTuple	tup;
 	ObjectAddress otherObject;
 
@@ -463,23 +457,22 @@ visitDependenciesOf(const ObjectAddress *object,
 				BTEqualStrategyNumber, F_INT4EQ,
 				Int32GetDatum(object->objectSubId));
 
-	depRel = table_open(DependRelationId, RowExclusiveLock);
-	scan = systable_beginscan(depRel, DependDependerIndexId, true,
-							  NULL, 3, key);
+	Relation	depRel = table_open(DependRelationId, RowExclusiveLock);
+	SysScanDesc scan = systable_beginscan(depRel, DependDependerIndexId, true,
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
 		Form_pg_depend foundDep = (Form_pg_depend) GETSTRUCT(tup);
 		char	   *new_version;
-		Datum		depversion;
 		bool		isnull;
 
 		otherObject.classId = foundDep->refclassid;
 		otherObject.objectId = foundDep->refobjid;
 		otherObject.objectSubId = foundDep->refobjsubid;
 
-		depversion = heap_getattr(tup, Anum_pg_depend_refobjversion,
-								  RelationGetDescr(depRel), &isnull);
+		Datum		depversion = heap_getattr(tup, Anum_pg_depend_refobjversion,
+											  RelationGetDescr(depRel), &isnull);
 
 		/* Does the callback want to update the version? */
 		if (callback(&otherObject,
@@ -557,14 +550,10 @@ findDependentObjects(const ObjectAddress *object,
 {
 	ScanKeyData key[3];
 	int			nkeys;
-	SysScanDesc scan;
 	HeapTuple	tup;
 	ObjectAddress otherObject;
 	ObjectAddress owningObject;
 	ObjectAddress partitionObject;
-	ObjectAddressAndFlags *dependentObjects;
-	int			numDependentObjects;
-	int			maxDependentObjects;
 	ObjectAddressStack mystack;
 	ObjectAddressExtra extra;
 
@@ -632,8 +621,8 @@ findDependentObjects(const ObjectAddress *object,
 		nkeys = 2;
 	}
 
-	scan = systable_beginscan(*depRel, DependDependerIndexId, true,
-							  NULL, nkeys, key);
+	SysScanDesc scan = systable_beginscan(*depRel, DependDependerIndexId, true,
+										  NULL, nkeys, key);
 
 	/* initialize variables that loop may fill */
 	memset(&owningObject, 0, sizeof(owningObject));
@@ -910,10 +899,10 @@ findDependentObjects(const ObjectAddress *object,
 	 * consistent output from DROP CASCADE commands, which is helpful for
 	 * regression testing.)
 	 */
-	maxDependentObjects = 128;	/* arbitrary initial allocation */
-	dependentObjects = (ObjectAddressAndFlags *)
-		palloc(maxDependentObjects * sizeof(ObjectAddressAndFlags));
-	numDependentObjects = 0;
+	int			maxDependentObjects = 128;	/* arbitrary initial allocation */
+	ObjectAddressAndFlags *dependentObjects = (ObjectAddressAndFlags *)
+	palloc(maxDependentObjects * sizeof(ObjectAddressAndFlags));
+	int			numDependentObjects = 0;
 
 	ScanKeyInit(&key[0],
 				Anum_pg_depend_refclassid,
@@ -1169,7 +1158,6 @@ reportDependentObjects(const ObjectAddresses *targetObjects,
 	{
 		const ObjectAddress *obj = &targetObjects->refs[i];
 		const ObjectAddressExtra *extra = &targetObjects->extras[i];
-		char	   *objDesc;
 
 		/* Ignore the original deletion target(s) */
 		if (extra->flags & DEPFLAG_ORIGINAL)
@@ -1179,7 +1167,7 @@ reportDependentObjects(const ObjectAddresses *targetObjects,
 		if (extra->flags & DEPFLAG_SUBOBJECT)
 			continue;
 
-		objDesc = getObjectDescription(obj, false);
+		char	   *objDesc = getObjectDescription(obj, false);
 
 		/*
 		 * If, at any stage of the recursive search, we reached the object via
@@ -1303,13 +1291,11 @@ reportDependentObjects(const ObjectAddresses *targetObjects,
 static void
 DropObjectById(const ObjectAddress *object)
 {
-	int			cacheId;
-	Relation	rel;
 	HeapTuple	tup;
 
-	cacheId = get_object_catcache_oid(object->classId);
+	int			cacheId = get_object_catcache_oid(object->classId);
 
-	rel = table_open(object->classId, RowExclusiveLock);
+	Relation	rel = table_open(object->classId, RowExclusiveLock);
 
 	/*
 	 * Use the system cache for the oid column, if one exists.
@@ -1328,15 +1314,14 @@ DropObjectById(const ObjectAddress *object)
 	else
 	{
 		ScanKeyData skey[1];
-		SysScanDesc scan;
 
 		ScanKeyInit(&skey[0],
 					get_object_attnum_oid(object->classId),
 					BTEqualStrategyNumber, F_OIDEQ,
 					ObjectIdGetDatum(object->objectId));
 
-		scan = systable_beginscan(rel, get_object_oid_index(object->classId), true,
-								  NULL, 1, skey);
+		SysScanDesc scan = systable_beginscan(rel, get_object_oid_index(object->classId), true,
+											  NULL, 1, skey);
 
 		/* we expect exactly one match */
 		tup = systable_getnext(scan);
@@ -1362,7 +1347,6 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 {
 	ScanKeyData key[3];
 	int			nkeys;
-	SysScanDesc scan;
 	HeapTuple	tup;
 
 	/* DROP hook of the objects being removed */
@@ -1420,8 +1404,8 @@ deleteOneObject(const ObjectAddress *object, Relation *depRel, int flags)
 	else
 		nkeys = 2;
 
-	scan = systable_beginscan(*depRel, DependDependerIndexId, true,
-							  NULL, nkeys, key);
+	SysScanDesc scan = systable_beginscan(*depRel, DependDependerIndexId, true,
+										  NULL, nkeys, key);
 
 	while (HeapTupleIsValid(tup = systable_getnext(scan)))
 	{
@@ -1648,13 +1632,13 @@ recordDependencyOnCollations(ObjectAddress *myself,
 							 List *collations,
 							 bool record_version)
 {
-	ObjectAddresses *addrs;
 	ListCell   *lc;
 
 	if (list_length(collations) == 0)
 		return;
 
-	addrs = new_object_addresses();
+	ObjectAddresses *addrs = new_object_addresses();
+
 	foreach(lc, collations)
 	{
 		ObjectAddress referenced;
@@ -1763,14 +1747,13 @@ recordDependencyOnSingleRelExpr(const ObjectAddress *depender,
 	if ((behavior != self_behavior || reverse_self) &&
 		context.addrs->numrefs > 0)
 	{
-		ObjectAddresses *self_addrs;
-		ObjectAddress *outobj;
 		int			oldref,
 					outrefs;
 
-		self_addrs = new_object_addresses();
+		ObjectAddresses *self_addrs = new_object_addresses();
 
-		outobj = context.addrs->refs;
+		ObjectAddress *outobj = context.addrs->refs;
+
 		outrefs = 0;
 		for (oldref = 0; oldref < context.addrs->numrefs; oldref++)
 		{
@@ -1847,16 +1830,15 @@ find_expr_references_walker(Node *node,
 	if (IsA(node, Var))
 	{
 		Var		   *var = (Var *) node;
-		List	   *rtable;
-		RangeTblEntry *rte;
 
 		/* Find matching rtable entry, or complain if not found */
 		if (var->varlevelsup >= list_length(context->rtables))
 			elog(ERROR, "invalid varlevelsup %d", var->varlevelsup);
-		rtable = (List *) list_nth(context->rtables, var->varlevelsup);
+		List	   *rtable = (List *) list_nth(context->rtables, var->varlevelsup);
+
 		if (var->varno <= 0 || var->varno > list_length(rtable))
 			elog(ERROR, "invalid varno %d", var->varno);
-		rte = rt_fetch(var->varno, rtable);
+		RangeTblEntry *rte = rt_fetch(var->varno, rtable);
 
 		/*
 		 * A whole-row Var references no specific columns, so adds no new
@@ -1884,10 +1866,9 @@ find_expr_references_walker(Node *node,
 			/* Otherwise, it may be a type with internal collations */
 			else if (var->vartype >= FirstNormalObjectId)
 			{
-				List	   *collations;
 				ListCell   *lc;
 
-				collations = GetTypeCollations(var->vartype);
+				List	   *collations = GetTypeCollations(var->vartype);
 
 				foreach(lc, collations)
 				{
@@ -2253,7 +2234,6 @@ find_expr_references_walker(Node *node,
 		/* Recurse into RTE subquery or not-yet-planned sublink subquery */
 		Query	   *query = (Query *) node;
 		ListCell   *lc;
-		bool		result;
 
 		/*
 		 * Add whole-relation refs for each plain relation mentioned in the
@@ -2321,13 +2301,13 @@ find_expr_references_walker(Node *node,
 		if (query->commandType == CMD_INSERT ||
 			query->commandType == CMD_UPDATE)
 		{
-			RangeTblEntry *rte;
 
 			if (query->resultRelation <= 0 ||
 				query->resultRelation > list_length(query->rtable))
 				elog(ERROR, "invalid resultRelation %d",
 					 query->resultRelation);
-			rte = rt_fetch(query->resultRelation, query->rtable);
+			RangeTblEntry *rte = rt_fetch(query->resultRelation, query->rtable);
+
 			if (rte->rtekind == RTE_RELATION)
 			{
 				foreach(lc, query->targetList)
@@ -2353,11 +2333,12 @@ find_expr_references_walker(Node *node,
 
 		/* Examine substructure of query */
 		context->rtables = lcons(query->rtable, context->rtables);
-		result = query_tree_walker(query,
-								   find_expr_references_walker,
-								   (void *) context,
-								   QTW_IGNORE_JOINALIASES |
-								   QTW_EXAMINE_SORTGROUP);
+		bool		result = query_tree_walker(query,
+											   find_expr_references_walker,
+											   (void *) context,
+											   QTW_IGNORE_JOINALIASES |
+											   QTW_EXAMINE_SORTGROUP);
+
 		context->rtables = list_delete_first(context->rtables);
 		return result;
 	}
@@ -2434,7 +2415,6 @@ find_expr_references_walker(Node *node,
 static void
 eliminate_duplicate_dependencies(ObjectAddresses *addrs)
 {
-	ObjectAddress *priorobj;
 	int			oldref,
 				newrefs;
 
@@ -2453,7 +2433,8 @@ eliminate_duplicate_dependencies(ObjectAddresses *addrs)
 		  object_address_comparator);
 
 	/* Remove dups */
-	priorobj = addrs->refs;
+	ObjectAddress *priorobj = addrs->refs;
+
 	newrefs = 1;
 	for (oldref = 1; oldref < addrs->numrefs; oldref++)
 	{
@@ -2538,9 +2519,8 @@ object_address_comparator(const void *a, const void *b)
 ObjectAddresses *
 new_object_addresses(void)
 {
-	ObjectAddresses *addrs;
 
-	addrs = palloc(sizeof(ObjectAddresses));
+	ObjectAddresses *addrs = palloc(sizeof(ObjectAddresses));
 
 	addrs->numrefs = 0;
 	addrs->maxrefs = 32;
@@ -2561,7 +2541,6 @@ static void
 add_object_address(ObjectClass oclass, Oid objectId, int32 subId,
 				   ObjectAddresses *addrs)
 {
-	ObjectAddress *item;
 
 	/*
 	 * Make sure object_classes is kept up to date with the ObjectClass enum.
@@ -2578,7 +2557,8 @@ add_object_address(ObjectClass oclass, Oid objectId, int32 subId,
 		Assert(!addrs->extras);
 	}
 	/* record this item */
-	item = addrs->refs + addrs->numrefs;
+	ObjectAddress *item = addrs->refs + addrs->numrefs;
+
 	item->classId = object_classes[oclass];
 	item->objectId = objectId;
 	item->objectSubId = subId;
@@ -2594,7 +2574,6 @@ void
 add_exact_object_address(const ObjectAddress *object,
 						 ObjectAddresses *addrs)
 {
-	ObjectAddress *item;
 
 	/* enlarge array if needed */
 	if (addrs->numrefs >= addrs->maxrefs)
@@ -2605,7 +2584,8 @@ add_exact_object_address(const ObjectAddress *object,
 		Assert(!addrs->extras);
 	}
 	/* record this item */
-	item = addrs->refs + addrs->numrefs;
+	ObjectAddress *item = addrs->refs + addrs->numrefs;
+
 	*item = *object;
 	addrs->numrefs++;
 }
@@ -2620,8 +2600,6 @@ add_exact_object_address_extra(const ObjectAddress *object,
 							   const ObjectAddressExtra *extra,
 							   ObjectAddresses *addrs)
 {
-	ObjectAddress *item;
-	ObjectAddressExtra *itemextra;
 
 	/* allocate extra space if first time */
 	if (!addrs->extras)
@@ -2638,9 +2616,11 @@ add_exact_object_address_extra(const ObjectAddress *object,
 			repalloc(addrs->extras, addrs->maxrefs * sizeof(ObjectAddressExtra));
 	}
 	/* record this item */
-	item = addrs->refs + addrs->numrefs;
+	ObjectAddress *item = addrs->refs + addrs->numrefs;
+
 	*item = *object;
-	itemextra = addrs->extras + addrs->numrefs;
+	ObjectAddressExtra *itemextra = addrs->extras + addrs->numrefs;
+
 	*itemextra = *extra;
 	addrs->numrefs++;
 }
@@ -2984,12 +2964,10 @@ getObjectClass(const ObjectAddress *object)
 static void
 DeleteInitPrivs(const ObjectAddress *object)
 {
-	Relation	relation;
 	ScanKeyData key[3];
-	SysScanDesc scan;
 	HeapTuple	oldtuple;
 
-	relation = table_open(InitPrivsRelationId, RowExclusiveLock);
+	Relation	relation = table_open(InitPrivsRelationId, RowExclusiveLock);
 
 	ScanKeyInit(&key[0],
 				Anum_pg_init_privs_objoid,
@@ -3004,8 +2982,8 @@ DeleteInitPrivs(const ObjectAddress *object)
 				BTEqualStrategyNumber, F_INT4EQ,
 				Int32GetDatum(object->objectSubId));
 
-	scan = systable_beginscan(relation, InitPrivsObjIndexId, true,
-							  NULL, 3, key);
+	SysScanDesc scan = systable_beginscan(relation, InitPrivsObjIndexId, true,
+										  NULL, 3, key);
 
 	while (HeapTupleIsValid(oldtuple = systable_getnext(scan)))
 		CatalogTupleDelete(relation, &oldtuple->t_self);

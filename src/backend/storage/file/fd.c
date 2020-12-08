@@ -470,7 +470,6 @@ pg_flush_data(int fd, off_t offset, off_t nbytes)
 	 */
 #if defined(HAVE_SYNC_FILE_RANGE)
 	{
-		int			rc;
 		static bool not_implemented_by_kernel = false;
 
 		if (not_implemented_by_kernel)
@@ -485,8 +484,9 @@ pg_flush_data(int fd, off_t offset, off_t nbytes)
 		 * reliably when available (contrast to msync()) and doesn't flush out
 		 * clean data (like FADV_DONTNEED).
 		 */
-		rc = sync_file_range(fd, offset, nbytes,
-							 SYNC_FILE_RANGE_WRITE);
+		int			rc = sync_file_range(fd, offset, nbytes,
+										 SYNC_FILE_RANGE_WRITE);
+
 		if (rc != 0)
 		{
 			int			elevel;
@@ -571,9 +571,9 @@ pg_flush_data(int fd, off_t offset, off_t nbytes)
 
 		if (p != MAP_FAILED)
 		{
-			int			rc;
 
-			rc = msync(p, (size_t) nbytes, MS_ASYNC);
+			int			rc = msync(p, (size_t) nbytes, MS_ASYNC);
+
 			if (rc != 0)
 			{
 				ereport(data_sync_elevel(WARNING),
@@ -597,7 +597,6 @@ pg_flush_data(int fd, off_t offset, off_t nbytes)
 #endif
 #if defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
 	{
-		int			rc;
 
 		/*
 		 * Signal the kernel that the passed in range should not be cached
@@ -607,7 +606,7 @@ pg_flush_data(int fd, off_t offset, off_t nbytes)
 		 * preferable method.
 		 */
 
-		rc = posix_fadvise(fd, offset, nbytes, POSIX_FADV_DONTNEED);
+		int			rc = posix_fadvise(fd, offset, nbytes, POSIX_FADV_DONTNEED);
 
 		if (rc != 0)
 		{
@@ -631,9 +630,9 @@ pg_truncate(const char *path, off_t length)
 #ifdef WIN32
 	int			save_errno;
 	int			ret;
-	int			fd;
 
-	fd = OpenTransientFile(path, O_RDWR | PG_BINARY);
+	int			fd = OpenTransientFile(path, O_RDWR | PG_BINARY);
+
 	if (fd >= 0)
 	{
 		ret = ftruncate(fd, 0);
@@ -685,7 +684,6 @@ fsync_fname(const char *fname, bool isdir)
 int
 durable_rename(const char *oldfile, const char *newfile, int elevel)
 {
-	int			fd;
 
 	/*
 	 * First fsync the old and target path (if it exists), to ensure that they
@@ -697,7 +695,8 @@ durable_rename(const char *oldfile, const char *newfile, int elevel)
 	if (fsync_fname_ext(oldfile, false, false, elevel) != 0)
 		return -1;
 
-	fd = OpenTransientFile(newfile, PG_BINARY | O_RDWR);
+	int			fd = OpenTransientFile(newfile, PG_BINARY | O_RDWR);
+
 	if (fd < 0)
 	{
 		if (errno != ENOENT)
@@ -712,10 +711,10 @@ durable_rename(const char *oldfile, const char *newfile, int elevel)
 	{
 		if (pg_fsync(fd) != 0)
 		{
-			int			save_errno;
 
 			/* close file upon error, might not be in transaction context */
-			save_errno = errno;
+			int			save_errno = errno;
+
 			CloseTransientFile(fd);
 			errno = save_errno;
 
@@ -1156,7 +1155,6 @@ _dump_lru(void)
 static void
 Delete(File file)
 {
-	Vfd		   *vfdP;
 
 	Assert(file != 0);
 
@@ -1164,7 +1162,7 @@ Delete(File file)
 			   file, VfdCache[file].fileName));
 	DO_DB(_dump_lru());
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	VfdCache[vfdP->lruLessRecently].lruMoreRecently = vfdP->lruMoreRecently;
 	VfdCache[vfdP->lruMoreRecently].lruLessRecently = vfdP->lruLessRecently;
@@ -1175,14 +1173,13 @@ Delete(File file)
 static void
 LruDelete(File file)
 {
-	Vfd		   *vfdP;
 
 	Assert(file != 0);
 
 	DO_DB(elog(LOG, "LruDelete %d (%s)",
 			   file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	/*
 	 * Close the file.  We aren't expecting this to fail; if it does, better
@@ -1201,7 +1198,6 @@ LruDelete(File file)
 static void
 Insert(File file)
 {
-	Vfd		   *vfdP;
 
 	Assert(file != 0);
 
@@ -1209,7 +1205,7 @@ Insert(File file)
 			   file, VfdCache[file].fileName));
 	DO_DB(_dump_lru());
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	vfdP->lruMoreRecently = 0;
 	vfdP->lruLessRecently = VfdCache[0].lruLessRecently;
@@ -1223,14 +1219,13 @@ Insert(File file)
 static int
 LruInsert(File file)
 {
-	Vfd		   *vfdP;
 
 	Assert(file != 0);
 
 	DO_DB(elog(LOG, "LruInsert %d (%s)",
 			   file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	if (FileIsNotOpen(file))
 	{
@@ -1303,7 +1298,6 @@ static File
 AllocateVfd(void)
 {
 	Index		i;
-	File		file;
 
 	DO_DB(elog(LOG, "AllocateVfd. Size %zu", SizeVfdCache));
 
@@ -1317,7 +1311,6 @@ AllocateVfd(void)
 		 * there's not much point in starting *real* small.
 		 */
 		Size		newCacheSize = SizeVfdCache * 2;
-		Vfd		   *newVfdCache;
 
 		if (newCacheSize < 32)
 			newCacheSize = 32;
@@ -1325,7 +1318,8 @@ AllocateVfd(void)
 		/*
 		 * Be careful not to clobber VfdCache ptr if realloc fails.
 		 */
-		newVfdCache = (Vfd *) realloc(VfdCache, sizeof(Vfd) * newCacheSize);
+		Vfd		   *newVfdCache = (Vfd *) realloc(VfdCache, sizeof(Vfd) * newCacheSize);
+
 		if (newVfdCache == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -1350,7 +1344,7 @@ AllocateVfd(void)
 		SizeVfdCache = newCacheSize;
 	}
 
-	file = VfdCache[0].nextFree;
+	File		file = VfdCache[0].nextFree;
 
 	VfdCache[0].nextFree = VfdCache[file].nextFree;
 
@@ -1476,9 +1470,6 @@ PathNameOpenFile(const char *fileName, int fileFlags)
 File
 PathNameOpenFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 {
-	char	   *fnamecopy;
-	File		file;
-	Vfd		   *vfdP;
 
 	DO_DB(elog(LOG, "PathNameOpenFilePerm: %s %x %o",
 			   fileName, fileFlags, fileMode));
@@ -1486,14 +1477,15 @@ PathNameOpenFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 	/*
 	 * We need a malloc'd copy of the file name; fail cleanly if no room.
 	 */
-	fnamecopy = strdup(fileName);
+	char	   *fnamecopy = strdup(fileName);
+
 	if (fnamecopy == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
 				 errmsg("out of memory")));
 
-	file = AllocateVfd();
-	vfdP = &VfdCache[file];
+	File		file = AllocateVfd();
+	Vfd		   *vfdP = &VfdCache[file];
 
 	/* Close excess kernel FDs. */
 	ReleaseLruFiles();
@@ -1684,7 +1676,6 @@ OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError)
 {
 	char		tempdirpath[MAXPGPATH];
 	char		tempfilepath[MAXPGPATH];
-	File		file;
 
 	TempTablespacePath(tempdirpath, tblspcOid);
 
@@ -1699,8 +1690,9 @@ OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError)
 	 * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
 	 * temp file that can be reused.
 	 */
-	file = PathNameOpenFile(tempfilepath,
-							O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
+	File		file = PathNameOpenFile(tempfilepath,
+										O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
+
 	if (file <= 0)
 	{
 		/*
@@ -1739,7 +1731,6 @@ OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError)
 File
 PathNameCreateTemporaryFile(const char *path, bool error_on_failure)
 {
-	File		file;
 
 	ResourceOwnerEnlargeFiles(CurrentResourceOwner);
 
@@ -1747,7 +1738,8 @@ PathNameCreateTemporaryFile(const char *path, bool error_on_failure)
 	 * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
 	 * temp file that can be reused.
 	 */
-	file = PathNameOpenFile(path, O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
+	File		file = PathNameOpenFile(path, O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
+
 	if (file <= 0)
 	{
 		if (error_on_failure)
@@ -1777,11 +1769,10 @@ PathNameCreateTemporaryFile(const char *path, bool error_on_failure)
 File
 PathNameOpenTemporaryFile(const char *path, int mode)
 {
-	File		file;
 
 	ResourceOwnerEnlargeFiles(CurrentResourceOwner);
 
-	file = PathNameOpenFile(path, mode | PG_BINARY);
+	File		file = PathNameOpenFile(path, mode | PG_BINARY);
 
 	/* If no such file, then we don't raise an error. */
 	if (file <= 0 && errno != ENOENT)
@@ -1852,14 +1843,13 @@ PathNameDeleteTemporaryFile(const char *path, bool error_on_failure)
 void
 FileClose(File file)
 {
-	Vfd		   *vfdP;
 
 	Assert(FileIsValid(file));
 
 	DO_DB(elog(LOG, "FileClose: %d (%s)",
 			   file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	if (!FileIsNotOpen(file))
 	{
@@ -1953,7 +1943,6 @@ int
 FilePrefetch(File file, off_t offset, int amount, uint32 wait_event_info)
 {
 #if defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_WILLNEED)
-	int			returnCode;
 
 	Assert(FileIsValid(file));
 
@@ -1961,7 +1950,8 @@ FilePrefetch(File file, off_t offset, int amount, uint32 wait_event_info)
 			   file, VfdCache[file].fileName,
 			   (int64) offset, amount));
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return returnCode;
 
@@ -1980,7 +1970,6 @@ FilePrefetch(File file, off_t offset, int amount, uint32 wait_event_info)
 void
 FileWriteback(File file, off_t offset, off_t nbytes, uint32 wait_event_info)
 {
-	int			returnCode;
 
 	Assert(FileIsValid(file));
 
@@ -1991,7 +1980,8 @@ FileWriteback(File file, off_t offset, off_t nbytes, uint32 wait_event_info)
 	if (nbytes <= 0)
 		return;
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return;
 
@@ -2004,8 +1994,6 @@ int
 FileRead(File file, char *buffer, int amount, off_t offset,
 		 uint32 wait_event_info)
 {
-	int			returnCode;
-	Vfd		   *vfdP;
 
 	Assert(FileIsValid(file));
 
@@ -2014,11 +2002,12 @@ FileRead(File file, char *buffer, int amount, off_t offset,
 			   (int64) offset,
 			   amount, buffer));
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return returnCode;
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 retry:
 	pgstat_report_wait_start(wait_event_info);
@@ -2060,8 +2049,6 @@ int
 FileWrite(File file, char *buffer, int amount, off_t offset,
 		  uint32 wait_event_info)
 {
-	int			returnCode;
-	Vfd		   *vfdP;
 
 	Assert(FileIsValid(file));
 
@@ -2070,11 +2057,12 @@ FileWrite(File file, char *buffer, int amount, off_t offset,
 			   (int64) offset,
 			   amount, buffer));
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return returnCode;
 
-	vfdP = &VfdCache[file];
+	Vfd		   *vfdP = &VfdCache[file];
 
 	/*
 	 * If enforcing temp_file_limit and it's a temp file, check to see if the
@@ -2157,14 +2145,14 @@ retry:
 int
 FileSync(File file, uint32 wait_event_info)
 {
-	int			returnCode;
 
 	Assert(FileIsValid(file));
 
 	DO_DB(elog(LOG, "FileSync: %d (%s)",
 			   file, VfdCache[file].fileName));
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return returnCode;
 
@@ -2195,14 +2183,14 @@ FileSize(File file)
 int
 FileTruncate(File file, off_t offset, uint32 wait_event_info)
 {
-	int			returnCode;
 
 	Assert(FileIsValid(file));
 
 	DO_DB(elog(LOG, "FileTruncate %d (%s)",
 			   file, VfdCache[file].fileName));
 
-	returnCode = FileAccess(file);
+	int			returnCode = FileAccess(file);
+
 	if (returnCode < 0)
 		return returnCode;
 
@@ -2411,7 +2399,6 @@ OpenTransientFile(const char *fileName, int fileFlags)
 int
 OpenTransientFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 {
-	int			fd;
 
 	DO_DB(elog(LOG, "OpenTransientFile: Allocated %d (%s)",
 			   numAllocatedDescs, fileName));
@@ -2426,7 +2413,7 @@ OpenTransientFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 	/* Close excess kernel FDs. */
 	ReleaseLruFiles();
 
-	fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
+	int			fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
 
 	if (fd >= 0)
 	{
@@ -2455,8 +2442,6 @@ OpenTransientFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 FILE *
 OpenPipeStream(const char *command, const char *mode)
 {
-	FILE	   *file;
-	int			save_errno;
 
 	DO_DB(elog(LOG, "OpenPipeStream: Allocated %d (%s)",
 			   numAllocatedDescs, command));
@@ -2476,8 +2461,9 @@ TryAgain:
 	fflush(stderr);
 	pqsignal(SIGPIPE, SIG_DFL);
 	errno = 0;
-	file = popen(command, mode);
-	save_errno = errno;
+	FILE	   *file = popen(command, mode);
+	int			save_errno = errno;
+
 	pqsignal(SIGPIPE, SIG_IGN);
 	errno = save_errno;
 	if (file != NULL)
@@ -3037,7 +3023,6 @@ void
 RemovePgTempFiles(void)
 {
 	char		temp_path[MAXPGPATH + 10 + sizeof(TABLESPACE_VERSION_DIRECTORY) + sizeof(PG_TEMP_FILES_DIR)];
-	DIR		   *spc_dir;
 	struct dirent *spc_de;
 
 	/*
@@ -3050,7 +3035,7 @@ RemovePgTempFiles(void)
 	/*
 	 * Cycle through temp directories for all non-default tablespaces.
 	 */
-	spc_dir = AllocateDir("pg_tblspc");
+	DIR		   *spc_dir = AllocateDir("pg_tblspc");
 
 	while ((spc_de = ReadDirExtended(spc_dir, "pg_tblspc", LOG)) != NULL)
 	{
@@ -3095,11 +3080,10 @@ RemovePgTempFiles(void)
 void
 RemovePgTempFilesInDir(const char *tmpdirname, bool missing_ok, bool unlink_all)
 {
-	DIR		   *temp_dir;
 	struct dirent *temp_de;
 	char		rm_path[MAXPGPATH * 2];
 
-	temp_dir = AllocateDir(tmpdirname);
+	DIR		   *temp_dir = AllocateDir(tmpdirname);
 
 	if (temp_dir == NULL && errno == ENOENT && missing_ok)
 		return;
@@ -3161,11 +3145,10 @@ RemovePgTempFilesInDir(const char *tmpdirname, bool missing_ok, bool unlink_all)
 static void
 RemovePgTempRelationFiles(const char *tsdirname)
 {
-	DIR		   *ts_dir;
 	struct dirent *de;
 	char		dbspace_path[MAXPGPATH * 2];
 
-	ts_dir = AllocateDir(tsdirname);
+	DIR		   *ts_dir = AllocateDir(tsdirname);
 
 	while ((de = ReadDirExtended(ts_dir, tsdirname, LOG)) != NULL)
 	{
@@ -3189,11 +3172,10 @@ RemovePgTempRelationFiles(const char *tsdirname)
 static void
 RemovePgTempRelationFilesInDbspace(const char *dbspacedirname)
 {
-	DIR		   *dbspace_dir;
 	struct dirent *de;
 	char		rm_path[MAXPGPATH * 2];
 
-	dbspace_dir = AllocateDir(dbspacedirname);
+	DIR		   *dbspace_dir = AllocateDir(dbspacedirname);
 
 	while ((de = ReadDirExtended(dbspace_dir, dbspacedirname, LOG)) != NULL)
 	{
@@ -3287,7 +3269,6 @@ looks_like_temp_rel_name(const char *name)
 void
 SyncDataDirectory(void)
 {
-	bool		xlog_is_symlink;
 
 	/* We can skip this whole thing if fsync is disabled. */
 	if (!enableFsync)
@@ -3297,7 +3278,7 @@ SyncDataDirectory(void)
 	 * If pg_wal is a symlink, we'll need to recurse into it separately,
 	 * because the first walkdir below will ignore it.
 	 */
-	xlog_is_symlink = false;
+	bool		xlog_is_symlink = false;
 
 #ifndef WIN32
 	{
@@ -3364,10 +3345,9 @@ walkdir(const char *path,
 		bool process_symlinks,
 		int elevel)
 {
-	DIR		   *dir;
 	struct dirent *de;
 
-	dir = AllocateDir(path);
+	DIR		   *dir = AllocateDir(path);
 
 	while ((de = ReadDirExtended(dir, path, elevel)) != NULL)
 	{
@@ -3424,13 +3404,12 @@ walkdir(const char *path,
 static void
 pre_sync_fname(const char *fname, bool isdir, int elevel)
 {
-	int			fd;
 
 	/* Don't try to flush directories, it'll likely just fail */
 	if (isdir)
 		return;
 
-	fd = OpenTransientFile(fname, O_RDONLY | PG_BINARY);
+	int			fd = OpenTransientFile(fname, O_RDONLY | PG_BINARY);
 
 	if (fd < 0)
 	{
@@ -3494,9 +3473,6 @@ unlink_if_exists_fname(const char *fname, bool isdir, int elevel)
 int
 fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 {
-	int			fd;
-	int			flags;
-	int			returncode;
 
 	/*
 	 * Some OSs require directories to be opened read-only whereas other
@@ -3504,13 +3480,14 @@ fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 	 * cases here.  Using O_RDWR will cause us to fail to fsync files that are
 	 * not writable by our userid, but we assume that's OK.
 	 */
-	flags = PG_BINARY;
+	int			flags = PG_BINARY;
+
 	if (!isdir)
 		flags |= O_RDWR;
 	else
 		flags |= O_RDONLY;
 
-	fd = OpenTransientFile(fname, flags);
+	int			fd = OpenTransientFile(fname, flags);
 
 	/*
 	 * Some OSs don't allow us to open directories at all (Windows returns
@@ -3529,7 +3506,7 @@ fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 		return -1;
 	}
 
-	returncode = pg_fsync(fd);
+	int			returncode = pg_fsync(fd);
 
 	/*
 	 * Some OSes don't allow us to fsync directories at all, so we can ignore
@@ -3537,10 +3514,10 @@ fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 	 */
 	if (returncode != 0 && !(isdir && (errno == EBADF || errno == EINVAL)))
 	{
-		int			save_errno;
 
 		/* close file upon error, might not be in transaction context */
-		save_errno = errno;
+		int			save_errno = errno;
+
 		(void) CloseTransientFile(fd);
 		errno = save_errno;
 

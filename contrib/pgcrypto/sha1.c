@@ -230,11 +230,11 @@ void
 sha1_pad(struct sha1_ctxt *ctxt)
 {
 	size_t		padlen;			/* pad length in bytes */
-	size_t		padstart;
 
 	PUTPAD(0x80);
 
-	padstart = COUNT % 64;
+	size_t		padstart = COUNT % 64;
+
 	padlen = 64 - padstart;
 	if (padlen < 8)
 	{
@@ -272,14 +272,12 @@ sha1_pad(struct sha1_ctxt *ctxt)
 void
 sha1_loop(struct sha1_ctxt *ctxt, const uint8 *input0, size_t len)
 {
-	const uint8 *input;
 	size_t		gaplen;
 	size_t		gapstart;
-	size_t		off;
 	size_t		copysiz;
 
-	input = (const uint8 *) input0;
-	off = 0;
+	const uint8 *input = (const uint8 *) input0;
+	size_t		off = 0;
 
 	while (off < len)
 	{
@@ -300,9 +298,9 @@ sha1_loop(struct sha1_ctxt *ctxt, const uint8 *input0, size_t len)
 void
 sha1_result(struct sha1_ctxt *ctxt, uint8 *digest0)
 {
-	uint8	   *digest;
 
-	digest = (uint8 *) digest0;
+	uint8	   *digest = (uint8 *) digest0;
+
 	sha1_pad(ctxt);
 #ifdef WORDS_BIGENDIAN
 	memmove(digest, &ctxt->h.b8[0], 20);

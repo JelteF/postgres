@@ -181,10 +181,10 @@ extern void sort_object_addresses(ObjectAddresses *addrs);
 
 extern void free_object_addresses(ObjectAddresses *addrs);
 
-typedef bool(*VisitDependenciesOfCB) (const ObjectAddress *otherObject,
-									  const char *version,
-									  char **new_version,
-									  void *data);
+typedef bool (*VisitDependenciesOfCB) (const ObjectAddress *otherObject,
+									   const char *version,
+									   char **new_version,
+									   void *data);
 
 extern void visitDependenciesOf(const ObjectAddress *object,
 								VisitDependenciesOfCB callback,
@@ -223,9 +223,9 @@ extern long changeDependencyFor(Oid classId, Oid objectId,
 								Oid refClassId, Oid oldRefObjectId,
 								Oid newRefObjectId);
 
-long changeDependenciesOf(Oid classId, Oid oldObjectId,
+long		changeDependenciesOf(Oid classId, Oid oldObjectId,
 								 Oid newObjectId);
-long changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
+long		changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
 								 Oid newRefObjectId);
 
 extern Oid	getExtensionOfObject(Oid classId, Oid objectId);

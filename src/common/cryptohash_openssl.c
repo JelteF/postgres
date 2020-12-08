@@ -66,14 +66,14 @@ typedef struct pg_cryptohash_state
 pg_cryptohash_ctx *
 pg_cryptohash_create(pg_cryptohash_type type)
 {
-	pg_cryptohash_ctx *ctx;
-	pg_cryptohash_state *state;
 
-	ctx = ALLOC(sizeof(pg_cryptohash_ctx));
+	pg_cryptohash_ctx *ctx = ALLOC(sizeof(pg_cryptohash_ctx));
+
 	if (ctx == NULL)
 		return NULL;
 
-	state = ALLOC(sizeof(pg_cryptohash_state));
+	pg_cryptohash_state *state = ALLOC(sizeof(pg_cryptohash_state));
+
 	if (state == NULL)
 	{
 		explicit_bzero(ctx, sizeof(pg_cryptohash_ctx));
@@ -126,12 +126,11 @@ int
 pg_cryptohash_init(pg_cryptohash_ctx *ctx)
 {
 	int			status = 0;
-	pg_cryptohash_state *state;
 
 	if (ctx == NULL)
 		return 0;
 
-	state = (pg_cryptohash_state *) ctx->data;
+	pg_cryptohash_state *state = (pg_cryptohash_state *) ctx->data;
 
 	switch (ctx->type)
 	{
@@ -163,14 +162,12 @@ pg_cryptohash_init(pg_cryptohash_ctx *ctx)
 int
 pg_cryptohash_update(pg_cryptohash_ctx *ctx, const uint8 *data, size_t len)
 {
-	int			status = 0;
-	pg_cryptohash_state *state;
 
 	if (ctx == NULL)
 		return 0;
 
-	state = (pg_cryptohash_state *) ctx->data;
-	status = EVP_DigestUpdate(state->evpctx, data, len);
+	pg_cryptohash_state *state = (pg_cryptohash_state *) ctx->data;
+	int			status = EVP_DigestUpdate(state->evpctx, data, len);
 
 	/* OpenSSL internals return 1 on success, 0 on failure */
 	if (status <= 0)
@@ -186,14 +183,12 @@ pg_cryptohash_update(pg_cryptohash_ctx *ctx, const uint8 *data, size_t len)
 int
 pg_cryptohash_final(pg_cryptohash_ctx *ctx, uint8 *dest)
 {
-	int			status = 0;
-	pg_cryptohash_state *state;
 
 	if (ctx == NULL)
 		return 0;
 
-	state = (pg_cryptohash_state *) ctx->data;
-	status = EVP_DigestFinal_ex(state->evpctx, dest, 0);
+	pg_cryptohash_state *state = (pg_cryptohash_state *) ctx->data;
+	int			status = EVP_DigestFinal_ex(state->evpctx, dest, 0);
 
 	/* OpenSSL internals return 1 on success, 0 on failure */
 	if (status <= 0)
@@ -209,12 +204,12 @@ pg_cryptohash_final(pg_cryptohash_ctx *ctx, uint8 *dest)
 void
 pg_cryptohash_free(pg_cryptohash_ctx *ctx)
 {
-	pg_cryptohash_state *state;
 
 	if (ctx == NULL)
 		return;
 
-	state = (pg_cryptohash_state *) ctx->data;
+	pg_cryptohash_state *state = (pg_cryptohash_state *) ctx->data;
+
 	EVP_MD_CTX_destroy(state->evpctx);
 
 #ifndef FRONTEND

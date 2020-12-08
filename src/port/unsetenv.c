@@ -19,7 +19,6 @@
 void
 unsetenv(const char *name)
 {
-	char	   *envstr;
 
 	if (getenv(name) == NULL)
 		return;					/* no work */
@@ -38,7 +37,8 @@ unsetenv(const char *name)
 	 * leak memory.
 	 */
 
-	envstr = (char *) malloc(strlen(name) + 2);
+	char	   *envstr = (char *) malloc(strlen(name) + 2);
+
 	if (!envstr)				/* not much we can do if no memory */
 		return;
 

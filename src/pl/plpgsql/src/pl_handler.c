@@ -63,7 +63,6 @@ plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source)
 	List	   *elemlist;
 	ListCell   *l;
 	int			extrachecks = 0;
-	int		   *myextra;
 
 	if (pg_strcasecmp(*newvalue, "all") == 0)
 		extrachecks = PLPGSQL_XCHECK_ALL;
@@ -114,7 +113,8 @@ plpgsql_extra_checks_check_hook(char **newvalue, void **extra, GucSource source)
 		list_free(elemlist);
 	}
 
-	myextra = (int *) malloc(sizeof(int));
+	int		   *myextra = (int *) malloc(sizeof(int));
+
 	if (!myextra)
 		return false;
 	*myextra = extrachecks;
@@ -221,15 +221,12 @@ PG_FUNCTION_INFO_V1(plpgsql_call_handler);
 Datum
 plpgsql_call_handler(PG_FUNCTION_ARGS)
 {
-	bool		nonatomic;
-	PLpgSQL_function *func;
-	PLpgSQL_execstate *save_cur_estate;
 	Datum		retval;
 	int			rc;
 
-	nonatomic = fcinfo->context &&
-		IsA(fcinfo->context, CallContext) &&
-		!castNode(CallContext, fcinfo->context)->atomic;
+	bool		nonatomic = fcinfo->context &&
+	IsA(fcinfo->context, CallContext) &&
+	!castNode(CallContext, fcinfo->context)->atomic;
 
 	/*
 	 * Connect to SPI manager
@@ -238,10 +235,10 @@ plpgsql_call_handler(PG_FUNCTION_ARGS)
 		elog(ERROR, "SPI_connect failed: %s", SPI_result_code_string(rc));
 
 	/* Find or compile the function */
-	func = plpgsql_compile(fcinfo, false);
+	PLpgSQL_function *func = plpgsql_compile(fcinfo, false);
 
 	/* Must save and restore prior value of cur_estate */
-	save_cur_estate = func->cur_estate;
+	PLpgSQL_execstate *save_cur_estate = func->cur_estate;
 
 	/* Mark the function as busy, so it can't be deleted from under us */
 	func->use_count++;
@@ -296,10 +293,7 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 {
 	LOCAL_FCINFO(fake_fcinfo, 0);
 	InlineCodeBlock *codeblock = castNode(InlineCodeBlock, DatumGetPointer(PG_GETARG_DATUM(0)));
-	PLpgSQL_function *func;
 	FmgrInfo	flinfo;
-	EState	   *simple_eval_estate;
-	ResourceOwner simple_eval_resowner;
 	Datum		retval;
 	int			rc;
 
@@ -310,7 +304,7 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 		elog(ERROR, "SPI_connect failed: %s", SPI_result_code_string(rc));
 
 	/* Compile the anonymous code block */
-	func = plpgsql_compile_inline(codeblock->source_text);
+	PLpgSQL_function *func = plpgsql_compile_inline(codeblock->source_text);
 
 	/* Mark the function as busy, just pro forma */
 	func->use_count++;
@@ -334,9 +328,9 @@ plpgsql_inline_handler(PG_FUNCTION_ARGS)
 	 * anything that could fail between here and the PG_TRY block.)  See the
 	 * comments for shared_simple_eval_estate.
 	 */
-	simple_eval_estate = CreateExecutorState();
-	simple_eval_resowner =
-		ResourceOwnerCreate(NULL, "PL/pgSQL DO block simple expressions");
+	EState	   *simple_eval_estate = CreateExecutorState();
+	ResourceOwner simple_eval_resowner =
+	ResourceOwnerCreate(NULL, "PL/pgSQL DO block simple expressions");
 
 	/* And run the function */
 	PG_TRY();
@@ -417,10 +411,6 @@ Datum
 plpgsql_validator(PG_FUNCTION_ARGS)
 {
 	Oid			funcoid = PG_GETARG_OID(0);
-	HeapTuple	tuple;
-	Form_pg_proc proc;
-	char		functyptype;
-	int			numargs;
 	Oid		   *argtypes;
 	char	  **argnames;
 	char	   *argmodes;
@@ -432,12 +422,13 @@ plpgsql_validator(PG_FUNCTION_ARGS)
 		PG_RETURN_VOID();
 
 	/* Get the new function's pg_proc entry */
-	tuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcoid));
+	HeapTuple	tuple = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcoid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for function %u", funcoid);
-	proc = (Form_pg_proc) GETSTRUCT(tuple);
+	Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(tuple);
 
-	functyptype = get_typtype(proc->prorettype);
+	char		functyptype = get_typtype(proc->prorettype);
 
 	/* Disallow pseudotype result */
 	/* except for TRIGGER, EVTTRIGGER, RECORD, VOID, or polymorphic */
@@ -458,8 +449,9 @@ plpgsql_validator(PG_FUNCTION_ARGS)
 
 	/* Disallow pseudotypes in arguments (either IN or OUT) */
 	/* except for RECORD and polymorphic */
-	numargs = get_func_arg_info(tuple,
-								&argtypes, &argnames, &argmodes);
+	int			numargs = get_func_arg_info(tuple,
+											&argtypes, &argnames, &argmodes);
+
 	for (i = 0; i < numargs; i++)
 	{
 		if (get_typtype(argtypes[i]) == TYPTYPE_PSEUDO)

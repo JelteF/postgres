@@ -84,7 +84,6 @@ ArrayGetNItems(int ndim, const int *dims)
 	ret = 1;
 	for (i = 0; i < ndim; i++)
 	{
-		int64		prod;
 
 		/* A negative dimension implies that UB-LB overflowed ... */
 		if (dims[i] < 0)
@@ -93,7 +92,7 @@ ArrayGetNItems(int ndim, const int *dims)
 					 errmsg("array size exceeds the maximum allowed (%d)",
 							(int) MaxArraySize)));
 
-		prod = (int64) ret * (int64) dims[i];
+		int64		prod = (int64) ret * (int64) dims[i];
 
 		ret = (int32) prod;
 		if ((int64) ret != prod)
@@ -199,7 +198,6 @@ mda_next_tuple(int n, int *curr, const int *span)
 int32 *
 ArrayGetIntegerTypmods(ArrayType *arr, int *n)
 {
-	int32	   *result;
 	Datum	   *elem_values;
 	int			i;
 
@@ -223,7 +221,7 @@ ArrayGetIntegerTypmods(ArrayType *arr, int *n)
 					  -2, false, TYPALIGN_CHAR,
 					  &elem_values, NULL, n);
 
-	result = (int32 *) palloc(*n * sizeof(int32));
+	int32	   *result = (int32 *) palloc(*n * sizeof(int32));
 
 	for (i = 0; i < *n; i++)
 		result[i] = pg_strtoint32(DatumGetCString(elem_values[i]));

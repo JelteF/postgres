@@ -96,23 +96,19 @@ make_inh_translation_list(Relation oldrelation, Relation newrelation,
 
 	for (old_attno = 0; old_attno < oldnatts; old_attno++)
 	{
-		Form_pg_attribute att;
-		char	   *attname;
-		Oid			atttypid;
-		int32		atttypmod;
-		Oid			attcollation;
 
-		att = TupleDescAttr(old_tupdesc, old_attno);
+		Form_pg_attribute att = TupleDescAttr(old_tupdesc, old_attno);
+
 		if (att->attisdropped)
 		{
 			/* Just put NULL into this list entry */
 			vars = lappend(vars, NULL);
 			continue;
 		}
-		attname = NameStr(att->attname);
-		atttypid = att->atttypid;
-		atttypmod = att->atttypmod;
-		attcollation = att->attcollation;
+		char	   *attname = NameStr(att->attname);
+		Oid			atttypid = att->atttypid;
+		int32		atttypmod = att->atttypmod;
+		Oid			attcollation = att->attcollation;
 
 		/*
 		 * When we are generating the "translation list" for the parent table
@@ -143,9 +139,9 @@ make_inh_translation_list(Relation oldrelation, Relation newrelation,
 			(att = TupleDescAttr(new_tupdesc, new_attno))->attisdropped ||
 			strcmp(attname, NameStr(att->attname)) != 0)
 		{
-			HeapTuple	newtup;
 
-			newtup = SearchSysCacheAttName(new_relid, attname);
+			HeapTuple	newtup = SearchSysCacheAttName(new_relid, attname);
+
 			if (!HeapTupleIsValid(newtup))
 				elog(ERROR, "could not find inherited attribute \"%s\" of relation \"%s\"",
 					 attname, RelationGetRelationName(newrelation));
@@ -209,13 +205,13 @@ adjust_appendrel_attrs(PlannerInfo *root, Node *node, int nappinfos,
 	 */
 	if (node && IsA(node, Query))
 	{
-		Query	   *newnode;
 		int			cnt;
 
-		newnode = query_tree_mutator((Query *) node,
-									 adjust_appendrel_attrs_mutator,
-									 (void *) &context,
-									 QTW_IGNORE_RC_SUBQUERIES);
+		Query	   *newnode = query_tree_mutator((Query *) node,
+												 adjust_appendrel_attrs_mutator,
+												 (void *) &context,
+												 QTW_IGNORE_RC_SUBQUERIES);
+
 		for (cnt = 0; cnt < nappinfos; cnt++)
 		{
 			AppendRelInfo *appinfo = appinfos[cnt];
@@ -275,13 +271,13 @@ adjust_appendrel_attrs_mutator(Node *node,
 			var->varattnosyn = 0;
 			if (var->varattno > 0)
 			{
-				Node	   *newnode;
 
 				if (var->varattno > list_length(appinfo->translated_vars))
 					elog(ERROR, "attribute %d of relation \"%s\" does not exist",
 						 var->varattno, get_rel_name(appinfo->parent_reloid));
-				newnode = copyObject(list_nth(appinfo->translated_vars,
-											  var->varattno - 1));
+				Node	   *newnode = copyObject(list_nth(appinfo->translated_vars,
+														  var->varattno - 1));
+
 				if (newnode == NULL)
 					elog(ERROR, "attribute %d of relation \"%s\" does not exist",
 						 var->varattno, get_rel_name(appinfo->parent_reloid));
@@ -324,14 +320,12 @@ adjust_appendrel_attrs_mutator(Node *node,
 					 * is no need to worry that translated_vars might contain
 					 * some dummy NULLs.
 					 */
-					RowExpr    *rowexpr;
-					List	   *fields;
-					RangeTblEntry *rte;
 
-					rte = rt_fetch(appinfo->parent_relid,
-								   context->root->parse->rtable);
-					fields = copyObject(appinfo->translated_vars);
-					rowexpr = makeNode(RowExpr);
+					RangeTblEntry *rte = rt_fetch(appinfo->parent_relid,
+												  context->root->parse->rtable);
+					List	   *fields = copyObject(appinfo->translated_vars);
+					RowExpr    *rowexpr = makeNode(RowExpr);
+
 					rowexpr->args = fields;
 					rowexpr->row_typeid = var->vartype;
 					rowexpr->row_format = COERCE_IMPLICIT_CAST;
@@ -380,12 +374,12 @@ adjust_appendrel_attrs_mutator(Node *node,
 	if (IsA(node, JoinExpr))
 	{
 		/* Copy the JoinExpr node with correct mutation of subnodes */
-		JoinExpr   *j;
 		AppendRelInfo *appinfo;
 
-		j = (JoinExpr *) expression_tree_mutator(node,
-												 adjust_appendrel_attrs_mutator,
-												 (void *) context);
+		JoinExpr   *j = (JoinExpr *) expression_tree_mutator(node,
+															 adjust_appendrel_attrs_mutator,
+															 (void *) context);
+
 		/* now fix JoinExpr's rtindex (probably never happens) */
 		for (cnt = 0; cnt < nappinfos; cnt++)
 		{
@@ -402,11 +396,11 @@ adjust_appendrel_attrs_mutator(Node *node,
 	if (IsA(node, PlaceHolderVar))
 	{
 		/* Copy the PlaceHolderVar node with correct mutation of subnodes */
-		PlaceHolderVar *phv;
 
-		phv = (PlaceHolderVar *) expression_tree_mutator(node,
-														 adjust_appendrel_attrs_mutator,
-														 (void *) context);
+		PlaceHolderVar *phv = (PlaceHolderVar *) expression_tree_mutator(node,
+																		 adjust_appendrel_attrs_mutator,
+																		 (void *) context);
+
 		/* now fix PlaceHolderVar's relid sets */
 		if (phv->phlevelsup == 0)
 			phv->phrels = adjust_child_relids(phv->phrels, context->nappinfos,
@@ -503,14 +497,13 @@ adjust_appendrel_attrs_multilevel(PlannerInfo *root, Node *node,
 								  Relids child_relids,
 								  Relids top_parent_relids)
 {
-	AppendRelInfo **appinfos;
 	Bitmapset  *parent_relids = NULL;
 	int			nappinfos;
 	int			cnt;
 
 	Assert(bms_num_members(child_relids) == bms_num_members(top_parent_relids));
 
-	appinfos = find_appinfos_by_relids(root, child_relids, &nappinfos);
+	AppendRelInfo **appinfos = find_appinfos_by_relids(root, child_relids, &nappinfos);
 
 	/* Construct relids set for the immediate parent of given child. */
 	for (cnt = 0; cnt < nappinfos; cnt++)
@@ -576,10 +569,8 @@ Relids
 adjust_child_relids_multilevel(PlannerInfo *root, Relids relids,
 							   Relids child_relids, Relids top_parent_relids)
 {
-	AppendRelInfo **appinfos;
 	int			nappinfos;
 	Relids		parent_relids = NULL;
-	Relids		result;
 	Relids		tmp_result = NULL;
 	int			cnt;
 
@@ -590,7 +581,7 @@ adjust_child_relids_multilevel(PlannerInfo *root, Relids relids,
 	if (!bms_overlap(relids, top_parent_relids))
 		return relids;
 
-	appinfos = find_appinfos_by_relids(root, child_relids, &nappinfos);
+	AppendRelInfo **appinfos = find_appinfos_by_relids(root, child_relids, &nappinfos);
 
 	/* Construct relids set for the immediate parent of the given child. */
 	for (cnt = 0; cnt < nappinfos; cnt++)
@@ -609,7 +600,7 @@ adjust_child_relids_multilevel(PlannerInfo *root, Relids relids,
 		relids = tmp_result;
 	}
 
-	result = adjust_child_relids(relids, nappinfos, appinfos);
+	Relids		result = adjust_child_relids(relids, nappinfos, appinfos);
 
 	/* Free memory consumed by any intermediate result. */
 	if (tmp_result)
@@ -641,8 +632,6 @@ adjust_inherited_tlist(List *tlist, AppendRelInfo *context)
 {
 	bool		changed_it = false;
 	ListCell   *tl;
-	List	   *new_tlist;
-	bool		more;
 	int			attrno;
 
 	/* This should only happen for an inheritance case, not UNION ALL */
@@ -652,7 +641,6 @@ adjust_inherited_tlist(List *tlist, AppendRelInfo *context)
 	foreach(tl, tlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(tl);
-		Var		   *childvar;
 
 		if (tle->resjunk)
 			continue;			/* ignore junk items */
@@ -662,7 +650,8 @@ adjust_inherited_tlist(List *tlist, AppendRelInfo *context)
 			tle->resno > list_length(context->translated_vars))
 			elog(ERROR, "attribute %d of relation \"%s\" does not exist",
 				 tle->resno, get_rel_name(context->parent_reloid));
-		childvar = (Var *) list_nth(context->translated_vars, tle->resno - 1);
+		Var		   *childvar = (Var *) list_nth(context->translated_vars, tle->resno - 1);
+
 		if (childvar == NULL || !IsA(childvar, Var))
 			elog(ERROR, "attribute %d of relation \"%s\" does not exist",
 				 tle->resno, get_rel_name(context->parent_reloid));
@@ -683,8 +672,9 @@ adjust_inherited_tlist(List *tlist, AppendRelInfo *context)
 	if (!changed_it)
 		return tlist;
 
-	new_tlist = NIL;
-	more = true;
+	List	   *new_tlist = NIL;
+	bool		more = true;
+
 	for (attrno = 1; more; attrno++)
 	{
 		more = false;
@@ -727,14 +717,13 @@ adjust_inherited_tlist(List *tlist, AppendRelInfo *context)
 AppendRelInfo **
 find_appinfos_by_relids(PlannerInfo *root, Relids relids, int *nappinfos)
 {
-	AppendRelInfo **appinfos;
 	int			cnt = 0;
-	int			i;
 
 	*nappinfos = bms_num_members(relids);
-	appinfos = (AppendRelInfo **) palloc(sizeof(AppendRelInfo *) * *nappinfos);
+	AppendRelInfo **appinfos = (AppendRelInfo **) palloc(sizeof(AppendRelInfo *) * *nappinfos);
 
-	i = -1;
+	int			i = -1;
+
 	while ((i = bms_next_member(relids, i)) >= 0)
 	{
 		AppendRelInfo *appinfo = root->append_rel_array[i];

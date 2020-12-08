@@ -210,11 +210,11 @@ enlarge_list(List *list, int min_size)
 		 * repalloc() might enlarge the space in-place, which we don't want
 		 * for debugging purposes, so forcibly move the data somewhere else.
 		 */
-		ListCell   *newelements;
 
-		newelements = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   new_max_len * sizeof(ListCell));
+		ListCell   *newelements = (ListCell *)
+		MemoryContextAlloc(GetMemoryChunkContext(list),
+						   new_max_len * sizeof(ListCell));
+
 		memcpy(newelements, list->elements,
 			   list->length * sizeof(ListCell));
 		pfree(list->elements);
@@ -514,7 +514,6 @@ lcons_oid(Oid datum, List *list)
 List *
 list_concat(List *list1, const List *list2)
 {
-	int			new_len;
 
 	if (list1 == NIL)
 		return list_copy(list2);
@@ -523,7 +522,8 @@ list_concat(List *list1, const List *list2)
 
 	Assert(list1->type == list2->type);
 
-	new_len = list1->length + list2->length;
+	int			new_len = list1->length + list2->length;
+
 	/* Enlarge array if necessary */
 	if (new_len > list1->max_length)
 		enlarge_list(list1, new_len);
@@ -551,8 +551,6 @@ list_concat(List *list1, const List *list2)
 List *
 list_concat_copy(const List *list1, const List *list2)
 {
-	List	   *result;
-	int			new_len;
 
 	if (list1 == NIL)
 		return list_copy(list2);
@@ -561,8 +559,9 @@ list_concat_copy(const List *list1, const List *list2)
 
 	Assert(list1->type == list2->type);
 
-	new_len = list1->length + list2->length;
-	result = new_list(list1->type, new_len);
+	int			new_len = list1->length + list2->length;
+	List	   *result = new_list(list1->type, new_len);
+
 	memcpy(result->elements, list1->elements,
 		   list1->length * sizeof(ListCell));
 	memcpy(result->elements + list1->length, list2->elements,
@@ -722,12 +721,12 @@ list_delete_nth_cell(List *list, int n)
 	list->length--;
 #else
 	{
-		ListCell   *newelems;
 		int			newmaxlen = list->length - 1;
 
-		newelems = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   newmaxlen * sizeof(ListCell));
+		ListCell   *newelems = (ListCell *)
+		MemoryContextAlloc(GetMemoryChunkContext(list),
+						   newmaxlen * sizeof(ListCell));
+
 		memcpy(newelems, list->elements, n * sizeof(ListCell));
 		memcpy(&newelems[n], &list->elements[n + 1],
 			   (list->length - 1 - n) * sizeof(ListCell));
@@ -914,13 +913,13 @@ list_delete_last(List *list)
 List *
 list_union(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	Assert(IsPointerList(list1));
 	Assert(IsPointerList(list2));
 
-	result = list_copy(list1);
+	List	   *result = list_copy(list1);
+
 	foreach(cell, list2)
 	{
 		if (!list_member(result, lfirst(cell)))
@@ -938,13 +937,13 @@ list_union(const List *list1, const List *list2)
 List *
 list_union_ptr(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	Assert(IsPointerList(list1));
 	Assert(IsPointerList(list2));
 
-	result = list_copy(list1);
+	List	   *result = list_copy(list1);
+
 	foreach(cell, list2)
 	{
 		if (!list_member_ptr(result, lfirst(cell)))
@@ -961,13 +960,13 @@ list_union_ptr(const List *list1, const List *list2)
 List *
 list_union_int(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	Assert(IsIntegerList(list1));
 	Assert(IsIntegerList(list2));
 
-	result = list_copy(list1);
+	List	   *result = list_copy(list1);
+
 	foreach(cell, list2)
 	{
 		if (!list_member_int(result, lfirst_int(cell)))
@@ -984,13 +983,13 @@ list_union_int(const List *list1, const List *list2)
 List *
 list_union_oid(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	Assert(IsOidList(list1));
 	Assert(IsOidList(list2));
 
-	result = list_copy(list1);
+	List	   *result = list_copy(list1);
+
 	foreach(cell, list2)
 	{
 		if (!list_member_oid(result, lfirst_oid(cell)))
@@ -1017,7 +1016,6 @@ list_union_oid(const List *list1, const List *list2)
 List *
 list_intersection(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	if (list1 == NIL || list2 == NIL)
@@ -1026,7 +1024,8 @@ list_intersection(const List *list1, const List *list2)
 	Assert(IsPointerList(list1));
 	Assert(IsPointerList(list2));
 
-	result = NIL;
+	List	   *result = NIL;
+
 	foreach(cell, list1)
 	{
 		if (list_member(list2, lfirst(cell)))
@@ -1043,7 +1042,6 @@ list_intersection(const List *list1, const List *list2)
 List *
 list_intersection_int(const List *list1, const List *list2)
 {
-	List	   *result;
 	const ListCell *cell;
 
 	if (list1 == NIL || list2 == NIL)
@@ -1052,7 +1050,8 @@ list_intersection_int(const List *list1, const List *list2)
 	Assert(IsIntegerList(list1));
 	Assert(IsIntegerList(list2));
 
-	result = NIL;
+	List	   *result = NIL;
+
 	foreach(cell, list1)
 	{
 		if (list_member_int(list2, lfirst_int(cell)))
@@ -1324,10 +1323,10 @@ list_concat_unique_oid(List *list1, const List *list2)
 void
 list_deduplicate_oid(List *list)
 {
-	int			len;
 
 	Assert(IsOidList(list));
-	len = list_length(list);
+	int			len = list_length(list);
+
 	if (len > 1)
 	{
 		ListCell   *elements = list->elements;
@@ -1402,12 +1401,12 @@ list_free_deep(List *list)
 List *
 list_copy(const List *oldlist)
 {
-	List	   *newlist;
 
 	if (oldlist == NIL)
 		return NIL;
 
-	newlist = new_list(oldlist->type, oldlist->length);
+	List	   *newlist = new_list(oldlist->type, oldlist->length);
+
 	memcpy(newlist->elements, oldlist->elements,
 		   newlist->length * sizeof(ListCell));
 
@@ -1421,7 +1420,6 @@ list_copy(const List *oldlist)
 List *
 list_copy_tail(const List *oldlist, int nskip)
 {
-	List	   *newlist;
 
 	if (nskip < 0)
 		nskip = 0;				/* would it be better to elog? */
@@ -1429,7 +1427,8 @@ list_copy_tail(const List *oldlist, int nskip)
 	if (oldlist == NIL || nskip >= oldlist->length)
 		return NIL;
 
-	newlist = new_list(oldlist->type, oldlist->length - nskip);
+	List	   *newlist = new_list(oldlist->type, oldlist->length - nskip);
+
 	memcpy(newlist->elements, &oldlist->elements[nskip],
 		   newlist->length * sizeof(ListCell));
 
@@ -1447,7 +1446,6 @@ list_copy_tail(const List *oldlist, int nskip)
 List *
 list_copy_deep(const List *oldlist)
 {
-	List	   *newlist;
 
 	if (oldlist == NIL)
 		return NIL;
@@ -1455,7 +1453,8 @@ list_copy_deep(const List *oldlist)
 	/* This is only sensible for pointer Lists */
 	Assert(IsA(oldlist, List));
 
-	newlist = new_list(oldlist->type, oldlist->length);
+	List	   *newlist = new_list(oldlist->type, oldlist->length);
+
 	for (int i = 0; i < newlist->length; i++)
 		lfirst(&newlist->elements[i]) =
 			copyObjectImpl(lfirst(&oldlist->elements[i]));
@@ -1481,12 +1480,12 @@ void
 list_sort(List *list, list_sort_comparator cmp)
 {
 	typedef int (*qsort_comparator) (const void *a, const void *b);
-	int			len;
 
 	check_list_invariants(list);
 
 	/* Nothing to do if there's less than two elements */
-	len = list_length(list);
+	int			len = list_length(list);
+
 	if (len > 1)
 		qsort(list->elements, len, sizeof(ListCell), (qsort_comparator) cmp);
 }

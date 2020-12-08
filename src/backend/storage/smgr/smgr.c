@@ -146,7 +146,6 @@ SMgrRelation
 smgropen(RelFileNode rnode, BackendId backend)
 {
 	RelFileNodeBackend brnode;
-	SMgrRelation reln;
 	bool		found;
 
 	if (SMgrRelationHash == NULL)
@@ -165,9 +164,9 @@ smgropen(RelFileNode rnode, BackendId backend)
 	/* Look up or create an entry */
 	brnode.node = rnode;
 	brnode.backend = backend;
-	reln = (SMgrRelation) hash_search(SMgrRelationHash,
-									  (void *) &brnode,
-									  HASH_ENTER, &found);
+	SMgrRelation reln = (SMgrRelation) hash_search(SMgrRelationHash,
+												   (void *) &brnode,
+												   HASH_ENTER, &found);
 
 	/* Initialize it if not present before */
 	if (!found)
@@ -256,13 +255,12 @@ smgrexists(SMgrRelation reln, ForkNumber forknum)
 void
 smgrclose(SMgrRelation reln)
 {
-	SMgrRelation *owner;
 	ForkNumber	forknum;
 
 	for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
 		smgrsw[reln->smgr_which].smgr_close(reln, forknum);
 
-	owner = reln->smgr_owner;
+	SMgrRelation *owner = reln->smgr_owner;
 
 	if (!owner)
 		dlist_delete(&reln->node);
@@ -310,15 +308,15 @@ smgrcloseall(void)
 void
 smgrclosenode(RelFileNodeBackend rnode)
 {
-	SMgrRelation reln;
 
 	/* Nothing to do if hashtable not set up */
 	if (SMgrRelationHash == NULL)
 		return;
 
-	reln = (SMgrRelation) hash_search(SMgrRelationHash,
-									  (void *) &rnode,
-									  HASH_FIND, NULL);
+	SMgrRelation reln = (SMgrRelation) hash_search(SMgrRelationHash,
+												   (void *) &rnode,
+												   HASH_FIND, NULL);
+
 	if (reln != NULL)
 		smgrclose(reln);
 }
@@ -385,7 +383,6 @@ void
 smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 {
 	int			i = 0;
-	RelFileNodeBackend *rnodes;
 	ForkNumber	forknum;
 
 	if (nrels == 0)
@@ -395,7 +392,8 @@ smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 	 * create an array which contains all relations to be dropped, and close
 	 * each relation's forks at the smgr level while at it
 	 */
-	rnodes = palloc(sizeof(RelFileNodeBackend) * nrels);
+	RelFileNodeBackend *rnodes = palloc(sizeof(RelFileNodeBackend) * nrels);
+
 	for (i = 0; i < nrels; i++)
 	{
 		RelFileNodeBackend rnode = rels[i]->smgr_rnode;
@@ -548,7 +546,6 @@ smgrwriteback(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
 BlockNumber
 smgrnblocks(SMgrRelation reln, ForkNumber forknum)
 {
-	BlockNumber result;
 
 	/*
 	 * For now, we only use cached values in recovery due to lack of a shared
@@ -557,7 +554,7 @@ smgrnblocks(SMgrRelation reln, ForkNumber forknum)
 	if (InRecovery && reln->smgr_cached_nblocks[forknum] != InvalidBlockNumber)
 		return reln->smgr_cached_nblocks[forknum];
 
-	result = smgrsw[reln->smgr_which].smgr_nblocks(reln, forknum);
+	BlockNumber result = smgrsw[reln->smgr_which].smgr_nblocks(reln, forknum);
 
 	reln->smgr_cached_nblocks[forknum] = result;
 

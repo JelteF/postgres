@@ -69,7 +69,6 @@ InsertRule(const char *rulname,
 	bool		nulls[Natts_pg_rewrite];
 	bool		replaces[Natts_pg_rewrite];
 	NameData	rname;
-	Relation	pg_rewrite_desc;
 	HeapTuple	tup,
 				oldtup;
 	Oid			rewriteObjectId;
@@ -94,7 +93,7 @@ InsertRule(const char *rulname,
 	/*
 	 * Ready to store new pg_rewrite tuple
 	 */
-	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
+	Relation	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
 
 	/*
 	 * Check to see if we are replacing an existing tuple
@@ -199,7 +198,6 @@ DefineRule(RuleStmt *stmt, const char *queryString)
 {
 	List	   *actions;
 	Node	   *whereClause;
-	Oid			relId;
 
 	/* Parse analysis. */
 	transformRuleStmt(stmt, queryString, &actions, &whereClause);
@@ -208,7 +206,7 @@ DefineRule(RuleStmt *stmt, const char *queryString)
 	 * Find and lock the relation.  Lock level should match
 	 * DefineQueryRewrite.
 	 */
-	relId = RangeVarGetRelid(stmt->relation, AccessExclusiveLock, false);
+	Oid			relId = RangeVarGetRelid(stmt->relation, AccessExclusiveLock, false);
 
 	/* ... and execute */
 	return DefineQueryRewrite(stmt->rulename,
@@ -237,7 +235,6 @@ DefineQueryRewrite(const char *rulename,
 				   bool replace,
 				   List *action)
 {
-	Relation	event_relation;
 	ListCell   *l;
 	Query	   *query;
 	bool		RelisBecomingView = false;
@@ -254,7 +251,7 @@ DefineQueryRewrite(const char *rulename,
 	 *
 	 * Note that this lock level should match the one used in DefineRule.
 	 */
-	event_relation = table_open(event_relid, AccessExclusiveLock);
+	Relation	event_relation = table_open(event_relid, AccessExclusiveLock);
 
 	/*
 	 * Verify relation is of a type that rules can sensibly be applied to.
@@ -372,9 +369,9 @@ DefineQueryRewrite(const char *rulename,
 
 			for (i = 0; i < event_relation->rd_rules->numLocks; i++)
 			{
-				RewriteRule *rule;
 
-				rule = event_relation->rd_rules->rules[i];
+				RewriteRule *rule = event_relation->rd_rules->rules[i];
+
 				if (rule->event == CMD_SELECT)
 					ereport(ERROR,
 							(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -423,9 +420,6 @@ DefineQueryRewrite(const char *rulename,
 		if (event_relation->rd_rel->relkind != RELKIND_VIEW &&
 			event_relation->rd_rel->relkind != RELKIND_MATVIEW)
 		{
-			TableScanDesc scanDesc;
-			Snapshot	snapshot;
-			TupleTableSlot *slot;
 
 			if (event_relation->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
 				ereport(ERROR,
@@ -439,9 +433,10 @@ DefineQueryRewrite(const char *rulename,
 						 errmsg("cannot convert partition \"%s\" to a view",
 								RelationGetRelationName(event_relation))));
 
-			snapshot = RegisterSnapshot(GetLatestSnapshot());
-			scanDesc = table_beginscan(event_relation, snapshot, 0, NULL);
-			slot = table_slot_create(event_relation, NULL);
+			Snapshot	snapshot = RegisterSnapshot(GetLatestSnapshot());
+			TableScanDesc scanDesc = table_beginscan(event_relation, snapshot, 0, NULL);
+			TupleTableSlot *slot = table_slot_create(event_relation, NULL);
+
 			if (table_scan_getnextslot(scanDesc, ForwardScanDirection, slot))
 				ereport(ERROR,
 						(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -562,13 +557,9 @@ DefineQueryRewrite(const char *rulename,
 	 */
 	if (RelisBecomingView)
 	{
-		Relation	relationRelation;
-		Oid			toastrelid;
-		HeapTuple	classTup;
-		Form_pg_class classForm;
 
-		relationRelation = table_open(RelationRelationId, RowExclusiveLock);
-		toastrelid = event_relation->rd_rel->reltoastrelid;
+		Relation	relationRelation = table_open(RelationRelationId, RowExclusiveLock);
+		Oid			toastrelid = event_relation->rd_rel->reltoastrelid;
 
 		/* drop storage while table still looks like a table  */
 		RelationDropStorage(event_relation);
@@ -612,10 +603,11 @@ DefineQueryRewrite(const char *rulename,
 		 * the correct relkind and removal of reltoastrelid of the toast table
 		 * we potentially removed above.
 		 */
-		classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(event_relid));
+		HeapTuple	classTup = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(event_relid));
+
 		if (!HeapTupleIsValid(classTup))
 			elog(ERROR, "cache lookup failed for relation %u", event_relid);
-		classForm = (Form_pg_class) GETSTRUCT(classTup);
+		Form_pg_class classForm = (Form_pg_class) GETSTRUCT(classTup);
 
 		classForm->relam = InvalidOid;
 		classForm->reltablespace = InvalidOid;
@@ -657,19 +649,15 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 					bool requireColumnNameMatch)
 {
 	ListCell   *tllist;
-	int			i;
 
 	/* Only a SELECT may require a column name match. */
 	Assert(isSelect || !requireColumnNameMatch);
 
-	i = 0;
+	int			i = 0;
+
 	foreach(tllist, targetList)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(tllist);
-		Oid			tletypid;
-		int32		tletypmod;
-		Form_pg_attribute attr;
-		char	   *attname;
 
 		/* resjunk entries may be ignored */
 		if (tle->resjunk)
@@ -682,8 +670,8 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 					 errmsg("SELECT rule's target list has too many entries") :
 					 errmsg("RETURNING list has too many entries")));
 
-		attr = TupleDescAttr(resultDesc, i - 1);
-		attname = NameStr(attr->attname);
+		Form_pg_attribute attr = TupleDescAttr(resultDesc, i - 1);
+		char	   *attname = NameStr(attr->attname);
 
 		/*
 		 * Disallow dropped columns in the relation.  This is not really
@@ -720,7 +708,8 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 							   tle->resname)));
 
 		/* Check type match. */
-		tletypid = exprType((Node *) tle->expr);
+		Oid			tletypid = exprType((Node *) tle->expr);
+
 		if (attr->atttypid != tletypid)
 			ereport(ERROR,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
@@ -743,7 +732,8 @@ checkRuleResultList(List *targetList, TupleDesc resultDesc, bool isSelect,
 		 * the table will have a filled-in default length but the select
 		 * rule's expression will probably have typmod = -1.
 		 */
-		tletypmod = exprTypmod((Node *) tle->expr);
+		int32		tletypmod = exprTypmod((Node *) tle->expr);
+
 		if (attr->atttypmod != tletypmod &&
 			attr->atttypmod != -1 && tletypmod != -1)
 			ereport(ERROR,
@@ -845,32 +835,30 @@ void
 EnableDisableRule(Relation rel, const char *rulename,
 				  char fires_when)
 {
-	Relation	pg_rewrite_desc;
 	Oid			owningRel = RelationGetRelid(rel);
-	Oid			eventRelationOid;
-	HeapTuple	ruletup;
-	Form_pg_rewrite ruleform;
 	bool		changed = false;
 
 	/*
 	 * Find the rule tuple to change.
 	 */
-	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
-	ruletup = SearchSysCacheCopy2(RULERELNAME,
-								  ObjectIdGetDatum(owningRel),
-								  PointerGetDatum(rulename));
+	Relation	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
+	HeapTuple	ruletup = SearchSysCacheCopy2(RULERELNAME,
+											  ObjectIdGetDatum(owningRel),
+											  PointerGetDatum(rulename));
+
 	if (!HeapTupleIsValid(ruletup))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("rule \"%s\" for relation \"%s\" does not exist",
 						rulename, get_rel_name(owningRel))));
 
-	ruleform = (Form_pg_rewrite) GETSTRUCT(ruletup);
+	Form_pg_rewrite ruleform = (Form_pg_rewrite) GETSTRUCT(ruletup);
 
 	/*
 	 * Verify that the user has appropriate permissions.
 	 */
-	eventRelationOid = ruleform->ev_class;
+	Oid			eventRelationOid = ruleform->ev_class;
+
 	Assert(eventRelationOid == owningRel);
 	if (!pg_class_ownercheck(eventRelationOid, GetUserId()))
 		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(eventRelationOid)),
@@ -910,13 +898,12 @@ static void
 RangeVarCallbackForRenameRule(const RangeVar *rv, Oid relid, Oid oldrelid,
 							  void *arg)
 {
-	HeapTuple	tuple;
-	Form_pg_class form;
 
-	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	HeapTuple	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(tuple))
 		return;					/* concurrently dropped */
-	form = (Form_pg_class) GETSTRUCT(tuple);
+	Form_pg_class form = (Form_pg_class) GETSTRUCT(tuple);
 
 	/* only tables and views can have rules */
 	if (form->relkind != RELKIND_RELATION &&
@@ -946,40 +933,35 @@ ObjectAddress
 RenameRewriteRule(RangeVar *relation, const char *oldName,
 				  const char *newName)
 {
-	Oid			relid;
-	Relation	targetrel;
-	Relation	pg_rewrite_desc;
-	HeapTuple	ruletup;
-	Form_pg_rewrite ruleform;
-	Oid			ruleOid;
 	ObjectAddress address;
 
 	/*
 	 * Look up name, check permissions, and acquire lock (which we will NOT
 	 * release until end of transaction).
 	 */
-	relid = RangeVarGetRelidExtended(relation, AccessExclusiveLock,
-									 0,
-									 RangeVarCallbackForRenameRule,
-									 NULL);
+	Oid			relid = RangeVarGetRelidExtended(relation, AccessExclusiveLock,
+												 0,
+												 RangeVarCallbackForRenameRule,
+												 NULL);
 
 	/* Have lock already, so just need to build relcache entry. */
-	targetrel = relation_open(relid, NoLock);
+	Relation	targetrel = relation_open(relid, NoLock);
 
 	/* Prepare to modify pg_rewrite */
-	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
+	Relation	pg_rewrite_desc = table_open(RewriteRelationId, RowExclusiveLock);
 
 	/* Fetch the rule's entry (it had better exist) */
-	ruletup = SearchSysCacheCopy2(RULERELNAME,
-								  ObjectIdGetDatum(relid),
-								  PointerGetDatum(oldName));
+	HeapTuple	ruletup = SearchSysCacheCopy2(RULERELNAME,
+											  ObjectIdGetDatum(relid),
+											  PointerGetDatum(oldName));
+
 	if (!HeapTupleIsValid(ruletup))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("rule \"%s\" for relation \"%s\" does not exist",
 						oldName, RelationGetRelationName(targetrel))));
-	ruleform = (Form_pg_rewrite) GETSTRUCT(ruletup);
-	ruleOid = ruleform->oid;
+	Form_pg_rewrite ruleform = (Form_pg_rewrite) GETSTRUCT(ruletup);
+	Oid			ruleOid = ruleform->oid;
 
 	/* rule with the new name should not already exist */
 	if (IsDefinedRewriteRule(relid, newName))

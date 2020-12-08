@@ -32,8 +32,8 @@
  */
 static void
 PutMemoryContextsStatsTupleStore(Tuplestorestate *tupstore,
-								TupleDesc tupdesc, MemoryContext context,
-								const char *parent, int level)
+								 TupleDesc tupdesc, MemoryContext context,
+								 const char *parent, int level)
 {
 #define PG_GET_BACKEND_MEMORY_CONTEXTS_COLS	9
 
@@ -41,17 +41,15 @@ PutMemoryContextsStatsTupleStore(Tuplestorestate *tupstore,
 	bool		nulls[PG_GET_BACKEND_MEMORY_CONTEXTS_COLS];
 	MemoryContextCounters stat;
 	MemoryContext child;
-	const char *name;
-	const char *ident;
 
 	AssertArg(MemoryContextIsValid(context));
 
-	name = context->name;
-	ident = context->ident;
+	const char *name = context->name;
+	const char *ident = context->ident;
 
 	/*
-	 * To be consistent with logging output, we label dynahash contexts
-	 * with just the hash table name as with MemoryContextStatsPrint().
+	 * To be consistent with logging output, we label dynahash contexts with
+	 * just the hash table name as with MemoryContextStatsPrint().
 	 */
 	if (ident && strcmp(name, "dynahash") == 0)
 	{
@@ -73,7 +71,7 @@ PutMemoryContextsStatsTupleStore(Tuplestorestate *tupstore,
 
 	if (ident)
 	{
-		int		idlen = strlen(ident);
+		int			idlen = strlen(ident);
 		char		clipped_ident[MEMORY_CONTEXT_IDENT_DISPLAY_SIZE];
 
 		/*
@@ -106,7 +104,7 @@ PutMemoryContextsStatsTupleStore(Tuplestorestate *tupstore,
 	for (child = context->firstchild; child != NULL; child = child->nextchild)
 	{
 		PutMemoryContextsStatsTupleStore(tupstore, tupdesc,
-								  child, name, level + 1);
+										 child, name, level + 1);
 	}
 }
 
@@ -119,9 +117,6 @@ pg_get_backend_memory_contexts(PG_FUNCTION_ARGS)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	TupleDesc	tupdesc;
-	Tuplestorestate *tupstore;
-	MemoryContext per_query_ctx;
-	MemoryContext oldcontext;
 
 	/* check to see if caller supports us returning a tuplestore */
 	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
@@ -137,10 +132,11 @@ pg_get_backend_memory_contexts(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	MemoryContext per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
-	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
+
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;
@@ -148,7 +144,7 @@ pg_get_backend_memory_contexts(PG_FUNCTION_ARGS)
 	MemoryContextSwitchTo(oldcontext);
 
 	PutMemoryContextsStatsTupleStore(tupstore, tupdesc,
-								TopMemoryContext, NULL, 0);
+									 TopMemoryContext, NULL, 0);
 
 	/* clean up and return the tuplestore */
 	tuplestore_donestoring(tupstore);

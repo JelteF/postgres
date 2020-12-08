@@ -305,14 +305,13 @@ make_sub_restrictinfos(Expr *clause,
 RestrictInfo *
 commute_restrictinfo(RestrictInfo *rinfo, Oid comm_op)
 {
-	RestrictInfo *result;
-	OpExpr	   *newclause;
 	OpExpr	   *clause = castNode(OpExpr, rinfo->clause);
 
 	Assert(list_length(clause->args) == 2);
 
 	/* flat-copy all the fields of clause ... */
-	newclause = makeNode(OpExpr);
+	OpExpr	   *newclause = makeNode(OpExpr);
+
 	memcpy(newclause, clause, sizeof(OpExpr));
 
 	/* ... and adjust those we need to change to commute it */
@@ -322,7 +321,8 @@ commute_restrictinfo(RestrictInfo *rinfo, Oid comm_op)
 								 linitial(clause->args));
 
 	/* likewise, flat-copy all the fields of rinfo ... */
-	result = makeNode(RestrictInfo);
+	RestrictInfo *result = makeNode(RestrictInfo);
+
 	memcpy(result, rinfo, sizeof(RestrictInfo));
 
 	/*

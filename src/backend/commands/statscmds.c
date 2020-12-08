@@ -65,27 +65,16 @@ CreateStatistics(CreateStatsStmt *stmt)
 	int			numcols = 0;
 	char	   *namestr;
 	NameData	stxname;
-	Oid			statoid;
 	Oid			namespaceId;
 	Oid			stxowner = GetUserId();
-	HeapTuple	htup;
 	Datum		values[Natts_pg_statistic_ext];
 	bool		nulls[Natts_pg_statistic_ext];
 	Datum		datavalues[Natts_pg_statistic_ext_data];
 	bool		datanulls[Natts_pg_statistic_ext_data];
-	int2vector *stxkeys;
-	Relation	statrel;
-	Relation	datarel;
 	Relation	rel = NULL;
-	Oid			relid;
 	ObjectAddress parentobject,
 				myself;
 	Datum		types[3];		/* one for each possible type of statistic */
-	int			ntypes;
-	ArrayType  *stxkind;
-	bool		build_ndistinct;
-	bool		build_dependencies;
-	bool		build_mcv;
 	bool		requested_type = false;
 	int			i;
 	ListCell   *cell;
@@ -138,7 +127,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	}
 
 	Assert(rel);
-	relid = RelationGetRelid(rel);
+	Oid			relid = RelationGetRelid(rel);
 
 	/*
 	 * If the node has a name, split it up and determine creation namespace.
@@ -192,31 +181,27 @@ CreateStatistics(CreateStatsStmt *stmt)
 	foreach(cell, stmt->exprs)
 	{
 		Node	   *expr = (Node *) lfirst(cell);
-		ColumnRef  *cref;
-		char	   *attname;
-		HeapTuple	atttuple;
-		Form_pg_attribute attForm;
-		TypeCacheEntry *type;
 
 		if (!IsA(expr, ColumnRef))
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					 errmsg("only simple column references are allowed in CREATE STATISTICS")));
-		cref = (ColumnRef *) expr;
+		ColumnRef  *cref = (ColumnRef *) expr;
 
 		if (list_length(cref->fields) != 1)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 					 errmsg("only simple column references are allowed in CREATE STATISTICS")));
-		attname = strVal((Value *) linitial(cref->fields));
+		char	   *attname = strVal((Value *) linitial(cref->fields));
 
-		atttuple = SearchSysCacheAttName(relid, attname);
+		HeapTuple	atttuple = SearchSysCacheAttName(relid, attname);
+
 		if (!HeapTupleIsValid(atttuple))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_COLUMN),
 					 errmsg("column \"%s\" does not exist",
 							attname)));
-		attForm = (Form_pg_attribute) GETSTRUCT(atttuple);
+		Form_pg_attribute attForm = (Form_pg_attribute) GETSTRUCT(atttuple);
 
 		/* Disallow use of system attributes in extended stats */
 		if (attForm->attnum <= 0)
@@ -225,7 +210,8 @@ CreateStatistics(CreateStatsStmt *stmt)
 					 errmsg("statistics creation on system columns is not supported")));
 
 		/* Disallow data types without a less-than operator */
-		type = lookup_type_cache(attForm->atttypid, TYPECACHE_LT_OPR);
+		TypeCacheEntry *type = lookup_type_cache(attForm->atttypid, TYPECACHE_LT_OPR);
+
 		if (type->lt_opr == InvalidOid)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
@@ -273,14 +259,15 @@ CreateStatistics(CreateStatsStmt *stmt)
 	}
 
 	/* Form an int2vector representation of the sorted column list */
-	stxkeys = buildint2vector(attnums, numcols);
+	int2vector *stxkeys = buildint2vector(attnums, numcols);
 
 	/*
 	 * Parse the statistics kinds.
 	 */
-	build_ndistinct = false;
-	build_dependencies = false;
-	build_mcv = false;
+	bool		build_ndistinct = false;
+	bool		build_dependencies = false;
+	bool		build_mcv = false;
+
 	foreach(cell, stmt->stat_types)
 	{
 		char	   *type = strVal((Value *) lfirst(cell));
@@ -315,7 +302,8 @@ CreateStatistics(CreateStatsStmt *stmt)
 	}
 
 	/* construct the char array of enabled statistic types */
-	ntypes = 0;
+	int			ntypes = 0;
+
 	if (build_ndistinct)
 		types[ntypes++] = CharGetDatum(STATS_EXT_NDISTINCT);
 	if (build_dependencies)
@@ -323,9 +311,9 @@ CreateStatistics(CreateStatsStmt *stmt)
 	if (build_mcv)
 		types[ntypes++] = CharGetDatum(STATS_EXT_MCV);
 	Assert(ntypes > 0 && ntypes <= lengthof(types));
-	stxkind = construct_array(types, ntypes, CHAROID, 1, true, TYPALIGN_CHAR);
+	ArrayType  *stxkind = construct_array(types, ntypes, CHAROID, 1, true, TYPALIGN_CHAR);
 
-	statrel = table_open(StatisticExtRelationId, RowExclusiveLock);
+	Relation	statrel = table_open(StatisticExtRelationId, RowExclusiveLock);
 
 	/*
 	 * Everything seems fine, so let's build the pg_statistic_ext tuple.
@@ -333,8 +321,9 @@ CreateStatistics(CreateStatsStmt *stmt)
 	memset(values, 0, sizeof(values));
 	memset(nulls, false, sizeof(nulls));
 
-	statoid = GetNewOidWithIndex(statrel, StatisticExtOidIndexId,
-								 Anum_pg_statistic_ext_oid);
+	Oid			statoid = GetNewOidWithIndex(statrel, StatisticExtOidIndexId,
+											 Anum_pg_statistic_ext_oid);
+
 	values[Anum_pg_statistic_ext_oid - 1] = ObjectIdGetDatum(statoid);
 	values[Anum_pg_statistic_ext_stxrelid - 1] = ObjectIdGetDatum(relid);
 	values[Anum_pg_statistic_ext_stxname - 1] = NameGetDatum(&stxname);
@@ -345,7 +334,8 @@ CreateStatistics(CreateStatsStmt *stmt)
 	values[Anum_pg_statistic_ext_stxkind - 1] = PointerGetDatum(stxkind);
 
 	/* insert it into pg_statistic_ext */
-	htup = heap_form_tuple(statrel->rd_att, values, nulls);
+	HeapTuple	htup = heap_form_tuple(statrel->rd_att, values, nulls);
+
 	CatalogTupleInsert(statrel, htup);
 	heap_freetuple(htup);
 
@@ -355,7 +345,7 @@ CreateStatistics(CreateStatsStmt *stmt)
 	 * Also build the pg_statistic_ext_data tuple, to hold the actual
 	 * statistics data.
 	 */
-	datarel = table_open(StatisticExtDataRelationId, RowExclusiveLock);
+	Relation	datarel = table_open(StatisticExtDataRelationId, RowExclusiveLock);
 
 	memset(datavalues, 0, sizeof(datavalues));
 	memset(datanulls, false, sizeof(datanulls));
@@ -426,10 +416,6 @@ CreateStatistics(CreateStatsStmt *stmt)
 ObjectAddress
 AlterStatistics(AlterStatsStmt *stmt)
 {
-	Relation	rel;
-	Oid			stxoid;
-	HeapTuple	oldtup;
-	HeapTuple	newtup;
 	Datum		repl_val[Natts_pg_statistic_ext];
 	bool		repl_null[Natts_pg_statistic_ext];
 	bool		repl_repl[Natts_pg_statistic_ext];
@@ -454,7 +440,7 @@ AlterStatistics(AlterStatsStmt *stmt)
 	}
 
 	/* lookup OID of the statistics object */
-	stxoid = get_statistics_object_oid(stmt->defnames, stmt->missing_ok);
+	Oid			stxoid = get_statistics_object_oid(stmt->defnames, stmt->missing_ok);
 
 	/*
 	 * If we got here and the OID is not valid, it means the statistics does
@@ -483,9 +469,9 @@ AlterStatistics(AlterStatsStmt *stmt)
 	}
 
 	/* Search pg_statistic_ext */
-	rel = table_open(StatisticExtRelationId, RowExclusiveLock);
+	Relation	rel = table_open(StatisticExtRelationId, RowExclusiveLock);
 
-	oldtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(stxoid));
+	HeapTuple	oldtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(stxoid));
 
 	/* Must be owner of the existing statistics object */
 	if (!pg_statistics_object_ownercheck(stxoid, GetUserId()))
@@ -501,8 +487,8 @@ AlterStatistics(AlterStatsStmt *stmt)
 	repl_repl[Anum_pg_statistic_ext_stxstattarget - 1] = true;
 	repl_val[Anum_pg_statistic_ext_stxstattarget - 1] = Int32GetDatum(newtarget);
 
-	newtup = heap_modify_tuple(oldtup, RelationGetDescr(rel),
-							   repl_val, repl_null, repl_repl);
+	HeapTuple	newtup = heap_modify_tuple(oldtup, RelationGetDescr(rel),
+										   repl_val, repl_null, repl_repl);
 
 	/* Update system catalog. */
 	CatalogTupleUpdate(rel, &newtup->t_self, newtup);
@@ -530,18 +516,14 @@ AlterStatistics(AlterStatsStmt *stmt)
 void
 RemoveStatisticsById(Oid statsOid)
 {
-	Relation	relation;
-	HeapTuple	tup;
-	Form_pg_statistic_ext statext;
-	Oid			relid;
 
 	/*
 	 * First delete the pg_statistic_ext_data tuple holding the actual
 	 * statistical data.
 	 */
-	relation = table_open(StatisticExtDataRelationId, RowExclusiveLock);
+	Relation	relation = table_open(StatisticExtDataRelationId, RowExclusiveLock);
 
-	tup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(statsOid));
+	HeapTuple	tup = SearchSysCache1(STATEXTDATASTXOID, ObjectIdGetDatum(statsOid));
 
 	if (!HeapTupleIsValid(tup)) /* should not happen */
 		elog(ERROR, "cache lookup failed for statistics data %u", statsOid);
@@ -563,8 +545,8 @@ RemoveStatisticsById(Oid statsOid)
 	if (!HeapTupleIsValid(tup)) /* should not happen */
 		elog(ERROR, "cache lookup failed for statistics object %u", statsOid);
 
-	statext = (Form_pg_statistic_ext) GETSTRUCT(tup);
-	relid = statext->stxrelid;
+	Form_pg_statistic_ext statext = (Form_pg_statistic_ext) GETSTRUCT(tup);
+	Oid			relid = statext->stxrelid;
 
 	CacheInvalidateRelcacheByRelid(relid);
 
@@ -607,7 +589,6 @@ UpdateStatisticsForTypeChange(Oid statsOid, Oid relationOid, int attnum,
 	HeapTuple	stup,
 				oldtup;
 
-	Relation	rel;
 
 	Datum		values[Natts_pg_statistic_ext_data];
 	bool		nulls[Natts_pg_statistic_ext_data];
@@ -639,7 +620,7 @@ UpdateStatisticsForTypeChange(Oid statsOid, Oid relationOid, int attnum,
 	replaces[Anum_pg_statistic_ext_data_stxdmcv - 1] = true;
 	nulls[Anum_pg_statistic_ext_data_stxdmcv - 1] = true;
 
-	rel = table_open(StatisticExtDataRelationId, RowExclusiveLock);
+	Relation	rel = table_open(StatisticExtDataRelationId, RowExclusiveLock);
 
 	/* replace the old tuple */
 	stup = heap_modify_tuple(oldtup,
@@ -685,13 +666,13 @@ ChooseExtendedStatisticName(const char *name1, const char *name2,
 
 	for (;;)
 	{
-		Oid			existingstats;
 
 		stxname = makeObjectName(name1, name2, modlabel);
 
-		existingstats = GetSysCacheOid2(STATEXTNAMENSP, Anum_pg_statistic_ext_oid,
-										PointerGetDatum(stxname),
-										ObjectIdGetDatum(namespaceid));
+		Oid			existingstats = GetSysCacheOid2(STATEXTNAMENSP, Anum_pg_statistic_ext_oid,
+													PointerGetDatum(stxname),
+													ObjectIdGetDatum(namespaceid));
+
 		if (!OidIsValid(existingstats))
 			break;
 
@@ -725,13 +706,12 @@ ChooseExtendedStatisticNameAddition(List *exprs)
 	foreach(lc, exprs)
 	{
 		ColumnRef  *cref = (ColumnRef *) lfirst(lc);
-		const char *name;
 
 		/* It should be one of these, but just skip if it happens not to be */
 		if (!IsA(cref, ColumnRef))
 			continue;
 
-		name = strVal((Value *) linitial(cref->fields));
+		const char *name = strVal((Value *) linitial(cref->fields));
 
 		if (buflen > 0)
 			buf[buflen++] = '_';	/* insert _ between names */

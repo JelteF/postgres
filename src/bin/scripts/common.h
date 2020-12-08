@@ -33,7 +33,7 @@ typedef struct _connParams
 	/* If not NULL, this overrides the dbname obtained from command line */
 	/* (but *only* the DB name, not anything else in the connstring) */
 	const char *override_dbname;
-} ConnParams;
+}			ConnParams;
 
 typedef void (*help_handler) (const char *progname);
 
@@ -41,12 +41,12 @@ extern void handle_help_version_opts(int argc, char *argv[],
 									 const char *fixed_progname,
 									 help_handler hlp);
 
-extern PGconn *connectDatabase(const ConnParams *cparams,
+extern PGconn *connectDatabase(const ConnParams * cparams,
 							   const char *progname,
 							   bool echo, bool fail_ok,
 							   bool allow_password_reuse);
 
-extern PGconn *connectMaintenanceDatabase(ConnParams *cparams,
+extern PGconn *connectMaintenanceDatabase(ConnParams * cparams,
 										  const char *progname, bool echo);
 
 extern void disconnectDatabase(PGconn *conn);

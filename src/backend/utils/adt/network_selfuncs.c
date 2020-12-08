@@ -88,8 +88,6 @@ networksel(PG_FUNCTION_ARGS)
 	Selectivity selec,
 				mcv_selec,
 				non_mcv_selec;
-	Datum		constvalue;
-	Form_pg_statistic stats;
 	AttStatsSlot hslot;
 	double		sumcommon,
 				nullfrac;
@@ -118,7 +116,7 @@ networksel(PG_FUNCTION_ARGS)
 		ReleaseVariableStats(vardata);
 		PG_RETURN_FLOAT8(0.0);
 	}
-	constvalue = ((Const *) other)->constvalue;
+	Datum		constvalue = ((Const *) other)->constvalue;
 
 	/* Otherwise, we need stats in order to produce a non-default estimate. */
 	if (!HeapTupleIsValid(vardata.statsTuple))
@@ -127,7 +125,8 @@ networksel(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT8(DEFAULT_SEL(operator));
 	}
 
-	stats = (Form_pg_statistic) GETSTRUCT(vardata.statsTuple);
+	Form_pg_statistic stats = (Form_pg_statistic) GETSTRUCT(vardata.statsTuple);
+
 	nullfrac = stats->stanullfrac;
 
 	/*
@@ -273,7 +272,6 @@ networkjoinsel_inner(Oid operator,
 				mcv2_exists = false,
 				hist1_exists = false,
 				hist2_exists = false;
-	int			opr_codenum;
 	int			mcv1_length = 0,
 				mcv2_length = 0;
 	AttStatsSlot mcv1_slot;
@@ -325,7 +323,7 @@ networkjoinsel_inner(Oid operator,
 		memset(&hist2_slot, 0, sizeof(hist2_slot));
 	}
 
-	opr_codenum = inet_opr_codenum(operator);
+	int			opr_codenum = inet_opr_codenum(operator);
 
 	/*
 	 * Calculate selectivity for MCV vs MCV matches.
@@ -401,7 +399,6 @@ networkjoinsel_semi(Oid operator,
 				mcv2_exists = false,
 				hist1_exists = false,
 				hist2_exists = false;
-	int			opr_codenum;
 	FmgrInfo	proc;
 	int			i,
 				mcv1_length = 0,
@@ -455,7 +452,8 @@ networkjoinsel_semi(Oid operator,
 		memset(&hist2_slot, 0, sizeof(hist2_slot));
 	}
 
-	opr_codenum = inet_opr_codenum(operator);
+	int			opr_codenum = inet_opr_codenum(operator);
+
 	fmgr_info(get_opcode(operator), &proc);
 
 	/* Estimate number of input rows represented by RHS histogram. */
@@ -811,11 +809,10 @@ inet_semi_join_sel(Datum lhs_value,
 
 	if (hist_exists && hist_weight > 0)
 	{
-		Selectivity hist_selec;
 
 		/* Commute operator, since we're passing lhs_value on the right */
-		hist_selec = inet_hist_value_sel(hist_values, hist_nvalues,
-										 lhs_value, -opr_codenum);
+		Selectivity hist_selec = inet_hist_value_sel(hist_values, hist_nvalues,
+													 lhs_value, -opr_codenum);
 
 		if (hist_selec > 0)
 			return Min(1.0, hist_weight * hist_selec);
@@ -880,10 +877,10 @@ inet_inclusion_cmp(inet *left, inet *right, int opr_codenum)
 {
 	if (ip_family(left) == ip_family(right))
 	{
-		int			order;
 
-		order = bitncmp(ip_addr(left), ip_addr(right),
-						Min(ip_bits(left), ip_bits(right)));
+		int			order = bitncmp(ip_addr(left), ip_addr(right),
+									Min(ip_bits(left), ip_bits(right)));
+
 		if (order != 0)
 			return order;
 
@@ -904,9 +901,8 @@ inet_inclusion_cmp(inet *left, inet *right, int opr_codenum)
 static int
 inet_masklen_inclusion_cmp(inet *left, inet *right, int opr_codenum)
 {
-	int			order;
 
-	order = (int) ip_bits(left) - (int) ip_bits(right);
+	int			order = (int) ip_bits(left) - (int) ip_bits(right);
 
 	/*
 	 * Return 0 if the operator would accept this combination of masklens.

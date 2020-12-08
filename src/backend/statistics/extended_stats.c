@@ -90,20 +90,15 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 						   int numrows, HeapTuple *rows,
 						   int natts, VacAttrStats **vacattrstats)
 {
-	Relation	pg_stext;
 	ListCell   *lc;
-	List	   *stats;
-	MemoryContext cxt;
-	MemoryContext oldcxt;
-	int64		ext_cnt;
 
-	cxt = AllocSetContextCreate(CurrentMemoryContext,
-								"BuildRelationExtStatistics",
-								ALLOCSET_DEFAULT_SIZES);
-	oldcxt = MemoryContextSwitchTo(cxt);
+	MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
+											  "BuildRelationExtStatistics",
+											  ALLOCSET_DEFAULT_SIZES);
+	MemoryContext oldcxt = MemoryContextSwitchTo(cxt);
 
-	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
-	stats = fetch_statentries_for_relation(pg_stext, RelationGetRelid(onerel));
+	Relation	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
+	List	   *stats = fetch_statentries_for_relation(pg_stext, RelationGetRelid(onerel));
 
 	/* report this phase */
 	if (stats != NIL)
@@ -120,23 +115,23 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 		pgstat_progress_update_multi_param(2, index, val);
 	}
 
-	ext_cnt = 0;
+	int64		ext_cnt = 0;
+
 	foreach(lc, stats)
 	{
 		StatExtEntry *stat = (StatExtEntry *) lfirst(lc);
 		MVNDistinct *ndistinct = NULL;
 		MVDependencies *dependencies = NULL;
 		MCVList    *mcv = NULL;
-		VacAttrStats **stats;
 		ListCell   *lc2;
-		int			stattarget;
 
 		/*
 		 * Check if we can build these stats based on the column analyzed. If
 		 * not, report this fact (except in autovacuum) and move on.
 		 */
-		stats = lookup_var_attr_stats(onerel, stat->columns,
-									  natts, vacattrstats);
+		VacAttrStats **stats = lookup_var_attr_stats(onerel, stat->columns,
+													 natts, vacattrstats);
+
 		if (!stats)
 		{
 			if (!IsAutoVacuumWorkerProcess())
@@ -155,9 +150,9 @@ BuildRelationExtStatistics(Relation onerel, double totalrows,
 			   bms_num_members(stat->columns) <= STATS_MAX_DIMENSIONS);
 
 		/* compute statistics target for this statistics */
-		stattarget = statext_compute_stattarget(stat->stattarget,
-												bms_num_members(stat->columns),
-												stats);
+		int			stattarget = statext_compute_stattarget(stat->stattarget,
+															bms_num_members(stat->columns),
+															stats);
 
 		/*
 		 * Don't rebuild statistics objects with statistics target set to 0
@@ -214,26 +209,20 @@ int
 ComputeExtStatisticsRows(Relation onerel,
 						 int natts, VacAttrStats **vacattrstats)
 {
-	Relation	pg_stext;
 	ListCell   *lc;
-	List	   *lstats;
-	MemoryContext cxt;
-	MemoryContext oldcxt;
 	int			result = 0;
 
-	cxt = AllocSetContextCreate(CurrentMemoryContext,
-								"ComputeExtStatisticsRows",
-								ALLOCSET_DEFAULT_SIZES);
-	oldcxt = MemoryContextSwitchTo(cxt);
+	MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
+											  "ComputeExtStatisticsRows",
+											  ALLOCSET_DEFAULT_SIZES);
+	MemoryContext oldcxt = MemoryContextSwitchTo(cxt);
 
-	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
-	lstats = fetch_statentries_for_relation(pg_stext, RelationGetRelid(onerel));
+	Relation	pg_stext = table_open(StatisticExtRelationId, RowExclusiveLock);
+	List	   *lstats = fetch_statentries_for_relation(pg_stext, RelationGetRelid(onerel));
 
 	foreach(lc, lstats)
 	{
 		StatExtEntry *stat = (StatExtEntry *) lfirst(lc);
-		int			stattarget;
-		VacAttrStats **stats;
 		int			nattrs = bms_num_members(stat->columns);
 
 		/*
@@ -241,8 +230,8 @@ ComputeExtStatisticsRows(Relation onerel,
 		 * analyzed. If not, ignore it (don't report anything, we'll do that
 		 * during the actual build BuildRelationExtStatistics).
 		 */
-		stats = lookup_var_attr_stats(onerel, stat->columns,
-									  natts, vacattrstats);
+		VacAttrStats **stats = lookup_var_attr_stats(onerel, stat->columns,
+													 natts, vacattrstats);
 
 		if (!stats)
 			continue;
@@ -251,8 +240,8 @@ ComputeExtStatisticsRows(Relation onerel,
 		 * Compute statistics target, based on what's set for the statistic
 		 * object itself, and for its attributes.
 		 */
-		stattarget = statext_compute_stattarget(stat->stattarget,
-												nattrs, stats);
+		int			stattarget = statext_compute_stattarget(stat->stattarget,
+															nattrs, stats);
 
 		/* Use the largest value for all statistics objects. */
 		if (stattarget > result)
@@ -362,7 +351,6 @@ statext_is_kind_built(HeapTuple htup, char type)
 static List *
 fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 {
-	SysScanDesc scan;
 	ScanKeyData skey;
 	HeapTuple	htup;
 	List	   *result = NIL;
@@ -376,21 +364,17 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 
-	scan = systable_beginscan(pg_statext, StatisticExtRelidIndexId, true,
-							  NULL, 1, &skey);
+	SysScanDesc scan = systable_beginscan(pg_statext, StatisticExtRelidIndexId, true,
+										  NULL, 1, &skey);
 
 	while (HeapTupleIsValid(htup = systable_getnext(scan)))
 	{
-		StatExtEntry *entry;
-		Datum		datum;
 		bool		isnull;
 		int			i;
-		ArrayType  *arr;
-		char	   *enabled;
-		Form_pg_statistic_ext staForm;
 
-		entry = palloc0(sizeof(StatExtEntry));
-		staForm = (Form_pg_statistic_ext) GETSTRUCT(htup);
+		StatExtEntry *entry = palloc0(sizeof(StatExtEntry));
+		Form_pg_statistic_ext staForm = (Form_pg_statistic_ext) GETSTRUCT(htup);
+
 		entry->statOid = staForm->oid;
 		entry->schema = get_namespace_name(staForm->stxnamespace);
 		entry->name = pstrdup(NameStr(staForm->stxname));
@@ -402,15 +386,18 @@ fetch_statentries_for_relation(Relation pg_statext, Oid relid)
 		}
 
 		/* decode the stxkind char array into a list of chars */
-		datum = SysCacheGetAttr(STATEXTOID, htup,
-								Anum_pg_statistic_ext_stxkind, &isnull);
+		Datum		datum = SysCacheGetAttr(STATEXTOID, htup,
+											Anum_pg_statistic_ext_stxkind, &isnull);
+
 		Assert(!isnull);
-		arr = DatumGetArrayTypeP(datum);
+		ArrayType  *arr = DatumGetArrayTypeP(datum);
+
 		if (ARR_NDIM(arr) != 1 ||
 			ARR_HASNULL(arr) ||
 			ARR_ELEMTYPE(arr) != CHAROID)
 			elog(ERROR, "stxkind is not a 1-D char array");
-		enabled = (char *) ARR_DATA_PTR(arr);
+		char	   *enabled = (char *) ARR_DATA_PTR(arr);
+
 		for (i = 0; i < ARR_DIMS(arr)[0]; i++)
 		{
 			Assert((enabled[i] == STATS_EXT_NDISTINCT) ||
@@ -440,10 +427,9 @@ lookup_var_attr_stats(Relation rel, Bitmapset *attrs,
 {
 	int			i = 0;
 	int			x = -1;
-	VacAttrStats **stats;
 
-	stats = (VacAttrStats **)
-		palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
+	VacAttrStats **stats = (VacAttrStats **)
+	palloc(bms_num_members(attrs) * sizeof(VacAttrStats *));
 
 	/* lookup VacAttrStats info for the requested columns (same attnum) */
 	while ((x = bms_next_member(attrs, x)) >= 0)
@@ -493,14 +479,13 @@ statext_store(Oid statOid,
 			  MVNDistinct *ndistinct, MVDependencies *dependencies,
 			  MCVList *mcv, VacAttrStats **stats)
 {
-	Relation	pg_stextdata;
 	HeapTuple	stup,
 				oldtup;
 	Datum		values[Natts_pg_statistic_ext_data];
 	bool		nulls[Natts_pg_statistic_ext_data];
 	bool		replaces[Natts_pg_statistic_ext_data];
 
-	pg_stextdata = table_open(StatisticExtDataRelationId, RowExclusiveLock);
+	Relation	pg_stextdata = table_open(StatisticExtDataRelationId, RowExclusiveLock);
 
 	memset(nulls, true, sizeof(nulls));
 	memset(replaces, false, sizeof(replaces));
@@ -561,12 +546,11 @@ statext_store(Oid statOid,
 MultiSortSupport
 multi_sort_init(int ndims)
 {
-	MultiSortSupport mss;
 
 	Assert(ndims >= 2);
 
-	mss = (MultiSortSupport) palloc0(offsetof(MultiSortSupportData, ssup)
-									 + sizeof(SortSupportData) * ndims);
+	MultiSortSupport mss = (MultiSortSupport) palloc0(offsetof(MultiSortSupportData, ssup)
+													  + sizeof(SortSupportData) * ndims);
 
 	mss->ndims = ndims;
 
@@ -601,11 +585,10 @@ multi_sort_compare(const void *a, const void *b, void *arg)
 
 	for (i = 0; i < mss->ndims; i++)
 	{
-		int			compare;
 
-		compare = ApplySortComparator(ia->values[i], ia->isnull[i],
-									  ib->values[i], ib->isnull[i],
-									  &mss->ssup[i]);
+		int			compare = ApplySortComparator(ia->values[i], ia->isnull[i],
+												  ib->values[i], ib->isnull[i],
+												  &mss->ssup[i]);
 
 		if (compare != 0)
 			return compare;
@@ -703,14 +686,14 @@ build_attnums_array(Bitmapset *attrs, int *numattrs)
 {
 	int			i,
 				j;
-	AttrNumber *attnums;
 	int			num = bms_num_members(attrs);
 
 	if (numattrs)
 		*numattrs = num;
 
 	/* build attnums from the bitmapset */
-	attnums = (AttrNumber *) palloc(sizeof(AttrNumber) * num);
+	AttrNumber *attnums = (AttrNumber *) palloc(sizeof(AttrNumber) * num);
+
 	i = 0;
 	j = -1;
 	while ((j = bms_next_member(attrs, j)) >= 0)
@@ -750,26 +733,25 @@ build_sorted_items(int numrows, int *nitems, HeapTuple *rows, TupleDesc tdesc,
 				idx;
 	int			nvalues = numrows * numattrs;
 
-	SortItem   *items;
-	Datum	   *values;
-	bool	   *isnull;
-	char	   *ptr;
 
 	/* Compute the total amount of memory we need (both items and values). */
 	len = numrows * sizeof(SortItem) + nvalues * (sizeof(Datum) + sizeof(bool));
 
 	/* Allocate the memory and split it into the pieces. */
-	ptr = palloc0(len);
+	char	   *ptr = palloc0(len);
 
 	/* items to sort */
-	items = (SortItem *) ptr;
+	SortItem   *items = (SortItem *) ptr;
+
 	ptr += numrows * sizeof(SortItem);
 
 	/* values and null flags */
-	values = (Datum *) ptr;
+	Datum	   *values = (Datum *) ptr;
+
 	ptr += nvalues * sizeof(Datum);
 
-	isnull = (bool *) ptr;
+	bool	   *isnull = (bool *) ptr;
+
 	ptr += nvalues * sizeof(bool);
 
 	/* make sure we consumed the whole buffer exactly */
@@ -787,10 +769,9 @@ build_sorted_items(int numrows, int *nitems, HeapTuple *rows, TupleDesc tdesc,
 		/* load the values/null flags from sample rows */
 		for (j = 0; j < numattrs; j++)
 		{
-			Datum		value;
 			bool		isnull;
 
-			value = heap_getattr(rows[i], attnums[j], tdesc, &isnull);
+			Datum		value = heap_getattr(rows[i], attnums[j], tdesc, &isnull);
 
 			/*
 			 * If this is a varlena value, check if it's too wide and if yes
@@ -893,8 +874,6 @@ choose_best_statistics(List *stats, char requiredkind,
 		int			i;
 		StatisticExtInfo *info = (StatisticExtInfo *) lfirst(lc);
 		Bitmapset  *matched = NULL;
-		int			num_matched;
-		int			numkeys;
 
 		/* skip statistics that are not of the correct type */
 		if (info->kind != requiredkind)
@@ -917,14 +896,15 @@ choose_best_statistics(List *stats, char requiredkind,
 			matched = bms_add_members(matched, clause_attnums[i]);
 		}
 
-		num_matched = bms_num_members(matched);
+		int			num_matched = bms_num_members(matched);
+
 		bms_free(matched);
 
 		/*
 		 * save the actual number of keys in the stats so that we can choose
 		 * the narrowest stats with the most matching keys.
 		 */
-		numkeys = bms_num_members(info->keys);
+		int			numkeys = bms_num_members(info->keys);
 
 		/*
 		 * Use this object when it increases the number of matched clauses or
@@ -1172,7 +1152,6 @@ statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
 {
 	RangeTblEntry *rte = root->simple_rte_array[relid];
 	RestrictInfo *rinfo = (RestrictInfo *) clause;
-	Oid			userid;
 
 	if (!IsA(rinfo, RestrictInfo))
 		return false;
@@ -1194,7 +1173,7 @@ statext_is_compatible_clause(PlannerInfo *root, Node *clause, Index relid,
 	 * Check that the user has permission to read all these attributes.  Use
 	 * checkAsUser if it's set, in case we're accessing the table via a view.
 	 */
-	userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
+	Oid			userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
 
 	if (pg_class_aclcheck(rte->relid, userid, ACL_SELECT) != ACLCHECK_OK)
 	{
@@ -1265,16 +1244,14 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 								   bool is_or)
 {
 	ListCell   *l;
-	Bitmapset **list_attnums;
-	int			listidx;
 	Selectivity sel = (is_or) ? 0.0 : 1.0;
 
 	/* check if there's any stats that might be useful for us. */
 	if (!has_stats_of_kind(rel->statlist, STATS_EXT_MCV))
 		return sel;
 
-	list_attnums = (Bitmapset **) palloc(sizeof(Bitmapset *) *
-										 list_length(clauses));
+	Bitmapset **list_attnums = (Bitmapset **) palloc(sizeof(Bitmapset *) *
+													 list_length(clauses));
 
 	/*
 	 * Pre-process the clauses list to extract the attnums seen in each item.
@@ -1287,7 +1264,8 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 	 * We also skip clauses that we already estimated using different types of
 	 * statistics (we treat them as incompatible).
 	 */
-	listidx = 0;
+	int			listidx = 0;
+
 	foreach(l, clauses)
 	{
 		Node	   *clause = (Node *) lfirst(l);
@@ -1305,13 +1283,10 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 	/* apply as many extended statistics as possible */
 	while (true)
 	{
-		StatisticExtInfo *stat;
-		List	   *stat_clauses;
-		Bitmapset  *simple_clauses;
 
 		/* find the best suited statistics object for these attnums */
-		stat = choose_best_statistics(rel->statlist, STATS_EXT_MCV,
-									  list_attnums, list_length(clauses));
+		StatisticExtInfo *stat = choose_best_statistics(rel->statlist, STATS_EXT_MCV,
+														list_attnums, list_length(clauses));
 
 		/*
 		 * if no (additional) matching stats could be found then we've nothing
@@ -1324,10 +1299,10 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 		Assert(stat->kind == STATS_EXT_MCV);
 
 		/* now filter the clauses to be estimated using the selected MCV */
-		stat_clauses = NIL;
+		List	   *stat_clauses = NIL;
 
 		/* record which clauses are simple (single column) */
-		simple_clauses = NULL;
+		Bitmapset  *simple_clauses = NULL;
 
 		listidx = 0;
 		foreach(l, clauses)
@@ -1357,10 +1332,9 @@ statext_mcv_clauselist_selectivity(PlannerInfo *root, List *clauses, int varReli
 		{
 			bool	   *or_matches = NULL;
 			Selectivity simple_or_sel = 0.0;
-			MCVList    *mcv_list;
 
 			/* Load the MCV list stored in the statistics object */
-			mcv_list = statext_mcv_load(stat->statOid);
+			MCVList    *mcv_list = statext_mcv_load(stat->statOid);
 
 			/*
 			 * Compute the selectivity of the ORed list of clauses by
@@ -1493,11 +1467,10 @@ statext_clauselist_selectivity(PlannerInfo *root, List *clauses, int varRelid,
 							   RelOptInfo *rel, Bitmapset **estimatedclauses,
 							   bool is_or)
 {
-	Selectivity sel;
 
 	/* First, try estimating clauses using a multivariate MCV list. */
-	sel = statext_mcv_clauselist_selectivity(root, clauses, varRelid, jointype,
-											 sjinfo, rel, estimatedclauses, is_or);
+	Selectivity sel = statext_mcv_clauselist_selectivity(root, clauses, varRelid, jointype,
+														 sjinfo, rel, estimatedclauses, is_or);
 
 	/*
 	 * Functional dependencies only work for clauses connected by AND, so for

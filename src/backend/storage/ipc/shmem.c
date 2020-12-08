@@ -116,7 +116,6 @@ void
 InitShmemAllocation(void)
 {
 	PGShmemHeader *shmhdr = ShmemSegHdr;
-	char	   *aligned;
 
 	Assert(shmhdr != NULL);
 
@@ -133,8 +132,9 @@ InitShmemAllocation(void)
 	 * expects to allocate everything on cache line boundaries.  Make sure the
 	 * first allocation begins on a cache line boundary.
 	 */
-	aligned = (char *)
-		(CACHELINEALIGN((((char *) shmhdr) + shmhdr->freeoffset)));
+	char	   *aligned = (char *)
+	(CACHELINEALIGN((((char *) shmhdr) + shmhdr->freeoffset)));
+
 	shmhdr->freeoffset = aligned - (char *) shmhdr;
 
 	/* ShmemIndex can't be set up yet (need LWLocks first) */
@@ -160,10 +160,10 @@ InitShmemAllocation(void)
 void *
 ShmemAlloc(Size size)
 {
-	void	   *newSpace;
 	Size		allocated_size;
 
-	newSpace = ShmemAllocRaw(size, &allocated_size);
+	void	   *newSpace = ShmemAllocRaw(size, &allocated_size);
+
 	if (!newSpace)
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -194,8 +194,6 @@ ShmemAllocNoError(Size size)
 static void *
 ShmemAllocRaw(Size size, Size *allocated_size)
 {
-	Size		newStart;
-	Size		newFree;
 	void	   *newSpace;
 
 	/*
@@ -216,9 +214,10 @@ ShmemAllocRaw(Size size, Size *allocated_size)
 
 	SpinLockAcquire(ShmemLock);
 
-	newStart = ShmemSegHdr->freeoffset;
+	Size		newStart = ShmemSegHdr->freeoffset;
 
-	newFree = newStart + size;
+	Size		newFree = newStart + size;
+
 	if (newFree <= ShmemSegHdr->totalsize)
 	{
 		newSpace = (void *) ((char *) ShmemBase + newStart);
@@ -246,9 +245,6 @@ ShmemAllocRaw(Size size, Size *allocated_size)
 void *
 ShmemAllocUnlocked(Size size)
 {
-	Size		newStart;
-	Size		newFree;
-	void	   *newSpace;
 
 	/*
 	 * Ensure allocated space is adequately aligned.
@@ -257,9 +253,10 @@ ShmemAllocUnlocked(Size size)
 
 	Assert(ShmemSegHdr != NULL);
 
-	newStart = ShmemSegHdr->freeoffset;
+	Size		newStart = ShmemSegHdr->freeoffset;
 
-	newFree = newStart + size;
+	Size		newFree = newStart + size;
+
 	if (newFree > ShmemSegHdr->totalsize)
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -267,7 +264,7 @@ ShmemAllocUnlocked(Size size)
 						size)));
 	ShmemSegHdr->freeoffset = newFree;
 
-	newSpace = (void *) ((char *) ShmemBase + newStart);
+	void	   *newSpace = (void *) ((char *) ShmemBase + newStart);
 
 	Assert(newSpace == (void *) MAXALIGN(newSpace));
 
@@ -292,7 +289,6 @@ void
 InitShmemIndex(void)
 {
 	HASHCTL		info;
-	int			hash_flags;
 
 	/*
 	 * Create the shared memory shmem index.
@@ -304,7 +300,7 @@ InitShmemIndex(void)
 	 */
 	info.keysize = SHMEM_INDEX_KEYSIZE;
 	info.entrysize = sizeof(ShmemIndexEnt);
-	hash_flags = HASH_ELEM;
+	int			hash_flags = HASH_ELEM;
 
 	ShmemIndex = ShmemInitHash("ShmemIndex",
 							   SHMEM_INDEX_SIZE, SHMEM_INDEX_SIZE,
@@ -341,7 +337,6 @@ ShmemInitHash(const char *name,		/* table string name for shmem index */
 			  int hash_flags)	/* info about infoP */
 {
 	bool		found;
-	void	   *location;
 
 	/*
 	 * Hash tables allocated in shared memory have a fixed directory; it can't
@@ -355,9 +350,9 @@ ShmemInitHash(const char *name,		/* table string name for shmem index */
 	hash_flags |= HASH_SHARED_MEM | HASH_ALLOC | HASH_DIRSIZE;
 
 	/* look it up in the shmem index */
-	location = ShmemInitStruct(name,
-							   hash_get_shared_size(infoP, hash_flags),
-							   &found);
+	void	   *location = ShmemInitStruct(name,
+										   hash_get_shared_size(infoP, hash_flags),
+										   &found);
 
 	/*
 	 * if it already exists, attach to it rather than allocate and initialize
@@ -391,7 +386,6 @@ ShmemInitHash(const char *name,		/* table string name for shmem index */
 void *
 ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 {
-	ShmemIndexEnt *result;
 	void	   *structPtr;
 
 	LWLockAcquire(ShmemIndexLock, LW_EXCLUSIVE);
@@ -430,8 +424,8 @@ ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 	}
 
 	/* look it up in the shmem index */
-	result = (ShmemIndexEnt *)
-		hash_search(ShmemIndex, name, HASH_ENTER_NULL, foundPtr);
+	ShmemIndexEnt *result = (ShmemIndexEnt *)
+	hash_search(ShmemIndex, name, HASH_ENTER_NULL, foundPtr);
 
 	if (!result)
 	{
@@ -497,9 +491,9 @@ ShmemInitStruct(const char *name, Size size, bool *foundPtr)
 Size
 add_size(Size s1, Size s2)
 {
-	Size		result;
 
-	result = s1 + s2;
+	Size		result = s1 + s2;
+
 	/* We are assuming Size is an unsigned type here... */
 	if (result < s1 || result < s2)
 		ereport(ERROR,
@@ -514,11 +508,11 @@ add_size(Size s1, Size s2)
 Size
 mul_size(Size s1, Size s2)
 {
-	Size		result;
 
 	if (s1 == 0 || s2 == 0)
 		return 0;
-	result = s1 * s2;
+	Size		result = s1 * s2;
+
 	/* We are assuming Size is an unsigned type here... */
 	if (result / s2 != s1)
 		ereport(ERROR,
@@ -534,9 +528,6 @@ pg_get_shmem_allocations(PG_FUNCTION_ARGS)
 #define PG_GET_SHMEM_SIZES_COLS 4
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	TupleDesc	tupdesc;
-	Tuplestorestate *tupstore;
-	MemoryContext per_query_ctx;
-	MemoryContext oldcontext;
 	HASH_SEQ_STATUS hstat;
 	ShmemIndexEnt *ent;
 	Size		named_allocated = 0;
@@ -557,10 +548,11 @@ pg_get_shmem_allocations(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	MemoryContext per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
-	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
+
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;

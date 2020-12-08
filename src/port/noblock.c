@@ -25,9 +25,9 @@ bool
 pg_set_noblock(pgsocket sock)
 {
 #if !defined(WIN32)
-	int			flags;
 
-	flags = fcntl(sock, F_GETFL);
+	int			flags = fcntl(sock, F_GETFL);
+
 	if (flags < 0)
 		return false;
 	if (fcntl(sock, F_SETFL, (flags | O_NONBLOCK)) == -1)
@@ -49,9 +49,9 @@ bool
 pg_set_block(pgsocket sock)
 {
 #if !defined(WIN32)
-	int			flags;
 
-	flags = fcntl(sock, F_GETFL);
+	int			flags = fcntl(sock, F_GETFL);
+
 	if (flags < 0)
 		return false;
 	if (fcntl(sock, F_SETFL, (flags & ~O_NONBLOCK)) == -1)

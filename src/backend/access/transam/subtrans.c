@@ -75,16 +75,15 @@ SubTransSetParent(TransactionId xid, TransactionId parent)
 {
 	int			pageno = TransactionIdToPage(xid);
 	int			entryno = TransactionIdToEntry(xid);
-	int			slotno;
-	TransactionId *ptr;
 
 	Assert(TransactionIdIsValid(parent));
 	Assert(TransactionIdFollows(xid, parent));
 
 	LWLockAcquire(SubtransSLRULock, LW_EXCLUSIVE);
 
-	slotno = SimpleLruReadPage(SubTransCtl, pageno, true, xid);
-	ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+	int			slotno = SimpleLruReadPage(SubTransCtl, pageno, true, xid);
+	TransactionId *ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+
 	ptr += entryno;
 
 	/*
@@ -110,9 +109,6 @@ SubTransGetParent(TransactionId xid)
 {
 	int			pageno = TransactionIdToPage(xid);
 	int			entryno = TransactionIdToEntry(xid);
-	int			slotno;
-	TransactionId *ptr;
-	TransactionId parent;
 
 	/* Can't ask about stuff that might not be around anymore */
 	Assert(TransactionIdFollowsOrEquals(xid, TransactionXmin));
@@ -123,11 +119,12 @@ SubTransGetParent(TransactionId xid)
 
 	/* lock is acquired by SimpleLruReadPage_ReadOnly */
 
-	slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
-	ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+	int			slotno = SimpleLruReadPage_ReadOnly(SubTransCtl, pageno, xid);
+	TransactionId *ptr = (TransactionId *) SubTransCtl->shared->page_buffer[slotno];
+
 	ptr += entryno;
 
-	parent = *ptr;
+	TransactionId parent = *ptr;
 
 	LWLockRelease(SubtransSLRULock);
 
@@ -209,12 +206,11 @@ SUBTRANSShmemInit(void)
 void
 BootStrapSUBTRANS(void)
 {
-	int			slotno;
 
 	LWLockAcquire(SubtransSLRULock, LW_EXCLUSIVE);
 
 	/* Create and zero the first page of the subtrans log */
-	slotno = ZeroSUBTRANSPage(0);
+	int			slotno = ZeroSUBTRANSPage(0);
 
 	/* Make sure it's written out */
 	SimpleLruWritePage(SubTransCtl, slotno);
@@ -247,9 +243,6 @@ ZeroSUBTRANSPage(int pageno)
 void
 StartupSUBTRANS(TransactionId oldestActiveXID)
 {
-	FullTransactionId nextXid;
-	int			startPage;
-	int			endPage;
 
 	/*
 	 * Since we don't expect pg_subtrans to be valid across crashes, we
@@ -259,9 +252,9 @@ StartupSUBTRANS(TransactionId oldestActiveXID)
 	 */
 	LWLockAcquire(SubtransSLRULock, LW_EXCLUSIVE);
 
-	startPage = TransactionIdToPage(oldestActiveXID);
-	nextXid = ShmemVariableCache->nextXid;
-	endPage = TransactionIdToPage(XidFromFullTransactionId(nextXid));
+	int			startPage = TransactionIdToPage(oldestActiveXID);
+	FullTransactionId nextXid = ShmemVariableCache->nextXid;
+	int			endPage = TransactionIdToPage(XidFromFullTransactionId(nextXid));
 
 	while (startPage != endPage)
 	{
@@ -306,7 +299,6 @@ CheckPointSUBTRANS(void)
 void
 ExtendSUBTRANS(TransactionId newestXact)
 {
-	int			pageno;
 
 	/*
 	 * No work except at first XID of a page.  But beware: just after
@@ -316,7 +308,7 @@ ExtendSUBTRANS(TransactionId newestXact)
 		!TransactionIdEquals(newestXact, FirstNormalTransactionId))
 		return;
 
-	pageno = TransactionIdToPage(newestXact);
+	int			pageno = TransactionIdToPage(newestXact);
 
 	LWLockAcquire(SubtransSLRULock, LW_EXCLUSIVE);
 
@@ -336,7 +328,6 @@ ExtendSUBTRANS(TransactionId newestXact)
 void
 TruncateSUBTRANS(TransactionId oldestXact)
 {
-	int			cutoffPage;
 
 	/*
 	 * The cutoff point is the start of the segment containing oldestXact. We
@@ -347,7 +338,7 @@ TruncateSUBTRANS(TransactionId oldestXact)
 	 * one, we'd trigger SimpleLruTruncate's wraparound detection.
 	 */
 	TransactionIdRetreat(oldestXact);
-	cutoffPage = TransactionIdToPage(oldestXact);
+	int			cutoffPage = TransactionIdToPage(oldestXact);
 
 	SimpleLruTruncate(SubTransCtl, cutoffPage);
 }
@@ -365,12 +356,12 @@ TruncateSUBTRANS(TransactionId oldestXact)
 static bool
 SubTransPagePrecedes(int page1, int page2)
 {
-	TransactionId xid1;
-	TransactionId xid2;
 
-	xid1 = ((TransactionId) page1) * SUBTRANS_XACTS_PER_PAGE;
+	TransactionId xid1 = ((TransactionId) page1) * SUBTRANS_XACTS_PER_PAGE;
+
 	xid1 += FirstNormalTransactionId;
-	xid2 = ((TransactionId) page2) * SUBTRANS_XACTS_PER_PAGE;
+	TransactionId xid2 = ((TransactionId) page2) * SUBTRANS_XACTS_PER_PAGE;
+
 	xid2 += FirstNormalTransactionId;
 
 	return TransactionIdPrecedes(xid1, xid2);

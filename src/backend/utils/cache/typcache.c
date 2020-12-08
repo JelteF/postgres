@@ -333,7 +333,6 @@ static dsa_pointer share_tupledesc(dsa_area *area, TupleDesc tupdesc,
 TypeCacheEntry *
 lookup_type_cache(Oid type_id, int flags)
 {
-	TypeCacheEntry *typentry;
 	bool		found;
 
 	if (TypeCacheHash == NULL)
@@ -359,9 +358,10 @@ lookup_type_cache(Oid type_id, int flags)
 	}
 
 	/* Try to look up an existing entry */
-	typentry = (TypeCacheEntry *) hash_search(TypeCacheHash,
-											  (void *) &type_id,
-											  HASH_FIND, NULL);
+	TypeCacheEntry *typentry = (TypeCacheEntry *) hash_search(TypeCacheHash,
+															  (void *) &type_id,
+															  HASH_FIND, NULL);
+
 	if (typentry == NULL)
 	{
 		/*
@@ -371,15 +371,15 @@ lookup_type_cache(Oid type_id, int flags)
 		 * user-facing error, since some code paths such as domain_in() allow
 		 * this function to be reached with a user-supplied OID.
 		 */
-		HeapTuple	tp;
-		Form_pg_type typtup;
 
-		tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_id));
+		HeapTuple	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_id));
+
 		if (!HeapTupleIsValid(tp))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("type with OID %u does not exist", type_id)));
-		typtup = (Form_pg_type) GETSTRUCT(tp);
+		Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
+
 		if (!typtup->typisdefined)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -425,15 +425,15 @@ lookup_type_cache(Oid type_id, int flags)
 		 * We have an entry, but its pg_type row got changed, so reload the
 		 * data obtained directly from pg_type.
 		 */
-		HeapTuple	tp;
-		Form_pg_type typtup;
 
-		tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_id));
+		HeapTuple	tp = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type_id));
+
 		if (!HeapTupleIsValid(tp))
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("type with OID %u does not exist", type_id)));
-		typtup = (Form_pg_type) GETSTRUCT(tp);
+		Form_pg_type typtup = (Form_pg_type) GETSTRUCT(tp);
+
 		if (!typtup->typisdefined)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
@@ -467,9 +467,9 @@ lookup_type_cache(Oid type_id, int flags)
 				  TYPECACHE_BTREE_OPFAMILY)) &&
 		!(typentry->flags & TCFLAGS_CHECKED_BTREE_OPCLASS))
 	{
-		Oid			opclass;
 
-		opclass = GetDefaultOpClass(type_id, BTREE_AM_OID);
+		Oid			opclass = GetDefaultOpClass(type_id, BTREE_AM_OID);
+
 		if (OidIsValid(opclass))
 		{
 			typentry->btree_opf = get_opclass_family(opclass);
@@ -508,9 +508,9 @@ lookup_type_cache(Oid type_id, int flags)
 				  TYPECACHE_HASH_OPFAMILY)) &&
 		!(typentry->flags & TCFLAGS_CHECKED_HASH_OPCLASS))
 	{
-		Oid			opclass;
 
-		opclass = GetDefaultOpClass(type_id, HASH_AM_OID);
+		Oid			opclass = GetDefaultOpClass(type_id, HASH_AM_OID);
+
 		if (OidIsValid(opclass))
 		{
 			typentry->hash_opf = get_opclass_family(opclass);
@@ -691,7 +691,7 @@ lookup_type_cache(Oid type_id, int flags)
 				 !record_fields_have_hashing(typentry))
 			hash_proc = InvalidOid;
 		else if (hash_proc == F_HASH_RANGE &&
-			!range_element_has_hashing(typentry))
+				 !range_element_has_hashing(typentry))
 			hash_proc = InvalidOid;
 
 		/* Force update of hash_proc_finfo only if we're changing state */
@@ -730,10 +730,10 @@ lookup_type_cache(Oid type_id, int flags)
 			!array_element_has_extended_hashing(typentry))
 			hash_extended_proc = InvalidOid;
 		else if (hash_extended_proc == F_HASH_RECORD_EXTENDED &&
-			!record_fields_have_extended_hashing(typentry))
+				 !record_fields_have_extended_hashing(typentry))
 			hash_extended_proc = InvalidOid;
 		else if (hash_extended_proc == F_HASH_RANGE_EXTENDED &&
-			!range_element_has_extended_hashing(typentry))
+				 !range_element_has_extended_hashing(typentry))
 			hash_extended_proc = InvalidOid;
 
 		/* Force update of proc finfo only if we're changing state */
@@ -760,9 +760,9 @@ lookup_type_cache(Oid type_id, int flags)
 		typentry->eq_opr_finfo.fn_oid == InvalidOid &&
 		typentry->eq_opr != InvalidOid)
 	{
-		Oid			eq_opr_func;
 
-		eq_opr_func = get_opcode(typentry->eq_opr);
+		Oid			eq_opr_func = get_opcode(typentry->eq_opr);
+
 		if (eq_opr_func != InvalidOid)
 			fmgr_info_cxt(eq_opr_func, &typentry->eq_opr_finfo,
 						  CacheMemoryContext);
@@ -842,12 +842,12 @@ lookup_type_cache(Oid type_id, int flags)
 static void
 load_typcache_tupdesc(TypeCacheEntry *typentry)
 {
-	Relation	rel;
 
 	if (!OidIsValid(typentry->typrelid))	/* should not happen */
 		elog(ERROR, "invalid typrelid for composite type %u",
 			 typentry->type_id);
-	rel = relation_open(typentry->typrelid, AccessShareLock);
+	Relation	rel = relation_open(typentry->typrelid, AccessShareLock);
+
 	Assert(rel->rd_rel->reltype == typentry->type_id);
 
 	/*
@@ -876,38 +876,32 @@ load_typcache_tupdesc(TypeCacheEntry *typentry)
 static void
 load_rangetype_info(TypeCacheEntry *typentry)
 {
-	Form_pg_range pg_range;
-	HeapTuple	tup;
-	Oid			subtypeOid;
-	Oid			opclassOid;
-	Oid			canonicalOid;
-	Oid			subdiffOid;
-	Oid			opfamilyOid;
-	Oid			opcintype;
-	Oid			cmpFnOid;
 
 	/* get information from pg_range */
-	tup = SearchSysCache1(RANGETYPE, ObjectIdGetDatum(typentry->type_id));
+	HeapTuple	tup = SearchSysCache1(RANGETYPE, ObjectIdGetDatum(typentry->type_id));
+
 	/* should not fail, since we already checked typtype ... */
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for range type %u",
 			 typentry->type_id);
-	pg_range = (Form_pg_range) GETSTRUCT(tup);
+	Form_pg_range pg_range = (Form_pg_range) GETSTRUCT(tup);
 
-	subtypeOid = pg_range->rngsubtype;
+	Oid			subtypeOid = pg_range->rngsubtype;
+
 	typentry->rng_collation = pg_range->rngcollation;
-	opclassOid = pg_range->rngsubopc;
-	canonicalOid = pg_range->rngcanonical;
-	subdiffOid = pg_range->rngsubdiff;
+	Oid			opclassOid = pg_range->rngsubopc;
+	Oid			canonicalOid = pg_range->rngcanonical;
+	Oid			subdiffOid = pg_range->rngsubdiff;
 
 	ReleaseSysCache(tup);
 
 	/* get opclass properties and look up the comparison function */
-	opfamilyOid = get_opclass_family(opclassOid);
-	opcintype = get_opclass_input_type(opclassOid);
+	Oid			opfamilyOid = get_opclass_family(opclassOid);
+	Oid			opcintype = get_opclass_input_type(opclassOid);
 
-	cmpFnOid = get_opfamily_proc(opfamilyOid, opcintype, opcintype,
-								 BTORDER_PROC);
+	Oid			cmpFnOid = get_opfamily_proc(opfamilyOid, opcintype, opcintype,
+											 BTORDER_PROC);
+
 	if (!RegProcedureIsValid(cmpFnOid))
 		elog(ERROR, "missing support function %d(%u,%u) in opfamily %u",
 			 BTORDER_PROC, opcintype, opcintype, opfamilyOid);
@@ -942,9 +936,6 @@ load_domaintype_info(TypeCacheEntry *typentry)
 	Oid			typeOid = typentry->type_id;
 	DomainConstraintCache *dcc;
 	bool		notNull = false;
-	DomainConstraintState **ccons;
-	int			cconslen;
-	Relation	conRel;
 	MemoryContext oldcxt;
 
 	/*
@@ -964,29 +955,27 @@ load_domaintype_info(TypeCacheEntry *typentry)
 	 * for the temp sorting array.
 	 */
 	dcc = NULL;
-	ccons = NULL;
-	cconslen = 0;
+	DomainConstraintState **ccons = NULL;
+	int			cconslen = 0;
 
 	/*
 	 * Scan pg_constraint for relevant constraints.  We want to find
 	 * constraints for not just this domain, but any ancestor domains, so the
 	 * outer loop crawls up the domain stack.
 	 */
-	conRel = table_open(ConstraintRelationId, AccessShareLock);
+	Relation	conRel = table_open(ConstraintRelationId, AccessShareLock);
 
 	for (;;)
 	{
-		HeapTuple	tup;
 		HeapTuple	conTup;
-		Form_pg_type typTup;
 		int			nccons = 0;
 		ScanKeyData key[1];
-		SysScanDesc scan;
 
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeOid));
+		HeapTuple	tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typeOid));
+
 		if (!HeapTupleIsValid(tup))
 			elog(ERROR, "cache lookup failed for type %u", typeOid);
-		typTup = (Form_pg_type) GETSTRUCT(tup);
+		Form_pg_type typTup = (Form_pg_type) GETSTRUCT(tup);
 
 		if (typTup->typtype != TYPTYPE_DOMAIN)
 		{
@@ -1005,40 +994,37 @@ load_domaintype_info(TypeCacheEntry *typentry)
 					BTEqualStrategyNumber, F_OIDEQ,
 					ObjectIdGetDatum(typeOid));
 
-		scan = systable_beginscan(conRel, ConstraintTypidIndexId, true,
-								  NULL, 1, key);
+		SysScanDesc scan = systable_beginscan(conRel, ConstraintTypidIndexId, true,
+											  NULL, 1, key);
 
 		while (HeapTupleIsValid(conTup = systable_getnext(scan)))
 		{
 			Form_pg_constraint c = (Form_pg_constraint) GETSTRUCT(conTup);
-			Datum		val;
 			bool		isNull;
-			char	   *constring;
-			Expr	   *check_expr;
-			DomainConstraintState *r;
 
 			/* Ignore non-CHECK constraints (presently, shouldn't be any) */
 			if (c->contype != CONSTRAINT_CHECK)
 				continue;
 
 			/* Not expecting conbin to be NULL, but we'll test for it anyway */
-			val = fastgetattr(conTup, Anum_pg_constraint_conbin,
-							  conRel->rd_att, &isNull);
+			Datum		val = fastgetattr(conTup, Anum_pg_constraint_conbin,
+										  conRel->rd_att, &isNull);
+
 			if (isNull)
 				elog(ERROR, "domain \"%s\" constraint \"%s\" has NULL conbin",
 					 NameStr(typTup->typname), NameStr(c->conname));
 
 			/* Convert conbin to C string in caller context */
-			constring = TextDatumGetCString(val);
+			char	   *constring = TextDatumGetCString(val);
 
 			/* Create the DomainConstraintCache object and context if needed */
 			if (dcc == NULL)
 			{
-				MemoryContext cxt;
 
-				cxt = AllocSetContextCreate(CurrentMemoryContext,
-											"Domain constraints",
-											ALLOCSET_SMALL_SIZES);
+				MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
+														  "Domain constraints",
+														  ALLOCSET_SMALL_SIZES);
+
 				dcc = (DomainConstraintCache *)
 					MemoryContextAlloc(cxt, sizeof(DomainConstraintCache));
 				dcc->constraints = NIL;
@@ -1049,7 +1035,7 @@ load_domaintype_info(TypeCacheEntry *typentry)
 			/* Create node trees in DomainConstraintCache's context */
 			oldcxt = MemoryContextSwitchTo(dcc->dccContext);
 
-			check_expr = (Expr *) stringToNode(constring);
+			Expr	   *check_expr = (Expr *) stringToNode(constring);
 
 			/*
 			 * Plan the expression, since ExecInitExpr will expect that.
@@ -1063,7 +1049,8 @@ load_domaintype_info(TypeCacheEntry *typentry)
 			 */
 			check_expr = expression_planner(check_expr);
 
-			r = makeNode(DomainConstraintState);
+			DomainConstraintState *r = makeNode(DomainConstraintState);
+
 			r->constrainttype = DOM_CONSTRAINT_CHECK;
 			r->name = pstrdup(NameStr(c->conname));
 			r->check_expr = check_expr;
@@ -1121,16 +1108,15 @@ load_domaintype_info(TypeCacheEntry *typentry)
 	 */
 	if (notNull)
 	{
-		DomainConstraintState *r;
 
 		/* Create the DomainConstraintCache object and context if needed */
 		if (dcc == NULL)
 		{
-			MemoryContext cxt;
 
-			cxt = AllocSetContextCreate(CurrentMemoryContext,
-										"Domain constraints",
-										ALLOCSET_SMALL_SIZES);
+			MemoryContext cxt = AllocSetContextCreate(CurrentMemoryContext,
+													  "Domain constraints",
+													  ALLOCSET_SMALL_SIZES);
+
 			dcc = (DomainConstraintCache *)
 				MemoryContextAlloc(cxt, sizeof(DomainConstraintCache));
 			dcc->constraints = NIL;
@@ -1141,7 +1127,7 @@ load_domaintype_info(TypeCacheEntry *typentry)
 		/* Create node trees in DomainConstraintCache's context */
 		oldcxt = MemoryContextSwitchTo(dcc->dccContext);
 
-		r = makeNode(DomainConstraintState);
+		DomainConstraintState *r = makeNode(DomainConstraintState);
 
 		r->constrainttype = DOM_CONSTRAINT_NOTNULL;
 		r->name = pstrdup("NOT NULL");
@@ -1221,17 +1207,16 @@ static List *
 prep_domain_constraints(List *constraints, MemoryContext execctx)
 {
 	List	   *result = NIL;
-	MemoryContext oldcxt;
 	ListCell   *lc;
 
-	oldcxt = MemoryContextSwitchTo(execctx);
+	MemoryContext oldcxt = MemoryContextSwitchTo(execctx);
 
 	foreach(lc, constraints)
 	{
 		DomainConstraintState *r = (DomainConstraintState *) lfirst(lc);
-		DomainConstraintState *newr;
 
-		newr = makeNode(DomainConstraintState);
+		DomainConstraintState *newr = makeNode(DomainConstraintState);
+
 		newr->constrainttype = r->constrainttype;
 		newr->name = r->name;
 		newr->check_expr = r->check_expr;
@@ -1345,13 +1330,12 @@ UpdateDomainConstraintRef(DomainConstraintRef *ref)
 bool
 DomainHasConstraints(Oid type_id)
 {
-	TypeCacheEntry *typentry;
 
 	/*
 	 * Note: a side effect is to cause the typcache's domain data to become
 	 * valid.  This is fine since we'll likely need it soon if there is any.
 	 */
-	typentry = lookup_type_cache(type_id, TYPECACHE_DOMAIN_CONSTR_INFO);
+	TypeCacheEntry *typentry = lookup_type_cache(type_id, TYPECACHE_DOMAIN_CONSTR_INFO);
 
 	return (typentry->domainData != NULL);
 }
@@ -1408,13 +1392,13 @@ cache_array_element_properties(TypeCacheEntry *typentry)
 
 	if (OidIsValid(elem_type))
 	{
-		TypeCacheEntry *elementry;
 
-		elementry = lookup_type_cache(elem_type,
-									  TYPECACHE_EQ_OPR |
-									  TYPECACHE_CMP_PROC |
-									  TYPECACHE_HASH_PROC |
-									  TYPECACHE_HASH_EXTENDED_PROC);
+		TypeCacheEntry *elementry = lookup_type_cache(elem_type,
+													  TYPECACHE_EQ_OPR |
+													  TYPECACHE_CMP_PROC |
+													  TYPECACHE_HASH_PROC |
+													  TYPECACHE_HASH_EXTENDED_PROC);
+
 		if (OidIsValid(elementry->eq_opr))
 			typentry->flags |= TCFLAGS_HAVE_ELEM_EQUALITY;
 		if (OidIsValid(elementry->cmp_proc))
@@ -1480,36 +1464,35 @@ cache_record_field_properties(TypeCacheEntry *typentry)
 	}
 	else if (typentry->typtype == TYPTYPE_COMPOSITE)
 	{
-		TupleDesc	tupdesc;
-		int			newflags;
 		int			i;
 
 		/* Fetch composite type's tupdesc if we don't have it already */
 		if (typentry->tupDesc == NULL)
 			load_typcache_tupdesc(typentry);
-		tupdesc = typentry->tupDesc;
+		TupleDesc	tupdesc = typentry->tupDesc;
 
 		/* Must bump the refcount while we do additional catalog lookups */
 		IncrTupleDescRefCount(tupdesc);
 
 		/* Have each property if all non-dropped fields have the property */
-		newflags = (TCFLAGS_HAVE_FIELD_EQUALITY |
-					TCFLAGS_HAVE_FIELD_COMPARE |
-					TCFLAGS_HAVE_FIELD_HASHING |
-					TCFLAGS_HAVE_FIELD_EXTENDED_HASHING);
+		int			newflags = (TCFLAGS_HAVE_FIELD_EQUALITY |
+								TCFLAGS_HAVE_FIELD_COMPARE |
+								TCFLAGS_HAVE_FIELD_HASHING |
+								TCFLAGS_HAVE_FIELD_EXTENDED_HASHING);
+
 		for (i = 0; i < tupdesc->natts; i++)
 		{
-			TypeCacheEntry *fieldentry;
 			Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
 
 			if (attr->attisdropped)
 				continue;
 
-			fieldentry = lookup_type_cache(attr->atttypid,
-										   TYPECACHE_EQ_OPR |
-										   TYPECACHE_CMP_PROC |
-										   TYPECACHE_HASH_PROC |
-										   TYPECACHE_HASH_EXTENDED_PROC);
+			TypeCacheEntry *fieldentry = lookup_type_cache(attr->atttypid,
+														   TYPECACHE_EQ_OPR |
+														   TYPECACHE_CMP_PROC |
+														   TYPECACHE_HASH_PROC |
+														   TYPECACHE_HASH_EXTENDED_PROC);
+
 			if (!OidIsValid(fieldentry->eq_opr))
 				newflags &= ~TCFLAGS_HAVE_FIELD_EQUALITY;
 			if (!OidIsValid(fieldentry->cmp_proc))
@@ -1530,7 +1513,6 @@ cache_record_field_properties(TypeCacheEntry *typentry)
 	else if (typentry->typtype == TYPTYPE_DOMAIN)
 	{
 		/* If it's domain over composite, copy base type's properties */
-		TypeCacheEntry *baseentry;
 
 		/* load up basetype info if we didn't already */
 		if (typentry->domainBaseType == InvalidOid)
@@ -1540,11 +1522,12 @@ cache_record_field_properties(TypeCacheEntry *typentry)
 				getBaseTypeAndTypmod(typentry->type_id,
 									 &typentry->domainBaseTypmod);
 		}
-		baseentry = lookup_type_cache(typentry->domainBaseType,
-									  TYPECACHE_EQ_OPR |
-									  TYPECACHE_CMP_PROC |
-									  TYPECACHE_HASH_PROC |
-									  TYPECACHE_HASH_EXTENDED_PROC);
+		TypeCacheEntry *baseentry = lookup_type_cache(typentry->domainBaseType,
+													  TYPECACHE_EQ_OPR |
+													  TYPECACHE_CMP_PROC |
+													  TYPECACHE_HASH_PROC |
+													  TYPECACHE_HASH_EXTENDED_PROC);
+
 		if (baseentry->typtype == TYPTYPE_COMPOSITE)
 		{
 			typentry->flags |= TCFLAGS_DOMAIN_BASE_IS_COMPOSITE;
@@ -1591,12 +1574,12 @@ cache_range_element_properties(TypeCacheEntry *typentry)
 
 	if (typentry->rngelemtype != NULL)
 	{
-		TypeCacheEntry *elementry;
 
 		/* might need to calculate subtype's hash function properties */
-		elementry = lookup_type_cache(typentry->rngelemtype->type_id,
-									  TYPECACHE_HASH_PROC |
-									  TYPECACHE_HASH_EXTENDED_PROC);
+		TypeCacheEntry *elementry = lookup_type_cache(typentry->rngelemtype->type_id,
+													  TYPECACHE_HASH_PROC |
+													  TYPECACHE_HASH_EXTENDED_PROC);
+
 		if (OidIsValid(elementry->hash_proc))
 			typentry->flags |= TCFLAGS_HAVE_ELEM_HASHING;
 		if (OidIsValid(elementry->hash_extended_proc))
@@ -1654,9 +1637,9 @@ lookup_rowtype_tupdesc_internal(Oid type_id, int32 typmod, bool noError)
 		/*
 		 * It's a named composite type, so use the regular typcache.
 		 */
-		TypeCacheEntry *typentry;
 
-		typentry = lookup_type_cache(type_id, TYPECACHE_TUPDESC);
+		TypeCacheEntry *typentry = lookup_type_cache(type_id, TYPECACHE_TUPDESC);
+
 		if (typentry->tupDesc == NULL && !noError)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -1679,18 +1662,18 @@ lookup_rowtype_tupdesc_internal(Oid type_id, int32 typmod, bool noError)
 			/* Are we attached to a shared record typmod registry? */
 			if (CurrentSession->shared_typmod_registry != NULL)
 			{
-				SharedTypmodTableEntry *entry;
 
 				/* Try to find it in the shared typmod index. */
-				entry = dshash_find(CurrentSession->shared_typmod_table,
-									&typmod, false);
+				SharedTypmodTableEntry *entry = dshash_find(CurrentSession->shared_typmod_table,
+															&typmod, false);
+
 				if (entry != NULL)
 				{
-					TupleDesc	tupdesc;
 
-					tupdesc = (TupleDesc)
-						dsa_get_address(CurrentSession->area,
-										entry->shared_tupdesc);
+					TupleDesc	tupdesc = (TupleDesc)
+					dsa_get_address(CurrentSession->area,
+									entry->shared_tupdesc);
+
 					Assert(typmod == tupdesc->tdtypmod);
 
 					/* We may need to extend the local RecordCacheArray. */
@@ -1740,9 +1723,9 @@ lookup_rowtype_tupdesc_internal(Oid type_id, int32 typmod, bool noError)
 TupleDesc
 lookup_rowtype_tupdesc(Oid type_id, int32 typmod)
 {
-	TupleDesc	tupDesc;
 
-	tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
+	TupleDesc	tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
+
 	PinTupleDesc(tupDesc);
 	return tupDesc;
 }
@@ -1757,9 +1740,9 @@ lookup_rowtype_tupdesc(Oid type_id, int32 typmod)
 TupleDesc
 lookup_rowtype_tupdesc_noerror(Oid type_id, int32 typmod, bool noError)
 {
-	TupleDesc	tupDesc;
 
-	tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, noError);
+	TupleDesc	tupDesc = lookup_rowtype_tupdesc_internal(type_id, typmod, noError);
+
 	if (tupDesc != NULL)
 		PinTupleDesc(tupDesc);
 	return tupDesc;
@@ -1774,9 +1757,9 @@ lookup_rowtype_tupdesc_noerror(Oid type_id, int32 typmod, bool noError)
 TupleDesc
 lookup_rowtype_tupdesc_copy(Oid type_id, int32 typmod)
 {
-	TupleDesc	tmp;
 
-	tmp = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
+	TupleDesc	tmp = lookup_rowtype_tupdesc_internal(type_id, typmod, false);
+
 	return CreateTupleDescCopyConstr(tmp);
 }
 
@@ -1804,11 +1787,11 @@ lookup_rowtype_tupdesc_domain(Oid type_id, int32 typmod, bool noError)
 		 * Check for domain or named composite type.  We might as well load
 		 * whichever data is needed.
 		 */
-		TypeCacheEntry *typentry;
 
-		typentry = lookup_type_cache(type_id,
-									 TYPECACHE_TUPDESC |
-									 TYPECACHE_DOMAIN_BASE_INFO);
+		TypeCacheEntry *typentry = lookup_type_cache(type_id,
+													 TYPECACHE_TUPDESC |
+													 TYPECACHE_DOMAIN_BASE_INFO);
+
 		if (typentry->typtype == TYPTYPE_DOMAIN)
 			return lookup_rowtype_tupdesc_noerror(typentry->domainBaseType,
 												  typentry->domainBaseTypmod,
@@ -1860,10 +1843,7 @@ record_type_typmod_compare(const void *a, const void *b, size_t size)
 void
 assign_record_type_typmod(TupleDesc tupDesc)
 {
-	RecordCacheEntry *recentry;
-	TupleDesc	entDesc;
 	bool		found;
-	MemoryContext oldcxt;
 
 	Assert(tupDesc->tdtypeid == RECORDOID);
 
@@ -1887,9 +1867,10 @@ assign_record_type_typmod(TupleDesc tupDesc)
 	}
 
 	/* Find or create a hashtable entry for this tuple descriptor */
-	recentry = (RecordCacheEntry *) hash_search(RecordCacheHash,
-												(void *) &tupDesc,
-												HASH_ENTER, &found);
+	RecordCacheEntry *recentry = (RecordCacheEntry *) hash_search(RecordCacheHash,
+																  (void *) &tupDesc,
+																  HASH_ENTER, &found);
+
 	if (found && recentry->tupdesc != NULL)
 	{
 		tupDesc->tdtypmod = recentry->tupdesc->tdtypmod;
@@ -1898,10 +1879,11 @@ assign_record_type_typmod(TupleDesc tupDesc)
 
 	/* Not present, so need to manufacture an entry */
 	recentry->tupdesc = NULL;
-	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+	MemoryContext oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
 
 	/* Look in the SharedRecordTypmodRegistry, if attached */
-	entDesc = find_or_make_matching_shared_tupledesc(tupDesc);
+	TupleDesc	entDesc = find_or_make_matching_shared_tupledesc(tupDesc);
+
 	if (entDesc == NULL)
 	{
 		/* Reference-counted local cache only. */
@@ -1940,9 +1922,9 @@ assign_record_type_identifier(Oid type_id, int32 typmod)
 		/*
 		 * It's a named composite type, so use the regular typcache.
 		 */
-		TypeCacheEntry *typentry;
 
-		typentry = lookup_type_cache(type_id, TYPECACHE_TUPDESC);
+		TypeCacheEntry *typentry = lookup_type_cache(type_id, TYPECACHE_TUPDESC);
+
 		if (typentry->tupDesc == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_WRONG_OBJECT_TYPE),
@@ -2000,9 +1982,6 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 							   dsm_segment *segment,
 							   dsa_area *area)
 {
-	MemoryContext old_context;
-	dshash_table *record_table;
-	dshash_table *typmod_table;
 	int32		typmod;
 
 	Assert(!IsParallelWorker());
@@ -2012,13 +1991,13 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 	Assert(CurrentSession->shared_record_table == NULL);
 	Assert(CurrentSession->shared_typmod_table == NULL);
 
-	old_context = MemoryContextSwitchTo(TopMemoryContext);
+	MemoryContext old_context = MemoryContextSwitchTo(TopMemoryContext);
 
 	/* Create the hash table of tuple descriptors indexed by themselves. */
-	record_table = dshash_create(area, &srtr_record_table_params, area);
+	dshash_table *record_table = dshash_create(area, &srtr_record_table_params, area);
 
 	/* Create the hash table of tuple descriptors indexed by typmod. */
-	typmod_table = dshash_create(area, &srtr_typmod_table_params, NULL);
+	dshash_table *typmod_table = dshash_create(area, &srtr_typmod_table_params, NULL);
 
 	MemoryContextSwitchTo(old_context);
 
@@ -2033,24 +2012,22 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 	 */
 	for (typmod = 0; typmod < NextRecordTypmod; ++typmod)
 	{
-		SharedTypmodTableEntry *typmod_table_entry;
-		SharedRecordTableEntry *record_table_entry;
 		SharedRecordTableKey record_table_key;
-		dsa_pointer shared_dp;
-		TupleDesc	tupdesc;
 		bool		found;
 
-		tupdesc = RecordCacheArray[typmod];
+		TupleDesc	tupdesc = RecordCacheArray[typmod];
+
 		if (tupdesc == NULL)
 			continue;
 
 		/* Copy the TupleDesc into shared memory. */
-		shared_dp = share_tupledesc(area, tupdesc, typmod);
+		dsa_pointer shared_dp = share_tupledesc(area, tupdesc, typmod);
 
 		/* Insert into the typmod table. */
-		typmod_table_entry = dshash_find_or_insert(typmod_table,
-												   &tupdesc->tdtypmod,
-												   &found);
+		SharedTypmodTableEntry *typmod_table_entry = dshash_find_or_insert(typmod_table,
+																		   &tupdesc->tdtypmod,
+																		   &found);
+
 		if (found)
 			elog(ERROR, "cannot create duplicate shared record typmod");
 		typmod_table_entry->typmod = tupdesc->tdtypmod;
@@ -2060,9 +2037,10 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 		/* Insert into the record table. */
 		record_table_key.shared = false;
 		record_table_key.u.local_tupdesc = tupdesc;
-		record_table_entry = dshash_find_or_insert(record_table,
-												   &record_table_key,
-												   &found);
+		SharedRecordTableEntry *record_table_entry = dshash_find_or_insert(record_table,
+																		   &record_table_key,
+																		   &found);
+
 		if (!found)
 		{
 			record_table_entry->key.shared = true;
@@ -2097,9 +2075,6 @@ SharedRecordTypmodRegistryInit(SharedRecordTypmodRegistry *registry,
 void
 SharedRecordTypmodRegistryAttach(SharedRecordTypmodRegistry *registry)
 {
-	MemoryContext old_context;
-	dshash_table *record_table;
-	dshash_table *typmod_table;
 
 	Assert(IsParallelWorker());
 
@@ -2123,17 +2098,17 @@ SharedRecordTypmodRegistryAttach(SharedRecordTypmodRegistry *registry)
 	 */
 	Assert(NextRecordTypmod == 0);
 
-	old_context = MemoryContextSwitchTo(TopMemoryContext);
+	MemoryContext old_context = MemoryContextSwitchTo(TopMemoryContext);
 
 	/* Attach to the two hash tables. */
-	record_table = dshash_attach(CurrentSession->area,
-								 &srtr_record_table_params,
-								 registry->record_table_handle,
-								 CurrentSession->area);
-	typmod_table = dshash_attach(CurrentSession->area,
-								 &srtr_typmod_table_params,
-								 registry->typmod_table_handle,
-								 NULL);
+	dshash_table *record_table = dshash_attach(CurrentSession->area,
+											   &srtr_record_table_params,
+											   registry->record_table_handle,
+											   CurrentSession->area);
+	dshash_table *typmod_table = dshash_attach(CurrentSession->area,
+											   &srtr_typmod_table_params,
+											   registry->typmod_table_handle,
+											   NULL);
 
 	MemoryContextSwitchTo(old_context);
 
@@ -2338,11 +2313,11 @@ TypeCacheConstrCallback(Datum arg, int cacheid, uint32 hashvalue)
 static inline bool
 enum_known_sorted(TypeCacheEnumData *enumdata, Oid arg)
 {
-	Oid			offset;
 
 	if (arg < enumdata->bitmap_base)
 		return false;
-	offset = arg - enumdata->bitmap_base;
+	Oid			offset = arg - enumdata->bitmap_base;
+
 	if (offset > (Oid) INT_MAX)
 		return false;
 	return bms_is_member((int) offset, enumdata->sorted_values);
@@ -2367,9 +2342,6 @@ enum_known_sorted(TypeCacheEnumData *enumdata, Oid arg)
 int
 compare_values_of_enum(TypeCacheEntry *tcache, Oid arg1, Oid arg2)
 {
-	TypeCacheEnumData *enumdata;
-	EnumItem   *item1;
-	EnumItem   *item2;
 
 	/*
 	 * Equal OIDs are certainly equal --- this case was probably handled by
@@ -2381,7 +2353,7 @@ compare_values_of_enum(TypeCacheEntry *tcache, Oid arg1, Oid arg2)
 	/* Load up the cache if first time through */
 	if (tcache->enumData == NULL)
 		load_enum_cache_data(tcache);
-	enumdata = tcache->enumData;
+	TypeCacheEnumData *enumdata = tcache->enumData;
 
 	/*
 	 * If both OIDs are known-sorted, we can just compare them directly.
@@ -2398,8 +2370,8 @@ compare_values_of_enum(TypeCacheEntry *tcache, Oid arg1, Oid arg2)
 	/*
 	 * Slow path: we have to identify their actual sort-order positions.
 	 */
-	item1 = find_enumitem(enumdata, arg1);
-	item2 = find_enumitem(enumdata, arg2);
+	EnumItem   *item1 = find_enumitem(enumdata, arg1);
+	EnumItem   *item2 = find_enumitem(enumdata, arg2);
 
 	if (item1 == NULL || item2 == NULL)
 	{
@@ -2440,17 +2412,8 @@ compare_values_of_enum(TypeCacheEntry *tcache, Oid arg1, Oid arg2)
 static void
 load_enum_cache_data(TypeCacheEntry *tcache)
 {
-	TypeCacheEnumData *enumdata;
-	Relation	enum_rel;
-	SysScanDesc enum_scan;
 	HeapTuple	enum_tuple;
 	ScanKeyData skey;
-	EnumItem   *items;
-	int			numitems;
-	int			maxitems;
-	Oid			bitmap_base;
-	Bitmapset  *bitmap;
-	MemoryContext oldcxt;
 	int			bm_size,
 				start_pos;
 
@@ -2468,9 +2431,9 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 	 * leaking memory from CacheMemoryContext in the event of an error partway
 	 * through.
 	 */
-	maxitems = 64;
-	items = (EnumItem *) palloc(sizeof(EnumItem) * maxitems);
-	numitems = 0;
+	int			maxitems = 64;
+	EnumItem   *items = (EnumItem *) palloc(sizeof(EnumItem) * maxitems);
+	int			numitems = 0;
 
 	/* Scan pg_enum for the members of the target enum type. */
 	ScanKeyInit(&skey,
@@ -2478,11 +2441,11 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(tcache->type_id));
 
-	enum_rel = table_open(EnumRelationId, AccessShareLock);
-	enum_scan = systable_beginscan(enum_rel,
-								   EnumTypIdLabelIndexId,
-								   true, NULL,
-								   1, &skey);
+	Relation	enum_rel = table_open(EnumRelationId, AccessShareLock);
+	SysScanDesc enum_scan = systable_beginscan(enum_rel,
+											   EnumTypIdLabelIndexId,
+											   true, NULL,
+											   1, &skey);
 
 	while (HeapTupleIsValid(enum_tuple = systable_getnext(enum_scan)))
 	{
@@ -2516,8 +2479,9 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 	 * isn't exactly what the type started with.  That's okay as long as the
 	 * subset is correctly sorted.
 	 */
-	bitmap_base = InvalidOid;
-	bitmap = NULL;
+	Oid			bitmap_base = InvalidOid;
+	Bitmapset  *bitmap = NULL;
+
 	bm_size = 1;				/* only save sets of at least 2 OIDs */
 
 	for (start_pos = 0; start_pos < numitems - 1; start_pos++)
@@ -2533,9 +2497,9 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 
 		for (i = start_pos + 1; i < numitems; i++)
 		{
-			Oid			offset;
 
-			offset = items[i].enum_oid - start_oid;
+			Oid			offset = items[i].enum_oid - start_oid;
+
 			/* quit if bitmap would be too large; cutoff is arbitrary */
 			if (offset >= 8192)
 				break;
@@ -2570,10 +2534,11 @@ load_enum_cache_data(TypeCacheEntry *tcache)
 	}
 
 	/* OK, copy the data into CacheMemoryContext */
-	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
-	enumdata = (TypeCacheEnumData *)
-		palloc(offsetof(TypeCacheEnumData, enum_values) +
-			   numitems * sizeof(EnumItem));
+	MemoryContext oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+	TypeCacheEnumData *enumdata = (TypeCacheEnumData *)
+	palloc(offsetof(TypeCacheEnumData, enum_values) +
+		   numitems * sizeof(EnumItem));
+
 	enumdata->bitmap_base = bitmap_base;
 	enumdata->sorted_values = bms_copy(bitmap);
 	enumdata->num_values = numitems;
@@ -2630,11 +2595,10 @@ enum_oid_cmp(const void *left, const void *right)
 static dsa_pointer
 share_tupledesc(dsa_area *area, TupleDesc tupdesc, uint32 typmod)
 {
-	dsa_pointer shared_dp;
-	TupleDesc	shared;
 
-	shared_dp = dsa_allocate(area, TupleDescSize(tupdesc));
-	shared = (TupleDesc) dsa_get_address(area, shared_dp);
+	dsa_pointer shared_dp = dsa_allocate(area, TupleDescSize(tupdesc));
+	TupleDesc	shared = (TupleDesc) dsa_get_address(area, shared_dp);
+
 	TupleDescCopy(shared, tupdesc);
 	shared->tdtypmod = typmod;
 
@@ -2653,11 +2617,8 @@ find_or_make_matching_shared_tupledesc(TupleDesc tupdesc)
 {
 	TupleDesc	result;
 	SharedRecordTableKey key;
-	SharedRecordTableEntry *record_table_entry;
 	SharedTypmodTableEntry *typmod_table_entry;
-	dsa_pointer shared_dp;
 	bool		found;
-	uint32		typmod;
 
 	/* If not even attached, nothing to do. */
 	if (CurrentSession->shared_typmod_registry == NULL)
@@ -2666,8 +2627,9 @@ find_or_make_matching_shared_tupledesc(TupleDesc tupdesc)
 	/* Try to find a matching tuple descriptor in the record table. */
 	key.shared = false;
 	key.u.local_tupdesc = tupdesc;
-	record_table_entry = (SharedRecordTableEntry *)
-		dshash_find(CurrentSession->shared_record_table, &key, false);
+	SharedRecordTableEntry *record_table_entry = (SharedRecordTableEntry *)
+	dshash_find(CurrentSession->shared_record_table, &key, false);
+
 	if (record_table_entry)
 	{
 		Assert(record_table_entry->key.shared);
@@ -2682,12 +2644,12 @@ find_or_make_matching_shared_tupledesc(TupleDesc tupdesc)
 	}
 
 	/* Allocate a new typmod number.  This will be wasted if we error out. */
-	typmod = (int)
-		pg_atomic_fetch_add_u32(&CurrentSession->shared_typmod_registry->next_typmod,
-								1);
+	uint32		typmod = (int)
+	pg_atomic_fetch_add_u32(&CurrentSession->shared_typmod_registry->next_typmod,
+							1);
 
 	/* Copy the TupleDesc into shared memory. */
-	shared_dp = share_tupledesc(CurrentSession->area, tupdesc, typmod);
+	dsa_pointer shared_dp = share_tupledesc(CurrentSession->area, tupdesc, typmod);
 
 	/*
 	 * Create an entry in the typmod table so that others will understand this

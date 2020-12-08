@@ -311,9 +311,9 @@ explain_ExecutorStart(QueryDesc *queryDesc, int eflags)
 		 */
 		if (queryDesc->totaltime == NULL)
 		{
-			MemoryContext oldcxt;
 
-			oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
+			MemoryContext oldcxt = MemoryContextSwitchTo(queryDesc->estate->es_query_cxt);
+
 			queryDesc->totaltime = InstrAlloc(1, INSTRUMENT_ALL);
 			MemoryContextSwitchTo(oldcxt);
 		}
@@ -371,7 +371,6 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
 {
 	if (queryDesc->totaltime && auto_explain_enabled())
 	{
-		double		msec;
 
 		/*
 		 * Make sure stats accumulation is done.  (Note: it's okay if several
@@ -380,7 +379,8 @@ explain_ExecutorEnd(QueryDesc *queryDesc)
 		InstrEndLoop(queryDesc->totaltime);
 
 		/* Log plan if duration is exceeded. */
-		msec = queryDesc->totaltime->total * 1000.0;
+		double		msec = queryDesc->totaltime->total * 1000.0;
+
 		if (msec >= auto_explain_log_min_duration)
 		{
 			ExplainState *es = NewExplainState();

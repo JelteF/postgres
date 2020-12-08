@@ -133,11 +133,10 @@ DOTypeNameCompare(const void *p1, const void *p2)
 {
 	DumpableObject *obj1 = *(DumpableObject *const *) p1;
 	DumpableObject *obj2 = *(DumpableObject *const *) p2;
-	int			cmpval;
 
 	/* Sort by type's priority */
-	cmpval = dbObjectTypePriority[obj1->objType] -
-		dbObjectTypePriority[obj2->objType];
+	int			cmpval = dbObjectTypePriority[obj1->objType] -
+	dbObjectTypePriority[obj2->objType];
 
 	if (cmpval != 0)
 		return cmpval;
@@ -257,7 +256,6 @@ void
 sortDumpableObjects(DumpableObject **objs, int numObjs,
 					DumpId preBoundaryId, DumpId postBoundaryId)
 {
-	DumpableObject **ordering;
 	int			nOrdering;
 
 	if (numObjs <= 0)			/* can't happen anymore ... */
@@ -270,7 +268,8 @@ sortDumpableObjects(DumpableObject **objs, int numObjs,
 	preDataBoundId = preBoundaryId;
 	postDataBoundId = postBoundaryId;
 
-	ordering = (DumpableObject **) pg_malloc(numObjs * sizeof(DumpableObject *));
+	DumpableObject **ordering = (DumpableObject **) pg_malloc(numObjs * sizeof(DumpableObject *));
+
 	while (!TopoSort(objs, numObjs, ordering, &nOrdering))
 		findDependencyLoops(ordering, nOrdering, numObjs);
 
@@ -312,11 +311,7 @@ TopoSort(DumpableObject **objs,
 		 int *nOrdering)		/* output argument */
 {
 	DumpId		maxDumpId = getMaxDumpId();
-	int		   *pendingHeap;
-	int		   *beforeConstraints;
-	int		   *idMap;
 	DumpableObject *obj;
-	int			heapLength;
 	int			i,
 				j,
 				k;
@@ -341,7 +336,7 @@ TopoSort(DumpableObject **objs,
 		return true;
 
 	/* Create workspace for the above-described heap */
-	pendingHeap = (int *) pg_malloc(numObjs * sizeof(int));
+	int		   *pendingHeap = (int *) pg_malloc(numObjs * sizeof(int));
 
 	/*
 	 * Scan the constraints, and for each item in the input, generate a count
@@ -350,8 +345,9 @@ TopoSort(DumpableObject **objs,
 	 * We also make a map showing the input-order index of the item with
 	 * dumpId j.
 	 */
-	beforeConstraints = (int *) pg_malloc0((maxDumpId + 1) * sizeof(int));
-	idMap = (int *) pg_malloc((maxDumpId + 1) * sizeof(int));
+	int		   *beforeConstraints = (int *) pg_malloc0((maxDumpId + 1) * sizeof(int));
+	int		   *idMap = (int *) pg_malloc((maxDumpId + 1) * sizeof(int));
+
 	for (i = 0; i < numObjs; i++)
 	{
 		obj = objs[i];
@@ -379,7 +375,8 @@ TopoSort(DumpableObject **objs,
 	 * a-fortiori have the heap invariant satisfied at completion of this
 	 * loop, and don't need to do any sift-up comparisons.
 	 */
-	heapLength = 0;
+	int			heapLength = 0;
+
 	for (i = numObjs; --i >= 0;)
 	{
 		if (beforeConstraints[objs[i]->dumpId] == 0)
@@ -451,13 +448,13 @@ TopoSort(DumpableObject **objs,
 static void
 addHeapElement(int val, int *heap, int heapLength)
 {
-	int			j;
 
 	/*
 	 * Sift-up the new entry, per Knuth 5.2.3 exercise 16. Note that Knuth is
 	 * using 1-based array indexes, not 0-based.
 	 */
-	j = heapLength;
+	int			j = heapLength;
+
 	while (j > 0)
 	{
 		int			i = (j - 1) >> 1;
@@ -483,13 +480,12 @@ static int
 removeHeapElement(int *heap, int heapLength)
 {
 	int			result = heap[0];
-	int			val;
-	int			i;
 
 	if (--heapLength <= 0)
 		return result;
-	val = heap[heapLength];		/* value that must be reinserted */
-	i = 0;						/* i is where the "hole" is */
+	int			val = heap[heapLength]; /* value that must be reinserted */
+	int			i = 0;			/* i is where the "hole" is */
+
 	for (;;)
 	{
 		int			j = 2 * i + 1;
@@ -549,29 +545,24 @@ findDependencyLoops(DumpableObject **objs, int nObjs, int totObjs)
 	 * overkill in most cases but could theoretically be necessary if there is
 	 * a single dependency chain linking all the objects.
 	 */
-	bool	   *processed;
-	DumpId	   *searchFailed;
-	DumpableObject **workspace;
-	bool		fixedloop;
 	int			i;
 
-	processed = (bool *) pg_malloc0((getMaxDumpId() + 1) * sizeof(bool));
-	searchFailed = (DumpId *) pg_malloc0((getMaxDumpId() + 1) * sizeof(DumpId));
-	workspace = (DumpableObject **) pg_malloc(totObjs * sizeof(DumpableObject *));
-	fixedloop = false;
+	bool	   *processed = (bool *) pg_malloc0((getMaxDumpId() + 1) * sizeof(bool));
+	DumpId	   *searchFailed = (DumpId *) pg_malloc0((getMaxDumpId() + 1) * sizeof(DumpId));
+	DumpableObject **workspace = (DumpableObject **) pg_malloc(totObjs * sizeof(DumpableObject *));
+	bool		fixedloop = false;
 
 	for (i = 0; i < nObjs; i++)
 	{
 		DumpableObject *obj = objs[i];
-		int			looplen;
 		int			j;
 
-		looplen = findLoop(obj,
-						   obj->dumpId,
-						   processed,
-						   searchFailed,
-						   workspace,
-						   0);
+		int			looplen = findLoop(obj,
+									   obj->dumpId,
+									   processed,
+									   searchFailed,
+									   workspace,
+									   0);
 
 		if (looplen > 0)
 		{
@@ -676,16 +667,16 @@ findLoop(DumpableObject *obj,
 	for (i = 0; i < obj->nDeps; i++)
 	{
 		DumpableObject *nextobj = findObjectByDumpId(obj->dependencies[i]);
-		int			newDepth;
 
 		if (!nextobj)
 			continue;			/* ignore dependencies on undumped objects */
-		newDepth = findLoop(nextobj,
-							startPoint,
-							processed,
-							searchFailed,
-							workspace,
-							depth);
+		int			newDepth = findLoop(nextobj,
+										startPoint,
+										processed,
+										searchFailed,
+										workspace,
+										depth);
+
 		if (newDepth > 0)
 			return newDepth;
 	}
@@ -989,9 +980,9 @@ repairDependencyLoop(DumpableObject **loop,
 				{
 					if (loop[j]->objType == DO_PRE_DATA_BOUNDARY)
 					{
-						DumpableObject *nextobj;
 
-						nextobj = (j < nLoop - 1) ? loop[j + 1] : loop[0];
+						DumpableObject *nextobj = (j < nLoop - 1) ? loop[j + 1] : loop[0];
+
 						repairMatViewBoundaryMultiLoop(loop[j], nextobj);
 						return;
 					}

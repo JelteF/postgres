@@ -41,20 +41,20 @@ commit_ts_desc(StringInfo buf, XLogReaderState *record)
 	else if (info == COMMIT_TS_SETTS)
 	{
 		xl_commit_ts_set *xlrec = (xl_commit_ts_set *) rec;
-		int			nsubxids;
 
 		appendStringInfo(buf, "set %s/%d for: %u",
 						 timestamptz_to_str(xlrec->timestamp),
 						 xlrec->nodeid,
 						 xlrec->mainxid);
-		nsubxids = ((XLogRecGetDataLen(record) - SizeOfCommitTsSet) /
-					sizeof(TransactionId));
+		int			nsubxids = ((XLogRecGetDataLen(record) - SizeOfCommitTsSet) /
+								sizeof(TransactionId));
+
 		if (nsubxids > 0)
 		{
 			int			i;
-			TransactionId *subxids;
 
-			subxids = palloc(sizeof(TransactionId) * nsubxids);
+			TransactionId *subxids = palloc(sizeof(TransactionId) * nsubxids);
+
 			memcpy(subxids,
 				   XLogRecGetData(record) + SizeOfCommitTsSet,
 				   sizeof(TransactionId) * nsubxids);

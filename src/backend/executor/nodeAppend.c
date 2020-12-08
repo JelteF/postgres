@@ -100,10 +100,8 @@ AppendState *
 ExecInitAppend(Append *node, EState *estate, int eflags)
 {
 	AppendState *appendstate = makeNode(AppendState);
-	PlanState **appendplanstates;
 	Bitmapset  *validsubplans;
 	int			nplans;
-	int			firstvalid;
 	int			i,
 				j;
 
@@ -123,14 +121,14 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 	/* If run-time partition pruning is enabled, then set that up now */
 	if (node->part_prune_info != NULL)
 	{
-		PartitionPruneState *prunestate;
 
 		/* We may need an expression context to evaluate partition exprs */
 		ExecAssignExprContext(estate, &appendstate->ps);
 
 		/* Create the working data structure for pruning. */
-		prunestate = ExecCreatePartitionPruneState(&appendstate->ps,
-												   node->part_prune_info);
+		PartitionPruneState *prunestate = ExecCreatePartitionPruneState(&appendstate->ps,
+																		node->part_prune_info);
+
 		appendstate->as_prune_state = prunestate;
 
 		/* Perform an initial partition prune, if required. */
@@ -181,8 +179,8 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 	appendstate->ps.resultopsset = true;
 	appendstate->ps.resultopsfixed = false;
 
-	appendplanstates = (PlanState **) palloc(nplans *
-											 sizeof(PlanState *));
+	PlanState **appendplanstates = (PlanState **) palloc(nplans *
+														 sizeof(PlanState *));
 
 	/*
 	 * call ExecInitNode on each of the valid plans to be executed and save
@@ -191,7 +189,8 @@ ExecInitAppend(Append *node, EState *estate, int eflags)
 	 * While at it, find out the first valid partial plan.
 	 */
 	j = 0;
-	firstvalid = nplans;
+	int			firstvalid = nplans;
+
 	i = -1;
 	while ((i = bms_next_member(validsubplans, i)) >= 0)
 	{
@@ -250,8 +249,6 @@ ExecAppend(PlanState *pstate)
 
 	for (;;)
 	{
-		PlanState  *subnode;
-		TupleTableSlot *result;
 
 		CHECK_FOR_INTERRUPTS();
 
@@ -259,12 +256,12 @@ ExecAppend(PlanState *pstate)
 		 * figure out which subplan we are currently processing
 		 */
 		Assert(node->as_whichplan >= 0 && node->as_whichplan < node->as_nplans);
-		subnode = node->appendplans[node->as_whichplan];
+		PlanState  *subnode = node->appendplans[node->as_whichplan];
 
 		/*
 		 * get a tuple from the subplan
 		 */
-		result = ExecProcNode(subnode);
+		TupleTableSlot *result = ExecProcNode(subnode);
 
 		if (!TupIsNull(result))
 		{
@@ -293,15 +290,13 @@ ExecAppend(PlanState *pstate)
 void
 ExecEndAppend(AppendState *node)
 {
-	PlanState **appendplans;
-	int			nplans;
 	int			i;
 
 	/*
 	 * get information from the node
 	 */
-	appendplans = node->appendplans;
-	nplans = node->as_nplans;
+	PlanState **appendplans = node->appendplans;
+	int			nplans = node->as_nplans;
 
 	/*
 	 * shut down each of the subscans
@@ -386,9 +381,9 @@ void
 ExecAppendInitializeDSM(AppendState *node,
 						ParallelContext *pcxt)
 {
-	ParallelAppendState *pstate;
 
-	pstate = shm_toc_allocate(pcxt->toc, node->pstate_len);
+	ParallelAppendState *pstate = shm_toc_allocate(pcxt->toc, node->pstate_len);
+
 	memset(pstate, 0, node->pstate_len);
 	LWLockInitialize(&pstate->pa_lock, LWTRANCHE_PARALLEL_APPEND);
 	shm_toc_insert(pcxt->toc, node->ps.plan->plan_node_id, pstate);
@@ -605,10 +600,10 @@ choose_next_subplan_for_worker(AppendState *node)
 	/* Loop until we find a valid subplan to execute. */
 	while (pstate->pa_finished[pstate->pa_next_plan])
 	{
-		int			nextplan;
 
-		nextplan = bms_next_member(node->as_valid_subplans,
-								   pstate->pa_next_plan);
+		int			nextplan = bms_next_member(node->as_valid_subplans,
+											   pstate->pa_next_plan);
+
 		if (nextplan >= 0)
 		{
 			/* Advance to the next valid plan. */
