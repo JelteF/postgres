@@ -88,13 +88,10 @@ static List *
 get_subscription_list(void)
 {
 	List	   *res = NIL;
-	Relation	rel;
-	TableScanDesc scan;
 	HeapTuple	tup;
-	MemoryContext resultcxt;
 
 	/* This is the context that we will allocate our output data in */
-	resultcxt = CurrentMemoryContext;
+	MemoryContext resultcxt = CurrentMemoryContext;
 
 	/*
 	 * Start a transaction so we can access pg_database, and get a snapshot.
@@ -110,14 +107,12 @@ get_subscription_list(void)
 	StartTransactionCommand();
 	(void) GetTransactionSnapshot();
 
-	rel = table_open(SubscriptionRelationId, AccessShareLock);
-	scan = table_beginscan_catalog(rel, 0, NULL);
+	Relation	rel = table_open(SubscriptionRelationId, AccessShareLock);
+	TableScanDesc scan = table_beginscan_catalog(rel, 0, NULL);
 
 	while (HeapTupleIsValid(tup = heap_getnext(scan, ForwardScanDirection)))
 	{
 		Form_pg_subscription subform = (Form_pg_subscription) GETSTRUCT(tup);
-		Subscription *sub;
-		MemoryContext oldcxt;
 
 		/*
 		 * Allocate our results in the caller's context, not the
@@ -125,9 +120,10 @@ get_subscription_list(void)
 		 * context at the end, so that leaky things like heap_getnext() are
 		 * not called in a potentially long-lived context.
 		 */
-		oldcxt = MemoryContextSwitchTo(resultcxt);
+		MemoryContext oldcxt = MemoryContextSwitchTo(resultcxt);
 
-		sub = (Subscription *) palloc0(sizeof(Subscription));
+		Subscription *sub = (Subscription *) palloc0(sizeof(Subscription));
+
 		sub->oid = subform->oid;
 		sub->dbid = subform->subdbid;
 		sub->owner = subform->subowner;
@@ -272,8 +268,6 @@ logicalrep_worker_launch(Oid dbid, Oid subid, const char *subname, Oid userid,
 	int			i;
 	int			slot = 0;
 	LogicalRepWorker *worker = NULL;
-	int			nsyncworkers;
-	TimestampTz now;
 
 	ereport(DEBUG1,
 			(errmsg_internal("starting logical replication worker for subscription \"%s\"",
@@ -305,9 +299,9 @@ retry:
 		}
 	}
 
-	nsyncworkers = logicalrep_sync_worker_count(subid);
+	int			nsyncworkers = logicalrep_sync_worker_count(subid);
 
-	now = GetCurrentTimestamp();
+	TimestampTz now = GetCurrentTimestamp();
 
 	/*
 	 * If we didn't find a free slot, try to do garbage collection.  The
@@ -435,12 +429,10 @@ retry:
 void
 logicalrep_worker_stop(Oid subid, Oid relid)
 {
-	LogicalRepWorker *worker;
-	uint16		generation;
 
 	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 
-	worker = logicalrep_worker_find(subid, relid, false);
+	LogicalRepWorker *worker = logicalrep_worker_find(subid, relid, false);
 
 	/* No worker, nothing to do. */
 	if (!worker)
@@ -453,7 +445,7 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 	 * Remember which generation was our worker so we can check if what we see
 	 * is still the same one.
 	 */
-	generation = worker->generation;
+	uint16		generation = worker->generation;
 
 	/*
 	 * If we found a worker but it does not have proc set then it is still
@@ -461,14 +453,13 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 	 */
 	while (worker->in_use && !worker->proc)
 	{
-		int			rc;
 
 		LWLockRelease(LogicalRepWorkerLock);
 
 		/* Wait a bit --- we don't expect to have to wait long. */
-		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-					   10L, WAIT_EVENT_BGWORKER_STARTUP);
+		int			rc = WaitLatch(MyLatch,
+								   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+								   10L, WAIT_EVENT_BGWORKER_STARTUP);
 
 		if (rc & WL_LATCH_SET)
 		{
@@ -501,7 +492,6 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 	/* ... and wait for it to die. */
 	for (;;)
 	{
-		int			rc;
 
 		/* is it gone? */
 		if (!worker->proc || worker->generation != generation)
@@ -510,9 +500,9 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 		LWLockRelease(LogicalRepWorkerLock);
 
 		/* Wait a bit --- we don't expect to have to wait long. */
-		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-					   10L, WAIT_EVENT_BGWORKER_SHUTDOWN);
+		int			rc = WaitLatch(MyLatch,
+								   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+								   10L, WAIT_EVENT_BGWORKER_SHUTDOWN);
 
 		if (rc & WL_LATCH_SET)
 		{
@@ -532,11 +522,10 @@ logicalrep_worker_stop(Oid subid, Oid relid)
 void
 logicalrep_worker_wakeup(Oid subid, Oid relid)
 {
-	LogicalRepWorker *worker;
 
 	LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
 
-	worker = logicalrep_worker_find(subid, relid, true);
+	LogicalRepWorker *worker = logicalrep_worker_find(subid, relid, true);
 
 	if (worker)
 		logicalrep_worker_wakeup_ptr(worker);
@@ -682,12 +671,12 @@ logicalrep_sync_worker_count(Oid subid)
 Size
 ApplyLauncherShmemSize(void)
 {
-	Size		size;
 
 	/*
 	 * Need the fixed struct and the array of LogicalRepWorker.
 	 */
-	size = sizeof(LogicalRepCtxStruct);
+	Size		size = sizeof(LogicalRepCtxStruct);
+
 	size = MAXALIGN(size);
 	size = add_size(size, mul_size(max_logical_replication_workers,
 								   sizeof(LogicalRepWorker)));
@@ -820,17 +809,15 @@ ApplyLauncherMain(Datum main_arg)
 	/* Enter main loop */
 	for (;;)
 	{
-		int			rc;
 		List	   *sublist;
 		ListCell   *lc;
 		MemoryContext subctx;
 		MemoryContext oldctx;
-		TimestampTz now;
 		long		wait_time = DEFAULT_NAPTIME_PER_CYCLE;
 
 		CHECK_FOR_INTERRUPTS();
 
-		now = GetCurrentTimestamp();
+		TimestampTz now = GetCurrentTimestamp();
 
 		/* Limit the start retry to once a wal_retrieve_retry_interval */
 		if (TimestampDifferenceExceeds(last_start_time, now,
@@ -849,13 +836,13 @@ ApplyLauncherMain(Datum main_arg)
 			foreach(lc, sublist)
 			{
 				Subscription *sub = (Subscription *) lfirst(lc);
-				LogicalRepWorker *w;
 
 				if (!sub->enabled)
 					continue;
 
 				LWLockAcquire(LogicalRepWorkerLock, LW_SHARED);
-				w = logicalrep_worker_find(sub->oid, InvalidOid, false);
+				LogicalRepWorker *w = logicalrep_worker_find(sub->oid, InvalidOid, false);
+
 				LWLockRelease(LogicalRepWorkerLock);
 
 				if (w == NULL)
@@ -885,10 +872,10 @@ ApplyLauncherMain(Datum main_arg)
 		}
 
 		/* Wait for more work. */
-		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-					   wait_time,
-					   WAIT_EVENT_LOGICAL_LAUNCHER_MAIN);
+		int			rc = WaitLatch(MyLatch,
+								   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+								   wait_time,
+								   WAIT_EVENT_LOGICAL_LAUNCHER_MAIN);
 
 		if (rc & WL_LATCH_SET)
 		{
@@ -926,9 +913,6 @@ pg_stat_get_subscription(PG_FUNCTION_ARGS)
 	int			i;
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	TupleDesc	tupdesc;
-	Tuplestorestate *tupstore;
-	MemoryContext per_query_ctx;
-	MemoryContext oldcontext;
 
 	/* check to see if caller supports us returning a tuplestore */
 	if (rsinfo == NULL || !IsA(rsinfo, ReturnSetInfo))
@@ -944,10 +928,11 @@ pg_stat_get_subscription(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
-	oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	MemoryContext per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;
+	MemoryContext oldcontext = MemoryContextSwitchTo(per_query_ctx);
 
-	tupstore = tuplestore_begin_heap(true, false, work_mem);
+	Tuplestorestate *tupstore = tuplestore_begin_heap(true, false, work_mem);
+
 	rsinfo->returnMode = SFRM_Materialize;
 	rsinfo->setResult = tupstore;
 	rsinfo->setDesc = tupdesc;
@@ -962,7 +947,6 @@ pg_stat_get_subscription(PG_FUNCTION_ARGS)
 		/* for each row */
 		Datum		values[PG_STAT_GET_SUBSCRIPTION_COLS];
 		bool		nulls[PG_STAT_GET_SUBSCRIPTION_COLS];
-		int			worker_pid;
 		LogicalRepWorker worker;
 
 		memcpy(&worker, &LogicalRepCtx->workers[i],
@@ -973,7 +957,7 @@ pg_stat_get_subscription(PG_FUNCTION_ARGS)
 		if (OidIsValid(subid) && worker.subid != subid)
 			continue;
 
-		worker_pid = worker.proc->pid;
+		int			worker_pid = worker.proc->pid;
 
 		MemSet(values, 0, sizeof(values));
 		MemSet(nulls, 0, sizeof(nulls));

@@ -883,7 +883,6 @@ static MergeJoin *
 _copyMergeJoin(const MergeJoin *from)
 {
 	MergeJoin  *newnode = makeNode(MergeJoin);
-	int			numCols;
 
 	/*
 	 * copy node superclass fields
@@ -895,7 +894,8 @@ _copyMergeJoin(const MergeJoin *from)
 	 */
 	COPY_SCALAR_FIELD(skip_mark_restore);
 	COPY_NODE_FIELD(mergeclauses);
-	numCols = list_length(from->mergeclauses);
+	int			numCols = list_length(from->mergeclauses);
+
 	COPY_POINTER_FIELD(mergeFamilies, numCols * sizeof(Oid));
 	COPY_POINTER_FIELD(mergeCollations, numCols * sizeof(Oid));
 	COPY_POINTER_FIELD(mergeStrategies, numCols * sizeof(int));
@@ -4874,12 +4874,11 @@ _copyDropSubscriptionStmt(const DropSubscriptionStmt *from)
 static ExtensibleNode *
 _copyExtensibleNode(const ExtensibleNode *from)
 {
-	ExtensibleNode *newnode;
-	const ExtensibleNodeMethods *methods;
 
-	methods = GetExtensibleNodeMethods(from->extnodename, false);
-	newnode = (ExtensibleNode *) newNode(methods->node_size,
-										 T_ExtensibleNode);
+	const ExtensibleNodeMethods *methods = GetExtensibleNodeMethods(from->extnodename, false);
+	ExtensibleNode *newnode = (ExtensibleNode *) newNode(methods->node_size,
+														 T_ExtensibleNode);
+
 	COPY_STRING_FIELD(extnodename);
 
 	/* copy the private fields */

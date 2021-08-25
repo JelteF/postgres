@@ -26,11 +26,10 @@ gin_cmp_tslexeme(PG_FUNCTION_ARGS)
 {
 	text	   *a = PG_GETARG_TEXT_PP(0);
 	text	   *b = PG_GETARG_TEXT_PP(1);
-	int			cmp;
 
-	cmp = tsCompareString(VARDATA_ANY(a), VARSIZE_ANY_EXHDR(a),
-						  VARDATA_ANY(b), VARSIZE_ANY_EXHDR(b),
-						  false);
+	int			cmp = tsCompareString(VARDATA_ANY(a), VARSIZE_ANY_EXHDR(a),
+									  VARDATA_ANY(b), VARSIZE_ANY_EXHDR(b),
+									  false);
 
 	PG_FREE_IF_COPY(a, 0);
 	PG_FREE_IF_COPY(b, 1);
@@ -47,11 +46,10 @@ gin_cmp_prefix(PG_FUNCTION_ARGS)
 	StrategyNumber strategy = PG_GETARG_UINT16(2);
 	Pointer		extra_data = PG_GETARG_POINTER(3);
 #endif
-	int			cmp;
 
-	cmp = tsCompareString(VARDATA_ANY(a), VARSIZE_ANY_EXHDR(a),
-						  VARDATA_ANY(b), VARSIZE_ANY_EXHDR(b),
-						  true);
+	int			cmp = tsCompareString(VARDATA_ANY(a), VARSIZE_ANY_EXHDR(a),
+									  VARDATA_ANY(b), VARSIZE_ANY_EXHDR(b),
+									  true);
 
 	if (cmp < 0)
 		cmp = 1;				/* prevent continue scan */
@@ -78,9 +76,9 @@ gin_extract_tsvector(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < vector->size; i++)
 		{
-			text	   *txt;
 
-			txt = cstring_to_text_with_len(STRPTR(vector) + we->pos, we->len);
+			text	   *txt = cstring_to_text_with_len(STRPTR(vector) + we->pos, we->len);
+
 			entries[i] = PointerGetDatum(txt);
 
 			we++;
@@ -112,8 +110,6 @@ gin_extract_tsquery(PG_FUNCTION_ARGS)
 		QueryItem  *item = GETQUERY(query);
 		int32		i,
 					j;
-		bool	   *partialmatch;
-		int		   *map_item_operand;
 
 		/*
 		 * If the query doesn't have any required positive matches (for
@@ -135,7 +131,7 @@ gin_extract_tsquery(PG_FUNCTION_ARGS)
 		*nentries = j;
 
 		entries = (Datum *) palloc(sizeof(Datum) * j);
-		partialmatch = *ptr_partialmatch = (bool *) palloc(sizeof(bool) * j);
+		bool	   *partialmatch = *ptr_partialmatch = (bool *) palloc(sizeof(bool) * j);
 
 		/*
 		 * Make map to convert item's number to corresponding operand's (the
@@ -143,7 +139,7 @@ gin_extract_tsquery(PG_FUNCTION_ARGS)
 		 * consistent method. We use the same map for each entry.
 		 */
 		*extra_data = (Pointer *) palloc(sizeof(Pointer) * j);
-		map_item_operand = (int *) palloc0(sizeof(int) * query->size);
+		int		   *map_item_operand = (int *) palloc0(sizeof(int) * query->size);
 
 		/* Now rescan the VAL items and fill in the arrays */
 		j = 0;
@@ -152,10 +148,10 @@ gin_extract_tsquery(PG_FUNCTION_ARGS)
 			if (item[i].type == QI_VAL)
 			{
 				QueryOperand *val = &item[i].qoperand;
-				text	   *txt;
 
-				txt = cstring_to_text_with_len(GETOPERAND(query) + val->distance,
-											   val->length);
+				text	   *txt = cstring_to_text_with_len(GETOPERAND(query) + val->distance,
+														   val->length);
+
 				entries[j] = PointerGetDatum(txt);
 				partialmatch[j] = val->prefix;
 				(*extra_data)[j] = (Pointer) map_item_operand;
@@ -184,14 +180,12 @@ static TSTernaryValue
 checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	GinChkVal  *gcv = (GinChkVal *) checkval;
-	int			j;
-	GinTernaryValue result;
 
 	/* convert item's number to corresponding entry's (operand's) number */
-	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
+	int			j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
 
 	/* determine presence of current entry in indexed value */
-	result = gcv->check[j];
+	GinTernaryValue result = gcv->check[j];
 
 	/*
 	 * If any val requiring a weight is used or caller needs position

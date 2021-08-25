@@ -243,10 +243,8 @@ compare_path_costs_fuzzily(Path *path1, Path *path2, double fuzz_factor)
 void
 set_cheapest(RelOptInfo *parent_rel)
 {
-	Path	   *cheapest_startup_path;
 	Path	   *cheapest_total_path;
 	Path	   *best_param_path;
-	List	   *parameterized_paths;
 	ListCell   *p;
 
 	Assert(IsA(parent_rel, RelOptInfo));
@@ -254,8 +252,8 @@ set_cheapest(RelOptInfo *parent_rel)
 	if (parent_rel->pathlist == NIL)
 		elog(ERROR, "could not devise a query plan for the given query");
 
-	cheapest_startup_path = cheapest_total_path = best_param_path = NULL;
-	parameterized_paths = NIL;
+	Path	   *cheapest_startup_path = cheapest_total_path = best_param_path = NULL;
+	List	   *parameterized_paths = NIL;
 
 	foreach(p, parent_rel->pathlist)
 	{
@@ -423,7 +421,6 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 {
 	bool		accept_new = true;	/* unless we find a superior old path */
 	int			insert_at = 0;	/* where to insert new item */
-	List	   *new_path_pathkeys;
 	ListCell   *p1;
 
 	/*
@@ -433,7 +430,7 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 	CHECK_FOR_INTERRUPTS();
 
 	/* Pretend parameterized paths have no pathkeys, per comment above */
-	new_path_pathkeys = new_path->param_info ? NIL : new_path->pathkeys;
+	List	   *new_path_pathkeys = new_path->param_info ? NIL : new_path->pathkeys;
 
 	/*
 	 * Loop to check proposed new path against old paths.  Note it is possible
@@ -444,15 +441,14 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 	{
 		Path	   *old_path = (Path *) lfirst(p1);
 		bool		remove_old = false; /* unless new proves superior */
-		PathCostComparison costcmp;
 		PathKeysComparison keyscmp;
 		BMS_Comparison outercmp;
 
 		/*
 		 * Do a fuzzy cost comparison with standard fuzziness limit.
 		 */
-		costcmp = compare_path_costs_fuzzily(new_path, old_path,
-											 STD_FUZZ_FACTOR);
+		PathCostComparison costcmp = compare_path_costs_fuzzily(new_path, old_path,
+																STD_FUZZ_FACTOR);
 
 		/*
 		 * If the two paths compare differently for startup and total cost,
@@ -468,9 +464,9 @@ add_path(RelOptInfo *parent_rel, Path *new_path)
 		if (costcmp != COSTS_DIFFERENT)
 		{
 			/* Similarly check to see if either dominates on pathkeys */
-			List	   *old_path_pathkeys;
 
-			old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
+			List	   *old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
+
 			keyscmp = compare_pathkeys(new_path_pathkeys,
 									   old_path_pathkeys);
 			if (keyscmp != PATHKEYS_DIFFERENT)
@@ -645,15 +641,13 @@ add_path_precheck(RelOptInfo *parent_rel,
 				  Cost startup_cost, Cost total_cost,
 				  List *pathkeys, Relids required_outer)
 {
-	List	   *new_path_pathkeys;
-	bool		consider_startup;
 	ListCell   *p1;
 
 	/* Pretend parameterized paths have no pathkeys, per add_path policy */
-	new_path_pathkeys = required_outer ? NIL : pathkeys;
+	List	   *new_path_pathkeys = required_outer ? NIL : pathkeys;
 
 	/* Decide whether new path's startup cost is interesting */
-	consider_startup = required_outer ? parent_rel->consider_param_startup : parent_rel->consider_startup;
+	bool		consider_startup = required_outer ? parent_rel->consider_param_startup : parent_rel->consider_startup;
 
 	foreach(p1, parent_rel->pathlist)
 	{
@@ -675,9 +669,9 @@ add_path_precheck(RelOptInfo *parent_rel,
 				!consider_startup)
 			{
 				/* new path loses on cost, so check pathkeys... */
-				List	   *old_path_pathkeys;
 
-				old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
+				List	   *old_path_pathkeys = old_path->param_info ? NIL : old_path->pathkeys;
+
 				keyscmp = compare_pathkeys(new_path_pathkeys,
 										   old_path_pathkeys);
 				if (keyscmp == PATHKEYS_EQUAL ||
@@ -769,10 +763,9 @@ add_partial_path(RelOptInfo *parent_rel, Path *new_path)
 	{
 		Path	   *old_path = (Path *) lfirst(p1);
 		bool		remove_old = false; /* unless new proves superior */
-		PathKeysComparison keyscmp;
 
 		/* Compare pathkeys. */
-		keyscmp = compare_pathkeys(new_path->pathkeys, old_path->pathkeys);
+		PathKeysComparison keyscmp = compare_pathkeys(new_path->pathkeys, old_path->pathkeys);
 
 		/* Unless pathkeys are incompatible, keep just one of the two paths. */
 		if (keyscmp != PATHKEYS_DIFFERENT)
@@ -883,9 +876,9 @@ add_partial_path_precheck(RelOptInfo *parent_rel, Cost total_cost,
 	foreach(p1, parent_rel->partial_pathlist)
 	{
 		Path	   *old_path = (Path *) lfirst(p1);
-		PathKeysComparison keyscmp;
 
-		keyscmp = compare_pathkeys(pathkeys, old_path->pathkeys);
+		PathKeysComparison keyscmp = compare_pathkeys(pathkeys, old_path->pathkeys);
+
 		if (keyscmp != PATHKEYS_DIFFERENT)
 		{
 			if (total_cost > old_path->total_cost * STD_FUZZ_FACTOR &&
@@ -1365,9 +1358,9 @@ append_total_cost_compare(const ListCell *a, const ListCell *b)
 {
 	Path	   *path1 = (Path *) lfirst(a);
 	Path	   *path2 = (Path *) lfirst(b);
-	int			cmp;
 
-	cmp = compare_path_costs(path1, path2, TOTAL_COST);
+	int			cmp = compare_path_costs(path1, path2, TOTAL_COST);
+
 	if (cmp != 0)
 		return -cmp;
 	return bms_compare(path1->parent->relids, path2->parent->relids);
@@ -1387,9 +1380,9 @@ append_startup_cost_compare(const ListCell *a, const ListCell *b)
 {
 	Path	   *path1 = (Path *) lfirst(a);
 	Path	   *path2 = (Path *) lfirst(b);
-	int			cmp;
 
-	cmp = compare_path_costs(path1, path2, STARTUP_COST);
+	int			cmp = compare_path_costs(path1, path2, STARTUP_COST);
+
 	if (cmp != 0)
 		return -cmp;
 	return bms_compare(path1->parent->relids, path2->parent->relids);
@@ -1408,8 +1401,6 @@ create_merge_append_path(PlannerInfo *root,
 						 Relids required_outer)
 {
 	MergeAppendPath *pathnode = makeNode(MergeAppendPath);
-	Cost		input_startup_cost;
-	Cost		input_total_cost;
 	ListCell   *l;
 
 	pathnode->path.pathtype = T_MergeAppend;
@@ -1436,8 +1427,9 @@ create_merge_append_path(PlannerInfo *root,
 	 * Add up the sizes and costs of the input paths.
 	 */
 	pathnode->path.rows = 0;
-	input_startup_cost = 0;
-	input_total_cost = 0;
+	Cost		input_startup_cost = 0;
+	Cost		input_total_cost = 0;
+
 	foreach(l, subpaths)
 	{
 		Path	   *subpath = (Path *) lfirst(l);
@@ -1639,11 +1631,8 @@ UniquePath *
 create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 				   SpecialJoinInfo *sjinfo)
 {
-	UniquePath *pathnode;
 	Path		sort_path;		/* dummy for result of cost_sort */
 	Path		agg_path;		/* dummy for result of cost_agg */
-	MemoryContext oldcontext;
-	int			numCols;
 
 	/* Caller made a mistake if subpath isn't cheapest_total ... */
 	Assert(subpath == rel->cheapest_total_path);
@@ -1670,9 +1659,9 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 	 * to explicitly allocate memory in the same context the given RelOptInfo
 	 * is in.
 	 */
-	oldcontext = MemoryContextSwitchTo(GetMemoryChunkContext(rel));
+	MemoryContext oldcontext = MemoryContextSwitchTo(GetMemoryChunkContext(rel));
 
-	pathnode = makeNode(UniquePath);
+	UniquePath *pathnode = makeNode(UniquePath);
 
 	pathnode->path.pathtype = T_Unique;
 	pathnode->path.parent = rel;
@@ -1732,10 +1721,9 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 
 		if (query_supports_distinctness(rte->subquery))
 		{
-			List	   *sub_tlist_colnos;
 
-			sub_tlist_colnos = translate_sub_tlist(sjinfo->semi_rhs_exprs,
-												   rel->relid);
+			List	   *sub_tlist_colnos = translate_sub_tlist(sjinfo->semi_rhs_exprs,
+															   rel->relid);
 
 			if (sub_tlist_colnos &&
 				query_is_distinct_for(rte->subquery,
@@ -1763,7 +1751,7 @@ create_unique_path(PlannerInfo *root, RelOptInfo *rel, Path *subpath,
 											  rel->rows,
 											  NULL,
 											  NULL);
-	numCols = list_length(sjinfo->semi_rhs_exprs);
+	int			numCols = list_length(sjinfo->semi_rhs_exprs);
 
 	if (sjinfo->semi_can_btree)
 	{
@@ -2342,7 +2330,6 @@ calc_nestloop_required_outer(Relids outerrelids,
 							 Relids innerrelids,
 							 Relids inner_paramrels)
 {
-	Relids		required_outer;
 
 	/* inner_path can require rels from outer path, but not vice versa */
 	Assert(!bms_overlap(outer_paramrels, innerrelids));
@@ -2350,7 +2337,8 @@ calc_nestloop_required_outer(Relids outerrelids,
 	if (!inner_paramrels)
 		return bms_copy(outer_paramrels);
 	/* else, form the union ... */
-	required_outer = bms_union(outer_paramrels, inner_paramrels);
+	Relids		required_outer = bms_union(outer_paramrels, inner_paramrels);
+
 	/* ... and remove any mention of now-satisfied outer rels */
 	required_outer = bms_del_members(required_outer,
 									 outerrelids);
@@ -2374,13 +2362,13 @@ calc_non_nestloop_required_outer(Path *outer_path, Path *inner_path)
 {
 	Relids		outer_paramrels = PATH_REQ_OUTER(outer_path);
 	Relids		inner_paramrels = PATH_REQ_OUTER(inner_path);
-	Relids		required_outer;
 
 	/* neither path can require rels from the other */
 	Assert(!bms_overlap(outer_paramrels, inner_path->parent->relids));
 	Assert(!bms_overlap(inner_paramrels, outer_path->parent->relids));
 	/* form the union ... */
-	required_outer = bms_union(outer_paramrels, inner_paramrels);
+	Relids		required_outer = bms_union(outer_paramrels, inner_paramrels);
+
 	/* we do not need an explicit test for empty; bms_union gets it right */
 	return required_outer;
 }
@@ -2629,7 +2617,6 @@ create_projection_path(PlannerInfo *root,
 					   PathTarget *target)
 {
 	ProjectionPath *pathnode = makeNode(ProjectionPath);
-	PathTarget *oldtarget;
 
 	/*
 	 * We mustn't put a ProjectionPath directly above another; it's useless
@@ -2671,7 +2658,8 @@ create_projection_path(PlannerInfo *root,
 	 * Note: in the latter case, create_projection_plan has to recheck our
 	 * conclusion; see comments therein.
 	 */
-	oldtarget = subpath->pathtarget;
+	PathTarget *oldtarget = subpath->pathtarget;
+
 	if (is_projection_capable_path(subpath) ||
 		equal(oldtarget->exprs, target->exprs))
 	{
@@ -2736,7 +2724,6 @@ apply_projection_to_path(PlannerInfo *root,
 						 Path *path,
 						 PathTarget *target)
 {
-	QualCost	oldcost;
 
 	/*
 	 * If given path can't project, we might need a Result node, so make a
@@ -2749,7 +2736,8 @@ apply_projection_to_path(PlannerInfo *root,
 	 * We can just jam the desired tlist into the existing path, being sure to
 	 * update its cost estimates appropriately.
 	 */
-	oldcost = path->pathtarget->cost;
+	QualCost	oldcost = path->pathtarget->cost;
+
 	path->pathtarget = target;
 
 	path->startup_cost += target->cost.startup - oldcost.startup;
@@ -2826,7 +2814,6 @@ create_set_projection_path(PlannerInfo *root,
 						   PathTarget *target)
 {
 	ProjectSetPath *pathnode = makeNode(ProjectSetPath);
-	double		tlist_rows;
 	ListCell   *lc;
 
 	pathnode->path.pathtype = T_ProjectSet;
@@ -2848,13 +2835,14 @@ create_set_projection_path(PlannerInfo *root,
 	 * Estimate number of rows produced by SRFs for each row of input; if
 	 * there's more than one in this node, use the maximum.
 	 */
-	tlist_rows = 1;
+	double		tlist_rows = 1;
+
 	foreach(lc, target->exprs)
 	{
 		Node	   *node = (Node *) lfirst(lc);
-		double		itemrows;
 
-		itemrows = expression_returns_set_rows(root, node);
+		double		itemrows = expression_returns_set_rows(root, node);
+
 		if (tlist_rows < itemrows)
 			tlist_rows = itemrows;
 	}
@@ -3328,7 +3316,6 @@ create_minmaxagg_path(PlannerInfo *root,
 					  List *quals)
 {
 	MinMaxAggPath *pathnode = makeNode(MinMaxAggPath);
-	Cost		initplan_cost;
 	ListCell   *lc;
 
 	/* The topmost generated Plan node will be a Result */
@@ -3349,7 +3336,8 @@ create_minmaxagg_path(PlannerInfo *root,
 	pathnode->quals = quals;
 
 	/* Calculate cost of all the initplans ... */
-	initplan_cost = 0;
+	Cost		initplan_cost = 0;
+
 	foreach(lc, mmaggregates)
 	{
 		MinMaxAggInfo *mminfo = (MinMaxAggInfo *) lfirst(lc);
@@ -3905,11 +3893,11 @@ reparameterize_path(PlannerInfo *root, Path *path,
 				AppendPath *apath = (AppendPath *) path;
 				List	   *childpaths = NIL;
 				List	   *partialpaths = NIL;
-				int			i;
 				ListCell   *lc;
 
 				/* Reparameterize the children */
-				i = 0;
+				int			i = 0;
+
 				foreach(lc, apath->subpaths)
 				{
 					Path	   *spath = (Path *) lfirst(lc);
@@ -4002,9 +3990,6 @@ do { \
 } while(0)
 
 	Path	   *new_path;
-	ParamPathInfo *new_ppi;
-	ParamPathInfo *old_ppi;
-	Relids		required_outer;
 
 	/*
 	 * If the path is not parameterized by parent of the given relation, it
@@ -4075,15 +4060,15 @@ do { \
 		case T_ForeignPath:
 			{
 				ForeignPath *fpath;
-				ReparameterizeForeignPathByChild_function rfpc_func;
 
 				FLAT_COPY_PATH(fpath, path, ForeignPath);
 				if (fpath->fdw_outerpath)
 					REPARAMETERIZE_CHILD_PATH(fpath->fdw_outerpath);
 
 				/* Hand over to FDW if needed. */
-				rfpc_func =
-					path->parent->fdwroutine->ReparameterizeForeignPathByChild;
+				ReparameterizeForeignPathByChild_function rfpc_func =
+				path->parent->fdwroutine->ReparameterizeForeignPathByChild;
+
 				if (rfpc_func)
 					fpath->fdw_private = rfpc_func(root, fpath->fdw_private,
 												   child_rel);
@@ -4109,12 +4094,12 @@ do { \
 
 		case T_NestPath:
 			{
-				JoinPath   *jpath;
 				NestPath   *npath;
 
 				FLAT_COPY_PATH(npath, path, NestPath);
 
-				jpath = (JoinPath *) npath;
+				JoinPath   *jpath = (JoinPath *) npath;
+
 				REPARAMETERIZE_CHILD_PATH(jpath->outerjoinpath);
 				REPARAMETERIZE_CHILD_PATH(jpath->innerjoinpath);
 				ADJUST_CHILD_ATTRS(jpath->joinrestrictinfo);
@@ -4124,12 +4109,12 @@ do { \
 
 		case T_MergePath:
 			{
-				JoinPath   *jpath;
 				MergePath  *mpath;
 
 				FLAT_COPY_PATH(mpath, path, MergePath);
 
-				jpath = (JoinPath *) mpath;
+				JoinPath   *jpath = (JoinPath *) mpath;
+
 				REPARAMETERIZE_CHILD_PATH(jpath->outerjoinpath);
 				REPARAMETERIZE_CHILD_PATH(jpath->innerjoinpath);
 				ADJUST_CHILD_ATTRS(jpath->joinrestrictinfo);
@@ -4140,12 +4125,12 @@ do { \
 
 		case T_HashPath:
 			{
-				JoinPath   *jpath;
 				HashPath   *hpath;
 
 				FLAT_COPY_PATH(hpath, path, HashPath);
 
-				jpath = (JoinPath *) hpath;
+				JoinPath   *jpath = (JoinPath *) hpath;
+
 				REPARAMETERIZE_CHILD_PATH(jpath->outerjoinpath);
 				REPARAMETERIZE_CHILD_PATH(jpath->innerjoinpath);
 				ADJUST_CHILD_ATTRS(jpath->joinrestrictinfo);
@@ -4195,14 +4180,14 @@ do { \
 	 * parent. The topmost parent can be multiple levels away from the given
 	 * child, hence use multi-level expression adjustment routines.
 	 */
-	old_ppi = new_path->param_info;
-	required_outer =
-		adjust_child_relids_multilevel(root, old_ppi->ppi_req_outer,
-									   child_rel->relids,
-									   child_rel->top_parent_relids);
+	ParamPathInfo *old_ppi = new_path->param_info;
+	Relids		required_outer =
+	adjust_child_relids_multilevel(root, old_ppi->ppi_req_outer,
+								   child_rel->relids,
+								   child_rel->top_parent_relids);
 
 	/* If we already have a PPI for this parameterization, just return it */
-	new_ppi = find_param_path_info(new_path->parent, required_outer);
+	ParamPathInfo *new_ppi = find_param_path_info(new_path->parent, required_outer);
 
 	/*
 	 * If not, build a new one and link it to the list of PPIs. For the same
@@ -4211,10 +4196,9 @@ do { \
 	 */
 	if (new_ppi == NULL)
 	{
-		MemoryContext oldcontext;
 		RelOptInfo *rel = path->parent;
 
-		oldcontext = MemoryContextSwitchTo(GetMemoryChunkContext(rel));
+		MemoryContext oldcontext = MemoryContextSwitchTo(GetMemoryChunkContext(rel));
 
 		new_ppi = makeNode(ParamPathInfo);
 		new_ppi->ppi_req_outer = bms_copy(required_outer);

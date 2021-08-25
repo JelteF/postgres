@@ -76,14 +76,10 @@ AggregateCreate(const char *aggName,
 				const char *aggminitval,
 				char proparallel)
 {
-	Relation	aggdesc;
-	HeapTuple	tup;
 	HeapTuple	oldtup;
 	bool		nulls[Natts_pg_aggregate];
 	Datum		values[Natts_pg_aggregate];
 	bool		replaces[Natts_pg_aggregate];
-	Form_pg_proc proc;
-	Oid			transfn;
 	Oid			finalfn = InvalidOid;	/* can be omitted */
 	Oid			combinefn = InvalidOid; /* can be omitted */
 	Oid			serialfn = InvalidOid;	/* can be omitted */
@@ -99,13 +95,9 @@ AggregateCreate(const char *aggName,
 	Oid			fnArgs[FUNC_MAX_ARGS];
 	int			nargs_transfn;
 	int			nargs_finalfn;
-	Oid			procOid;
-	TupleDesc	tupDesc;
-	char	   *detailmsg;
 	int			i;
 	ObjectAddress myself,
 				referenced;
-	ObjectAddresses *addrs;
 	AclResult	aclresult;
 
 	/* sanity checks (caller should have caught these) */
@@ -135,9 +127,10 @@ AggregateCreate(const char *aggName,
 	 * If transtype is polymorphic, must have polymorphic argument also; else
 	 * we will have no way to deduce the actual transtype.
 	 */
-	detailmsg = check_valid_polymorphic_signature(aggTransType,
-												  aggArgTypes,
-												  numArgs);
+	char	   *detailmsg = check_valid_polymorphic_signature(aggTransType,
+															  aggArgTypes,
+															  numArgs);
+
 	if (detailmsg)
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
@@ -226,9 +219,9 @@ AggregateCreate(const char *aggName,
 		fnArgs[0] = aggTransType;
 		memcpy(fnArgs + 1, aggArgTypes, numArgs * sizeof(Oid));
 	}
-	transfn = lookup_agg_function(aggtransfnName, nargs_transfn,
-								  fnArgs, variadicArgType,
-								  &rettype);
+	Oid			transfn = lookup_agg_function(aggtransfnName, nargs_transfn,
+											  fnArgs, variadicArgType,
+											  &rettype);
 
 	/*
 	 * Return type of transfn (possibly after refinement by
@@ -247,10 +240,11 @@ AggregateCreate(const char *aggName,
 						NameListToString(aggtransfnName),
 						format_type_be(aggTransType))));
 
-	tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(transfn));
+	HeapTuple	tup = SearchSysCache1(PROCOID, ObjectIdGetDatum(transfn));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for function %u", transfn);
-	proc = (Form_pg_proc) GETSTRUCT(tup);
+	Form_pg_proc proc = (Form_pg_proc) GETSTRUCT(tup);
 
 	/*
 	 * If the transfn is strict and the initval is NULL, make sure first input
@@ -641,13 +635,13 @@ AggregateCreate(const char *aggName,
 							 InvalidOid,	/* no prosupport */
 							 1, /* procost */
 							 0);	/* prorows */
-	procOid = myself.objectId;
+	Oid			procOid = myself.objectId;
 
 	/*
 	 * Okay to create the pg_aggregate entry.
 	 */
-	aggdesc = table_open(AggregateRelationId, RowExclusiveLock);
-	tupDesc = aggdesc->rd_att;
+	Relation	aggdesc = table_open(AggregateRelationId, RowExclusiveLock);
+	TupleDesc	tupDesc = aggdesc->rd_att;
 
 	/* initialize nulls and values */
 	for (i = 0; i < Natts_pg_aggregate; i++)
@@ -743,7 +737,7 @@ AggregateCreate(const char *aggName,
 	 * way.
 	 */
 
-	addrs = new_object_addresses();
+	ObjectAddresses *addrs = new_object_addresses();
 
 	/* Depends on transition function */
 	ObjectAddressSet(referenced, ProcedureRelationId, transfn);
@@ -834,8 +828,6 @@ lookup_agg_function(List *fnName,
 	int			nvargs;
 	Oid			vatype;
 	Oid		   *true_oid_array;
-	FuncDetailCode fdresult;
-	AclResult	aclresult;
 	int			i;
 
 	/*
@@ -845,11 +837,11 @@ lookup_agg_function(List *fnName,
 	 * function's return value.  it also returns the true argument types to
 	 * the function.
 	 */
-	fdresult = func_get_detail(fnName, NIL, NIL,
-							   nargs, input_types, false, false, false,
-							   &fnOid, rettype, &retset,
-							   &nvargs, &vatype,
-							   &true_oid_array, NULL);
+	FuncDetailCode fdresult = func_get_detail(fnName, NIL, NIL,
+											  nargs, input_types, false, false, false,
+											  &fnOid, rettype, &retset,
+											  &nvargs, &vatype,
+											  &true_oid_array, NULL);
 
 	/* only valid case is a normal function not returning a set */
 	if (fdresult != FUNCDETAIL_NORMAL || !OidIsValid(fnOid))
@@ -906,7 +898,8 @@ lookup_agg_function(List *fnName,
 	}
 
 	/* Check aggregate creator has permission to call the function */
-	aclresult = pg_proc_aclcheck(fnOid, GetUserId(), ACL_EXECUTE);
+	AclResult	aclresult = pg_proc_aclcheck(fnOid, GetUserId(), ACL_EXECUTE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_FUNCTION, get_func_name(fnOid));
 

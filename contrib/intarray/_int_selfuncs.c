@@ -129,8 +129,6 @@ _int_matchsel(PG_FUNCTION_ARGS)
 	VariableStatData vardata;
 	Node	   *other;
 	bool		varonleft;
-	Selectivity selec;
-	QUERYTYPE  *query;
 	Datum	   *mcelems = NULL;
 	float4	   *mcefreqs = NULL;
 	int			nmcelems = 0;
@@ -172,7 +170,7 @@ _int_matchsel(PG_FUNCTION_ARGS)
 	}
 
 	/* The caller made sure the const is a query, so get it now */
-	query = DatumGetQueryTypeP(((Const *) other)->constvalue);
+	QUERYTYPE  *query = DatumGetQueryTypeP(((Const *) other)->constvalue);
 
 	/* Empty query matches nothing */
 	if (query->size == 0)
@@ -189,9 +187,9 @@ _int_matchsel(PG_FUNCTION_ARGS)
 	 */
 	if (HeapTupleIsValid(vardata.statsTuple))
 	{
-		Form_pg_statistic stats;
 
-		stats = (Form_pg_statistic) GETSTRUCT(vardata.statsTuple);
+		Form_pg_statistic stats = (Form_pg_statistic) GETSTRUCT(vardata.statsTuple);
+
 		nullfrac = stats->stanullfrac;
 
 		/*
@@ -224,8 +222,8 @@ _int_matchsel(PG_FUNCTION_ARGS)
 		memset(&sslot, 0, sizeof(sslot));
 
 	/* Process the logical expression in the query, using the stats */
-	selec = int_query_opr_selec(GETQUERY(query) + query->size - 1,
-								mcelems, mcefreqs, nmcelems, minfreq);
+	Selectivity selec = int_query_opr_selec(GETQUERY(query) + query->size - 1,
+											mcelems, mcefreqs, nmcelems, minfreq);
 
 	/* MCE stats count only non-null rows, so adjust for null rows. */
 	selec *= (1.0 - nullfrac);
@@ -252,13 +250,13 @@ int_query_opr_selec(ITEM *item, Datum *mcelems, float4 *mcefreqs,
 
 	if (item->type == VAL)
 	{
-		Datum	   *searchres;
 
 		if (mcelems == NULL)
 			return (Selectivity) DEFAULT_EQ_SEL;
 
-		searchres = (Datum *) bsearch(&item->val, mcelems, nmcelems,
-									  sizeof(Datum), compare_val_int4);
+		Datum	   *searchres = (Datum *) bsearch(&item->val, mcelems, nmcelems,
+												  sizeof(Datum), compare_val_int4);
+
 		if (searchres)
 		{
 			/*

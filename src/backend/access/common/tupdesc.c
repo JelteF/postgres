@@ -44,7 +44,6 @@
 TupleDesc
 CreateTemplateTupleDesc(int natts)
 {
-	TupleDesc	desc;
 
 	/*
 	 * sanity checks
@@ -63,8 +62,8 @@ CreateTemplateTupleDesc(int natts)
 	 * could be less due to trailing padding, although with the current
 	 * definition of pg_attribute there probably isn't any padding.
 	 */
-	desc = (TupleDesc) palloc(offsetof(struct TupleDescData, attrs) +
-							  natts * sizeof(FormData_pg_attribute));
+	TupleDesc	desc = (TupleDesc) palloc(offsetof(struct TupleDescData, attrs) +
+										  natts * sizeof(FormData_pg_attribute));
 
 	/*
 	 * Initialize other fields of the tupdesc.
@@ -89,10 +88,9 @@ CreateTemplateTupleDesc(int natts)
 TupleDesc
 CreateTupleDesc(int natts, Form_pg_attribute *attrs)
 {
-	TupleDesc	desc;
 	int			i;
 
-	desc = CreateTemplateTupleDesc(natts);
+	TupleDesc	desc = CreateTemplateTupleDesc(natts);
 
 	for (i = 0; i < natts; ++i)
 		memcpy(TupleDescAttr(desc, i), attrs[i], ATTRIBUTE_FIXED_PART_SIZE);
@@ -110,10 +108,9 @@ CreateTupleDesc(int natts, Form_pg_attribute *attrs)
 TupleDesc
 CreateTupleDescCopy(TupleDesc tupdesc)
 {
-	TupleDesc	desc;
 	int			i;
 
-	desc = CreateTemplateTupleDesc(tupdesc->natts);
+	TupleDesc	desc = CreateTemplateTupleDesc(tupdesc->natts);
 
 	/* Flat-copy the attribute array */
 	memcpy(TupleDescAttr(desc, 0),
@@ -150,11 +147,10 @@ CreateTupleDescCopy(TupleDesc tupdesc)
 TupleDesc
 CreateTupleDescCopyConstr(TupleDesc tupdesc)
 {
-	TupleDesc	desc;
 	TupleConstr *constr = tupdesc->constr;
 	int			i;
 
-	desc = CreateTemplateTupleDesc(tupdesc->natts);
+	TupleDesc	desc = CreateTemplateTupleDesc(tupdesc->natts);
 
 	/* Flat-copy the attribute array */
 	memcpy(TupleDescAttr(desc, 0),
@@ -553,10 +549,10 @@ equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2)
 uint32
 hashTupleDesc(TupleDesc desc)
 {
-	uint32		s;
 	int			i;
 
-	s = hash_combine(0, hash_uint32(desc->natts));
+	uint32		s = hash_combine(0, hash_uint32(desc->natts));
+
 	s = hash_combine(s, hash_uint32(desc->tdtypeid));
 	for (i = 0; i < desc->natts; ++i)
 		s = hash_combine(s, hash_uint32(TupleDescAttr(desc, i)->atttypid));
@@ -587,9 +583,6 @@ TupleDescInitEntry(TupleDesc desc,
 				   int32 typmod,
 				   int attdim)
 {
-	HeapTuple	tuple;
-	Form_pg_type typeForm;
-	Form_pg_attribute att;
 
 	/*
 	 * sanity checks
@@ -601,7 +594,7 @@ TupleDescInitEntry(TupleDesc desc,
 	/*
 	 * initialize the attribute fields
 	 */
-	att = TupleDescAttr(desc, attributeNumber - 1);
+	Form_pg_attribute att = TupleDescAttr(desc, attributeNumber - 1);
 
 	att->attrelid = 0;			/* dummy value */
 
@@ -632,10 +625,11 @@ TupleDescInitEntry(TupleDesc desc,
 	att->attinhcount = 0;
 	/* attacl, attoptions and attfdwoptions are not present in tupledescs */
 
-	tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(oidtypeid));
+	HeapTuple	tuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(oidtypeid));
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for type %u", oidtypeid);
-	typeForm = (Form_pg_type) GETSTRUCT(tuple);
+	Form_pg_type typeForm = (Form_pg_type) GETSTRUCT(tuple);
 
 	att->atttypid = oidtypeid;
 	att->attlen = typeForm->typlen;
@@ -661,7 +655,6 @@ TupleDescInitBuiltinEntry(TupleDesc desc,
 						  int32 typmod,
 						  int attdim)
 {
-	Form_pg_attribute att;
 
 	/* sanity checks */
 	AssertArg(PointerIsValid(desc));
@@ -669,7 +662,8 @@ TupleDescInitBuiltinEntry(TupleDesc desc,
 	AssertArg(attributeNumber <= desc->natts);
 
 	/* initialize the attribute fields */
-	att = TupleDescAttr(desc, attributeNumber - 1);
+	Form_pg_attribute att = TupleDescAttr(desc, attributeNumber - 1);
+
 	att->attrelid = 0;			/* dummy value */
 
 	/* unlike TupleDescInitEntry, we require an attribute name */
@@ -776,11 +770,7 @@ TupleDescInitEntryCollation(TupleDesc desc,
 TupleDesc
 BuildDescForRelation(List *schema)
 {
-	int			natts;
-	AttrNumber	attnum;
 	ListCell   *l;
-	TupleDesc	desc;
-	bool		has_not_null;
 	char	   *attname;
 	Oid			atttypid;
 	int32		atttypmod;
@@ -790,17 +780,15 @@ BuildDescForRelation(List *schema)
 	/*
 	 * allocate a new tuple descriptor
 	 */
-	natts = list_length(schema);
-	desc = CreateTemplateTupleDesc(natts);
-	has_not_null = false;
+	int			natts = list_length(schema);
+	TupleDesc	desc = CreateTemplateTupleDesc(natts);
+	bool		has_not_null = false;
 
-	attnum = 0;
+	AttrNumber	attnum = 0;
 
 	foreach(l, schema)
 	{
 		ColumnDef  *entry = lfirst(l);
-		AclResult	aclresult;
-		Form_pg_attribute att;
 
 		/*
 		 * for each entry in the list, get the name and type information from
@@ -812,7 +800,8 @@ BuildDescForRelation(List *schema)
 		attname = entry->colname;
 		typenameTypeIdAndMod(NULL, entry->typeName, &atttypid, &atttypmod);
 
-		aclresult = pg_type_aclcheck(atttypid, GetUserId(), ACL_USAGE);
+		AclResult	aclresult = pg_type_aclcheck(atttypid, GetUserId(), ACL_USAGE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error_type(aclresult, atttypid);
 
@@ -827,7 +816,7 @@ BuildDescForRelation(List *schema)
 
 		TupleDescInitEntry(desc, attnum, attname,
 						   atttypid, atttypmod, attdim);
-		att = TupleDescAttr(desc, attnum - 1);
+		Form_pg_attribute att = TupleDescAttr(desc, attnum - 1);
 
 		/* Override TupleDescInitEntry's settings as requested */
 		TupleDescInitEntryCollation(desc, attnum, attcollation);
@@ -876,15 +865,13 @@ BuildDescForRelation(List *schema)
 TupleDesc
 BuildDescFromLists(List *names, List *types, List *typmods, List *collations)
 {
-	int			natts;
-	AttrNumber	attnum;
 	ListCell   *l1;
 	ListCell   *l2;
 	ListCell   *l3;
 	ListCell   *l4;
-	TupleDesc	desc;
 
-	natts = list_length(names);
+	int			natts = list_length(names);
+
 	Assert(natts == list_length(types));
 	Assert(natts == list_length(typmods));
 	Assert(natts == list_length(collations));
@@ -892,9 +879,10 @@ BuildDescFromLists(List *names, List *types, List *typmods, List *collations)
 	/*
 	 * allocate a new tuple descriptor
 	 */
-	desc = CreateTemplateTupleDesc(natts);
+	TupleDesc	desc = CreateTemplateTupleDesc(natts);
 
-	attnum = 0;
+	AttrNumber	attnum = 0;
+
 	forfour(l1, names, l2, types, l3, typmods, l4, collations)
 	{
 		char	   *attname = strVal(lfirst(l1));

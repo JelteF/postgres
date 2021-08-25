@@ -124,9 +124,8 @@ logicalrep_relmap_init(void)
 static void
 logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 {
-	LogicalRepRelation *remoterel;
 
-	remoterel = &entry->remoterel;
+	LogicalRepRelation *remoterel = &entry->remoterel;
 
 	pfree(remoterel->nspname);
 	pfree(remoterel->relname);
@@ -156,8 +155,6 @@ logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 void
 logicalrep_relmap_update(LogicalRepRelation *remoterel)
 {
-	MemoryContext oldctx;
-	LogicalRepRelMapEntry *entry;
 	bool		found;
 	int			i;
 
@@ -167,8 +164,8 @@ logicalrep_relmap_update(LogicalRepRelation *remoterel)
 	/*
 	 * HASH_ENTER returns the existing entry if present or creates a new one.
 	 */
-	entry = hash_search(LogicalRepRelMap, (void *) &remoterel->remoteid,
-						HASH_ENTER, &found);
+	LogicalRepRelMapEntry *entry = hash_search(LogicalRepRelMap, (void *) &remoterel->remoteid,
+											   HASH_ENTER, &found);
 
 	if (found)
 		logicalrep_relmap_free_entry(entry);
@@ -176,7 +173,8 @@ logicalrep_relmap_update(LogicalRepRelation *remoterel)
 	memset(entry, 0, sizeof(LogicalRepRelMapEntry));
 
 	/* Make cached copy of the data */
-	oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+	MemoryContext oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+
 	entry->remoterel.remoteid = remoterel->remoteid;
 	entry->remoterel.nspname = pstrdup(remoterel->nspname);
 	entry->remoterel.relname = pstrdup(remoterel->relname);
@@ -257,22 +255,20 @@ logicalrep_report_missing_attrs(LogicalRepRelation *remoterel,
 LogicalRepRelMapEntry *
 logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 {
-	LogicalRepRelMapEntry *entry;
 	bool		found;
-	LogicalRepRelation *remoterel;
 
 	if (LogicalRepRelMap == NULL)
 		logicalrep_relmap_init();
 
 	/* Search for existing entry. */
-	entry = hash_search(LogicalRepRelMap, (void *) &remoteid,
-						HASH_FIND, &found);
+	LogicalRepRelMapEntry *entry = hash_search(LogicalRepRelMap, (void *) &remoteid,
+											   HASH_FIND, &found);
 
 	if (!found)
 		elog(ERROR, "no relation map entry for remote relation ID %u",
 			 remoteid);
 
-	remoterel = &entry->remoterel;
+	LogicalRepRelation *remoterel = &entry->remoterel;
 
 	/* Ensure we don't leak a relcache refcount. */
 	if (entry->localrel)
@@ -306,17 +302,13 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 	 */
 	if (!entry->localrelvalid)
 	{
-		Oid			relid;
-		Bitmapset  *idkey;
-		TupleDesc	desc;
-		MemoryContext oldctx;
 		int			i;
-		Bitmapset  *missingatts;
 
 		/* Try to find and lock the relation by name. */
-		relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
-											  remoterel->relname, -1),
-								 lockmode, true);
+		Oid			relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
+														  remoterel->relname, -1),
+											 lockmode, true);
+
 		if (!OidIsValid(relid))
 			ereport(ERROR,
 					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
@@ -334,16 +326,17 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 		 * numbers and validate that we don't miss any replicated columns as
 		 * that would result in potentially unwanted data loss.
 		 */
-		desc = RelationGetDescr(entry->localrel);
-		oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+		TupleDesc	desc = RelationGetDescr(entry->localrel);
+		MemoryContext oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+
 		entry->attrmap = make_attrmap(desc->natts);
 		MemoryContextSwitchTo(oldctx);
 
 		/* check and report missing attrs, if any */
-		missingatts = bms_add_range(NULL, 0, remoterel->natts - 1);
+		Bitmapset  *missingatts = bms_add_range(NULL, 0, remoterel->natts - 1);
+
 		for (i = 0; i < desc->natts; i++)
 		{
-			int			attnum;
 			Form_pg_attribute attr = TupleDescAttr(desc, i);
 
 			if (attr->attisdropped || attr->attgenerated)
@@ -352,8 +345,8 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 				continue;
 			}
 
-			attnum = logicalrep_rel_att_by_name(remoterel,
-												NameStr(attr->attname));
+			int			attnum = logicalrep_rel_att_by_name(remoterel,
+															NameStr(attr->attname));
 
 			entry->attrmap->attnums[i] = attnum;
 			if (attnum >= 0)
@@ -377,8 +370,9 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 		 * inserts can be replicated even without it.
 		 */
 		entry->updatable = true;
-		idkey = RelationGetIndexAttrBitmap(entry->localrel,
-										   INDEX_ATTR_BITMAP_IDENTITY_KEY);
+		Bitmapset  *idkey = RelationGetIndexAttrBitmap(entry->localrel,
+													   INDEX_ATTR_BITMAP_IDENTITY_KEY);
+
 		/* fallback to PK if no replica identity */
 		if (idkey == NULL)
 		{
@@ -528,22 +522,19 @@ LogicalRepRelMapEntry *
 logicalrep_partition_open(LogicalRepRelMapEntry *root,
 						  Relation partrel, AttrMap *map)
 {
-	LogicalRepRelMapEntry *entry;
-	LogicalRepPartMapEntry *part_entry;
 	LogicalRepRelation *remoterel = &root->remoterel;
 	Oid			partOid = RelationGetRelid(partrel);
 	AttrMap    *attrmap = root->attrmap;
 	bool		found;
 	int			i;
-	MemoryContext oldctx;
 
 	if (LogicalRepPartMap == NULL)
 		logicalrep_partmap_init();
 
 	/* Search for existing entry. */
-	part_entry = (LogicalRepPartMapEntry *) hash_search(LogicalRepPartMap,
-														(void *) &partOid,
-														HASH_ENTER, &found);
+	LogicalRepPartMapEntry *part_entry = (LogicalRepPartMapEntry *) hash_search(LogicalRepPartMap,
+																				(void *) &partOid,
+																				HASH_ENTER, &found);
 
 	if (found)
 		return &part_entry->relmapentry;
@@ -551,12 +542,13 @@ logicalrep_partition_open(LogicalRepRelMapEntry *root,
 	memset(part_entry, 0, sizeof(LogicalRepPartMapEntry));
 
 	/* Switch to longer-lived context. */
-	oldctx = MemoryContextSwitchTo(LogicalRepPartMapContext);
+	MemoryContext oldctx = MemoryContextSwitchTo(LogicalRepPartMapContext);
 
 	part_entry->partoid = partOid;
 
 	/* Remote relation is copied as-is from the root entry. */
-	entry = &part_entry->relmapentry;
+	LogicalRepRelMapEntry *entry = &part_entry->relmapentry;
+
 	entry->remoterel.remoteid = remoterel->remoteid;
 	entry->remoterel.nspname = pstrdup(remoterel->nspname);
 	entry->remoterel.relname = pstrdup(remoterel->relname);

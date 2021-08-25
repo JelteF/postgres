@@ -129,12 +129,12 @@ add_to_flat_tlist(List *tlist, List *exprs)
 
 		if (!tlist_member(expr, tlist))
 		{
-			TargetEntry *tle;
 
-			tle = makeTargetEntry(copyObject(expr), /* copy needed?? */
-								  next_resno++,
-								  NULL,
-								  false);
+			TargetEntry *tle = makeTargetEntry(copyObject(expr),	/* copy needed?? */
+											   next_resno++,
+											   NULL,
+											   false);
+
 			tlist = lappend(tlist, tle);
 		}
 	}
@@ -386,9 +386,9 @@ get_sortgrouplist_exprs(List *sgClauses, List *targetList)
 	foreach(l, sgClauses)
 	{
 		SortGroupClause *sortcl = (SortGroupClause *) lfirst(l);
-		Node	   *sortexpr;
 
-		sortexpr = get_sortgroupclause_expr(sortcl, targetList);
+		Node	   *sortexpr = get_sortgroupclause_expr(sortcl, targetList);
+
 		result = lappend(result, sortexpr);
 	}
 	return result;
@@ -453,10 +453,9 @@ extract_grouping_ops(List *groupClause)
 {
 	int			numCols = list_length(groupClause);
 	int			colno = 0;
-	Oid		   *groupOperators;
 	ListCell   *glitem;
 
-	groupOperators = (Oid *) palloc(sizeof(Oid) * numCols);
+	Oid		   *groupOperators = (Oid *) palloc(sizeof(Oid) * numCols);
 
 	foreach(glitem, groupClause)
 	{
@@ -479,10 +478,9 @@ extract_grouping_collations(List *groupClause, List *tlist)
 {
 	int			numCols = list_length(groupClause);
 	int			colno = 0;
-	Oid		   *grpCollations;
 	ListCell   *glitem;
 
-	grpCollations = (Oid *) palloc(sizeof(Oid) * numCols);
+	Oid		   *grpCollations = (Oid *) palloc(sizeof(Oid) * numCols);
 
 	foreach(glitem, groupClause)
 	{
@@ -502,12 +500,11 @@ extract_grouping_collations(List *groupClause, List *tlist)
 AttrNumber *
 extract_grouping_cols(List *groupClause, List *tlist)
 {
-	AttrNumber *grpColIdx;
 	int			numCols = list_length(groupClause);
 	int			colno = 0;
 	ListCell   *glitem;
 
-	grpColIdx = (AttrNumber *) palloc(sizeof(AttrNumber) * numCols);
+	AttrNumber *grpColIdx = (AttrNumber *) palloc(sizeof(AttrNumber) * numCols);
 
 	foreach(glitem, groupClause)
 	{
@@ -580,12 +577,12 @@ PathTarget *
 make_pathtarget_from_tlist(List *tlist)
 {
 	PathTarget *target = makeNode(PathTarget);
-	int			i;
 	ListCell   *lc;
 
 	target->sortgrouprefs = (Index *) palloc(list_length(tlist) * sizeof(Index));
 
-	i = 0;
+	int			i = 0;
+
 	foreach(lc, tlist)
 	{
 		TargetEntry *tle = (TargetEntry *) lfirst(lc);
@@ -613,19 +610,19 @@ List *
 make_tlist_from_pathtarget(PathTarget *target)
 {
 	List	   *tlist = NIL;
-	int			i;
 	ListCell   *lc;
 
-	i = 0;
+	int			i = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
-		TargetEntry *tle;
 
-		tle = makeTargetEntry(expr,
-							  i + 1,
-							  NULL,
-							  false);
+		TargetEntry *tle = makeTargetEntry(expr,
+										   i + 1,
+										   NULL,
+										   false);
+
 		if (target->sortgrouprefs)
 			tle->ressortgroupref = target->sortgrouprefs[i];
 		tlist = lappend(tlist, tle);
@@ -762,14 +759,14 @@ add_new_columns_to_pathtarget(PathTarget *target, List *exprs)
 void
 apply_pathtarget_labeling_to_tlist(List *tlist, PathTarget *target)
 {
-	int			i;
 	ListCell   *lc;
 
 	/* Nothing to do if PathTarget has no sortgrouprefs data */
 	if (target->sortgrouprefs == NULL)
 		return;
 
-	i = 0;
+	int			i = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Expr	   *expr = (Expr *) lfirst(lc);
@@ -872,10 +869,6 @@ split_pathtarget_at_srfs(PlannerInfo *root,
 						 List **targets, List **targets_contain_srfs)
 {
 	split_pathtarget_context context;
-	int			max_depth;
-	bool		need_extra_projection;
-	List	   *prev_level_tlist;
-	int			lci;
 	ListCell   *lc,
 			   *lc1,
 			   *lc2,
@@ -911,11 +904,12 @@ split_pathtarget_at_srfs(PlannerInfo *root,
 	/* Initialize data we'll accumulate across all the target expressions */
 	context.current_input_vars = NIL;
 	context.current_input_srfs = NIL;
-	max_depth = 0;
-	need_extra_projection = false;
+	int			max_depth = 0;
+	bool		need_extra_projection = false;
 
 	/* Scan each expression in the PathTarget looking for SRFs */
-	lci = 0;
+	int			lci = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Node	   *node = (Node *) lfirst(lc);
@@ -996,7 +990,7 @@ split_pathtarget_at_srfs(PlannerInfo *root,
 	 * target for each intermediate ProjectSet node.
 	 */
 	*targets = *targets_contain_srfs = NIL;
-	prev_level_tlist = NIL;
+	List	   *prev_level_tlist = NIL;
 
 	forthree(lc1, context.level_srfs,
 			 lc2, context.level_input_vars,
@@ -1117,8 +1111,6 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 		List	   *save_input_vars = context->current_input_vars;
 		List	   *save_input_srfs = context->current_input_srfs;
 		int			save_current_depth = context->current_depth;
-		int			srf_depth;
-		ListCell   *lc;
 
 		item->expr = node;
 		item->sortgroupref = context->current_sgref;
@@ -1132,7 +1124,7 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 									  (void *) context);
 
 		/* Depth is one more than any SRF below it */
-		srf_depth = context->current_depth + 1;
+		int			srf_depth = context->current_depth + 1;
 
 		/* If new record depth, initialize another level of output lists */
 		if (srf_depth >= list_length(context->level_srfs))
@@ -1143,7 +1135,8 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 		}
 
 		/* Record this SRF as needing to be evaluated at appropriate level */
-		lc = list_nth_cell(context->level_srfs, srf_depth);
+		ListCell   *lc = list_nth_cell(context->level_srfs, srf_depth);
+
 		lfirst(lc) = lappend(lfirst(lc), item);
 
 		/* Record its inputs as being needed at the same level */
@@ -1190,14 +1183,14 @@ split_pathtarget_walker(Node *node, split_pathtarget_context *context)
 static void
 add_sp_item_to_pathtarget(PathTarget *target, split_pathtarget_item *item)
 {
-	int			lci;
 	ListCell   *lc;
 
 	/*
 	 * Look for a pre-existing entry that is equal() and does not have a
 	 * conflicting sortgroupref already.
 	 */
-	lci = 0;
+	int			lci = 0;
+
 	foreach(lc, target->exprs)
 	{
 		Node	   *node = (Node *) lfirst(lc);

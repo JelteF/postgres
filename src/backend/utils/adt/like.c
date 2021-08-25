@@ -56,13 +56,13 @@ static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
 static inline int
 wchareq(const char *p1, const char *p2)
 {
-	int			p1_len;
 
 	/* Optimization:  quickly compare the first byte. */
 	if (*p1 != *p2)
 		return 0;
 
-	p1_len = pg_mblen(p1);
+	int			p1_len = pg_mblen(p1);
+
 	if (pg_mblen(p2) != p1_len)
 		return 0;
 
@@ -243,7 +243,6 @@ namelike(PG_FUNCTION_ARGS)
 {
 	Name		str = PG_GETARG_NAME(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -254,7 +253,7 @@ namelike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
+	bool		result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -264,7 +263,6 @@ namenlike(PG_FUNCTION_ARGS)
 {
 	Name		str = PG_GETARG_NAME(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -275,7 +273,7 @@ namenlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
+	bool		result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -285,7 +283,6 @@ textlike(PG_FUNCTION_ARGS)
 {
 	text	   *str = PG_GETARG_TEXT_PP(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -296,7 +293,7 @@ textlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
+	bool		result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -306,7 +303,6 @@ textnlike(PG_FUNCTION_ARGS)
 {
 	text	   *str = PG_GETARG_TEXT_PP(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -317,7 +313,7 @@ textnlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
+	bool		result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -327,7 +323,6 @@ bytealike(PG_FUNCTION_ARGS)
 {
 	bytea	   *str = PG_GETARG_BYTEA_PP(0);
 	bytea	   *pat = PG_GETARG_BYTEA_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -338,7 +333,7 @@ bytealike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
+	bool		result = (SB_MatchText(s, slen, p, plen, 0, true) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -348,7 +343,6 @@ byteanlike(PG_FUNCTION_ARGS)
 {
 	bytea	   *str = PG_GETARG_BYTEA_PP(0);
 	bytea	   *pat = PG_GETARG_BYTEA_PP(1);
-	bool		result;
 	char	   *s,
 			   *p;
 	int			slen,
@@ -359,7 +353,7 @@ byteanlike(PG_FUNCTION_ARGS)
 	p = VARDATA_ANY(pat);
 	plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
+	bool		result = (SB_MatchText(s, slen, p, plen, 0, true) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -373,12 +367,10 @@ nameiclike(PG_FUNCTION_ARGS)
 {
 	Name		str = PG_GETARG_NAME(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	text	   *strtext;
 
-	strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
-												 NameGetDatum(str)));
-	result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) == LIKE_TRUE);
+	text	   *strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
+															 NameGetDatum(str)));
+	bool		result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -388,12 +380,10 @@ nameicnlike(PG_FUNCTION_ARGS)
 {
 	Name		str = PG_GETARG_NAME(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	text	   *strtext;
 
-	strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
-												 NameGetDatum(str)));
-	result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) != LIKE_TRUE);
+	text	   *strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
+															 NameGetDatum(str)));
+	bool		result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -403,9 +393,8 @@ texticlike(PG_FUNCTION_ARGS)
 {
 	text	   *str = PG_GETARG_TEXT_PP(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 
-	result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) == LIKE_TRUE);
+	bool		result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) == LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }
@@ -415,9 +404,8 @@ texticnlike(PG_FUNCTION_ARGS)
 {
 	text	   *str = PG_GETARG_TEXT_PP(0);
 	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
 
-	result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) != LIKE_TRUE);
+	bool		result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) != LIKE_TRUE);
 
 	PG_RETURN_BOOL(result);
 }

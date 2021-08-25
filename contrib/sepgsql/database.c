@@ -32,14 +32,8 @@
 void
 sepgsql_database_post_create(Oid databaseId, const char *dtemplate)
 {
-	Relation	rel;
 	ScanKeyData skey;
-	SysScanDesc sscan;
-	HeapTuple	tuple;
-	char	   *tcontext;
-	char	   *ncontext;
 	ObjectAddress object;
-	Form_pg_database datForm;
 	StringInfoData audit_name;
 
 	/*
@@ -54,9 +48,9 @@ sepgsql_database_post_create(Oid databaseId, const char *dtemplate)
 	object.objectId = get_database_oid(dtemplate, false);
 	object.objectSubId = 0;
 
-	tcontext = sepgsql_get_label(object.classId,
-								 object.objectId,
-								 object.objectSubId);
+	char	   *tcontext = sepgsql_get_label(object.classId,
+											 object.objectId,
+											 object.objectSubId);
 
 	/*
 	 * check db_database:{getattr} permission
@@ -76,25 +70,26 @@ sepgsql_database_post_create(Oid databaseId, const char *dtemplate)
 	 * XXX - upcoming version of libselinux supports to take object name to
 	 * handle special treatment on default security label.
 	 */
-	rel = table_open(DatabaseRelationId, AccessShareLock);
+	Relation	rel = table_open(DatabaseRelationId, AccessShareLock);
 
 	ScanKeyInit(&skey,
 				Anum_pg_database_oid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(databaseId));
 
-	sscan = systable_beginscan(rel, DatabaseOidIndexId, true,
-							   SnapshotSelf, 1, &skey);
-	tuple = systable_getnext(sscan);
+	SysScanDesc sscan = systable_beginscan(rel, DatabaseOidIndexId, true,
+										   SnapshotSelf, 1, &skey);
+	HeapTuple	tuple = systable_getnext(sscan);
+
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for database %u", databaseId);
 
-	datForm = (Form_pg_database) GETSTRUCT(tuple);
+	Form_pg_database datForm = (Form_pg_database) GETSTRUCT(tuple);
 
-	ncontext = sepgsql_compute_create(sepgsql_get_client_label(),
-									  tcontext,
-									  SEPG_CLASS_DB_DATABASE,
-									  NameStr(datForm->datname));
+	char	   *ncontext = sepgsql_compute_create(sepgsql_get_client_label(),
+												  tcontext,
+												  SEPG_CLASS_DB_DATABASE,
+												  NameStr(datForm->datname));
 
 	/*
 	 * check db_database:{create} permission
@@ -133,7 +128,6 @@ void
 sepgsql_database_drop(Oid databaseId)
 {
 	ObjectAddress object;
-	char	   *audit_name;
 
 	/*
 	 * check db_database:{drop} permission
@@ -141,7 +135,7 @@ sepgsql_database_drop(Oid databaseId)
 	object.classId = DatabaseRelationId;
 	object.objectId = databaseId;
 	object.objectSubId = 0;
-	audit_name = getObjectIdentity(&object, false);
+	char	   *audit_name = getObjectIdentity(&object, false);
 
 	sepgsql_avc_check_perms(&object,
 							SEPG_CLASS_DB_DATABASE,
@@ -160,7 +154,6 @@ void
 sepgsql_database_setattr(Oid databaseId)
 {
 	ObjectAddress object;
-	char	   *audit_name;
 
 	/*
 	 * check db_database:{setattr} permission
@@ -168,7 +161,7 @@ sepgsql_database_setattr(Oid databaseId)
 	object.classId = DatabaseRelationId;
 	object.objectId = databaseId;
 	object.objectSubId = 0;
-	audit_name = getObjectIdentity(&object, false);
+	char	   *audit_name = getObjectIdentity(&object, false);
 
 	sepgsql_avc_check_perms(&object,
 							SEPG_CLASS_DB_DATABASE,
@@ -187,12 +180,11 @@ void
 sepgsql_database_relabel(Oid databaseId, const char *seclabel)
 {
 	ObjectAddress object;
-	char	   *audit_name;
 
 	object.classId = DatabaseRelationId;
 	object.objectId = databaseId;
 	object.objectSubId = 0;
-	audit_name = getObjectIdentity(&object, false);
+	char	   *audit_name = getObjectIdentity(&object, false);
 
 	/*
 	 * check db_database:{setattr relabelfrom} permission

@@ -71,9 +71,6 @@ static void load_tuple_array(GatherMergeState *gm_state, int reader);
 GatherMergeState *
 ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 {
-	GatherMergeState *gm_state;
-	Plan	   *outerNode;
-	TupleDesc	tupDesc;
 
 	/* Gather merge node doesn't have innerPlan node. */
 	Assert(innerPlan(node) == NULL);
@@ -81,7 +78,8 @@ ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 	/*
 	 * create state structure
 	 */
-	gm_state = makeNode(GatherMergeState);
+	GatherMergeState *gm_state = makeNode(GatherMergeState);
+
 	gm_state->ps.plan = (Plan *) node;
 	gm_state->ps.state = estate;
 	gm_state->ps.ExecProcNode = ExecGatherMerge;
@@ -106,7 +104,8 @@ ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 	/*
 	 * now initialize outer plan
 	 */
-	outerNode = outerPlan(node);
+	Plan	   *outerNode = outerPlan(node);
+
 	outerPlanState(gm_state) = ExecInitNode(outerNode, estate, eflags);
 
 	/*
@@ -122,7 +121,8 @@ ExecInitGatherMerge(GatherMerge *node, EState *estate, int eflags)
 	 * Store the tuple descriptor into gather merge state, so we can use it
 	 * while initializing the gather merge slots.
 	 */
-	tupDesc = ExecGetResultType(outerPlanState(gm_state));
+	TupleDesc	tupDesc = ExecGetResultType(outerPlanState(gm_state));
+
 	gm_state->tupDesc = tupDesc;
 
 	/*
@@ -188,8 +188,6 @@ static TupleTableSlot *
 ExecGatherMerge(PlanState *pstate)
 {
 	GatherMergeState *node = castNode(GatherMergeState, pstate);
-	TupleTableSlot *slot;
-	ExprContext *econtext;
 
 	CHECK_FOR_INTERRUPTS();
 
@@ -208,7 +206,6 @@ ExecGatherMerge(PlanState *pstate)
 		 */
 		if (gm->num_workers > 0 && estate->es_use_parallel_mode)
 		{
-			ParallelContext *pcxt;
 
 			/* Initialize, or re-initialize, shared state needed by workers. */
 			if (!node->pei)
@@ -223,7 +220,8 @@ ExecGatherMerge(PlanState *pstate)
 										 gm->initParam);
 
 			/* Try to launch workers. */
-			pcxt = node->pei->pcxt;
+			ParallelContext *pcxt = node->pei->pcxt;
+
 			LaunchParallelWorkers(pcxt);
 			/* We save # workers launched for the benefit of EXPLAIN */
 			node->nworkers_launched = pcxt->nworkers_launched;
@@ -257,14 +255,16 @@ ExecGatherMerge(PlanState *pstate)
 	 * Reset per-tuple memory context to free any expression evaluation
 	 * storage allocated in the previous tuple cycle.
 	 */
-	econtext = node->ps.ps_ExprContext;
+	ExprContext *econtext = node->ps.ps_ExprContext;
+
 	ResetExprContext(econtext);
 
 	/*
 	 * Get next tuple, either from one of our workers, or by running the plan
 	 * ourselves.
 	 */
-	slot = gather_merge_getnext(node);
+	TupleTableSlot *slot = gather_merge_getnext(node);
+
 	if (TupIsNull(slot))
 		return NULL;
 
@@ -597,14 +597,13 @@ gather_merge_getnext(GatherMergeState *gm_state)
 static void
 load_tuple_array(GatherMergeState *gm_state, int reader)
 {
-	GMReaderTupleBuffer *tuple_buffer;
 	int			i;
 
 	/* Don't do anything if this is the leader. */
 	if (reader == 0)
 		return;
 
-	tuple_buffer = &gm_state->gm_tuple_buffers[reader - 1];
+	GMReaderTupleBuffer *tuple_buffer = &gm_state->gm_tuple_buffers[reader - 1];
 
 	/* If there's nothing in the array, reset the counters to zero. */
 	if (tuple_buffer->nTuples == tuple_buffer->readCounter)
@@ -613,12 +612,12 @@ load_tuple_array(GatherMergeState *gm_state, int reader)
 	/* Try to fill additional slots in the array. */
 	for (i = tuple_buffer->nTuples; i < MAX_TUPLE_STORE; i++)
 	{
-		MinimalTuple tuple;
 
-		tuple = gm_readnext_tuple(gm_state,
-								  reader,
-								  true,
-								  &tuple_buffer->done);
+		MinimalTuple tuple = gm_readnext_tuple(gm_state,
+											   reader,
+											   true,
+											   &tuple_buffer->done);
+
 		if (!tuple)
 			break;
 		tuple_buffer->tuple[i] = tuple;
@@ -636,7 +635,6 @@ load_tuple_array(GatherMergeState *gm_state, int reader)
 static bool
 gather_merge_readnext(GatherMergeState *gm_state, int reader, bool nowait)
 {
-	GMReaderTupleBuffer *tuple_buffer;
 	MinimalTuple tup;
 
 	/*
@@ -648,12 +646,12 @@ gather_merge_readnext(GatherMergeState *gm_state, int reader, bool nowait)
 		if (gm_state->need_to_scan_locally)
 		{
 			PlanState  *outerPlan = outerPlanState(gm_state);
-			TupleTableSlot *outerTupleSlot;
 			EState	   *estate = gm_state->ps.state;
 
 			/* Install our DSA area while executing the plan. */
 			estate->es_query_dsa = gm_state->pei ? gm_state->pei->area : NULL;
-			outerTupleSlot = ExecProcNode(outerPlan);
+			TupleTableSlot *outerTupleSlot = ExecProcNode(outerPlan);
+
 			estate->es_query_dsa = NULL;
 
 			if (!TupIsNull(outerTupleSlot))
@@ -668,7 +666,7 @@ gather_merge_readnext(GatherMergeState *gm_state, int reader, bool nowait)
 	}
 
 	/* Otherwise, check the state of the relevant tuple buffer. */
-	tuple_buffer = &gm_state->gm_tuple_buffers[reader - 1];
+	GMReaderTupleBuffer *tuple_buffer = &gm_state->gm_tuple_buffers[reader - 1];
 
 	if (tuple_buffer->nTuples > tuple_buffer->readCounter)
 	{
@@ -715,8 +713,6 @@ static MinimalTuple
 gm_readnext_tuple(GatherMergeState *gm_state, int nreader, bool nowait,
 				  bool *done)
 {
-	TupleQueueReader *reader;
-	MinimalTuple tup;
 
 	/* Check for async events, particularly messages from workers. */
 	CHECK_FOR_INTERRUPTS();
@@ -729,8 +725,8 @@ gm_readnext_tuple(GatherMergeState *gm_state, int nreader, bool nowait,
 	 * tuples; WaitForParallelWorkersToFinish will error out when we get
 	 * there.
 	 */
-	reader = gm_state->reader[nreader - 1];
-	tup = TupleQueueReaderNext(reader, nowait, done);
+	TupleQueueReader *reader = gm_state->reader[nreader - 1];
+	MinimalTuple tup = TupleQueueReaderNext(reader, nowait, done);
 
 	/*
 	 * Since we'll be buffering these across multiple calls, we need to make a
@@ -771,14 +767,14 @@ heap_compare_slots(Datum a, Datum b, void *arg)
 					datum2;
 		bool		isNull1,
 					isNull2;
-		int			compare;
 
 		datum1 = slot_getattr(s1, attno, &isNull1);
 		datum2 = slot_getattr(s2, attno, &isNull2);
 
-		compare = ApplySortComparator(datum1, isNull1,
-									  datum2, isNull2,
-									  sortKey);
+		int			compare = ApplySortComparator(datum1, isNull1,
+												  datum2, isNull2,
+												  sortKey);
+
 		if (compare != 0)
 		{
 			INVERT_COMPARE_RESULT(compare);

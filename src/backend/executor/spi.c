@@ -184,9 +184,9 @@ SPI_connect_ext(int options)
 int
 SPI_finish(void)
 {
-	int			res;
 
-	res = _SPI_begin_call(false);	/* just check we're connected */
+	int			res = _SPI_begin_call(false);	/* just check we're connected */
+
 	if (res < 0)
 		return res;
 
@@ -463,9 +463,9 @@ AtEOSubXact_SPI(bool isCommit, SubTransactionId mySubid)
 		/* throw away any tuple tables created within current subxact */
 		slist_foreach_modify(siter, &_SPI_current->tuptables)
 		{
-			SPITupleTable *tuptable;
 
-			tuptable = slist_container(SPITupleTable, next, siter.cur);
+			SPITupleTable *tuptable = slist_container(SPITupleTable, next, siter.cur);
+
 			if (tuptable->subid >= mySubid)
 			{
 				/*
@@ -504,12 +504,12 @@ int
 SPI_execute(const char *src, bool read_only, long tcount)
 {
 	_SPI_plan	plan;
-	int			res;
 
 	if (src == NULL || tcount < 0)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -542,13 +542,13 @@ int
 SPI_execute_extended(const char *src,
 					 const SPIExecuteOptions *options)
 {
-	int			res;
 	_SPI_plan	plan;
 
 	if (src == NULL || options == NULL)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -579,7 +579,6 @@ int
 SPI_execute_plan(SPIPlanPtr plan, Datum *Values, const char *Nulls,
 				 bool read_only, long tcount)
 {
-	int			res;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || tcount < 0)
 		return SPI_ERROR_ARGUMENT;
@@ -587,7 +586,8 @@ SPI_execute_plan(SPIPlanPtr plan, Datum *Values, const char *Nulls,
 	if (plan->nargs > 0 && Values == NULL)
 		return SPI_ERROR_PARAM;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -615,12 +615,12 @@ int
 SPI_execute_plan_extended(SPIPlanPtr plan,
 						  const SPIExecuteOptions *options)
 {
-	int			res;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || options == NULL)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -639,12 +639,12 @@ int
 SPI_execute_plan_with_paramlist(SPIPlanPtr plan, ParamListInfo params,
 								bool read_only, long tcount)
 {
-	int			res;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || tcount < 0)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -677,7 +677,6 @@ SPI_execute_snapshot(SPIPlanPtr plan,
 					 Snapshot snapshot, Snapshot crosscheck_snapshot,
 					 bool read_only, bool fire_triggers, long tcount)
 {
-	int			res;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC || tcount < 0)
 		return SPI_ERROR_ARGUMENT;
@@ -685,7 +684,8 @@ SPI_execute_snapshot(SPIPlanPtr plan,
 	if (plan->nargs > 0 && Values == NULL)
 		return SPI_ERROR_PARAM;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -713,9 +713,7 @@ SPI_execute_with_args(const char *src,
 					  Datum *Values, const char *Nulls,
 					  bool read_only, long tcount)
 {
-	int			res;
 	_SPI_plan	plan;
-	ParamListInfo paramLI;
 
 	if (src == NULL || nargs < 0 || tcount < 0)
 		return SPI_ERROR_ARGUMENT;
@@ -723,7 +721,8 @@ SPI_execute_with_args(const char *src,
 	if (nargs > 0 && (argtypes == NULL || Values == NULL))
 		return SPI_ERROR_PARAM;
 
-	res = _SPI_begin_call(true);
+	int			res = _SPI_begin_call(true);
+
 	if (res < 0)
 		return res;
 
@@ -736,8 +735,8 @@ SPI_execute_with_args(const char *src,
 	plan.parserSetup = NULL;
 	plan.parserSetupArg = NULL;
 
-	paramLI = _SPI_convert_params(nargs, argtypes,
-								  Values, Nulls);
+	ParamListInfo paramLI = _SPI_convert_params(nargs, argtypes,
+												Values, Nulls);
 
 	_SPI_prepare_oneshot_plan(src, &plan);
 
@@ -762,7 +761,6 @@ SPI_prepare_cursor(const char *src, int nargs, Oid *argtypes,
 				   int cursorOptions)
 {
 	_SPI_plan	plan;
-	SPIPlanPtr	result;
 
 	if (src == NULL || nargs < 0 || (nargs > 0 && argtypes == NULL))
 	{
@@ -786,7 +784,7 @@ SPI_prepare_cursor(const char *src, int nargs, Oid *argtypes,
 	_SPI_prepare_plan(src, &plan);
 
 	/* copy plan to procedure context */
-	result = _SPI_make_plan_non_temp(&plan);
+	SPIPlanPtr	result = _SPI_make_plan_non_temp(&plan);
 
 	_SPI_end_call(true);
 
@@ -798,7 +796,6 @@ SPI_prepare_extended(const char *src,
 					 const SPIPrepareOptions *options)
 {
 	_SPI_plan	plan;
-	SPIPlanPtr	result;
 
 	if (src == NULL || options == NULL)
 	{
@@ -822,7 +819,7 @@ SPI_prepare_extended(const char *src,
 	_SPI_prepare_plan(src, &plan);
 
 	/* copy plan to procedure context */
-	result = _SPI_make_plan_non_temp(&plan);
+	SPIPlanPtr	result = _SPI_make_plan_non_temp(&plan);
 
 	_SPI_end_call(true);
 
@@ -836,7 +833,6 @@ SPI_prepare_params(const char *src,
 				   int cursorOptions)
 {
 	_SPI_plan	plan;
-	SPIPlanPtr	result;
 
 	if (src == NULL)
 	{
@@ -860,7 +856,7 @@ SPI_prepare_params(const char *src,
 	_SPI_prepare_plan(src, &plan);
 
 	/* copy plan to procedure context */
-	result = _SPI_make_plan_non_temp(&plan);
+	SPIPlanPtr	result = _SPI_make_plan_non_temp(&plan);
 
 	_SPI_end_call(true);
 
@@ -897,7 +893,6 @@ SPI_keepplan(SPIPlanPtr plan)
 SPIPlanPtr
 SPI_saveplan(SPIPlanPtr plan)
 {
-	SPIPlanPtr	newplan;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC)
 	{
@@ -909,7 +904,7 @@ SPI_saveplan(SPIPlanPtr plan)
 	if (SPI_result < 0)
 		return NULL;
 
-	newplan = _SPI_save_plan(plan);
+	SPIPlanPtr	newplan = _SPI_save_plan(plan);
 
 	SPI_result = _SPI_end_call(false);
 
@@ -941,8 +936,6 @@ SPI_freeplan(SPIPlanPtr plan)
 HeapTuple
 SPI_copytuple(HeapTuple tuple)
 {
-	MemoryContext oldcxt;
-	HeapTuple	ctuple;
 
 	if (tuple == NULL)
 	{
@@ -956,9 +949,9 @@ SPI_copytuple(HeapTuple tuple)
 		return NULL;
 	}
 
-	oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
 
-	ctuple = heap_copytuple(tuple);
+	HeapTuple	ctuple = heap_copytuple(tuple);
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -968,8 +961,6 @@ SPI_copytuple(HeapTuple tuple)
 HeapTupleHeader
 SPI_returntuple(HeapTuple tuple, TupleDesc tupdesc)
 {
-	MemoryContext oldcxt;
-	HeapTupleHeader dtup;
 
 	if (tuple == NULL || tupdesc == NULL)
 	{
@@ -988,9 +979,9 @@ SPI_returntuple(HeapTuple tuple, TupleDesc tupdesc)
 		tupdesc->tdtypmod < 0)
 		assign_record_type_typmod(tupdesc);
 
-	oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
 
-	dtup = DatumGetHeapTupleHeader(heap_copy_tuple_as_datum(tuple, tupdesc));
+	HeapTupleHeader dtup = DatumGetHeapTupleHeader(heap_copy_tuple_as_datum(tuple, tupdesc));
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -1001,11 +992,7 @@ HeapTuple
 SPI_modifytuple(Relation rel, HeapTuple tuple, int natts, int *attnum,
 				Datum *Values, const char *Nulls)
 {
-	MemoryContext oldcxt;
 	HeapTuple	mtuple;
-	int			numberOfAttributes;
-	Datum	   *v;
-	bool	   *n;
 	int			i;
 
 	if (rel == NULL || tuple == NULL || natts < 0 || attnum == NULL || Values == NULL)
@@ -1020,13 +1007,13 @@ SPI_modifytuple(Relation rel, HeapTuple tuple, int natts, int *attnum,
 		return NULL;
 	}
 
-	oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
 
 	SPI_result = 0;
 
-	numberOfAttributes = rel->rd_att->natts;
-	v = (Datum *) palloc(numberOfAttributes * sizeof(Datum));
-	n = (bool *) palloc(numberOfAttributes * sizeof(bool));
+	int			numberOfAttributes = rel->rd_att->natts;
+	Datum	   *v = (Datum *) palloc(numberOfAttributes * sizeof(Datum));
+	bool	   *n = (bool *) palloc(numberOfAttributes * sizeof(bool));
 
 	/* fetch old values and nulls */
 	heap_deform_tuple(tuple, rel->rd_att, v, n);
@@ -1070,7 +1057,6 @@ int
 SPI_fnumber(TupleDesc tupdesc, const char *fname)
 {
 	int			res;
-	const FormData_pg_attribute *sysatt;
 
 	for (res = 0; res < tupdesc->natts; res++)
 	{
@@ -1081,7 +1067,8 @@ SPI_fnumber(TupleDesc tupdesc, const char *fname)
 			return res + 1;
 	}
 
-	sysatt = SystemAttributeByName(fname);
+	const FormData_pg_attribute *sysatt = SystemAttributeByName(fname);
+
 	if (sysatt != NULL)
 		return sysatt->attnum;
 
@@ -1114,7 +1101,6 @@ SPI_fname(TupleDesc tupdesc, int fnumber)
 char *
 SPI_getvalue(HeapTuple tuple, TupleDesc tupdesc, int fnumber)
 {
-	Datum		val;
 	bool		isnull;
 	Oid			typoid,
 				foutoid;
@@ -1129,7 +1115,8 @@ SPI_getvalue(HeapTuple tuple, TupleDesc tupdesc, int fnumber)
 		return NULL;
 	}
 
-	val = heap_getattr(tuple, fnumber, tupdesc, &isnull);
+	Datum		val = heap_getattr(tuple, fnumber, tupdesc, &isnull);
+
 	if (isnull)
 		return NULL;
 
@@ -1163,8 +1150,6 @@ char *
 SPI_gettype(TupleDesc tupdesc, int fnumber)
 {
 	Oid			typoid;
-	HeapTuple	typeTuple;
-	char	   *result;
 
 	SPI_result = 0;
 
@@ -1180,7 +1165,7 @@ SPI_gettype(TupleDesc tupdesc, int fnumber)
 	else
 		typoid = (SystemAttributeDefinition(fnumber))->atttypid;
 
-	typeTuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typoid));
+	HeapTuple	typeTuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typoid));
 
 	if (!HeapTupleIsValid(typeTuple))
 	{
@@ -1188,7 +1173,8 @@ SPI_gettype(TupleDesc tupdesc, int fnumber)
 		return NULL;
 	}
 
-	result = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(typeTuple))->typname));
+	char	   *result = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(typeTuple))->typname));
+
 	ReleaseSysCache(typeTuple);
 	return result;
 }
@@ -1255,15 +1241,13 @@ SPI_pfree(void *pointer)
 Datum
 SPI_datumTransfer(Datum value, bool typByVal, int typLen)
 {
-	MemoryContext oldcxt;
-	Datum		result;
 
 	if (_SPI_current == NULL)
 		elog(ERROR, "SPI_datumTransfer called while not connected to SPI");
 
-	oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(_SPI_current->savedcxt);
 
-	result = datumTransfer(value, typByVal, typLen);
+	Datum		result = datumTransfer(value, typByVal, typLen);
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -1296,9 +1280,9 @@ SPI_freetuptable(SPITupleTable *tuptable)
 		/* find tuptable in active list, then remove it */
 		slist_foreach_modify(siter, &_SPI_current->tuptables)
 		{
-			SPITupleTable *tt;
 
-			tt = slist_container(SPITupleTable, next, siter.cur);
+			SPITupleTable *tt = slist_container(SPITupleTable, next, siter.cur);
+
 			if (tt == tuptable)
 			{
 				slist_delete_current(&siter);
@@ -1341,14 +1325,12 @@ SPI_cursor_open(const char *name, SPIPlanPtr plan,
 				Datum *Values, const char *Nulls,
 				bool read_only)
 {
-	Portal		portal;
-	ParamListInfo paramLI;
 
 	/* build transient ParamListInfo in caller's context */
-	paramLI = _SPI_convert_params(plan->nargs, plan->argtypes,
-								  Values, Nulls);
+	ParamListInfo paramLI = _SPI_convert_params(plan->nargs, plan->argtypes,
+												Values, Nulls);
 
-	portal = SPI_cursor_open_internal(name, plan, paramLI, read_only);
+	Portal		portal = SPI_cursor_open_internal(name, plan, paramLI, read_only);
 
 	/* done with the transient ParamListInfo */
 	if (paramLI)
@@ -1370,9 +1352,7 @@ SPI_cursor_open_with_args(const char *name,
 						  Datum *Values, const char *Nulls,
 						  bool read_only, int cursorOptions)
 {
-	Portal		result;
 	_SPI_plan	plan;
-	ParamListInfo paramLI;
 
 	if (src == NULL || nargs < 0)
 		elog(ERROR, "SPI_cursor_open_with_args called with invalid arguments");
@@ -1394,14 +1374,14 @@ SPI_cursor_open_with_args(const char *name,
 	plan.parserSetupArg = NULL;
 
 	/* build transient ParamListInfo in executor context */
-	paramLI = _SPI_convert_params(nargs, argtypes,
-								  Values, Nulls);
+	ParamListInfo paramLI = _SPI_convert_params(nargs, argtypes,
+												Values, Nulls);
 
 	_SPI_prepare_plan(src, &plan);
 
 	/* We needn't copy the plan; SPI_cursor_open_internal will do so */
 
-	result = SPI_cursor_open_internal(name, &plan, paramLI, read_only);
+	Portal		result = SPI_cursor_open_internal(name, &plan, paramLI, read_only);
 
 	/* And clean up */
 	_SPI_end_call(true);
@@ -1429,7 +1409,6 @@ SPI_cursor_parse_open(const char *name,
 					  const char *src,
 					  const SPIParseOpenOptions *options)
 {
-	Portal		result;
 	_SPI_plan	plan;
 
 	if (src == NULL || options == NULL)
@@ -1453,8 +1432,8 @@ SPI_cursor_parse_open(const char *name,
 
 	/* We needn't copy the plan; SPI_cursor_open_internal will do so */
 
-	result = SPI_cursor_open_internal(name, &plan,
-									  options->params, options->read_only);
+	Portal		result = SPI_cursor_open_internal(name, &plan,
+												  options->params, options->read_only);
 
 	/* And clean up */
 	_SPI_end_call(true);
@@ -1473,9 +1452,6 @@ SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
 						 ParamListInfo paramLI, bool read_only)
 {
 	CachedPlanSource *plansource;
-	CachedPlan *cplan;
-	List	   *stmt_list;
-	char	   *query_string;
 	Snapshot	snapshot;
 	MemoryContext oldcontext;
 	Portal		portal;
@@ -1527,8 +1503,8 @@ SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
 	}
 
 	/* Copy the plan's query string into the portal */
-	query_string = MemoryContextStrdup(portal->portalContext,
-									   plansource->query_string);
+	char	   *query_string = MemoryContextStrdup(portal->portalContext,
+												   plansource->query_string);
 
 	/*
 	 * Setup error traceback support for ereport(), in case GetCachedPlan
@@ -1548,8 +1524,8 @@ SPI_cursor_open_internal(const char *name, SPIPlanPtr plan,
 	 */
 
 	/* Replan if needed, and increment plan refcount for portal */
-	cplan = GetCachedPlan(plansource, paramLI, NULL, _SPI_current->queryEnv);
-	stmt_list = cplan->stmt_list;
+	CachedPlan *cplan = GetCachedPlan(plansource, paramLI, NULL, _SPI_current->queryEnv);
+	List	   *stmt_list = cplan->stmt_list;
 
 	if (!plan->saved)
 	{
@@ -1798,7 +1774,6 @@ SPI_getargcount(SPIPlanPtr plan)
 bool
 SPI_is_cursor_plan(SPIPlanPtr plan)
 {
-	CachedPlanSource *plansource;
 
 	if (plan == NULL || plan->magic != _SPI_PLAN_MAGIC)
 	{
@@ -1811,7 +1786,7 @@ SPI_is_cursor_plan(SPIPlanPtr plan)
 		SPI_result = 0;
 		return false;			/* not exactly 1 pre-rewrite command */
 	}
-	plansource = (CachedPlanSource *) linitial(plan->plancache_list);
+	CachedPlanSource *plansource = (CachedPlanSource *) linitial(plan->plancache_list);
 
 	/*
 	 * We used to force revalidation of the cached plan here, but that seems
@@ -1956,8 +1931,6 @@ SPI_plan_get_plan_sources(SPIPlanPtr plan)
 CachedPlan *
 SPI_plan_get_cached_plan(SPIPlanPtr plan)
 {
-	CachedPlanSource *plansource;
-	CachedPlan *cplan;
 	SPICallbackArg spicallbackarg;
 	ErrorContextCallback spierrcontext;
 
@@ -1970,7 +1943,7 @@ SPI_plan_get_cached_plan(SPIPlanPtr plan)
 	/* Must have exactly one CachedPlanSource */
 	if (list_length(plan->plancache_list) != 1)
 		return NULL;
-	plansource = (CachedPlanSource *) linitial(plan->plancache_list);
+	CachedPlanSource *plansource = (CachedPlanSource *) linitial(plan->plancache_list);
 
 	/* Setup error traceback support for ereport() */
 	spicallbackarg.query = plansource->query_string;
@@ -1981,9 +1954,10 @@ SPI_plan_get_cached_plan(SPIPlanPtr plan)
 	error_context_stack = &spierrcontext;
 
 	/* Get the generic plan for the query */
-	cplan = GetCachedPlan(plansource, NULL,
-						  plan->saved ? CurrentResourceOwner : NULL,
-						  _SPI_current->queryEnv);
+	CachedPlan *cplan = GetCachedPlan(plansource, NULL,
+									  plan->saved ? CurrentResourceOwner : NULL,
+									  _SPI_current->queryEnv);
+
 	Assert(cplan == plansource->gplan);
 
 	/* Pop the error context stack */
@@ -2004,8 +1978,6 @@ void
 spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
 	SPITupleTable *tuptable;
-	MemoryContext oldcxt;
-	MemoryContext tuptabcxt;
 
 	if (_SPI_current == NULL)
 		elog(ERROR, "spi_dest_startup called while not connected to SPI");
@@ -2015,11 +1987,13 @@ spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 
 	/* We create the tuple table context as a child of procCxt */
 
-	oldcxt = _SPI_procmem();	/* switch to procedure memory context */
+	MemoryContext oldcxt = _SPI_procmem();	/* switch to procedure memory
+											 * context */
 
-	tuptabcxt = AllocSetContextCreate(CurrentMemoryContext,
-									  "SPI TupTable",
-									  ALLOCSET_DEFAULT_SIZES);
+	MemoryContext tuptabcxt = AllocSetContextCreate(CurrentMemoryContext,
+													"SPI TupTable",
+													ALLOCSET_DEFAULT_SIZES);
+
 	MemoryContextSwitchTo(tuptabcxt);
 
 	_SPI_current->tuptable = tuptable = (SPITupleTable *)
@@ -2051,17 +2025,16 @@ spi_dest_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 bool
 spi_printtup(TupleTableSlot *slot, DestReceiver *self)
 {
-	SPITupleTable *tuptable;
-	MemoryContext oldcxt;
 
 	if (_SPI_current == NULL)
 		elog(ERROR, "spi_printtup called while not connected to SPI");
 
-	tuptable = _SPI_current->tuptable;
+	SPITupleTable *tuptable = _SPI_current->tuptable;
+
 	if (tuptable == NULL)
 		elog(ERROR, "improper call to spi_printtup");
 
-	oldcxt = MemoryContextSwitchTo(tuptable->tuptabcxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(tuptable->tuptabcxt);
 
 	if (tuptable->numvals >= tuptable->alloced)
 	{
@@ -2101,8 +2074,6 @@ spi_printtup(TupleTableSlot *slot, DestReceiver *self)
 static void
 _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 {
-	List	   *raw_parsetree_list;
-	List	   *plancache_list;
 	ListCell   *list_item;
 	SPICallbackArg spicallbackarg;
 	ErrorContextCallback spierrcontext;
@@ -2120,27 +2091,26 @@ _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 	/*
 	 * Parse the request string into a list of raw parse trees.
 	 */
-	raw_parsetree_list = raw_parser(src, plan->parse_mode);
+	List	   *raw_parsetree_list = raw_parser(src, plan->parse_mode);
 
 	/*
 	 * Do parse analysis and rule rewrite for each raw parsetree, storing the
 	 * results into unsaved plancache entries.
 	 */
-	plancache_list = NIL;
+	List	   *plancache_list = NIL;
 
 	foreach(list_item, raw_parsetree_list)
 	{
 		RawStmt    *parsetree = lfirst_node(RawStmt, list_item);
 		List	   *stmt_list;
-		CachedPlanSource *plansource;
 
 		/*
 		 * Create the CachedPlanSource before we do parse analysis, since it
 		 * needs to see the unmodified raw parse tree.
 		 */
-		plansource = CreateCachedPlan(parsetree,
-									  src,
-									  CreateCommandTag(parsetree->stmt));
+		CachedPlanSource *plansource = CreateCachedPlan(parsetree,
+														src,
+														CreateCommandTag(parsetree->stmt));
 
 		/*
 		 * Parameter datatypes are driven by parserSetup hook if provided,
@@ -2209,8 +2179,6 @@ _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 static void
 _SPI_prepare_oneshot_plan(const char *src, SPIPlanPtr plan)
 {
-	List	   *raw_parsetree_list;
-	List	   *plancache_list;
 	ListCell   *list_item;
 	SPICallbackArg spicallbackarg;
 	ErrorContextCallback spierrcontext;
@@ -2228,21 +2196,20 @@ _SPI_prepare_oneshot_plan(const char *src, SPIPlanPtr plan)
 	/*
 	 * Parse the request string into a list of raw parse trees.
 	 */
-	raw_parsetree_list = raw_parser(src, plan->parse_mode);
+	List	   *raw_parsetree_list = raw_parser(src, plan->parse_mode);
 
 	/*
 	 * Construct plancache entries, but don't do parse analysis yet.
 	 */
-	plancache_list = NIL;
+	List	   *plancache_list = NIL;
 
 	foreach(list_item, raw_parsetree_list)
 	{
 		RawStmt    *parsetree = lfirst_node(RawStmt, list_item);
-		CachedPlanSource *plansource;
 
-		plansource = CreateOneShotCachedPlan(parsetree,
-											 src,
-											 CreateCommandTag(parsetree->stmt));
+		CachedPlanSource *plansource = CreateOneShotCachedPlan(parsetree,
+															   src,
+															   CreateCommandTag(parsetree->stmt));
 
 		plancache_list = lappend(plancache_list, plansource);
 	}
@@ -2509,7 +2476,6 @@ _SPI_execute_plan(SPIPlanPtr plan, ParamListInfo paramLI,
 
 			if (stmt->utilityStmt == NULL)
 			{
-				QueryDesc  *qdesc;
 				Snapshot	snap;
 
 				if (ActiveSnapshotSet())
@@ -2517,12 +2483,13 @@ _SPI_execute_plan(SPIPlanPtr plan, ParamListInfo paramLI,
 				else
 					snap = InvalidSnapshot;
 
-				qdesc = CreateQueryDesc(stmt,
-										plansource->query_string,
-										snap, crosscheck_snapshot,
-										dest,
-										paramLI, _SPI_current->queryEnv,
-										0);
+				QueryDesc  *qdesc = CreateQueryDesc(stmt,
+													plansource->query_string,
+													snap, crosscheck_snapshot,
+													dest,
+													paramLI, _SPI_current->queryEnv,
+													0);
+
 				res = _SPI_pquery(qdesc, fire_triggers,
 								  canSetTag ? tcount : 0);
 				FreeQueryDesc(qdesc);
@@ -2784,7 +2751,6 @@ _SPI_error_callback(void *arg)
 {
 	SPICallbackArg *carg = (SPICallbackArg *) arg;
 	const char *query = carg->query;
-	int			syntaxerrposition;
 
 	if (query == NULL)			/* in case arg wasn't set yet */
 		return;
@@ -2793,7 +2759,8 @@ _SPI_error_callback(void *arg)
 	 * If there is a syntax error position, convert to internal syntax error;
 	 * otherwise treat the query as an item of context stack
 	 */
-	syntaxerrposition = geterrposition();
+	int			syntaxerrposition = geterrposition();
+
 	if (syntaxerrposition > 0)
 	{
 		errposition(0);
@@ -2829,7 +2796,6 @@ static void
 _SPI_cursor_operation(Portal portal, FetchDirection direction, long count,
 					  DestReceiver *dest)
 {
-	uint64		nfetched;
 
 	/* Check that the portal is valid */
 	if (!PortalIsValid(portal))
@@ -2846,10 +2812,10 @@ _SPI_cursor_operation(Portal portal, FetchDirection direction, long count,
 	_SPI_current->tuptable = NULL;
 
 	/* Run the cursor */
-	nfetched = PortalRunFetch(portal,
-							  direction,
-							  count,
-							  dest);
+	uint64		nfetched = PortalRunFetch(portal,
+										  direction,
+										  count,
+										  dest);
 
 	/*
 	 * Think not to combine this store with the preceding function call. If
@@ -2962,10 +2928,8 @@ _SPI_checktuples(void)
 static SPIPlanPtr
 _SPI_make_plan_non_temp(SPIPlanPtr plan)
 {
-	SPIPlanPtr	newplan;
 	MemoryContext parentcxt = _SPI_current->procCxt;
 	MemoryContext plancxt;
-	MemoryContext oldcxt;
 	ListCell   *lc;
 
 	/* Assert the input is a temporary SPIPlan */
@@ -2981,10 +2945,11 @@ _SPI_make_plan_non_temp(SPIPlanPtr plan)
 	plancxt = AllocSetContextCreate(parentcxt,
 									"SPI Plan",
 									ALLOCSET_SMALL_SIZES);
-	oldcxt = MemoryContextSwitchTo(plancxt);
+	MemoryContext oldcxt = MemoryContextSwitchTo(plancxt);
 
 	/* Copy the _SPI_plan struct and subsidiary data into the new context */
-	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+	SPIPlanPtr	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+
 	newplan->magic = _SPI_PLAN_MAGIC;
 	newplan->plancxt = plancxt;
 	newplan->parse_mode = plan->parse_mode;
@@ -3030,9 +2995,6 @@ _SPI_make_plan_non_temp(SPIPlanPtr plan)
 static SPIPlanPtr
 _SPI_save_plan(SPIPlanPtr plan)
 {
-	SPIPlanPtr	newplan;
-	MemoryContext plancxt;
-	MemoryContext oldcxt;
 	ListCell   *lc;
 
 	/* One-shot plans can't be saved */
@@ -3043,13 +3005,14 @@ _SPI_save_plan(SPIPlanPtr plan)
 	 * very large, so use smaller-than-default alloc parameters.  It's a
 	 * transient context until we finish copying everything.
 	 */
-	plancxt = AllocSetContextCreate(CurrentMemoryContext,
-									"SPI Plan",
-									ALLOCSET_SMALL_SIZES);
-	oldcxt = MemoryContextSwitchTo(plancxt);
+	MemoryContext plancxt = AllocSetContextCreate(CurrentMemoryContext,
+												  "SPI Plan",
+												  ALLOCSET_SMALL_SIZES);
+	MemoryContext oldcxt = MemoryContextSwitchTo(plancxt);
 
 	/* Copy the SPI plan into its own context */
-	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+	SPIPlanPtr	newplan = (SPIPlanPtr) palloc0(sizeof(_SPI_plan));
+
 	newplan->magic = _SPI_PLAN_MAGIC;
 	newplan->plancxt = plancxt;
 	newplan->parse_mode = plan->parse_mode;
@@ -3069,9 +3032,9 @@ _SPI_save_plan(SPIPlanPtr plan)
 	foreach(lc, plan->plancache_list)
 	{
 		CachedPlanSource *plansource = (CachedPlanSource *) lfirst(lc);
-		CachedPlanSource *newsource;
 
-		newsource = CopyCachedPlan(plansource);
+		CachedPlanSource *newsource = CopyCachedPlan(plansource);
+
 		newplan->plancache_list = lappend(newplan->plancache_list, newsource);
 	}
 
@@ -3118,17 +3081,17 @@ _SPI_find_ENR_by_name(const char *name)
 int
 SPI_register_relation(EphemeralNamedRelation enr)
 {
-	EphemeralNamedRelation match;
-	int			res;
 
 	if (enr == NULL || enr->md.name == NULL)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(false);	/* keep current memory context */
+	int			res = _SPI_begin_call(false);	/* keep current memory context */
+
 	if (res < 0)
 		return res;
 
-	match = _SPI_find_ENR_by_name(enr->md.name);
+	EphemeralNamedRelation match = _SPI_find_ENR_by_name(enr->md.name);
+
 	if (match)
 		res = SPI_ERROR_REL_DUPLICATE;
 	else
@@ -3152,17 +3115,17 @@ SPI_register_relation(EphemeralNamedRelation enr)
 int
 SPI_unregister_relation(const char *name)
 {
-	EphemeralNamedRelation match;
-	int			res;
 
 	if (name == NULL)
 		return SPI_ERROR_ARGUMENT;
 
-	res = _SPI_begin_call(false);	/* keep current memory context */
+	int			res = _SPI_begin_call(false);	/* keep current memory context */
+
 	if (res < 0)
 		return res;
 
-	match = _SPI_find_ENR_by_name(name);
+	EphemeralNamedRelation match = _SPI_find_ENR_by_name(name);
+
 	if (match)
 	{
 		unregister_ENR(_SPI_current->queryEnv, match->md.name);
@@ -3192,7 +3155,6 @@ SPI_register_trigger_data(TriggerData *tdata)
 	{
 		EphemeralNamedRelation enr =
 		palloc(sizeof(EphemeralNamedRelationData));
-		int			rc;
 
 		enr->md.name = tdata->tg_trigger->tgnewtable;
 		enr->md.reliddesc = tdata->tg_relation->rd_id;
@@ -3200,7 +3162,8 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_newtable);
 		enr->reldata = tdata->tg_newtable;
-		rc = SPI_register_relation(enr);
+		int			rc = SPI_register_relation(enr);
+
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
 	}
@@ -3209,7 +3172,6 @@ SPI_register_trigger_data(TriggerData *tdata)
 	{
 		EphemeralNamedRelation enr =
 		palloc(sizeof(EphemeralNamedRelationData));
-		int			rc;
 
 		enr->md.name = tdata->tg_trigger->tgoldtable;
 		enr->md.reliddesc = tdata->tg_relation->rd_id;
@@ -3217,7 +3179,8 @@ SPI_register_trigger_data(TriggerData *tdata)
 		enr->md.enrtype = ENR_NAMED_TUPLESTORE;
 		enr->md.enrtuples = tuplestore_tuple_count(tdata->tg_oldtable);
 		enr->reldata = tdata->tg_oldtable;
-		rc = SPI_register_relation(enr);
+		int			rc = SPI_register_relation(enr);
+
 		if (rc != SPI_OK_REL_REGISTER)
 			return rc;
 	}

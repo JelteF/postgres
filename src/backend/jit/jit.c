@@ -68,7 +68,6 @@ static bool
 provider_init(void)
 {
 	char		path[MAXPGPATH];
-	JitProviderInit init;
 
 	/* don't even try to load if not enabled */
 	if (!jit_enabled)
@@ -108,8 +107,9 @@ provider_init(void)
 	provider_failed_loading = true;
 
 	/* and initialize */
-	init = (JitProviderInit)
-		load_external_function(path, "_PG_jit_provider_init", true, NULL);
+	JitProviderInit init = (JitProviderInit)
+	load_external_function(path, "_PG_jit_provider_init", true, NULL);
+
 	init(&provider);
 
 	provider_successfully_loaded = true;

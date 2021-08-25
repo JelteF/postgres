@@ -357,10 +357,6 @@ static void
 fileGetOptions(Oid foreigntableid,
 			   char **filename, bool *is_program, List **other_options)
 {
-	ForeignTable *table;
-	ForeignServer *server;
-	ForeignDataWrapper *wrapper;
-	List	   *options;
 	ListCell   *lc;
 
 	/*
@@ -371,11 +367,12 @@ fileGetOptions(Oid foreigntableid,
 	 * no point in examining anything except the foreign table's own options.
 	 * Simplify?)
 	 */
-	table = GetForeignTable(foreigntableid);
-	server = GetForeignServer(table->serverid);
-	wrapper = GetForeignDataWrapper(server->fdwid);
+	ForeignTable *table = GetForeignTable(foreigntableid);
+	ForeignServer *server = GetForeignServer(table->serverid);
+	ForeignDataWrapper *wrapper = GetForeignDataWrapper(server->fdwid);
 
-	options = NIL;
+	List	   *options = NIL;
+
 	options = list_concat(options, wrapper->options);
 	options = list_concat(options, server->options);
 	options = list_concat(options, table->options);
@@ -427,31 +424,28 @@ fileGetOptions(Oid foreigntableid,
 static List *
 get_file_fdw_attribute_options(Oid relid)
 {
-	Relation	rel;
-	TupleDesc	tupleDesc;
-	AttrNumber	natts;
 	AttrNumber	attnum;
 	List	   *fnncolumns = NIL;
 	List	   *fncolumns = NIL;
 
 	List	   *options = NIL;
 
-	rel = table_open(relid, AccessShareLock);
-	tupleDesc = RelationGetDescr(rel);
-	natts = tupleDesc->natts;
+	Relation	rel = table_open(relid, AccessShareLock);
+	TupleDesc	tupleDesc = RelationGetDescr(rel);
+	AttrNumber	natts = tupleDesc->natts;
 
 	/* Retrieve FDW options for all user-defined attributes. */
 	for (attnum = 1; attnum <= natts; attnum++)
 	{
 		Form_pg_attribute attr = TupleDescAttr(tupleDesc, attnum - 1);
-		List	   *options;
 		ListCell   *lc;
 
 		/* Skip dropped attributes. */
 		if (attr->attisdropped)
 			continue;
 
-		options = GetForeignColumnOptions(relid, attnum);
+		List	   *options = GetForeignColumnOptions(relid, attnum);
+
 		foreach(lc, options)
 		{
 			DefElem    *def = (DefElem *) lfirst(lc);
@@ -502,14 +496,14 @@ fileGetForeignRelSize(PlannerInfo *root,
 					  RelOptInfo *baserel,
 					  Oid foreigntableid)
 {
-	FileFdwPlanState *fdw_private;
 
 	/*
 	 * Fetch options.  We only need filename (or program) at this point, but
 	 * we might as well get everything and not need to re-fetch it later in
 	 * planning.
 	 */
-	fdw_private = (FileFdwPlanState *) palloc(sizeof(FileFdwPlanState));
+	FileFdwPlanState *fdw_private = (FileFdwPlanState *) palloc(sizeof(FileFdwPlanState));
+
 	fileGetOptions(foreigntableid,
 				   &fdw_private->filename,
 				   &fdw_private->is_program,
@@ -655,8 +649,6 @@ fileBeginForeignScan(ForeignScanState *node, int eflags)
 	char	   *filename;
 	bool		is_program;
 	List	   *options;
-	CopyFromState cstate;
-	FileFdwExecutionState *festate;
 
 	/*
 	 * Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL.
@@ -675,20 +667,21 @@ fileBeginForeignScan(ForeignScanState *node, int eflags)
 	 * Create CopyState from FDW options.  We always acquire all columns, so
 	 * as to match the expected ScanTupleSlot signature.
 	 */
-	cstate = BeginCopyFrom(NULL,
-						   node->ss.ss_currentRelation,
-						   NULL,
-						   filename,
-						   is_program,
-						   NULL,
-						   NIL,
-						   options);
+	CopyFromState cstate = BeginCopyFrom(NULL,
+										 node->ss.ss_currentRelation,
+										 NULL,
+										 filename,
+										 is_program,
+										 NULL,
+										 NIL,
+										 options);
 
 	/*
 	 * Save state in node->fdw_state.  We must save enough information to call
 	 * BeginCopyFrom() again.
 	 */
-	festate = (FileFdwExecutionState *) palloc(sizeof(FileFdwExecutionState));
+	FileFdwExecutionState *festate = (FileFdwExecutionState *) palloc(sizeof(FileFdwExecutionState));
+
 	festate->filename = filename;
 	festate->is_program = is_program;
 	festate->options = options;
@@ -707,7 +700,6 @@ fileIterateForeignScan(ForeignScanState *node)
 {
 	FileFdwExecutionState *festate = (FileFdwExecutionState *) node->fdw_state;
 	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-	bool		found;
 	ErrorContextCallback errcallback;
 
 	/* Set up callback to identify error line number. */
@@ -726,8 +718,9 @@ fileIterateForeignScan(ForeignScanState *node)
 	 * file, so no need to evaluate default expressions.
 	 */
 	ExecClearTuple(slot);
-	found = NextCopyFrom(festate->cstate, NULL,
-						 slot->tts_values, slot->tts_isnull);
+	bool		found = NextCopyFrom(festate->cstate, NULL,
+									 slot->tts_values, slot->tts_isnull);
+
 	if (found)
 		ExecStoreVirtualTuple(slot);
 
@@ -848,14 +841,10 @@ check_selective_binary_conversion(RelOptInfo *baserel,
 								  Oid foreigntableid,
 								  List **columns)
 {
-	ForeignTable *table;
 	ListCell   *lc;
-	Relation	rel;
-	TupleDesc	tupleDesc;
 	AttrNumber	attnum;
 	Bitmapset  *attrs_used = NULL;
 	bool		has_wholerow = false;
-	int			numattrs;
 	int			i;
 
 	*columns = NIL;				/* default result */
@@ -863,7 +852,8 @@ check_selective_binary_conversion(RelOptInfo *baserel,
 	/*
 	 * Check format of the file.  If binary format, this is irrelevant.
 	 */
-	table = GetForeignTable(foreigntableid);
+	ForeignTable *table = GetForeignTable(foreigntableid);
+
 	foreach(lc, table->options)
 	{
 		DefElem    *def = (DefElem *) lfirst(lc);
@@ -892,8 +882,8 @@ check_selective_binary_conversion(RelOptInfo *baserel,
 	}
 
 	/* Convert attribute numbers to column names. */
-	rel = table_open(foreigntableid, AccessShareLock);
-	tupleDesc = RelationGetDescr(rel);
+	Relation	rel = table_open(foreigntableid, AccessShareLock);
+	TupleDesc	tupleDesc = RelationGetDescr(rel);
 
 	while ((attnum = bms_first_member(attrs_used)) >= 0)
 	{
@@ -931,7 +921,8 @@ check_selective_binary_conversion(RelOptInfo *baserel,
 	}
 
 	/* Count non-dropped user attributes while we have the tupdesc. */
-	numattrs = 0;
+	int			numattrs = 0;
+
 	for (i = 0; i < tupleDesc->natts; i++)
 	{
 		Form_pg_attribute attr = TupleDescAttr(tupleDesc, i);
@@ -972,9 +963,7 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
 			  FileFdwPlanState *fdw_private)
 {
 	struct stat stat_buf;
-	BlockNumber pages;
 	double		ntuples;
-	double		nrows;
 
 	/*
 	 * Get size of the file.  It might not be there at plan time, though, in
@@ -987,7 +976,8 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
 	/*
 	 * Convert size to pages for use in I/O cost estimate later.
 	 */
-	pages = (stat_buf.st_size + (BLCKSZ - 1)) / BLCKSZ;
+	BlockNumber pages = (stat_buf.st_size + (BLCKSZ - 1)) / BLCKSZ;
+
 	if (pages < 1)
 		pages = 1;
 	fdw_private->pages = pages;
@@ -1002,9 +992,9 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
 		 * previous ANALYZE), so compute a tuples-per-page estimate and scale
 		 * that by the current file size.
 		 */
-		double		density;
 
-		density = baserel->tuples / (double) baserel->pages;
+		double		density = baserel->tuples / (double) baserel->pages;
+
 		ntuples = clamp_row_est(density * (double) pages);
 	}
 	else
@@ -1017,10 +1007,10 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
 		 * representation.  Possibly we could do something better, but the
 		 * real answer to anyone who complains is "ANALYZE" ...
 		 */
-		int			tuple_width;
 
-		tuple_width = MAXALIGN(baserel->reltarget->width) +
-			MAXALIGN(SizeofHeapTupleHeader);
+		int			tuple_width = MAXALIGN(baserel->reltarget->width) +
+		MAXALIGN(SizeofHeapTupleHeader);
+
 		ntuples = clamp_row_est((double) stat_buf.st_size /
 								(double) tuple_width);
 	}
@@ -1030,12 +1020,12 @@ estimate_size(PlannerInfo *root, RelOptInfo *baserel,
 	 * Now estimate the number of rows returned by the scan after applying the
 	 * baserestrictinfo quals.
 	 */
-	nrows = ntuples *
-		clauselist_selectivity(root,
-							   baserel->baserestrictinfo,
-							   0,
-							   JOIN_INNER,
-							   NULL);
+	double		nrows = ntuples *
+	clauselist_selectivity(root,
+						   baserel->baserestrictinfo,
+						   0,
+						   JOIN_INNER,
+						   NULL);
 
 	nrows = clamp_row_est(nrows);
 
@@ -1056,7 +1046,6 @@ estimate_costs(PlannerInfo *root, RelOptInfo *baserel,
 	BlockNumber pages = fdw_private->pages;
 	double		ntuples = fdw_private->ntuples;
 	Cost		run_cost = 0;
-	Cost		cpu_per_tuple;
 
 	/*
 	 * We estimate costs almost the same way as cost_seqscan(), thus assuming
@@ -1072,7 +1061,8 @@ estimate_costs(PlannerInfo *root, RelOptInfo *baserel,
 	run_cost += seq_page_cost * pages;
 
 	*startup_cost = baserel->baserestrictcost.startup;
-	cpu_per_tuple = cpu_tuple_cost * 10 + baserel->baserestrictcost.per_tuple;
+	Cost		cpu_per_tuple = cpu_tuple_cost * 10 + baserel->baserestrictcost.per_tuple;
+
 	run_cost += cpu_per_tuple * ntuples;
 	*total_cost = *startup_cost + run_cost;
 }
@@ -1099,24 +1089,19 @@ file_acquire_sample_rows(Relation onerel, int elevel,
 	int			numrows = 0;
 	double		rowstoskip = -1;	/* -1 means not set yet */
 	ReservoirStateData rstate;
-	TupleDesc	tupDesc;
-	Datum	   *values;
-	bool	   *nulls;
 	bool		found;
 	char	   *filename;
 	bool		is_program;
 	List	   *options;
-	CopyFromState cstate;
 	ErrorContextCallback errcallback;
 	MemoryContext oldcontext = CurrentMemoryContext;
-	MemoryContext tupcontext;
 
 	Assert(onerel);
 	Assert(targrows > 0);
 
-	tupDesc = RelationGetDescr(onerel);
-	values = (Datum *) palloc(tupDesc->natts * sizeof(Datum));
-	nulls = (bool *) palloc(tupDesc->natts * sizeof(bool));
+	TupleDesc	tupDesc = RelationGetDescr(onerel);
+	Datum	   *values = (Datum *) palloc(tupDesc->natts * sizeof(Datum));
+	bool	   *nulls = (bool *) palloc(tupDesc->natts * sizeof(bool));
 
 	/* Fetch options of foreign table */
 	fileGetOptions(RelationGetRelid(onerel), &filename, &is_program, &options);
@@ -1124,16 +1109,16 @@ file_acquire_sample_rows(Relation onerel, int elevel,
 	/*
 	 * Create CopyState from FDW options.
 	 */
-	cstate = BeginCopyFrom(NULL, onerel, NULL, filename, is_program, NULL, NIL,
-						   options);
+	CopyFromState cstate = BeginCopyFrom(NULL, onerel, NULL, filename, is_program, NULL, NIL,
+										 options);
 
 	/*
 	 * Use per-tuple memory context to prevent leak of memory used to read
 	 * rows from the file with Copy routines.
 	 */
-	tupcontext = AllocSetContextCreate(CurrentMemoryContext,
-									   "file_fdw temporary context",
-									   ALLOCSET_DEFAULT_SIZES);
+	MemoryContext tupcontext = AllocSetContextCreate(CurrentMemoryContext,
+													 "file_fdw temporary context",
+													 ALLOCSET_DEFAULT_SIZES);
 
 	/* Prepare for sampling rows */
 	reservoir_init_selection_state(&rstate, targrows);

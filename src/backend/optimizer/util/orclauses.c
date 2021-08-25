@@ -181,7 +181,6 @@ extract_or_clause(RestrictInfo *or_rinfo, RelOptInfo *rel)
 	{
 		Node	   *orarg = (Node *) lfirst(lc);
 		List	   *subclauses = NIL;
-		Node	   *subclause;
 
 		/* OR arguments should be ANDs or sub-RestrictInfos */
 		if (is_andclause(orarg))
@@ -201,9 +200,9 @@ extract_or_clause(RestrictInfo *or_rinfo, RelOptInfo *rel)
 					 * have to descend far enough to find and strip all
 					 * RestrictInfos in the expression.
 					 */
-					Expr	   *suborclause;
 
-					suborclause = extract_or_clause(rinfo, rel);
+					Expr	   *suborclause = extract_or_clause(rinfo, rel);
+
 					if (suborclause)
 						subclauses = lappend(subclauses, suborclause);
 				}
@@ -233,7 +232,8 @@ extract_or_clause(RestrictInfo *or_rinfo, RelOptInfo *rel)
 		 * OR node, add its subclauses to the result instead; this is needed
 		 * to preserve AND/OR flatness (ie, no OR directly underneath OR).
 		 */
-		subclause = (Node *) make_ands_explicit(subclauses);
+		Node	   *subclause = (Node *) make_ands_explicit(subclauses);
+
 		if (is_orclause(subclause))
 			clauselist = list_concat(clauselist,
 									 ((BoolExpr *) subclause)->args);
@@ -260,7 +260,6 @@ static void
 consider_new_or_clause(PlannerInfo *root, RelOptInfo *rel,
 					   Expr *orclause, RestrictInfo *join_or_rinfo)
 {
-	RestrictInfo *or_rinfo;
 	Selectivity or_selec,
 				orig_selec;
 
@@ -268,15 +267,15 @@ consider_new_or_clause(PlannerInfo *root, RelOptInfo *rel,
 	 * Build a RestrictInfo from the new OR clause.  We can assume it's valid
 	 * as a base restriction clause.
 	 */
-	or_rinfo = make_restrictinfo(root,
-								 orclause,
-								 true,
-								 false,
-								 false,
-								 join_or_rinfo->security_level,
-								 NULL,
-								 NULL,
-								 NULL);
+	RestrictInfo *or_rinfo = make_restrictinfo(root,
+											   orclause,
+											   true,
+											   false,
+											   false,
+											   join_or_rinfo->security_level,
+											   NULL,
+											   NULL,
+											   NULL);
 
 	/*
 	 * Estimate its selectivity.  (We could have done this earlier, but doing

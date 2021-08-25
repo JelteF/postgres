@@ -43,25 +43,22 @@ ObjectAddress
 CastCreate(Oid sourcetypeid, Oid targettypeid, Oid funcid, char castcontext,
 		   char castmethod, DependencyType behavior)
 {
-	Relation	relation;
-	HeapTuple	tuple;
-	Oid			castid;
 	Datum		values[Natts_pg_cast];
 	bool		nulls[Natts_pg_cast];
 	ObjectAddress myself,
 				referenced;
-	ObjectAddresses *addrs;
 
-	relation = table_open(CastRelationId, RowExclusiveLock);
+	Relation	relation = table_open(CastRelationId, RowExclusiveLock);
 
 	/*
 	 * Check for duplicate.  This is just to give a friendly error message,
 	 * the unique index would catch it anyway (so no need to sweat about race
 	 * conditions).
 	 */
-	tuple = SearchSysCache2(CASTSOURCETARGET,
-							ObjectIdGetDatum(sourcetypeid),
-							ObjectIdGetDatum(targettypeid));
+	HeapTuple	tuple = SearchSysCache2(CASTSOURCETARGET,
+										ObjectIdGetDatum(sourcetypeid),
+										ObjectIdGetDatum(targettypeid));
+
 	if (HeapTupleIsValid(tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_OBJECT),
@@ -70,7 +67,8 @@ CastCreate(Oid sourcetypeid, Oid targettypeid, Oid funcid, char castcontext,
 						format_type_be(targettypeid))));
 
 	/* ready to go */
-	castid = GetNewOidWithIndex(relation, CastOidIndexId, Anum_pg_cast_oid);
+	Oid			castid = GetNewOidWithIndex(relation, CastOidIndexId, Anum_pg_cast_oid);
+
 	values[Anum_pg_cast_oid - 1] = ObjectIdGetDatum(castid);
 	values[Anum_pg_cast_castsource - 1] = ObjectIdGetDatum(sourcetypeid);
 	values[Anum_pg_cast_casttarget - 1] = ObjectIdGetDatum(targettypeid);
@@ -84,7 +82,7 @@ CastCreate(Oid sourcetypeid, Oid targettypeid, Oid funcid, char castcontext,
 
 	CatalogTupleInsert(relation, tuple);
 
-	addrs = new_object_addresses();
+	ObjectAddresses *addrs = new_object_addresses();
 
 	/* make dependency entries */
 	ObjectAddressSet(myself, CastRelationId, castid);

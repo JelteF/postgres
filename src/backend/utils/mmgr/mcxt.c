@@ -757,7 +757,6 @@ MemoryContextCheck(MemoryContext context)
 bool
 MemoryContextContains(MemoryContext context, void *pointer)
 {
-	MemoryContext ptr_context;
 
 	/*
 	 * NB: Can't use GetMemoryChunkContext() here - that performs assertions
@@ -774,7 +773,7 @@ MemoryContextContains(MemoryContext context, void *pointer)
 	/*
 	 * OK, it's probably safe to look at the context.
 	 */
-	ptr_context = *(MemoryContext *) (((char *) pointer) - sizeof(void *));
+	MemoryContext ptr_context = *(MemoryContext *) (((char *) pointer) - sizeof(void *));
 
 	return ptr_context == context;
 }
@@ -862,7 +861,6 @@ MemoryContextCreate(MemoryContext node,
 void *
 MemoryContextAlloc(MemoryContext context, Size size)
 {
-	void	   *ret;
 
 	AssertArg(MemoryContextIsValid(context));
 	AssertNotInCriticalSection(context);
@@ -872,7 +870,8 @@ MemoryContextAlloc(MemoryContext context, Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -905,7 +904,6 @@ MemoryContextAlloc(MemoryContext context, Size size)
 void *
 MemoryContextAllocZero(MemoryContext context, Size size)
 {
-	void	   *ret;
 
 	AssertArg(MemoryContextIsValid(context));
 	AssertNotInCriticalSection(context);
@@ -915,7 +913,8 @@ MemoryContextAllocZero(MemoryContext context, Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -943,7 +942,6 @@ MemoryContextAllocZero(MemoryContext context, Size size)
 void *
 MemoryContextAllocZeroAligned(MemoryContext context, Size size)
 {
-	void	   *ret;
 
 	AssertArg(MemoryContextIsValid(context));
 	AssertNotInCriticalSection(context);
@@ -953,7 +951,8 @@ MemoryContextAllocZeroAligned(MemoryContext context, Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -978,7 +977,6 @@ MemoryContextAllocZeroAligned(MemoryContext context, Size size)
 void *
 MemoryContextAllocExtended(MemoryContext context, Size size, int flags)
 {
-	void	   *ret;
 
 	AssertArg(MemoryContextIsValid(context));
 	AssertNotInCriticalSection(context);
@@ -989,7 +987,8 @@ MemoryContextAllocExtended(MemoryContext context, Size size, int flags)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		if ((flags & MCXT_ALLOC_NO_OOM) == 0)
@@ -1062,7 +1061,6 @@ void *
 palloc(Size size)
 {
 	/* duplicates MemoryContextAlloc to avoid increased overhead */
-	void	   *ret;
 	MemoryContext context = CurrentMemoryContext;
 
 	AssertArg(MemoryContextIsValid(context));
@@ -1073,7 +1071,8 @@ palloc(Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -1093,7 +1092,6 @@ void *
 palloc0(Size size)
 {
 	/* duplicates MemoryContextAllocZero to avoid increased overhead */
-	void	   *ret;
 	MemoryContext context = CurrentMemoryContext;
 
 	AssertArg(MemoryContextIsValid(context));
@@ -1104,7 +1102,8 @@ palloc0(Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -1126,7 +1125,6 @@ void *
 palloc_extended(Size size, int flags)
 {
 	/* duplicates MemoryContextAllocExtended to avoid increased overhead */
-	void	   *ret;
 	MemoryContext context = CurrentMemoryContext;
 
 	AssertArg(MemoryContextIsValid(context));
@@ -1138,7 +1136,8 @@ palloc_extended(Size size, int flags)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		if ((flags & MCXT_ALLOC_NO_OOM) == 0)
@@ -1182,7 +1181,6 @@ void *
 repalloc(void *pointer, Size size)
 {
 	MemoryContext context = GetMemoryChunkContext(pointer);
-	void	   *ret;
 
 	if (!AllocSizeIsValid(size))
 		elog(ERROR, "invalid memory alloc request size %zu", size);
@@ -1192,7 +1190,8 @@ repalloc(void *pointer, Size size)
 	/* isReset must be false already */
 	Assert(!context->isReset);
 
-	ret = context->methods->realloc(context, pointer, size);
+	void	   *ret = context->methods->realloc(context, pointer, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -1217,7 +1216,6 @@ repalloc(void *pointer, Size size)
 void *
 MemoryContextAllocHuge(MemoryContext context, Size size)
 {
-	void	   *ret;
 
 	AssertArg(MemoryContextIsValid(context));
 	AssertNotInCriticalSection(context);
@@ -1227,7 +1225,8 @@ MemoryContextAllocHuge(MemoryContext context, Size size)
 
 	context->isReset = false;
 
-	ret = context->methods->alloc(context, size);
+	void	   *ret = context->methods->alloc(context, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -1252,7 +1251,6 @@ void *
 repalloc_huge(void *pointer, Size size)
 {
 	MemoryContext context = GetMemoryChunkContext(pointer);
-	void	   *ret;
 
 	if (!AllocHugeSizeIsValid(size))
 		elog(ERROR, "invalid memory alloc request size %zu", size);
@@ -1262,7 +1260,8 @@ repalloc_huge(void *pointer, Size size)
 	/* isReset must be false already */
 	Assert(!context->isReset);
 
-	ret = context->methods->realloc(context, pointer, size);
+	void	   *ret = context->methods->realloc(context, pointer, size);
+
 	if (unlikely(ret == NULL))
 	{
 		MemoryContextStats(TopMemoryContext);
@@ -1285,10 +1284,9 @@ repalloc_huge(void *pointer, Size size)
 char *
 MemoryContextStrdup(MemoryContext context, const char *string)
 {
-	char	   *nstr;
 	Size		len = strlen(string) + 1;
 
-	nstr = (char *) MemoryContextAlloc(context, len);
+	char	   *nstr = (char *) MemoryContextAlloc(context, len);
 
 	memcpy(nstr, string, len);
 
@@ -1309,11 +1307,11 @@ pstrdup(const char *in)
 char *
 pnstrdup(const char *in, Size len)
 {
-	char	   *out;
 
 	len = strnlen(in, len);
 
-	out = palloc(len + 1);
+	char	   *out = palloc(len + 1);
+
 	memcpy(out, in, len);
 	out[len] = '\0';
 
@@ -1326,9 +1324,9 @@ pnstrdup(const char *in, Size len)
 char *
 pchomp(const char *in)
 {
-	size_t		n;
 
-	n = strlen(in);
+	size_t		n = strlen(in);
+
 	while (n > 0 && in[n - 1] == '\n')
 		n--;
 	return pnstrdup(in, n);

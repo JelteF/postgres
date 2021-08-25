@@ -216,12 +216,11 @@ SetXidCommitTsInPage(TransactionId xid, int nsubxids,
 					 TransactionId *subxids, TimestampTz ts,
 					 RepOriginId nodeid, int pageno)
 {
-	int			slotno;
 	int			i;
 
 	LWLockAcquire(CommitTsSLRULock, LW_EXCLUSIVE);
 
-	slotno = SimpleLruReadPage(CommitTsCtl, pageno, true, xid);
+	int			slotno = SimpleLruReadPage(CommitTsCtl, pageno, true, xid);
 
 	TransactionIdSetCommitTs(xid, ts, nodeid, slotno);
 	for (i = 0; i < nsubxids; i++)
@@ -268,10 +267,7 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 {
 	int			pageno = TransactionIdToCTsPage(xid);
 	int			entryno = TransactionIdToCTsEntry(xid);
-	int			slotno;
 	CommitTimestampEntry entry;
-	TransactionId oldestCommitTsXid;
-	TransactionId newestCommitTsXid;
 
 	if (!TransactionIdIsValid(xid))
 		ereport(ERROR,
@@ -306,8 +302,9 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 		return *ts != 0;
 	}
 
-	oldestCommitTsXid = ShmemVariableCache->oldestCommitTsXid;
-	newestCommitTsXid = ShmemVariableCache->newestCommitTsXid;
+	TransactionId oldestCommitTsXid = ShmemVariableCache->oldestCommitTsXid;
+	TransactionId newestCommitTsXid = ShmemVariableCache->newestCommitTsXid;
+
 	/* neither is invalid, or both are */
 	Assert(TransactionIdIsValid(oldestCommitTsXid) == TransactionIdIsValid(newestCommitTsXid));
 	LWLockRelease(CommitTsLock);
@@ -326,7 +323,8 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 	}
 
 	/* lock is acquired by SimpleLruReadPage_ReadOnly */
-	slotno = SimpleLruReadPage_ReadOnly(CommitTsCtl, pageno, xid);
+	int			slotno = SimpleLruReadPage_ReadOnly(CommitTsCtl, pageno, xid);
+
 	memcpy(&entry,
 		   CommitTsCtl->shared->page_buffer[slotno] +
 		   SizeOfCommitTimestampEntry * entryno,
@@ -351,7 +349,6 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 TransactionId
 GetLatestCommitTsData(TimestampTz *ts, RepOriginId *nodeid)
 {
-	TransactionId xid;
 
 	LWLockAcquire(CommitTsLock, LW_SHARED);
 
@@ -359,7 +356,8 @@ GetLatestCommitTsData(TimestampTz *ts, RepOriginId *nodeid)
 	if (!commitTsShared->commitTsActive)
 		error_commit_ts_disabled();
 
-	xid = commitTsShared->xidLastCommit;
+	TransactionId xid = commitTsShared->xidLastCommit;
+
 	if (ts)
 		*ts = commitTsShared->dataLastCommit.time;
 	if (nodeid)
@@ -390,9 +388,8 @@ pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 {
 	TransactionId xid = PG_GETARG_TRANSACTIONID(0);
 	TimestampTz ts;
-	bool		found;
 
-	found = TransactionIdGetCommitTsData(xid, &ts, NULL);
+	bool		found = TransactionIdGetCommitTsData(xid, &ts, NULL);
 
 	if (!found)
 		PG_RETURN_NULL();
@@ -411,22 +408,20 @@ pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 Datum
 pg_last_committed_xact(PG_FUNCTION_ARGS)
 {
-	TransactionId xid;
 	RepOriginId nodeid;
 	TimestampTz ts;
 	Datum		values[3];
 	bool		nulls[3];
-	TupleDesc	tupdesc;
-	HeapTuple	htup;
 
 	/* and construct a tuple with our data */
-	xid = GetLatestCommitTsData(&ts, &nodeid);
+	TransactionId xid = GetLatestCommitTsData(&ts, &nodeid);
 
 	/*
 	 * Construct a tuple descriptor for the result row.  This must match this
 	 * function's pg_proc entry!
 	 */
-	tupdesc = CreateTemplateTupleDesc(3);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(3);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "xid",
 					   XIDOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "timestamp",
@@ -451,7 +446,7 @@ pg_last_committed_xact(PG_FUNCTION_ARGS)
 		nulls[2] = false;
 	}
 
-	htup = heap_form_tuple(tupdesc, values, nulls);
+	HeapTuple	htup = heap_form_tuple(tupdesc, values, nulls);
 
 	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
@@ -470,17 +465,15 @@ pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 	TimestampTz ts;
 	Datum		values[2];
 	bool		nulls[2];
-	TupleDesc	tupdesc;
-	HeapTuple	htup;
-	bool		found;
 
-	found = TransactionIdGetCommitTsData(xid, &ts, &nodeid);
+	bool		found = TransactionIdGetCommitTsData(xid, &ts, &nodeid);
 
 	/*
 	 * Construct a tuple descriptor for the result row.  This must match this
 	 * function's pg_proc entry!
 	 */
-	tupdesc = CreateTemplateTupleDesc(2);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(2);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "timestamp",
 					   TIMESTAMPTZOID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "roident",
@@ -500,7 +493,7 @@ pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 		nulls[1] = false;
 	}
 
-	htup = heap_form_tuple(tupdesc, values, nulls);
+	HeapTuple	htup = heap_form_tuple(tupdesc, values, nulls);
 
 	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
@@ -588,9 +581,8 @@ BootStrapCommitTs(void)
 static int
 ZeroCommitTsPage(int pageno, bool writeXlog)
 {
-	int			slotno;
 
-	slotno = SimpleLruZeroPage(CommitTsCtl, pageno);
+	int			slotno = SimpleLruZeroPage(CommitTsCtl, pageno);
 
 	if (writeXlog)
 		WriteZeroPageXlogRec(pageno);
@@ -678,8 +670,6 @@ CommitTsParameterChange(bool newvalue, bool oldvalue)
 static void
 ActivateCommitTs(void)
 {
-	TransactionId xid;
-	int			pageno;
 
 	/* If we've done this already, there's nothing to do */
 	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
@@ -690,8 +680,8 @@ ActivateCommitTs(void)
 	}
 	LWLockRelease(CommitTsLock);
 
-	xid = XidFromFullTransactionId(ShmemVariableCache->nextXid);
-	pageno = TransactionIdToCTsPage(xid);
+	TransactionId xid = XidFromFullTransactionId(ShmemVariableCache->nextXid);
+	int			pageno = TransactionIdToCTsPage(xid);
 
 	/*
 	 * Re-Initialize our idea of the latest page number.
@@ -724,10 +714,10 @@ ActivateCommitTs(void)
 	/* Create the current segment file, if necessary */
 	if (!SimpleLruDoesPhysicalPageExist(CommitTsCtl, pageno))
 	{
-		int			slotno;
 
 		LWLockAcquire(CommitTsSLRULock, LW_EXCLUSIVE);
-		slotno = ZeroCommitTsPage(pageno, false);
+		int			slotno = ZeroCommitTsPage(pageno, false);
+
 		SimpleLruWritePage(CommitTsCtl, slotno);
 		Assert(!CommitTsCtl->shared->page_dirty[slotno]);
 		LWLockRelease(CommitTsSLRULock);
@@ -812,7 +802,6 @@ CheckPointCommitTs(void)
 void
 ExtendCommitTs(TransactionId newestXact)
 {
-	int			pageno;
 
 	/*
 	 * Nothing to do if module not enabled.  Note we do an unlocked read of
@@ -831,7 +820,7 @@ ExtendCommitTs(TransactionId newestXact)
 		!TransactionIdEquals(newestXact, FirstNormalTransactionId))
 		return;
 
-	pageno = TransactionIdToCTsPage(newestXact);
+	int			pageno = TransactionIdToCTsPage(newestXact);
 
 	LWLockAcquire(CommitTsSLRULock, LW_EXCLUSIVE);
 
@@ -850,13 +839,12 @@ ExtendCommitTs(TransactionId newestXact)
 void
 TruncateCommitTs(TransactionId oldestXact)
 {
-	int			cutoffPage;
 
 	/*
 	 * The cutoff point is the start of the segment containing oldestXact. We
 	 * pass the *page* containing oldestXact to SimpleLruTruncate.
 	 */
-	cutoffPage = TransactionIdToCTsPage(oldestXact);
+	int			cutoffPage = TransactionIdToCTsPage(oldestXact);
 
 	/* Check to see if there's any files that could be removed */
 	if (!SlruScanDirectory(CommitTsCtl, SlruScanDirCbReportPresence,
@@ -937,12 +925,12 @@ AdvanceOldestCommitTsXid(TransactionId oldestXact)
 static bool
 CommitTsPagePrecedes(int page1, int page2)
 {
-	TransactionId xid1;
-	TransactionId xid2;
 
-	xid1 = ((TransactionId) page1) * COMMIT_TS_XACTS_PER_PAGE;
+	TransactionId xid1 = ((TransactionId) page1) * COMMIT_TS_XACTS_PER_PAGE;
+
 	xid1 += FirstNormalTransactionId + 1;
-	xid2 = ((TransactionId) page2) * COMMIT_TS_XACTS_PER_PAGE;
+	TransactionId xid2 = ((TransactionId) page2) * COMMIT_TS_XACTS_PER_PAGE;
+
 	xid2 += FirstNormalTransactionId + 1;
 
 	return (TransactionIdPrecedes(xid1, xid2) &&
@@ -991,13 +979,13 @@ commit_ts_redo(XLogReaderState *record)
 	if (info == COMMIT_TS_ZEROPAGE)
 	{
 		int			pageno;
-		int			slotno;
 
 		memcpy(&pageno, XLogRecGetData(record), sizeof(int));
 
 		LWLockAcquire(CommitTsSLRULock, LW_EXCLUSIVE);
 
-		slotno = ZeroCommitTsPage(pageno, false);
+		int			slotno = ZeroCommitTsPage(pageno, false);
+
 		SimpleLruWritePage(CommitTsCtl, slotno);
 		Assert(!CommitTsCtl->shared->page_dirty[slotno]);
 

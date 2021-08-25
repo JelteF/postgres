@@ -40,14 +40,13 @@ RestoreArchivedFile(const char *path, const char *xlogfname,
 					off_t expectedSize, const char *restoreCommand)
 {
 	char		xlogpath[MAXPGPATH];
-	char	   *xlogRestoreCmd;
-	int			rc;
 	struct stat stat_buf;
 
 	snprintf(xlogpath, MAXPGPATH, "%s/" XLOGDIR "/%s", path, xlogfname);
 
-	xlogRestoreCmd = BuildRestoreCommand(restoreCommand, xlogpath,
-										 xlogfname, NULL);
+	char	   *xlogRestoreCmd = BuildRestoreCommand(restoreCommand, xlogpath,
+													 xlogfname, NULL);
+
 	if (xlogRestoreCmd == NULL)
 	{
 		pg_log_fatal("cannot use restore_command with %%r placeholder");
@@ -58,7 +57,8 @@ RestoreArchivedFile(const char *path, const char *xlogfname,
 	 * Execute restore_command, which should copy the missing file from
 	 * archival storage.
 	 */
-	rc = system(xlogRestoreCmd);
+	int			rc = system(xlogRestoreCmd);
+
 	pfree(xlogRestoreCmd);
 
 	if (rc == 0)

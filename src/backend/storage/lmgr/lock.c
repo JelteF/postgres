@@ -534,13 +534,11 @@ static uint32
 proclock_hash(const void *key, Size keysize)
 {
 	const PROCLOCKTAG *proclocktag = (const PROCLOCKTAG *) key;
-	uint32		lockhash;
-	Datum		procptr;
 
 	Assert(keysize == sizeof(PROCLOCKTAG));
 
 	/* Look into the associated LOCK object, and compute its hash code */
-	lockhash = LockTagHashCode(&proclocktag->myLock->tag);
+	uint32		lockhash = LockTagHashCode(&proclocktag->myLock->tag);
 
 	/*
 	 * To make the hash code also depend on the PGPROC, we xor the proc
@@ -549,7 +547,8 @@ proclock_hash(const void *key, Size keysize)
 	 * don't care if we lose high-order bits of the address; use an
 	 * intermediate variable to suppress cast-pointer-to-int warnings.
 	 */
-	procptr = PointerGetDatum(proclocktag->myProc);
+	Datum		procptr = PointerGetDatum(proclocktag->myProc);
+
 	lockhash ^= ((uint32) procptr) << LOG2_NUM_LOCK_PARTITIONS;
 
 	return lockhash;
@@ -565,12 +564,12 @@ static inline uint32
 ProcLockHashCode(const PROCLOCKTAG *proclocktag, uint32 hashcode)
 {
 	uint32		lockhash = hashcode;
-	Datum		procptr;
 
 	/*
 	 * This must match proclock_hash()!
 	 */
-	procptr = PointerGetDatum(proclocktag->myProc);
+	Datum		procptr = PointerGetDatum(proclocktag->myProc);
+
 	lockhash ^= ((uint32) procptr) << LOG2_NUM_LOCK_PARTITIONS;
 
 	return lockhash;
@@ -598,7 +597,6 @@ bool
 LockHeldByMe(const LOCKTAG *locktag, LOCKMODE lockmode)
 {
 	LOCALLOCKTAG localtag;
-	LOCALLOCK  *locallock;
 
 	/*
 	 * See if there is a LOCALLOCK entry for this lock and lockmode
@@ -607,9 +605,9 @@ LockHeldByMe(const LOCKTAG *locktag, LOCKMODE lockmode)
 	localtag.lock = *locktag;
 	localtag.mode = lockmode;
 
-	locallock = (LOCALLOCK *) hash_search(LockMethodLocalHash,
-										  (void *) &localtag,
-										  HASH_FIND, NULL);
+	LOCALLOCK  *locallock = (LOCALLOCK *) hash_search(LockMethodLocalHash,
+													  (void *) &localtag,
+													  HASH_FIND, NULL);
 
 	return (locallock && locallock->nLocks > 0);
 }
@@ -634,7 +632,6 @@ bool
 LockHasWaiters(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 {
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
-	LockMethod	lockMethodTable;
 	LOCALLOCKTAG localtag;
 	LOCALLOCK  *locallock;
 	LOCK	   *lock;
@@ -644,7 +641,8 @@ LockHasWaiters(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
+
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 
@@ -776,7 +774,6 @@ LockAcquireExtended(const LOCKTAG *locktag,
 					LOCALLOCK **locallockp)
 {
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
-	LockMethod	lockMethodTable;
 	LOCALLOCKTAG localtag;
 	LOCALLOCK  *locallock;
 	LOCK	   *lock;
@@ -790,7 +787,8 @@ LockAcquireExtended(const LOCKTAG *locktag,
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
+
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 
@@ -1055,9 +1053,9 @@ LockAcquireExtended(const LOCKTAG *locktag,
 			AbortStrongLockAcquire();
 			if (proclock->holdMask == 0)
 			{
-				uint32		proclock_hashcode;
 
-				proclock_hashcode = ProcLockHashCode(&proclock->tag, hashcode);
+				uint32		proclock_hashcode = ProcLockHashCode(&proclock->tag, hashcode);
+
 				SHMQueueDelete(&proclock->lockLink);
 				SHMQueueDelete(&proclock->procLink);
 				if (!hash_search_with_hash_value(LockMethodProcLockHash,
@@ -1170,20 +1168,18 @@ static PROCLOCK *
 SetupLockInTable(LockMethod lockMethodTable, PGPROC *proc,
 				 const LOCKTAG *locktag, uint32 hashcode, LOCKMODE lockmode)
 {
-	LOCK	   *lock;
-	PROCLOCK   *proclock;
 	PROCLOCKTAG proclocktag;
-	uint32		proclock_hashcode;
 	bool		found;
 
 	/*
 	 * Find or create a lock with this tag.
 	 */
-	lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-												(const void *) locktag,
-												hashcode,
-												HASH_ENTER_NULL,
-												&found);
+	LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+															(const void *) locktag,
+															hashcode,
+															HASH_ENTER_NULL,
+															&found);
+
 	if (!lock)
 		return NULL;
 
@@ -1216,16 +1212,17 @@ SetupLockInTable(LockMethod lockMethodTable, PGPROC *proc,
 	proclocktag.myLock = lock;
 	proclocktag.myProc = proc;
 
-	proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
+	uint32		proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
 
 	/*
 	 * Find or create a proclock entry with this tag
 	 */
-	proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
-														(void *) &proclocktag,
-														proclock_hashcode,
-														HASH_ENTER_NULL,
-														&found);
+	PROCLOCK   *proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
+																	(void *) &proclocktag,
+																	proclock_hashcode,
+																	HASH_ENTER_NULL,
+																	&found);
+
 	if (!proclock)
 	{
 		/* Oops, not enough shmem for the proclock */
@@ -1380,9 +1377,8 @@ RemoveLocalLock(LOCALLOCK *locallock)
 
 	if (locallock->holdsStrongLockCount)
 	{
-		uint32		fasthashcode;
 
-		fasthashcode = FastPathStrongLockHashPartition(locallock->hashcode);
+		uint32		fasthashcode = FastPathStrongLockHashPartition(locallock->hashcode);
 
 		SpinLockAcquire(&FastPathStrongRelationLocks->mutex);
 		Assert(FastPathStrongRelationLocks->count[fasthashcode] > 0);
@@ -1423,13 +1419,10 @@ LockCheckConflicts(LockMethod lockMethodTable,
 				   PROCLOCK *proclock)
 {
 	int			numLockModes = lockMethodTable->numLockModes;
-	LOCKMASK	myLocks;
 	int			conflictMask = lockMethodTable->conflictTab[lockmode];
 	int			conflictsRemaining[MAX_LOCKMODES];
 	int			totalConflictsRemaining = 0;
 	int			i;
-	SHM_QUEUE  *procLocks;
-	PROCLOCK   *otherproclock;
 
 	/*
 	 * first check for global conflicts: If no locks conflict with my request,
@@ -1451,7 +1444,8 @@ LockCheckConflicts(LockMethod lockMethodTable,
 	 * lock held by another member of my locking group.  First, figure out how
 	 * many conflicts remain after subtracting out any locks I hold myself.
 	 */
-	myLocks = proclock->holdMask;
+	LOCKMASK	myLocks = proclock->holdMask;
+
 	for (i = 1; i <= numLockModes; i++)
 	{
 		if ((conflictMask & LOCKBIT_ON(i)) == 0)
@@ -1501,9 +1495,10 @@ LockCheckConflicts(LockMethod lockMethodTable,
 	 * shared memory state more complex (and larger) but it doesn't seem worth
 	 * it.
 	 */
-	procLocks = &(lock->procLocks);
-	otherproclock = (PROCLOCK *)
-		SHMQueueNext(procLocks, procLocks, offsetof(PROCLOCK, lockLink));
+	SHM_QUEUE  *procLocks = &(lock->procLocks);
+	PROCLOCK   *otherproclock = (PROCLOCK *)
+	SHMQueueNext(procLocks, procLocks, offsetof(PROCLOCK, lockLink));
+
 	while (otherproclock != NULL)
 	{
 		if (proclock != otherproclock &&
@@ -1642,12 +1637,12 @@ CleanUpLock(LOCK *lock, PROCLOCK *proclock,
 	 */
 	if (proclock->holdMask == 0)
 	{
-		uint32		proclock_hashcode;
 
 		PROCLOCK_PRINT("CleanUpLock: deleting", proclock);
 		SHMQueueDelete(&proclock->lockLink);
 		SHMQueueDelete(&proclock->procLink);
-		proclock_hashcode = ProcLockHashCode(&proclock->tag, hashcode);
+		uint32		proclock_hashcode = ProcLockHashCode(&proclock->tag, hashcode);
+
 		if (!hash_search_with_hash_value(LockMethodProcLockHash,
 										 (void *) &(proclock->tag),
 										 proclock_hashcode,
@@ -1756,13 +1751,13 @@ FinishStrongLockAcquire(void)
 void
 AbortStrongLockAcquire(void)
 {
-	uint32		fasthashcode;
 	LOCALLOCK  *locallock = StrongLockInProgress;
 
 	if (locallock == NULL)
 		return;
 
-	fasthashcode = FastPathStrongLockHashPartition(locallock->hashcode);
+	uint32		fasthashcode = FastPathStrongLockHashPartition(locallock->hashcode);
+
 	Assert(locallock->holdsStrongLockCount == true);
 	SpinLockAcquire(&FastPathStrongRelationLocks->mutex);
 	Assert(FastPathStrongRelationLocks->count[fasthashcode] > 0);
@@ -1823,10 +1818,10 @@ WaitOnLock(LOCALLOCK *locallock, ResourceOwner owner)
 	/* Report change to waiting status */
 	if (update_process_title)
 	{
-		const char *old_status;
 		int			len;
 
-		old_status = get_ps_display(&len);
+		const char *old_status = get_ps_display(&len);
+
 		new_status = (char *) palloc(len + 8 + 1);
 		memcpy(new_status, old_status, len);
 		strcpy(new_status + len, " waiting");
@@ -1975,7 +1970,6 @@ bool
 LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 {
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
-	LockMethod	lockMethodTable;
 	LOCALLOCKTAG localtag;
 	LOCALLOCK  *locallock;
 	LOCK	   *lock;
@@ -1985,7 +1979,8 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
+
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 
@@ -2079,15 +2074,15 @@ LockRelease(const LOCKTAG *locktag, LOCKMODE lockmode, bool sessionLock)
 	if (EligibleForRelationFastPath(locktag, lockmode) &&
 		FastPathLocalUseCount > 0)
 	{
-		bool		released;
 
 		/*
 		 * We might not find the lock here, even if we originally entered it
 		 * here.  Another backend may have moved it to the main table.
 		 */
 		LWLockAcquire(&MyProc->fpInfoLock, LW_EXCLUSIVE);
-		released = FastPathUnGrantRelationLock(locktag->locktag_field2,
-											   lockmode);
+		bool		released = FastPathUnGrantRelationLock(locktag->locktag_field2,
+														   lockmode);
+
 		LWLockRelease(&MyProc->fpInfoLock);
 		if (released)
 		{
@@ -2180,7 +2175,6 @@ void
 LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 {
 	HASH_SEQ_STATUS status;
-	LockMethod	lockMethodTable;
 	int			i,
 				numLockModes;
 	LOCALLOCK  *locallock;
@@ -2191,7 +2185,7 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
 
 #ifdef LOCK_DEBUG
 	if (*(lockMethodTable->trace_flag))
@@ -2275,7 +2269,6 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 		if (locallock->proclock == NULL || locallock->lock == NULL)
 		{
 			LOCKMODE	lockmode = locallock->tag.mode;
-			Oid			relid;
 
 			/* Verify that a fast-path lock is what we've got. */
 			if (!EligibleForRelationFastPath(&locallock->tag.lock, lockmode))
@@ -2296,7 +2289,8 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 			}
 
 			/* Attempt fast-path release. */
-			relid = locallock->tag.lock.locktag_field2;
+			Oid			relid = locallock->tag.lock.locktag_field2;
+
 			if (FastPathUnGrantRelationLock(relid, lockmode))
 			{
 				RemoveLocalLock(locallock);
@@ -2341,11 +2335,10 @@ LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks)
 	 */
 	for (partition = 0; partition < NUM_LOCK_PARTITIONS; partition++)
 	{
-		LWLock	   *partitionLock;
 		SHM_QUEUE  *procLocks = &(MyProc->myProcLocks[partition]);
 		PROCLOCK   *nextplock;
 
-		partitionLock = LockHashPartitionLockByIndex(partition);
+		LWLock	   *partitionLock = LockHashPartitionLockByIndex(partition);
 
 		/*
 		 * If the proclock list for this partition is empty, we can skip
@@ -2519,7 +2512,6 @@ static void
 ReleaseLockIfHeld(LOCALLOCK *locallock, bool sessionLock)
 {
 	ResourceOwner owner;
-	LOCALLOCKOWNER *lockOwners;
 	int			i;
 
 	/* Identify owner for lock (must match LockRelease!) */
@@ -2529,7 +2521,8 @@ ReleaseLockIfHeld(LOCALLOCK *locallock, bool sessionLock)
 		owner = CurrentResourceOwner;
 
 	/* Scan to see if there are any locks belonging to the target owner */
-	lockOwners = locallock->lockOwners;
+	LOCALLOCKOWNER *lockOwners = locallock->lockOwners;
+
 	for (i = locallock->numLockOwners - 1; i >= 0; i--)
 	{
 		if (lockOwners[i].owner == owner)
@@ -2608,7 +2601,6 @@ LockReassignCurrentOwner(LOCALLOCK **locallocks, int nlocks)
 static void
 LockReassignOwner(LOCALLOCK *locallock, ResourceOwner parent)
 {
-	LOCALLOCKOWNER *lockOwners;
 	int			i;
 	int			ic = -1;
 	int			ip = -1;
@@ -2617,7 +2609,8 @@ LockReassignOwner(LOCALLOCK *locallock, ResourceOwner parent)
 	 * Scan to see if there are any locks belonging to current owner or its
 	 * parent
 	 */
-	lockOwners = locallock->lockOwners;
+	LOCALLOCKOWNER *lockOwners = locallock->lockOwners;
+
 	for (i = locallock->numLockOwners - 1; i >= 0; i--)
 	{
 		if (lockOwners[i].owner == CurrentResourceOwner)
@@ -2774,12 +2767,12 @@ FastPathTransferRelationLocks(LockMethod lockMethodTable, const LOCKTAG *locktag
 				 lockmode < FAST_PATH_LOCKNUMBER_OFFSET + FAST_PATH_BITS_PER_SLOT;
 				 ++lockmode)
 			{
-				PROCLOCK   *proclock;
 
 				if (!FAST_PATH_CHECK_LOCKMODE(proc, f, lockmode))
 					continue;
-				proclock = SetupLockInTable(lockMethodTable, proc, locktag,
-											hashcode, lockmode);
+				PROCLOCK   *proclock = SetupLockInTable(lockMethodTable, proc, locktag,
+														hashcode, lockmode);
+
 				if (!proclock)
 				{
 					LWLockRelease(partitionLock);
@@ -2820,14 +2813,14 @@ FastPathGetRelationLockEntry(LOCALLOCK *locallock)
 
 	for (f = 0; f < FP_LOCK_SLOTS_PER_BACKEND; f++)
 	{
-		uint32		lockmode;
 
 		/* Look for an allocated slot matching the given relid. */
 		if (relid != MyProc->fpRelId[f] || FAST_PATH_GET_BITS(MyProc, f) == 0)
 			continue;
 
 		/* If we don't have a lock of the given mode, forget it! */
-		lockmode = locallock->tag.mode;
+		uint32		lockmode = locallock->tag.mode;
+
 		if (!FAST_PATH_CHECK_LOCKMODE(MyProc, f, lockmode))
 			break;
 
@@ -2859,24 +2852,24 @@ FastPathGetRelationLockEntry(LOCALLOCK *locallock)
 	/* Lock may have already been transferred by some other backend. */
 	if (proclock == NULL)
 	{
-		LOCK	   *lock;
 		PROCLOCKTAG proclocktag;
-		uint32		proclock_hashcode;
 
 		LWLockAcquire(partitionLock, LW_SHARED);
 
-		lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-													(void *) locktag,
-													locallock->hashcode,
-													HASH_FIND,
-													NULL);
+		LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+																(void *) locktag,
+																locallock->hashcode,
+																HASH_FIND,
+																NULL);
+
 		if (!lock)
 			elog(ERROR, "failed to re-find shared lock object");
 
 		proclocktag.myLock = lock;
 		proclocktag.myProc = MyProc;
 
-		proclock_hashcode = ProcLockHashCode(&proclocktag, locallock->hashcode);
+		uint32		proclock_hashcode = ProcLockHashCode(&proclocktag, locallock->hashcode);
+
 		proclock = (PROCLOCK *)
 			hash_search_with_hash_value(LockMethodProcLockHash,
 										(void *) &proclocktag,
@@ -2911,19 +2904,12 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 {
 	static VirtualTransactionId *vxids;
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
-	LockMethod	lockMethodTable;
-	LOCK	   *lock;
-	LOCKMASK	conflictMask;
-	SHM_QUEUE  *procLocks;
-	PROCLOCK   *proclock;
-	uint32		hashcode;
-	LWLock	   *partitionLock;
 	int			count = 0;
-	int			fast_count = 0;
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
+
 	if (lockmode <= 0 || lockmode > lockMethodTable->numLockModes)
 		elog(ERROR, "unrecognized lock mode: %d", lockmode);
 
@@ -2946,9 +2932,9 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 					(MaxBackends + max_prepared_xacts + 1));
 
 	/* Compute hash code and partition lock, and look up conflicting modes. */
-	hashcode = LockTagHashCode(locktag);
-	partitionLock = LockHashPartitionLock(hashcode);
-	conflictMask = lockMethodTable->conflictTab[lockmode];
+	uint32		hashcode = LockTagHashCode(locktag);
+	LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
+	LOCKMASK	conflictMask = lockMethodTable->conflictTab[lockmode];
 
 	/*
 	 * Fast path locks might not have been entered in the primary lock table.
@@ -2998,12 +2984,12 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 
 			for (f = 0; f < FP_LOCK_SLOTS_PER_BACKEND; f++)
 			{
-				uint32		lockmask;
 
 				/* Look for an allocated slot matching the given relid. */
 				if (relid != proc->fpRelId[f])
 					continue;
-				lockmask = FAST_PATH_GET_BITS(proc, f);
+				uint32		lockmask = FAST_PATH_GET_BITS(proc, f);
+
 				if (!lockmask)
 					continue;
 				lockmask <<= FAST_PATH_LOCKNUMBER_OFFSET;
@@ -3031,18 +3017,19 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 	}
 
 	/* Remember how many fast-path conflicts we found. */
-	fast_count = count;
+	int			fast_count = count;
 
 	/*
 	 * Look up the lock object matching the tag.
 	 */
 	LWLockAcquire(partitionLock, LW_SHARED);
 
-	lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-												(const void *) locktag,
-												hashcode,
-												HASH_FIND,
-												NULL);
+	LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+															(const void *) locktag,
+															hashcode,
+															HASH_FIND,
+															NULL);
+
 	if (!lock)
 	{
 		/*
@@ -3061,10 +3048,10 @@ GetLockConflicts(const LOCKTAG *locktag, LOCKMODE lockmode, int *countp)
 	 * Examine each existing holder (or awaiter) of the lock.
 	 */
 
-	procLocks = &(lock->procLocks);
+	SHM_QUEUE  *procLocks = &(lock->procLocks);
 
-	proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
-										 offsetof(PROCLOCK, lockLink));
+	PROCLOCK   *proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
+													 offsetof(PROCLOCK, lockLink));
 
 	while (proclock)
 	{
@@ -3126,27 +3113,22 @@ LockRefindAndRelease(LockMethod lockMethodTable, PGPROC *proc,
 					 LOCKTAG *locktag, LOCKMODE lockmode,
 					 bool decrement_strong_lock_count)
 {
-	LOCK	   *lock;
-	PROCLOCK   *proclock;
 	PROCLOCKTAG proclocktag;
-	uint32		hashcode;
-	uint32		proclock_hashcode;
-	LWLock	   *partitionLock;
-	bool		wakeupNeeded;
 
-	hashcode = LockTagHashCode(locktag);
-	partitionLock = LockHashPartitionLock(hashcode);
+	uint32		hashcode = LockTagHashCode(locktag);
+	LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
 
 	LWLockAcquire(partitionLock, LW_EXCLUSIVE);
 
 	/*
 	 * Re-find the lock object (it had better be there).
 	 */
-	lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-												(void *) locktag,
-												hashcode,
-												HASH_FIND,
-												NULL);
+	LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+															(void *) locktag,
+															hashcode,
+															HASH_FIND,
+															NULL);
+
 	if (!lock)
 		elog(PANIC, "failed to re-find shared lock object");
 
@@ -3156,13 +3138,14 @@ LockRefindAndRelease(LockMethod lockMethodTable, PGPROC *proc,
 	proclocktag.myLock = lock;
 	proclocktag.myProc = proc;
 
-	proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
+	uint32		proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
 
-	proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
-														(void *) &proclocktag,
-														proclock_hashcode,
-														HASH_FIND,
-														NULL);
+	PROCLOCK   *proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
+																	(void *) &proclocktag,
+																	proclock_hashcode,
+																	HASH_FIND,
+																	NULL);
+
 	if (!proclock)
 		elog(PANIC, "failed to re-find shared proclock object");
 
@@ -3182,7 +3165,7 @@ LockRefindAndRelease(LockMethod lockMethodTable, PGPROC *proc,
 	/*
 	 * Do the releasing.  CleanUpLock will waken any now-wakable waiters.
 	 */
-	wakeupNeeded = UnGrantLock(lock, lockmode, proclock, lockMethodTable);
+	bool		wakeupNeeded = UnGrantLock(lock, lockmode, proclock, lockMethodTable);
 
 	CleanUpLock(lock, proclock,
 				lockMethodTable, hashcode,
@@ -3233,10 +3216,9 @@ CheckForSessionAndXactLocks(void)
 		LOCKTAG		lock;		/* identifies the lockable object */
 		bool		sessLock;	/* is any lockmode held at session level? */
 		bool		xactLock;	/* is any lockmode held at xact level? */
-	} PerLockTagEntry;
+	}			PerLockTagEntry;
 
 	HASHCTL		hash_ctl;
-	HTAB	   *lockhtab;
 	HASH_SEQ_STATUS status;
 	LOCALLOCK  *locallock;
 
@@ -3245,10 +3227,10 @@ CheckForSessionAndXactLocks(void)
 	hash_ctl.entrysize = sizeof(PerLockTagEntry);
 	hash_ctl.hcxt = CurrentMemoryContext;
 
-	lockhtab = hash_create("CheckForSessionAndXactLocks table",
-						   256, /* arbitrary initial size */
-						   &hash_ctl,
-						   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	HTAB	   *lockhtab = hash_create("CheckForSessionAndXactLocks table",
+									   256, /* arbitrary initial size */
+									   &hash_ctl,
+									   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/* Scan local lock table to find entries for each LOCKTAG */
 	hash_seq_init(&status, LockMethodLocalHash);
@@ -3256,7 +3238,6 @@ CheckForSessionAndXactLocks(void)
 	while ((locallock = (LOCALLOCK *) hash_seq_search(&status)) != NULL)
 	{
 		LOCALLOCKOWNER *lockOwners = locallock->lockOwners;
-		PerLockTagEntry *hentry;
 		bool		found;
 		int			i;
 
@@ -3272,9 +3253,10 @@ CheckForSessionAndXactLocks(void)
 			continue;
 
 		/* Otherwise, find or make an entry in lockhtab */
-		hentry = (PerLockTagEntry *) hash_search(lockhtab,
-												 (void *) &locallock->tag.lock,
-												 HASH_ENTER, &found);
+		PerLockTagEntry *hentry = (PerLockTagEntry *) hash_search(lockhtab,
+																  (void *) &locallock->tag.lock,
+																  HASH_ENTER, &found);
+
 		if (!found)				/* initialize, if newly created */
 			hentry->sessLock = hentry->xactLock = false;
 
@@ -3329,7 +3311,6 @@ AtPrepare_Locks(void)
 	{
 		TwoPhaseLockRecord record;
 		LOCALLOCKOWNER *lockOwners = locallock->lockOwners;
-		bool		haveSessionLock;
 		bool		haveXactLock;
 		int			i;
 
@@ -3345,7 +3326,8 @@ AtPrepare_Locks(void)
 			continue;
 
 		/* Scan to see whether we hold it at session or transaction level */
-		haveSessionLock = haveXactLock = false;
+		bool		haveSessionLock = haveXactLock = false;
+
 		for (i = locallock->numLockOwners - 1; i >= 0; i--)
 		{
 			if (lockOwners[i].owner == NULL)
@@ -3441,7 +3423,6 @@ PostPrepare_Locks(TransactionId xid)
 	while ((locallock = (LOCALLOCK *) hash_seq_search(&status)) != NULL)
 	{
 		LOCALLOCKOWNER *lockOwners = locallock->lockOwners;
-		bool		haveSessionLock;
 		bool		haveXactLock;
 		int			i;
 
@@ -3461,7 +3442,8 @@ PostPrepare_Locks(TransactionId xid)
 			continue;
 
 		/* Scan to see whether we hold it at session or transaction level */
-		haveSessionLock = haveXactLock = false;
+		bool		haveSessionLock = haveXactLock = false;
+
 		for (i = locallock->numLockOwners - 1; i >= 0; i--)
 		{
 			if (lockOwners[i].owner == NULL)
@@ -3493,11 +3475,10 @@ PostPrepare_Locks(TransactionId xid)
 	 */
 	for (partition = 0; partition < NUM_LOCK_PARTITIONS; partition++)
 	{
-		LWLock	   *partitionLock;
 		SHM_QUEUE  *procLocks = &(MyProc->myProcLocks[partition]);
 		PROCLOCK   *nextplock;
 
-		partitionLock = LockHashPartitionLockByIndex(partition);
+		LWLock	   *partitionLock = LockHashPartitionLockByIndex(partition);
 
 		/*
 		 * If the proclock list for this partition is empty, we can skip
@@ -3605,10 +3586,10 @@ Size
 LockShmemSize(void)
 {
 	Size		size = 0;
-	long		max_table_size;
 
 	/* lock hash table */
-	max_table_size = NLOCKENTS();
+	long		max_table_size = NLOCKENTS();
+
 	size = add_size(size, hash_estimate_size(max_table_size, sizeof(LOCK)));
 
 	/* proclock hash table */
@@ -3641,18 +3622,16 @@ LockShmemSize(void)
 LockData *
 GetLockStatusData(void)
 {
-	LockData   *data;
 	PROCLOCK   *proclock;
 	HASH_SEQ_STATUS seqstat;
-	int			els;
-	int			el;
 	int			i;
 
-	data = (LockData *) palloc(sizeof(LockData));
+	LockData   *data = (LockData *) palloc(sizeof(LockData));
 
 	/* Guess how much space we'll need. */
-	els = MaxBackends;
-	el = 0;
+	int			els = MaxBackends;
+	int			el = 0;
+
 	data->locks = (LockInstanceData *) palloc(sizeof(LockInstanceData) * els);
 
 	/*
@@ -3676,7 +3655,6 @@ GetLockStatusData(void)
 
 		for (f = 0; f < FP_LOCK_SLOTS_PER_BACKEND; ++f)
 		{
-			LockInstanceData *instance;
 			uint32		lockbits = FAST_PATH_GET_BITS(proc, f);
 
 			/* Skip unallocated slots. */
@@ -3690,7 +3668,8 @@ GetLockStatusData(void)
 					repalloc(data->locks, sizeof(LockInstanceData) * els);
 			}
 
-			instance = &data->locks[el];
+			LockInstanceData *instance = &data->locks[el];
+
 			SET_LOCKTAG_RELATION(instance->locktag, proc->databaseId,
 								 proc->fpRelId[f]);
 			instance->holdMask = lockbits << FAST_PATH_LOCKNUMBER_OFFSET;
@@ -3713,7 +3692,6 @@ GetLockStatusData(void)
 		if (proc->fpVXIDLock)
 		{
 			VirtualTransactionId vxid;
-			LockInstanceData *instance;
 
 			if (el >= els)
 			{
@@ -3725,7 +3703,8 @@ GetLockStatusData(void)
 			vxid.backendId = proc->backendId;
 			vxid.localTransactionId = proc->fpLocalTransactionId;
 
-			instance = &data->locks[el];
+			LockInstanceData *instance = &data->locks[el];
+
 			SET_LOCKTAG_VIRTUALTRANSACTION(instance->locktag, vxid);
 			instance->holdMask = LOCKBIT_ON(ExclusiveLock);
 			instance->waitLockMode = NoLock;
@@ -3833,11 +3812,9 @@ GetLockStatusData(void)
 BlockedProcsData *
 GetBlockerStatusData(int blocked_pid)
 {
-	BlockedProcsData *data;
-	PGPROC	   *proc;
 	int			i;
 
-	data = (BlockedProcsData *) palloc(sizeof(BlockedProcsData));
+	BlockedProcsData *data = (BlockedProcsData *) palloc(sizeof(BlockedProcsData));
 
 	/*
 	 * Guess how much space we'll need, and preallocate.  Most of the time
@@ -3864,7 +3841,7 @@ GetBlockerStatusData(int blocked_pid)
 	 */
 	LWLockAcquire(ProcArrayLock, LW_SHARED);
 
-	proc = BackendPidGetProcWithLock(blocked_pid);
+	PGPROC	   *proc = BackendPidGetProcWithLock(blocked_pid);
 
 	/* Nothing to do if it's gone */
 	if (proc != NULL)
@@ -3888,9 +3865,9 @@ GetBlockerStatusData(int blocked_pid)
 
 			dlist_foreach(iter, &proc->lockGroupLeader->lockGroupMembers)
 			{
-				PGPROC	   *memberProc;
 
-				memberProc = dlist_container(PGPROC, lockGroupLink, iter.cur);
+				PGPROC	   *memberProc = dlist_container(PGPROC, lockGroupLink, iter.cur);
+
 				GetSingleProcBlockerStatusData(memberProc, data);
 			}
 		}
@@ -3914,12 +3891,7 @@ static void
 GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 {
 	LOCK	   *theLock = blocked_proc->waitLock;
-	BlockedProcData *bproc;
-	SHM_QUEUE  *procLocks;
-	PROCLOCK   *proclock;
-	PROC_QUEUE *waitQueue;
 	PGPROC	   *proc;
-	int			queue_size;
 	int			i;
 
 	/* Nothing to do if this proc is not blocked */
@@ -3927,7 +3899,8 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 		return;
 
 	/* Set up a procs[] element */
-	bproc = &data->procs[data->nprocs++];
+	BlockedProcData *bproc = &data->procs[data->nprocs++];
+
 	bproc->pid = blocked_proc->pid;
 	bproc->first_lock = data->nlocks;
 	bproc->first_waiter = data->npids;
@@ -3938,14 +3911,14 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 	 */
 
 	/* Collect all PROCLOCKs associated with theLock */
-	procLocks = &(theLock->procLocks);
-	proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
-										 offsetof(PROCLOCK, lockLink));
+	SHM_QUEUE  *procLocks = &(theLock->procLocks);
+	PROCLOCK   *proclock = (PROCLOCK *) SHMQueueNext(procLocks, procLocks,
+													 offsetof(PROCLOCK, lockLink));
+
 	while (proclock)
 	{
 		PGPROC	   *proc = proclock->tag.myProc;
 		LOCK	   *lock = proclock->tag.myLock;
-		LockInstanceData *instance;
 
 		if (data->nlocks >= data->maxlocks)
 		{
@@ -3954,7 +3927,8 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 				repalloc(data->locks, sizeof(LockInstanceData) * data->maxlocks);
 		}
 
-		instance = &data->locks[data->nlocks];
+		LockInstanceData *instance = &data->locks[data->nlocks];
+
 		memcpy(&instance->locktag, &lock->tag, sizeof(LOCKTAG));
 		instance->holdMask = proclock->holdMask;
 		if (proc->waitLock == lock)
@@ -3973,8 +3947,8 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 	}
 
 	/* Enlarge waiter_pids[] if it's too small to hold all wait queue PIDs */
-	waitQueue = &(theLock->waitProcs);
-	queue_size = waitQueue->size;
+	PROC_QUEUE *waitQueue = &(theLock->waitProcs);
+	int			queue_size = waitQueue->size;
 
 	if (queue_size > data->maxpids - data->npids)
 	{
@@ -4013,12 +3987,9 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 xl_standby_lock *
 GetRunningTransactionLocks(int *nlocks)
 {
-	xl_standby_lock *accessExclusiveLocks;
 	PROCLOCK   *proclock;
 	HASH_SEQ_STATUS seqstat;
 	int			i;
-	int			index;
-	int			els;
 
 	/*
 	 * Acquire lock on the entire shared lock data structure.
@@ -4029,13 +4000,13 @@ GetRunningTransactionLocks(int *nlocks)
 		LWLockAcquire(LockHashPartitionLockByIndex(i), LW_SHARED);
 
 	/* Now we can safely count the number of proclocks */
-	els = hash_get_num_entries(LockMethodProcLockHash);
+	int			els = hash_get_num_entries(LockMethodProcLockHash);
 
 	/*
 	 * Allocating enough space for all locks in the lock table is overkill,
 	 * but it's more convenient and faster than having to enlarge the array.
 	 */
-	accessExclusiveLocks = palloc(els * sizeof(xl_standby_lock));
+	xl_standby_lock *accessExclusiveLocks = palloc(els * sizeof(xl_standby_lock));
 
 	/* Now scan the tables to copy the data */
 	hash_seq_init(&seqstat, LockMethodProcLockHash);
@@ -4047,7 +4018,8 @@ GetRunningTransactionLocks(int *nlocks)
 	 * general case this will give you duplicate locks when looking at
 	 * non-exclusive lock types.
 	 */
-	index = 0;
+	int			index = 0;
+
 	while ((proclock = (PROCLOCK *) hash_seq_search(&seqstat)))
 	{
 		/* make sure this definition matches the one used in LockAcquire */
@@ -4151,12 +4123,11 @@ DumpLocks(PGPROC *proc)
 void
 DumpAllLocks(void)
 {
-	PGPROC	   *proc;
 	PROCLOCK   *proclock;
 	LOCK	   *lock;
 	HASH_SEQ_STATUS status;
 
-	proc = MyProc;
+	PGPROC	   *proc = MyProc;
 
 	if (proc && proc->waitLock)
 		LOCK_PRINT("DumpAllLocks: waiting on", proc->waitLock, 0);
@@ -4211,42 +4182,33 @@ lock_twophase_recover(TransactionId xid, uint16 info,
 {
 	TwoPhaseLockRecord *rec = (TwoPhaseLockRecord *) recdata;
 	PGPROC	   *proc = TwoPhaseGetDummyProc(xid, false);
-	LOCKTAG    *locktag;
-	LOCKMODE	lockmode;
-	LOCKMETHODID lockmethodid;
-	LOCK	   *lock;
-	PROCLOCK   *proclock;
 	PROCLOCKTAG proclocktag;
 	bool		found;
-	uint32		hashcode;
-	uint32		proclock_hashcode;
-	int			partition;
-	LWLock	   *partitionLock;
-	LockMethod	lockMethodTable;
 
 	Assert(len == sizeof(TwoPhaseLockRecord));
-	locktag = &rec->locktag;
-	lockmode = rec->lockmode;
-	lockmethodid = locktag->locktag_lockmethodid;
+	LOCKTAG    *locktag = &rec->locktag;
+	LOCKMODE	lockmode = rec->lockmode;
+	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
 
-	hashcode = LockTagHashCode(locktag);
-	partition = LockHashPartition(hashcode);
-	partitionLock = LockHashPartitionLock(hashcode);
+	uint32		hashcode = LockTagHashCode(locktag);
+	int			partition = LockHashPartition(hashcode);
+	LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
 
 	LWLockAcquire(partitionLock, LW_EXCLUSIVE);
 
 	/*
 	 * Find or create a lock with this tag.
 	 */
-	lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-												(void *) locktag,
-												hashcode,
-												HASH_ENTER_NULL,
-												&found);
+	LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+															(void *) locktag,
+															hashcode,
+															HASH_ENTER_NULL,
+															&found);
+
 	if (!lock)
 	{
 		LWLockRelease(partitionLock);
@@ -4285,16 +4247,17 @@ lock_twophase_recover(TransactionId xid, uint16 info,
 	proclocktag.myLock = lock;
 	proclocktag.myProc = proc;
 
-	proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
+	uint32		proclock_hashcode = ProcLockHashCode(&proclocktag, hashcode);
 
 	/*
 	 * Find or create a proclock entry with this tag
 	 */
-	proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
-														(void *) &proclocktag,
-														proclock_hashcode,
-														HASH_ENTER_NULL,
-														&found);
+	PROCLOCK   *proclock = (PROCLOCK *) hash_search_with_hash_value(LockMethodProcLockHash,
+																	(void *) &proclocktag,
+																	proclock_hashcode,
+																	HASH_ENTER_NULL,
+																	&found);
+
 	if (!proclock)
 	{
 		/* Oops, not enough shmem for the proclock */
@@ -4391,14 +4354,11 @@ lock_twophase_standby_recover(TransactionId xid, uint16 info,
 							  void *recdata, uint32 len)
 {
 	TwoPhaseLockRecord *rec = (TwoPhaseLockRecord *) recdata;
-	LOCKTAG    *locktag;
-	LOCKMODE	lockmode;
-	LOCKMETHODID lockmethodid;
 
 	Assert(len == sizeof(TwoPhaseLockRecord));
-	locktag = &rec->locktag;
-	lockmode = rec->lockmode;
-	lockmethodid = locktag->locktag_lockmethodid;
+	LOCKTAG    *locktag = &rec->locktag;
+	LOCKMODE	lockmode = rec->lockmode;
+	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
@@ -4424,17 +4384,14 @@ lock_twophase_postcommit(TransactionId xid, uint16 info,
 {
 	TwoPhaseLockRecord *rec = (TwoPhaseLockRecord *) recdata;
 	PGPROC	   *proc = TwoPhaseGetDummyProc(xid, true);
-	LOCKTAG    *locktag;
-	LOCKMETHODID lockmethodid;
-	LockMethod	lockMethodTable;
 
 	Assert(len == sizeof(TwoPhaseLockRecord));
-	locktag = &rec->locktag;
-	lockmethodid = locktag->locktag_lockmethodid;
+	LOCKTAG    *locktag = &rec->locktag;
+	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
-	lockMethodTable = LockMethods[lockmethodid];
+	LockMethod	lockMethodTable = LockMethods[lockmethodid];
 
 	LockRefindAndRelease(lockMethodTable, proc, locktag, rec->lockmode, true);
 }
@@ -4494,8 +4451,6 @@ VirtualXactLockTableInsert(VirtualTransactionId vxid)
 void
 VirtualXactLockTableCleanup(void)
 {
-	bool		fastpath;
-	LocalTransactionId lxid;
 
 	Assert(MyProc->backendId != InvalidBackendId);
 
@@ -4504,8 +4459,9 @@ VirtualXactLockTableCleanup(void)
 	 */
 	LWLockAcquire(&MyProc->fpInfoLock, LW_EXCLUSIVE);
 
-	fastpath = MyProc->fpVXIDLock;
-	lxid = MyProc->fpLocalTransactionId;
+	bool		fastpath = MyProc->fpVXIDLock;
+	LocalTransactionId lxid = MyProc->fpLocalTransactionId;
+
 	MyProc->fpVXIDLock = false;
 	MyProc->fpLocalTransactionId = InvalidLocalTransactionId;
 
@@ -4542,20 +4498,19 @@ bool
 VirtualXactLock(VirtualTransactionId vxid, bool wait)
 {
 	LOCKTAG		tag;
-	PGPROC	   *proc;
 
 	Assert(VirtualTransactionIdIsValid(vxid));
 
 	if (VirtualTransactionIdIsPreparedXact(vxid))
 	{
-		LockAcquireResult lar;
 
 		/*
 		 * Prepared transactions don't hold vxid locks.  The
 		 * LocalTransactionId is always a normal, locked XID.
 		 */
 		SET_LOCKTAG_TRANSACTION(tag, vxid.localTransactionId);
-		lar = LockAcquire(&tag, ShareLock, false, !wait);
+		LockAcquireResult lar = LockAcquire(&tag, ShareLock, false, !wait);
+
 		if (lar != LOCKACQUIRE_NOT_AVAIL)
 			LockRelease(&tag, ShareLock, false);
 		return lar != LOCKACQUIRE_NOT_AVAIL;
@@ -4571,7 +4526,8 @@ VirtualXactLock(VirtualTransactionId vxid, bool wait)
 	 * relevant lxid is no longer running here, that's enough to prove that
 	 * it's no longer running anywhere.
 	 */
-	proc = BackendIdGetProc(vxid.backendId);
+	PGPROC	   *proc = BackendIdGetProc(vxid.backendId);
+
 	if (proc == NULL)
 		return true;
 
@@ -4607,17 +4563,16 @@ VirtualXactLock(VirtualTransactionId vxid, bool wait)
 	 */
 	if (proc->fpVXIDLock)
 	{
-		PROCLOCK   *proclock;
-		uint32		hashcode;
-		LWLock	   *partitionLock;
 
-		hashcode = LockTagHashCode(&tag);
+		uint32		hashcode = LockTagHashCode(&tag);
 
-		partitionLock = LockHashPartitionLock(hashcode);
+		LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
+
 		LWLockAcquire(partitionLock, LW_EXCLUSIVE);
 
-		proclock = SetupLockInTable(LockMethods[DEFAULT_LOCKMETHOD], proc,
-									&tag, hashcode, ExclusiveLock);
+		PROCLOCK   *proclock = SetupLockInTable(LockMethods[DEFAULT_LOCKMETHOD], proc,
+												&tag, hashcode, ExclusiveLock);
+
 		if (!proclock)
 		{
 			LWLockRelease(partitionLock);
@@ -4653,24 +4608,23 @@ int
 LockWaiterCount(const LOCKTAG *locktag)
 {
 	LOCKMETHODID lockmethodid = locktag->locktag_lockmethodid;
-	LOCK	   *lock;
 	bool		found;
-	uint32		hashcode;
-	LWLock	   *partitionLock;
 	int			waiters = 0;
 
 	if (lockmethodid <= 0 || lockmethodid >= lengthof(LockMethods))
 		elog(ERROR, "unrecognized lock method: %d", lockmethodid);
 
-	hashcode = LockTagHashCode(locktag);
-	partitionLock = LockHashPartitionLock(hashcode);
+	uint32		hashcode = LockTagHashCode(locktag);
+	LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
+
 	LWLockAcquire(partitionLock, LW_EXCLUSIVE);
 
-	lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
-												(const void *) locktag,
-												hashcode,
-												HASH_FIND,
-												&found);
+	LOCK	   *lock = (LOCK *) hash_search_with_hash_value(LockMethodLockHash,
+															(const void *) locktag,
+															hashcode,
+															HASH_FIND,
+															&found);
+
 	if (found)
 	{
 		Assert(lock != NULL);

@@ -216,19 +216,19 @@ ResourceArrayEnlarge(ResourceArray *resarr)
 	uint32		i,
 				oldcap,
 				newcap;
-	Datum	   *olditemsarr;
-	Datum	   *newitemsarr;
 
 	if (resarr->nitems < resarr->maxitems)
 		return;					/* no work needed */
 
-	olditemsarr = resarr->itemsarr;
+	Datum	   *olditemsarr = resarr->itemsarr;
+
 	oldcap = resarr->capacity;
 
 	/* Double the capacity of the array (capacity must stay a power of 2!) */
 	newcap = (oldcap > 0) ? oldcap * 2 : RESARRAY_INIT_SIZE;
-	newitemsarr = (Datum *) MemoryContextAlloc(TopMemoryContext,
-											   newcap * sizeof(Datum));
+	Datum	   *newitemsarr = (Datum *) MemoryContextAlloc(TopMemoryContext,
+														   newcap * sizeof(Datum));
+
 	for (i = 0; i < newcap; i++)
 		newitemsarr[i] = resarr->invalidval;
 
@@ -427,10 +427,10 @@ ResourceArrayFree(ResourceArray *resarr)
 ResourceOwner
 ResourceOwnerCreate(ResourceOwner parent, const char *name)
 {
-	ResourceOwner owner;
 
-	owner = (ResourceOwner) MemoryContextAllocZero(TopMemoryContext,
-												   sizeof(ResourceOwnerData));
+	ResourceOwner owner = (ResourceOwner) MemoryContextAllocZero(TopMemoryContext,
+																 sizeof(ResourceOwnerData));
+
 	owner->name = name;
 
 	if (parent)
@@ -499,7 +499,6 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
 							 bool isTopLevel)
 {
 	ResourceOwner child;
-	ResourceOwner save;
 	ResourceReleaseCallbackItem *item;
 	Datum		foundres;
 
@@ -511,7 +510,8 @@ ResourceOwnerReleaseInternal(ResourceOwner owner,
 	 * Make CurrentResourceOwner point to me, so that ReleaseBuffer etc don't
 	 * get confused.
 	 */
-	save = CurrentResourceOwner;
+	ResourceOwner save = CurrentResourceOwner;
+
 	CurrentResourceOwner = owner;
 
 	if (phase == RESOURCE_RELEASE_BEFORE_LOCKS)
@@ -848,11 +848,11 @@ ResourceOwnerNewParent(ResourceOwner owner,
 void
 RegisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 {
-	ResourceReleaseCallbackItem *item;
 
-	item = (ResourceReleaseCallbackItem *)
-		MemoryContextAlloc(TopMemoryContext,
-						   sizeof(ResourceReleaseCallbackItem));
+	ResourceReleaseCallbackItem *item = (ResourceReleaseCallbackItem *)
+	MemoryContextAlloc(TopMemoryContext,
+					   sizeof(ResourceReleaseCallbackItem));
+
 	item->callback = callback;
 	item->arg = arg;
 	item->next = ResourceRelease_callbacks;
@@ -863,9 +863,9 @@ void
 UnregisterResourceReleaseCallback(ResourceReleaseCallback callback, void *arg)
 {
 	ResourceReleaseCallbackItem *item;
-	ResourceReleaseCallbackItem *prev;
 
-	prev = NULL;
+	ResourceReleaseCallbackItem *prev = NULL;
+
 	for (item = ResourceRelease_callbacks; item; prev = item, item = item->next)
 	{
 		if (item->callback == callback && item->arg == arg)

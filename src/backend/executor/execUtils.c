@@ -89,24 +89,21 @@ static void ShutdownExprContext(ExprContext *econtext, bool isCommit);
 EState *
 CreateExecutorState(void)
 {
-	EState	   *estate;
-	MemoryContext qcontext;
-	MemoryContext oldcontext;
 
 	/*
 	 * Create the per-query context for this Executor run.
 	 */
-	qcontext = AllocSetContextCreate(CurrentMemoryContext,
-									 "ExecutorState",
-									 ALLOCSET_DEFAULT_SIZES);
+	MemoryContext qcontext = AllocSetContextCreate(CurrentMemoryContext,
+												   "ExecutorState",
+												   ALLOCSET_DEFAULT_SIZES);
 
 	/*
 	 * Make the EState node within the per-query context.  This way, we don't
 	 * need a separate pfree() operation for it at shutdown.
 	 */
-	oldcontext = MemoryContextSwitchTo(qcontext);
+	MemoryContext oldcontext = MemoryContextSwitchTo(qcontext);
 
-	estate = makeNode(EState);
+	EState	   *estate = makeNode(EState);
 
 	/*
 	 * Initialize all fields of the Executor State structure
@@ -231,13 +228,11 @@ static ExprContext *
 CreateExprContextInternal(EState *estate, Size minContextSize,
 						  Size initBlockSize, Size maxBlockSize)
 {
-	ExprContext *econtext;
-	MemoryContext oldcontext;
 
 	/* Create the ExprContext node within the per-query memory context */
-	oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+	MemoryContext oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
 
-	econtext = makeNode(ExprContext);
+	ExprContext *econtext = makeNode(ExprContext);
 
 	/* Initialize fields of ExprContext */
 	econtext->ecxt_scantuple = NULL;
@@ -351,10 +346,9 @@ CreateWorkExprContext(EState *estate)
 ExprContext *
 CreateStandaloneExprContext(void)
 {
-	ExprContext *econtext;
 
 	/* Create the ExprContext node within the caller's memory context */
-	econtext = makeNode(ExprContext);
+	ExprContext *econtext = makeNode(ExprContext);
 
 	/* Initialize fields of ExprContext */
 	econtext->ecxt_scantuple = NULL;
@@ -410,14 +404,14 @@ CreateStandaloneExprContext(void)
 void
 FreeExprContext(ExprContext *econtext, bool isCommit)
 {
-	EState	   *estate;
 
 	/* Call any registered callbacks */
 	ShutdownExprContext(econtext, isCommit);
 	/* And clean up the memory used */
 	MemoryContextDelete(econtext->ecxt_per_tuple_memory);
 	/* Unlink self from owning EState, if any */
-	estate = econtext->ecxt_estate;
+	EState	   *estate = econtext->ecxt_estate;
+
 	if (estate)
 		estate->es_exprcontexts = list_delete_ptr(estate->es_exprcontexts,
 												  econtext);
@@ -589,11 +583,11 @@ tlist_matches_tupdesc(PlanState *ps, List *tlist, Index varno, TupleDesc tupdesc
 	for (attrno = 1; attrno <= numattrs; attrno++)
 	{
 		Form_pg_attribute att_tup = TupleDescAttr(tupdesc, attrno - 1);
-		Var		   *var;
 
 		if (tlist_item == NULL)
 			return false;		/* tlist too short */
-		var = (Var *) ((TargetEntry *) lfirst(tlist_item))->expr;
+		Var		   *var = (Var *) ((TargetEntry *) lfirst(tlist_item))->expr;
+
 		if (!var || !IsA(var, Var))
 			return false;		/* tlist item not a Var */
 		/* if these Asserts fail, planner messed up */
@@ -683,11 +677,9 @@ ExecCreateScanSlotFromOuterPlan(EState *estate,
 								ScanState *scanstate,
 								const TupleTableSlotOps *tts_ops)
 {
-	PlanState  *outerPlan;
-	TupleDesc	tupDesc;
 
-	outerPlan = outerPlanState(scanstate);
-	tupDesc = ExecGetResultType(outerPlan);
+	PlanState  *outerPlan = outerPlanState(scanstate);
+	TupleDesc	tupDesc = ExecGetResultType(outerPlan);
 
 	ExecInitScanTupleSlot(estate, scanstate, tupDesc, tts_ops);
 }
@@ -719,10 +711,9 @@ ExecRelationIsTargetRelation(EState *estate, Index scanrelid)
 Relation
 ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags)
 {
-	Relation	rel;
 
 	/* Open the relation. */
-	rel = ExecGetRangeTableRelation(estate, scanrelid);
+	Relation	rel = ExecGetRangeTableRelation(estate, scanrelid);
 
 	/*
 	 * Complain if we're attempting a scan of an unscannable relation, except
@@ -781,11 +772,11 @@ ExecInitRangeTable(EState *estate, List *rangeTable)
 Relation
 ExecGetRangeTableRelation(EState *estate, Index rti)
 {
-	Relation	rel;
 
 	Assert(rti > 0 && rti <= estate->es_range_table_size);
 
-	rel = estate->es_relations[rti - 1];
+	Relation	rel = estate->es_relations[rti - 1];
+
 	if (rel == NULL)
 	{
 		/* First time through, so open the relation */
@@ -834,9 +825,9 @@ void
 ExecInitResultRelation(EState *estate, ResultRelInfo *resultRelInfo,
 					   Index rti)
 {
-	Relation	resultRelationDesc;
 
-	resultRelationDesc = ExecGetRangeTableRelation(estate, rti);
+	Relation	resultRelationDesc = ExecGetRangeTableRelation(estate, rti);
+
 	InitResultRelInfo(resultRelInfo,
 					  resultRelationDesc,
 					  rti,
@@ -863,13 +854,12 @@ ExecInitResultRelation(EState *estate, ResultRelInfo *resultRelInfo,
 void
 UpdateChangedParamSet(PlanState *node, Bitmapset *newchg)
 {
-	Bitmapset  *parmset;
 
 	/*
 	 * The plan node only depends on params listed in its allParam set. Don't
 	 * include anything else into its chgParam set.
 	 */
-	parmset = bms_intersect(node->plan->allParam, newchg);
+	Bitmapset  *parmset = bms_intersect(node->plan->allParam, newchg);
 
 	/*
 	 * Keep node->chgParam == NULL if there's not actually any members; this
@@ -897,7 +887,6 @@ UpdateChangedParamSet(PlanState *node, Bitmapset *newchg)
 int
 executor_errposition(EState *estate, int location)
 {
-	int			pos;
 
 	/* No-op if location was not provided */
 	if (location < 0)
@@ -906,7 +895,8 @@ executor_errposition(EState *estate, int location)
 	if (estate == NULL || estate->es_sourceText == NULL)
 		return 0;
 	/* Convert offset to character number */
-	pos = pg_mbstrlen_with_len(estate->es_sourceText, location) + 1;
+	int			pos = pg_mbstrlen_with_len(estate->es_sourceText, location) + 1;
+
 	/* And pass it to the ereport mechanism */
 	return errposition(pos);
 }
@@ -926,12 +916,11 @@ RegisterExprContextCallback(ExprContext *econtext,
 							ExprContextCallbackFunction function,
 							Datum arg)
 {
-	ExprContext_CB *ecxt_callback;
 
 	/* Save the info in appropriate memory context */
-	ecxt_callback = (ExprContext_CB *)
-		MemoryContextAlloc(econtext->ecxt_per_query_memory,
-						   sizeof(ExprContext_CB));
+	ExprContext_CB *ecxt_callback = (ExprContext_CB *)
+	MemoryContextAlloc(econtext->ecxt_per_query_memory,
+					   sizeof(ExprContext_CB));
 
 	ecxt_callback->function = function;
 	ecxt_callback->arg = arg;
@@ -952,10 +941,9 @@ UnregisterExprContextCallback(ExprContext *econtext,
 							  ExprContextCallbackFunction function,
 							  Datum arg)
 {
-	ExprContext_CB **prev_callback;
 	ExprContext_CB *ecxt_callback;
 
-	prev_callback = &econtext->ecxt_callbacks;
+	ExprContext_CB **prev_callback = &econtext->ecxt_callbacks;
 
 	while ((ecxt_callback = *prev_callback) != NULL)
 	{
@@ -982,7 +970,6 @@ static void
 ShutdownExprContext(ExprContext *econtext, bool isCommit)
 {
 	ExprContext_CB *ecxt_callback;
-	MemoryContext oldcontext;
 
 	/* Fast path in normal case where there's nothing to do. */
 	if (econtext->ecxt_callbacks == NULL)
@@ -992,7 +979,7 @@ ShutdownExprContext(ExprContext *econtext, bool isCommit)
 	 * Call the callbacks in econtext's per-tuple context.  This ensures that
 	 * any memory they might leak will get cleaned up.
 	 */
-	oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	MemoryContext oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
 
 	/*
 	 * Call each callback function in reverse registration order.
@@ -1022,11 +1009,6 @@ ShutdownExprContext(ExprContext *econtext, bool isCommit)
 Datum
 GetAttributeByName(HeapTupleHeader tuple, const char *attname, bool *isNull)
 {
-	AttrNumber	attrno;
-	Datum		result;
-	Oid			tupType;
-	int32		tupTypmod;
-	TupleDesc	tupDesc;
 	HeapTupleData tmptup;
 	int			i;
 
@@ -1043,11 +1025,12 @@ GetAttributeByName(HeapTupleHeader tuple, const char *attname, bool *isNull)
 		return (Datum) 0;
 	}
 
-	tupType = HeapTupleHeaderGetTypeId(tuple);
-	tupTypmod = HeapTupleHeaderGetTypMod(tuple);
-	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+	Oid			tupType = HeapTupleHeaderGetTypeId(tuple);
+	int32		tupTypmod = HeapTupleHeaderGetTypMod(tuple);
+	TupleDesc	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
 
-	attrno = InvalidAttrNumber;
+	AttrNumber	attrno = InvalidAttrNumber;
+
 	for (i = 0; i < tupDesc->natts; i++)
 	{
 		Form_pg_attribute att = TupleDescAttr(tupDesc, i);
@@ -1072,10 +1055,10 @@ GetAttributeByName(HeapTupleHeader tuple, const char *attname, bool *isNull)
 	tmptup.t_tableOid = InvalidOid;
 	tmptup.t_data = tuple;
 
-	result = heap_getattr(&tmptup,
-						  attrno,
-						  tupDesc,
-						  isNull);
+	Datum		result = heap_getattr(&tmptup,
+									  attrno,
+									  tupDesc,
+									  isNull);
 
 	ReleaseTupleDesc(tupDesc);
 
@@ -1087,10 +1070,6 @@ GetAttributeByNum(HeapTupleHeader tuple,
 				  AttrNumber attrno,
 				  bool *isNull)
 {
-	Datum		result;
-	Oid			tupType;
-	int32		tupTypmod;
-	TupleDesc	tupDesc;
 	HeapTupleData tmptup;
 
 	if (!AttributeNumberIsValid(attrno))
@@ -1106,9 +1085,9 @@ GetAttributeByNum(HeapTupleHeader tuple,
 		return (Datum) 0;
 	}
 
-	tupType = HeapTupleHeaderGetTypeId(tuple);
-	tupTypmod = HeapTupleHeaderGetTypMod(tuple);
-	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+	Oid			tupType = HeapTupleHeaderGetTypeId(tuple);
+	int32		tupTypmod = HeapTupleHeaderGetTypMod(tuple);
+	TupleDesc	tupDesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
 
 	/*
 	 * heap_getattr needs a HeapTuple not a bare HeapTupleHeader.  We set all
@@ -1120,10 +1099,10 @@ GetAttributeByNum(HeapTupleHeader tuple,
 	tmptup.t_tableOid = InvalidOid;
 	tmptup.t_data = tuple;
 
-	result = heap_getattr(&tmptup,
-						  attrno,
-						  tupDesc,
-						  isNull);
+	Datum		result = heap_getattr(&tmptup,
+									  attrno,
+									  tupDesc,
+									  isNull);
 
 	ReleaseTupleDesc(tupDesc);
 

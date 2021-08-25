@@ -64,15 +64,15 @@ extractPageMap(const char *datadir, XLogRecPtr startpoint, int tliIndex,
 			   XLogRecPtr endpoint, const char *restoreCommand)
 {
 	XLogRecord *record;
-	XLogReaderState *xlogreader;
 	char	   *errormsg;
 	XLogPageReadPrivate private;
 
 	private.tliIndex = tliIndex;
 	private.restoreCommand = restoreCommand;
-	xlogreader = XLogReaderAllocate(WalSegSz, datadir,
-									XL_ROUTINE(.page_read = &SimpleXLogPageRead),
-									&private);
+	XLogReaderState *xlogreader = XLogReaderAllocate(WalSegSz, datadir,
+													 XL_ROUTINE(.page_read = &SimpleXLogPageRead),
+													 &private);
+
 	if (xlogreader == NULL)
 		pg_fatal("out of memory");
 
@@ -120,22 +120,21 @@ XLogRecPtr
 readOneRecord(const char *datadir, XLogRecPtr ptr, int tliIndex,
 			  const char *restoreCommand)
 {
-	XLogRecord *record;
-	XLogReaderState *xlogreader;
 	char	   *errormsg;
 	XLogPageReadPrivate private;
-	XLogRecPtr	endptr;
 
 	private.tliIndex = tliIndex;
 	private.restoreCommand = restoreCommand;
-	xlogreader = XLogReaderAllocate(WalSegSz, datadir,
-									XL_ROUTINE(.page_read = &SimpleXLogPageRead),
-									&private);
+	XLogReaderState *xlogreader = XLogReaderAllocate(WalSegSz, datadir,
+													 XL_ROUTINE(.page_read = &SimpleXLogPageRead),
+													 &private);
+
 	if (xlogreader == NULL)
 		pg_fatal("out of memory");
 
 	XLogBeginRead(xlogreader, ptr);
-	record = XLogReadRecord(xlogreader, &errormsg);
+	XLogRecord *record = XLogReadRecord(xlogreader, &errormsg);
+
 	if (record == NULL)
 	{
 		if (errormsg)
@@ -145,7 +144,7 @@ readOneRecord(const char *datadir, XLogRecPtr ptr, int tliIndex,
 			pg_fatal("could not read WAL record at %X/%X",
 					 LSN_FORMAT_ARGS(ptr));
 	}
-	endptr = xlogreader->EndRecPtr;
+	XLogRecPtr	endptr = xlogreader->EndRecPtr;
 
 	XLogReaderFree(xlogreader);
 	if (xlogreadfd != -1)
@@ -167,8 +166,6 @@ findLastCheckpoint(const char *datadir, XLogRecPtr forkptr, int tliIndex,
 {
 	/* Walk backwards, starting from the given record */
 	XLogRecord *record;
-	XLogRecPtr	searchptr;
-	XLogReaderState *xlogreader;
 	char	   *errormsg;
 	XLogPageReadPrivate private;
 
@@ -188,16 +185,17 @@ findLastCheckpoint(const char *datadir, XLogRecPtr forkptr, int tliIndex,
 
 	private.tliIndex = tliIndex;
 	private.restoreCommand = restoreCommand;
-	xlogreader = XLogReaderAllocate(WalSegSz, datadir,
-									XL_ROUTINE(.page_read = &SimpleXLogPageRead),
-									&private);
+	XLogReaderState *xlogreader = XLogReaderAllocate(WalSegSz, datadir,
+													 XL_ROUTINE(.page_read = &SimpleXLogPageRead),
+													 &private);
+
 	if (xlogreader == NULL)
 		pg_fatal("out of memory");
 
-	searchptr = forkptr;
+	XLogRecPtr	searchptr = forkptr;
+
 	for (;;)
 	{
-		uint8		info;
 
 		XLogBeginRead(xlogreader, searchptr);
 		record = XLogReadRecord(xlogreader, &errormsg);
@@ -218,7 +216,8 @@ findLastCheckpoint(const char *datadir, XLogRecPtr forkptr, int tliIndex,
 		 * be the latest checkpoint before WAL forked and not the checkpoint
 		 * where the primary has been stopped to be rewound.
 		 */
-		info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
+		uint8		info = XLogRecGetInfo(xlogreader) & ~XLR_INFO_MASK;
+
 		if (searchptr < forkptr &&
 			XLogRecGetRmid(xlogreader) == RM_XLOG_ID &&
 			(info == XLOG_CHECKPOINT_SHUTDOWN ||
@@ -251,14 +250,12 @@ SimpleXLogPageRead(XLogReaderState *xlogreader, XLogRecPtr targetPagePtr,
 				   int reqLen, XLogRecPtr targetRecPtr, char *readBuf)
 {
 	XLogPageReadPrivate *private = (XLogPageReadPrivate *) xlogreader->private_data;
-	uint32		targetPageOff;
 	XLogRecPtr	targetSegEnd;
 	XLogSegNo	targetSegNo;
-	int			r;
 
 	XLByteToSeg(targetPagePtr, targetSegNo, WalSegSz);
 	XLogSegNoOffsetToRecPtr(targetSegNo + 1, 0, WalSegSz, targetSegEnd);
-	targetPageOff = XLogSegmentOffset(targetPagePtr, WalSegSz);
+	uint32		targetPageOff = XLogSegmentOffset(targetPagePtr, WalSegSz);
 
 	/*
 	 * See if we need to switch to a new segment because the requested record
@@ -339,7 +336,8 @@ SimpleXLogPageRead(XLogReaderState *xlogreader, XLogRecPtr targetPagePtr,
 	}
 
 
-	r = read(xlogreadfd, readBuf, XLOG_BLCKSZ);
+	int			r = read(xlogreadfd, readBuf, XLOG_BLCKSZ);
+
 	if (r != XLOG_BLCKSZ)
 	{
 		if (r < 0)

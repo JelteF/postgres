@@ -90,9 +90,9 @@ hstore_to_plpython(PG_FUNCTION_ARGS)
 	int			count = HS_COUNT(in);
 	char	   *base = STRPTR(in);
 	HEntry	   *entries = ARRPTR(in);
-	PyObject   *dict;
 
-	dict = PyDict_New();
+	PyObject   *dict = PyDict_New();
+
 	if (!dict)
 		ereport(ERROR,
 				(errcode(ERRCODE_OUT_OF_MEMORY),
@@ -100,18 +100,18 @@ hstore_to_plpython(PG_FUNCTION_ARGS)
 
 	for (i = 0; i < count; i++)
 	{
-		PyObject   *key;
 
-		key = PyString_FromStringAndSize(HSTORE_KEY(entries, base, i),
-										 HSTORE_KEYLEN(entries, i));
+		PyObject   *key = PyString_FromStringAndSize(HSTORE_KEY(entries, base, i),
+													 HSTORE_KEYLEN(entries, i));
+
 		if (HSTORE_VALISNULL(entries, i))
 			PyDict_SetItem(dict, key, Py_None);
 		else
 		{
-			PyObject   *value;
 
-			value = PyString_FromStringAndSize(HSTORE_VAL(entries, base, i),
-											   HSTORE_VALLEN(entries, i));
+			PyObject   *value = PyString_FromStringAndSize(HSTORE_VAL(entries, base, i),
+														   HSTORE_VALLEN(entries, i));
+
 			PyDict_SetItem(dict, key, value);
 			Py_XDECREF(value);
 		}
@@ -127,18 +127,18 @@ PG_FUNCTION_INFO_V1(plpython_to_hstore);
 Datum
 plpython_to_hstore(PG_FUNCTION_ARGS)
 {
-	PyObject   *dict;
 	PyObject   *volatile items;
-	Py_ssize_t	pcount;
 	HStore	   *volatile out;
 
-	dict = (PyObject *) PG_GETARG_POINTER(0);
+	PyObject   *dict = (PyObject *) PG_GETARG_POINTER(0);
+
 	if (!PyMapping_Check(dict))
 		ereport(ERROR,
 				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
 				 errmsg("not a Python mapping")));
 
-	pcount = PyMapping_Size(dict);
+	Py_ssize_t	pcount = PyMapping_Size(dict);
+
 	items = PyMapping_Items(dict);
 
 	PG_TRY();
@@ -151,13 +151,10 @@ plpython_to_hstore(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < pcount; i++)
 		{
-			PyObject   *tuple;
-			PyObject   *key;
-			PyObject   *value;
 
-			tuple = PyList_GetItem(items, i);
-			key = PyTuple_GetItem(tuple, 0);
-			value = PyTuple_GetItem(tuple, 1);
+			PyObject   *tuple = PyList_GetItem(items, i);
+			PyObject   *key = PyTuple_GetItem(tuple, 0);
+			PyObject   *value = PyTuple_GetItem(tuple, 1);
 
 			pairs[i].key = PLyObject_AsString(key);
 			pairs[i].keylen = hstoreCheckKeyLen(strlen(pairs[i].key));

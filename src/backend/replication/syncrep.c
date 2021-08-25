@@ -234,7 +234,6 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 	 */
 	for (;;)
 	{
-		int			rc;
 
 		/* Must reset the latch before testing state. */
 		ResetLatch(MyLatch);
@@ -292,8 +291,8 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 		 * Wait on latch.  Any condition that should wake us up will set the
 		 * latch, so no need for timeout.
 		 */
-		rc = WaitLatch(MyLatch, WL_LATCH_SET | WL_POSTMASTER_DEATH, -1,
-					   WAIT_EVENT_SYNC_REP);
+		int			rc = WaitLatch(MyLatch, WL_LATCH_SET | WL_POSTMASTER_DEATH, -1,
+								   WAIT_EVENT_SYNC_REP);
 
 		/*
 		 * If the postmaster dies, we'll probably never get an acknowledgment,
@@ -338,12 +337,11 @@ SyncRepWaitForLSN(XLogRecPtr lsn, bool commit)
 static void
 SyncRepQueueInsert(int mode)
 {
-	PGPROC	   *proc;
 
 	Assert(mode >= 0 && mode < NUM_SYNC_REP_WAIT_MODE);
-	proc = (PGPROC *) SHMQueuePrev(&(WalSndCtl->SyncRepQueue[mode]),
-								   &(WalSndCtl->SyncRepQueue[mode]),
-								   offsetof(PGPROC, syncRepLinks));
+	PGPROC	   *proc = (PGPROC *) SHMQueuePrev(&(WalSndCtl->SyncRepQueue[mode]),
+											   &(WalSndCtl->SyncRepQueue[mode]),
+											   offsetof(PGPROC, syncRepLinks));
 
 	while (proc)
 	{
@@ -410,13 +408,13 @@ SyncRepCleanupAtProcExit(void)
 void
 SyncRepInitConfig(void)
 {
-	int			priority;
 
 	/*
 	 * Determine if we are a potential sync standby and remember the result
 	 * for handling replies from standby.
 	 */
-	priority = SyncRepGetStandbyPriority();
+	int			priority = SyncRepGetStandbyPriority();
+
 	if (MyWalSnd->sync_standby_priority != priority)
 	{
 		SpinLockAcquire(&MyWalSnd->mutex);
@@ -443,7 +441,6 @@ SyncRepReleaseWaiters(void)
 	XLogRecPtr	writePtr;
 	XLogRecPtr	flushPtr;
 	XLogRecPtr	applyPtr;
-	bool		got_recptr;
 	bool		am_sync;
 	int			numwrite = 0;
 	int			numflush = 0;
@@ -479,7 +476,7 @@ SyncRepReleaseWaiters(void)
 	 * to release waiters are newer than any previous execution of this
 	 * routine used.)
 	 */
-	got_recptr = SyncRepGetSyncRecPtr(&writePtr, &flushPtr, &applyPtr, &am_sync);
+	bool		got_recptr = SyncRepGetSyncRecPtr(&writePtr, &flushPtr, &applyPtr, &am_sync);
 
 	/*
 	 * If we are managing a sync standby, though we weren't prior to this,
@@ -553,7 +550,6 @@ SyncRepGetSyncRecPtr(XLogRecPtr *writePtr, XLogRecPtr *flushPtr,
 					 XLogRecPtr *applyPtr, bool *am_sync)
 {
 	SyncRepStandbyData *sync_standbys;
-	int			num_standbys;
 	int			i;
 
 	/* Initialize default results */
@@ -567,7 +563,7 @@ SyncRepGetSyncRecPtr(XLogRecPtr *writePtr, XLogRecPtr *flushPtr,
 		return false;
 
 	/* Get standbys that are considered as synchronous at this moment */
-	num_standbys = SyncRepGetCandidateStandbys(&sync_standbys);
+	int			num_standbys = SyncRepGetCandidateStandbys(&sync_standbys);
 
 	/* Am I among the candidate sync standbys? */
 	for (i = 0; i < num_standbys; i++)
@@ -663,17 +659,14 @@ SyncRepGetNthLatestSyncRecPtr(XLogRecPtr *writePtr,
 							  int num_standbys,
 							  uint8 nth)
 {
-	XLogRecPtr *write_array;
-	XLogRecPtr *flush_array;
-	XLogRecPtr *apply_array;
 	int			i;
 
 	/* Should have enough candidates, or somebody messed up */
 	Assert(nth > 0 && nth <= num_standbys);
 
-	write_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
-	flush_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
-	apply_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
+	XLogRecPtr *write_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
+	XLogRecPtr *flush_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
+	XLogRecPtr *apply_array = (XLogRecPtr *) palloc(sizeof(XLogRecPtr) * num_standbys);
 
 	for (i = 0; i < num_standbys; i++)
 	{
@@ -725,7 +718,6 @@ int
 SyncRepGetCandidateStandbys(SyncRepStandbyData **standbys)
 {
 	int			i;
-	int			n;
 
 	/* Create result array */
 	*standbys = (SyncRepStandbyData *)
@@ -736,16 +728,16 @@ SyncRepGetCandidateStandbys(SyncRepStandbyData **standbys)
 		return 0;
 
 	/* Collect raw data from shared memory */
-	n = 0;
+	int			n = 0;
+
 	for (i = 0; i < max_wal_senders; i++)
 	{
 		volatile WalSnd *walsnd;	/* Use volatile pointer to prevent code
 									 * rearrangement */
-		SyncRepStandbyData *stby;
 		WalSndState state;		/* not included in SyncRepStandbyData */
 
 		walsnd = &WalSndCtl->walsnds[i];
-		stby = *standbys + n;
+		SyncRepStandbyData *stby = *standbys + n;
 
 		SpinLockAcquire(&walsnd->mutex);
 		stby->pid = walsnd->pid;
@@ -830,7 +822,6 @@ standby_priority_comparator(const void *a, const void *b)
 static int
 SyncRepGetStandbyPriority(void)
 {
-	const char *standby_name;
 	int			priority;
 	bool		found = false;
 
@@ -844,7 +835,8 @@ SyncRepGetStandbyPriority(void)
 	if (!SyncStandbysDefined() || SyncRepConfig == NULL)
 		return 0;
 
-	standby_name = SyncRepConfig->member_names;
+	const char *standby_name = SyncRepConfig->member_names;
+
 	for (priority = 1; priority <= SyncRepConfig->nmembers; priority++)
 	{
 		if (pg_strcasecmp(standby_name, application_name) == 0 ||
@@ -878,7 +870,6 @@ static int
 SyncRepWakeQueue(bool all, int mode)
 {
 	volatile WalSndCtlData *walsndctl = WalSndCtl;
-	PGPROC	   *proc = NULL;
 	PGPROC	   *thisproc = NULL;
 	int			numprocs = 0;
 
@@ -886,9 +877,9 @@ SyncRepWakeQueue(bool all, int mode)
 	Assert(LWLockHeldByMeInMode(SyncRepLock, LW_EXCLUSIVE));
 	Assert(SyncRepQueueIsOrderedByLSN(mode));
 
-	proc = (PGPROC *) SHMQueueNext(&(WalSndCtl->SyncRepQueue[mode]),
-								   &(WalSndCtl->SyncRepQueue[mode]),
-								   offsetof(PGPROC, syncRepLinks));
+	PGPROC	   *proc = (PGPROC *) SHMQueueNext(&(WalSndCtl->SyncRepQueue[mode]),
+											   &(WalSndCtl->SyncRepQueue[mode]),
+											   offsetof(PGPROC, syncRepLinks));
 
 	while (proc)
 	{
@@ -982,16 +973,14 @@ SyncRepUpdateSyncStandbysDefined(void)
 static bool
 SyncRepQueueIsOrderedByLSN(int mode)
 {
-	PGPROC	   *proc = NULL;
-	XLogRecPtr	lastLSN;
 
 	Assert(mode >= 0 && mode < NUM_SYNC_REP_WAIT_MODE);
 
-	lastLSN = 0;
+	XLogRecPtr	lastLSN = 0;
 
-	proc = (PGPROC *) SHMQueueNext(&(WalSndCtl->SyncRepQueue[mode]),
-								   &(WalSndCtl->SyncRepQueue[mode]),
-								   offsetof(PGPROC, syncRepLinks));
+	PGPROC	   *proc = (PGPROC *) SHMQueueNext(&(WalSndCtl->SyncRepQueue[mode]),
+											   &(WalSndCtl->SyncRepQueue[mode]),
+											   offsetof(PGPROC, syncRepLinks));
 
 	while (proc)
 	{
@@ -1024,8 +1013,6 @@ check_synchronous_standby_names(char **newval, void **extra, GucSource source)
 {
 	if (*newval != NULL && (*newval)[0] != '\0')
 	{
-		int			parse_rc;
-		SyncRepConfigData *pconf;
 
 		/* Reset communication variables to ensure a fresh start */
 		syncrep_parse_result = NULL;
@@ -1033,7 +1020,8 @@ check_synchronous_standby_names(char **newval, void **extra, GucSource source)
 
 		/* Parse the synchronous_standby_names string */
 		syncrep_scanner_init(*newval);
-		parse_rc = syncrep_yyparse();
+		int			parse_rc = syncrep_yyparse();
+
 		syncrep_scanner_finish();
 
 		if (parse_rc != 0 || syncrep_parse_result == NULL)
@@ -1054,8 +1042,9 @@ check_synchronous_standby_names(char **newval, void **extra, GucSource source)
 		}
 
 		/* GUC extra value must be malloc'd, not palloc'd */
-		pconf = (SyncRepConfigData *)
-			malloc(syncrep_parse_result->config_size);
+		SyncRepConfigData *pconf = (SyncRepConfigData *)
+		malloc(syncrep_parse_result->config_size);
+
 		if (pconf == NULL)
 			return false;
 		memcpy(pconf, syncrep_parse_result, syncrep_parse_result->config_size);

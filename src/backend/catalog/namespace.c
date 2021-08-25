@@ -301,9 +301,8 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 			{
 				if (relation->schemaname)
 				{
-					Oid			namespaceId;
 
-					namespaceId = LookupExplicitNamespace(relation->schemaname, missing_ok);
+					Oid			namespaceId = LookupExplicitNamespace(relation->schemaname, missing_ok);
 
 					/*
 					 * For missing_ok, allow a non-existent schema name to
@@ -320,10 +319,10 @@ RangeVarGetRelidExtended(const RangeVar *relation, LOCKMODE lockmode,
 		}
 		else if (relation->schemaname)
 		{
-			Oid			namespaceId;
 
 			/* use exact schema given */
-			namespaceId = LookupExplicitNamespace(relation->schemaname, missing_ok);
+			Oid			namespaceId = LookupExplicitNamespace(relation->schemaname, missing_ok);
+
 			if (missing_ok && !OidIsValid(namespaceId))
 				relId = InvalidOid;
 			else
@@ -564,7 +563,6 @@ RangeVarGetAndCheckCreationNamespace(RangeVar *relation,
 	 */
 	for (;;)
 	{
-		AclResult	aclresult;
 
 		inval_count = SharedInvalidMessageCounter;
 
@@ -585,7 +583,8 @@ RangeVarGetAndCheckCreationNamespace(RangeVar *relation,
 			break;
 
 		/* Check namespace permissions. */
-		aclresult = pg_namespace_aclcheck(nspid, GetUserId(), ACL_CREATE);
+		AclResult	aclresult = pg_namespace_aclcheck(nspid, GetUserId(), ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_SCHEMA,
 						   get_namespace_name(nspid));
@@ -708,15 +707,13 @@ RelnameGetRelid(const char *relname)
 bool
 RelationIsVisible(Oid relid)
 {
-	HeapTuple	reltup;
-	Form_pg_class relform;
-	Oid			relnamespace;
 	bool		visible;
 
-	reltup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	HeapTuple	reltup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(reltup))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
-	relform = (Form_pg_class) GETSTRUCT(reltup);
+	Form_pg_class relform = (Form_pg_class) GETSTRUCT(reltup);
 
 	recomputeNamespacePath();
 
@@ -725,7 +722,8 @@ RelationIsVisible(Oid relid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	relnamespace = relform->relnamespace;
+	Oid			relnamespace = relform->relnamespace;
+
 	if (relnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, relnamespace))
 		visible = false;
@@ -816,15 +814,13 @@ TypenameGetTypidExtended(const char *typname, bool temp_ok)
 bool
 TypeIsVisible(Oid typid)
 {
-	HeapTuple	typtup;
-	Form_pg_type typform;
-	Oid			typnamespace;
 	bool		visible;
 
-	typtup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+	HeapTuple	typtup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+
 	if (!HeapTupleIsValid(typtup))
 		elog(ERROR, "cache lookup failed for type %u", typid);
-	typform = (Form_pg_type) GETSTRUCT(typtup);
+	Form_pg_type typform = (Form_pg_type) GETSTRUCT(typtup);
 
 	recomputeNamespacePath();
 
@@ -833,7 +829,8 @@ TypeIsVisible(Oid typid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	typnamespace = typform->typnamespace;
+	Oid			typnamespace = typform->typnamespace;
+
 	if (typnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, typnamespace))
 		visible = false;
@@ -956,7 +953,6 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 	char	   *schemaname;
 	char	   *funcname;
 	Oid			namespaceId;
-	CatCList   *catlist;
 	int			i;
 
 	/* check for caller error */
@@ -980,7 +976,7 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 	}
 
 	/* Search syscache by name only */
-	catlist = SearchSysCacheList1(PROCNAMEARGSNSP, CStringGetDatum(funcname));
+	CatCList   *catlist = SearchSysCacheList1(PROCNAMEARGSNSP, CStringGetDatum(funcname));
 
 	for (i = 0; i < catlist->n_members; i++)
 	{
@@ -988,13 +984,11 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
 		Oid		   *proargtypes = procform->proargtypes.values;
 		int			pronargs = procform->pronargs;
-		int			effective_nargs;
 		int			pathpos = 0;
 		bool		variadic;
 		bool		use_defaults;
 		Oid			va_elem_type;
 		int		   *argnumbers = NULL;
-		FuncCandidateList newResult;
 
 		if (OidIsValid(namespaceId))
 		{
@@ -1029,12 +1023,12 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		 */
 		if (include_out_arguments)
 		{
-			Datum		proallargtypes;
 			bool		isNull;
 
-			proallargtypes = SysCacheGetAttr(PROCNAMEARGSNSP, proctup,
-											 Anum_pg_proc_proallargtypes,
-											 &isNull);
+			Datum		proallargtypes = SysCacheGetAttr(PROCNAMEARGSNSP, proctup,
+														 Anum_pg_proc_proallargtypes,
+														 &isNull);
+
 			if (!isNull)
 			{
 				ArrayType  *arr = DatumGetArrayTypeP(proallargtypes);
@@ -1138,10 +1132,11 @@ FuncnameGetCandidates(List *names, int nargs, List *argnames,
 		 * masked by an earlier result, but really that's a pretty infrequent
 		 * case so it's not worth worrying about.
 		 */
-		effective_nargs = Max(pronargs, nargs);
-		newResult = (FuncCandidateList)
-			palloc(offsetof(struct _FuncCandidateList, args) +
-				   effective_nargs * sizeof(Oid));
+		int			effective_nargs = Max(pronargs, nargs);
+		FuncCandidateList newResult = (FuncCandidateList)
+		palloc(offsetof(struct _FuncCandidateList, args) +
+			   effective_nargs * sizeof(Oid));
+
 		newResult->pathpos = pathpos;
 		newResult->oid = procform->oid;
 		newResult->nominalnargs = pronargs;
@@ -1350,7 +1345,6 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 {
 	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
 	int			numposargs = nargs - list_length(argnames);
-	int			pronallargs;
 	Oid		   *p_argtypes;
 	char	  **p_argnames;
 	char	   *p_argmodes;
@@ -1371,8 +1365,9 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 		return false;
 
 	/* OK, let's extract the argument names and types */
-	pronallargs = get_func_arg_info(proctup,
-									&p_argtypes, &p_argnames, &p_argmodes);
+	int			pronallargs = get_func_arg_info(proctup,
+												&p_argtypes, &p_argnames, &p_argmodes);
+
 	Assert(p_argnames != NULL);
 
 	Assert(include_out_arguments ? (pronargs == pronallargs) : (pronargs <= pronallargs));
@@ -1392,11 +1387,11 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 	foreach(lc, argnames)
 	{
 		char	   *argname = (char *) lfirst(lc);
-		bool		found;
 		int			i;
 
 		pp = 0;
-		found = false;
+		bool		found = false;
+
 		for (i = 0; i < pronallargs; i++)
 		{
 			/* consider only input params, except with include_out_arguments */
@@ -1457,15 +1452,13 @@ MatchNamedCall(HeapTuple proctup, int nargs, List *argnames,
 bool
 FunctionIsVisible(Oid funcid)
 {
-	HeapTuple	proctup;
-	Form_pg_proc procform;
-	Oid			pronamespace;
 	bool		visible;
 
-	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+	HeapTuple	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcid));
+
 	if (!HeapTupleIsValid(proctup))
 		elog(ERROR, "cache lookup failed for function %u", funcid);
-	procform = (Form_pg_proc) GETSTRUCT(proctup);
+	Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
 
 	recomputeNamespacePath();
 
@@ -1474,7 +1467,8 @@ FunctionIsVisible(Oid funcid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	pronamespace = procform->pronamespace;
+	Oid			pronamespace = procform->pronamespace;
+
 	if (pronamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, pronamespace))
 		visible = false;
@@ -1488,12 +1482,11 @@ FunctionIsVisible(Oid funcid)
 		 */
 		char	   *proname = NameStr(procform->proname);
 		int			nargs = procform->pronargs;
-		FuncCandidateList clist;
 
 		visible = false;
 
-		clist = FuncnameGetCandidates(list_make1(makeString(proname)),
-									  nargs, NIL, false, false, false, false);
+		FuncCandidateList clist = FuncnameGetCandidates(list_make1(makeString(proname)),
+														nargs, NIL, false, false, false, false);
 
 		for (; clist; clist = clist->next)
 		{
@@ -1529,7 +1522,6 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
 {
 	char	   *schemaname;
 	char	   *opername;
-	CatCList   *catlist;
 	ListCell   *l;
 
 	/* deconstruct the name list */
@@ -1538,18 +1530,18 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
 	if (schemaname)
 	{
 		/* search only in exact schema given */
-		Oid			namespaceId;
 
-		namespaceId = LookupExplicitNamespace(schemaname, true);
+		Oid			namespaceId = LookupExplicitNamespace(schemaname, true);
+
 		if (OidIsValid(namespaceId))
 		{
-			HeapTuple	opertup;
 
-			opertup = SearchSysCache4(OPERNAMENSP,
-									  CStringGetDatum(opername),
-									  ObjectIdGetDatum(oprleft),
-									  ObjectIdGetDatum(oprright),
-									  ObjectIdGetDatum(namespaceId));
+			HeapTuple	opertup = SearchSysCache4(OPERNAMENSP,
+												  CStringGetDatum(opername),
+												  ObjectIdGetDatum(oprleft),
+												  ObjectIdGetDatum(oprright),
+												  ObjectIdGetDatum(namespaceId));
+
 			if (HeapTupleIsValid(opertup))
 			{
 				Form_pg_operator operclass = (Form_pg_operator) GETSTRUCT(opertup);
@@ -1564,10 +1556,10 @@ OpernameGetOprid(List *names, Oid oprleft, Oid oprright)
 	}
 
 	/* Search syscache by name and argument types */
-	catlist = SearchSysCacheList3(OPERNAMENSP,
-								  CStringGetDatum(opername),
-								  ObjectIdGetDatum(oprleft),
-								  ObjectIdGetDatum(oprright));
+	CatCList   *catlist = SearchSysCacheList3(OPERNAMENSP,
+											  CStringGetDatum(opername),
+											  ObjectIdGetDatum(oprleft),
+											  ObjectIdGetDatum(oprright));
 
 	if (catlist->n_members == 0)
 	{
@@ -1636,7 +1628,6 @@ OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 	char	   *schemaname;
 	char	   *opername;
 	Oid			namespaceId;
-	CatCList   *catlist;
 	int			i;
 
 	/* deconstruct the name list */
@@ -1657,7 +1648,7 @@ OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 	}
 
 	/* Search syscache by name only */
-	catlist = SearchSysCacheList1(OPERNAMENSP, CStringGetDatum(opername));
+	CatCList   *catlist = SearchSysCacheList1(OPERNAMENSP, CStringGetDatum(opername));
 
 	/*
 	 * In typical scenarios, most if not all of the operators found by the
@@ -1679,7 +1670,6 @@ OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 		HeapTuple	opertup = &catlist->members[i]->tuple;
 		Form_pg_operator operform = (Form_pg_operator) GETSTRUCT(opertup);
 		int			pathpos = 0;
-		FuncCandidateList newResult;
 
 		/* Ignore operators of wrong kind, if specific kind requested */
 		if (oprkind && operform->oprkind != oprkind)
@@ -1761,7 +1751,8 @@ OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 		/*
 		 * Okay to add it to result list
 		 */
-		newResult = (FuncCandidateList) (resultSpace + nextResult);
+		FuncCandidateList newResult = (FuncCandidateList) (resultSpace + nextResult);
+
 		nextResult += SPACE_PER_OP;
 
 		newResult->pathpos = pathpos;
@@ -1791,15 +1782,13 @@ OpernameGetCandidates(List *names, char oprkind, bool missing_schema_ok)
 bool
 OperatorIsVisible(Oid oprid)
 {
-	HeapTuple	oprtup;
-	Form_pg_operator oprform;
-	Oid			oprnamespace;
 	bool		visible;
 
-	oprtup = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
+	HeapTuple	oprtup = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
+
 	if (!HeapTupleIsValid(oprtup))
 		elog(ERROR, "cache lookup failed for operator %u", oprid);
-	oprform = (Form_pg_operator) GETSTRUCT(oprtup);
+	Form_pg_operator oprform = (Form_pg_operator) GETSTRUCT(oprtup);
 
 	recomputeNamespacePath();
 
@@ -1808,7 +1797,8 @@ OperatorIsVisible(Oid oprid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	oprnamespace = oprform->oprnamespace;
+	Oid			oprnamespace = oprform->oprnamespace;
+
 	if (oprnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, oprnamespace))
 		visible = false;
@@ -1877,15 +1867,13 @@ OpclassnameGetOpcid(Oid amid, const char *opcname)
 bool
 OpclassIsVisible(Oid opcid)
 {
-	HeapTuple	opctup;
-	Form_pg_opclass opcform;
-	Oid			opcnamespace;
 	bool		visible;
 
-	opctup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opcid));
+	HeapTuple	opctup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opcid));
+
 	if (!HeapTupleIsValid(opctup))
 		elog(ERROR, "cache lookup failed for opclass %u", opcid);
-	opcform = (Form_pg_opclass) GETSTRUCT(opctup);
+	Form_pg_opclass opcform = (Form_pg_opclass) GETSTRUCT(opctup);
 
 	recomputeNamespacePath();
 
@@ -1894,7 +1882,8 @@ OpclassIsVisible(Oid opcid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	opcnamespace = opcform->opcnamespace;
+	Oid			opcnamespace = opcform->opcnamespace;
+
 	if (opcnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, opcnamespace))
 		visible = false;
@@ -1960,15 +1949,13 @@ OpfamilynameGetOpfid(Oid amid, const char *opfname)
 bool
 OpfamilyIsVisible(Oid opfid)
 {
-	HeapTuple	opftup;
-	Form_pg_opfamily opfform;
-	Oid			opfnamespace;
 	bool		visible;
 
-	opftup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfid));
+	HeapTuple	opftup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfid));
+
 	if (!HeapTupleIsValid(opftup))
 		elog(ERROR, "cache lookup failed for opfamily %u", opfid);
-	opfform = (Form_pg_opfamily) GETSTRUCT(opftup);
+	Form_pg_opfamily opfform = (Form_pg_opfamily) GETSTRUCT(opftup);
 
 	recomputeNamespacePath();
 
@@ -1977,7 +1964,8 @@ OpfamilyIsVisible(Oid opfid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	opfnamespace = opfform->opfnamespace;
+	Oid			opfnamespace = opfform->opfnamespace;
+
 	if (opfnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, opfnamespace))
 		visible = false;
@@ -2007,15 +1995,13 @@ OpfamilyIsVisible(Oid opfid)
 static Oid
 lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 {
-	Oid			collid;
-	HeapTuple	colltup;
-	Form_pg_collation collform;
 
 	/* Check for encoding-specific entry (exact match) */
-	collid = GetSysCacheOid3(COLLNAMEENCNSP, Anum_pg_collation_oid,
-							 PointerGetDatum(collname),
-							 Int32GetDatum(encoding),
-							 ObjectIdGetDatum(collnamespace));
+	Oid			collid = GetSysCacheOid3(COLLNAMEENCNSP, Anum_pg_collation_oid,
+										 PointerGetDatum(collname),
+										 Int32GetDatum(encoding),
+										 ObjectIdGetDatum(collnamespace));
+
 	if (OidIsValid(collid))
 		return collid;
 
@@ -2025,13 +2011,15 @@ lookup_collation(const char *collname, Oid collnamespace, int32 encoding)
 	 * collations only work with certain encodings, so we have to check that
 	 * aspect before deciding it's a match.
 	 */
-	colltup = SearchSysCache3(COLLNAMEENCNSP,
-							  PointerGetDatum(collname),
-							  Int32GetDatum(-1),
-							  ObjectIdGetDatum(collnamespace));
+	HeapTuple	colltup = SearchSysCache3(COLLNAMEENCNSP,
+										  PointerGetDatum(collname),
+										  Int32GetDatum(-1),
+										  ObjectIdGetDatum(collnamespace));
+
 	if (!HeapTupleIsValid(colltup))
 		return InvalidOid;
-	collform = (Form_pg_collation) GETSTRUCT(colltup);
+	Form_pg_collation collform = (Form_pg_collation) GETSTRUCT(colltup);
+
 	if (collform->collprovider == COLLPROVIDER_ICU)
 	{
 		if (is_encoding_supported_by_icu(encoding))
@@ -2066,12 +2054,12 @@ CollationGetCollid(const char *collname)
 	foreach(l, activeSearchPath)
 	{
 		Oid			namespaceId = lfirst_oid(l);
-		Oid			collid;
 
 		if (namespaceId == myTempNamespace)
 			continue;			/* do not look in temp namespace */
 
-		collid = lookup_collation(collname, namespaceId, dbencoding);
+		Oid			collid = lookup_collation(collname, namespaceId, dbencoding);
+
 		if (OidIsValid(collid))
 			return collid;
 	}
@@ -2092,15 +2080,13 @@ CollationGetCollid(const char *collname)
 bool
 CollationIsVisible(Oid collid)
 {
-	HeapTuple	colltup;
-	Form_pg_collation collform;
-	Oid			collnamespace;
 	bool		visible;
 
-	colltup = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
+	HeapTuple	colltup = SearchSysCache1(COLLOID, ObjectIdGetDatum(collid));
+
 	if (!HeapTupleIsValid(colltup))
 		elog(ERROR, "cache lookup failed for collation %u", collid);
-	collform = (Form_pg_collation) GETSTRUCT(colltup);
+	Form_pg_collation collform = (Form_pg_collation) GETSTRUCT(colltup);
 
 	recomputeNamespacePath();
 
@@ -2109,7 +2095,8 @@ CollationIsVisible(Oid collid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	collnamespace = collform->collnamespace;
+	Oid			collnamespace = collform->collnamespace;
+
 	if (collnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, collnamespace))
 		visible = false;
@@ -2175,15 +2162,13 @@ ConversionGetConid(const char *conname)
 bool
 ConversionIsVisible(Oid conid)
 {
-	HeapTuple	contup;
-	Form_pg_conversion conform;
-	Oid			connamespace;
 	bool		visible;
 
-	contup = SearchSysCache1(CONVOID, ObjectIdGetDatum(conid));
+	HeapTuple	contup = SearchSysCache1(CONVOID, ObjectIdGetDatum(conid));
+
 	if (!HeapTupleIsValid(contup))
 		elog(ERROR, "cache lookup failed for conversion %u", conid);
-	conform = (Form_pg_conversion) GETSTRUCT(contup);
+	Form_pg_conversion conform = (Form_pg_conversion) GETSTRUCT(contup);
 
 	recomputeNamespacePath();
 
@@ -2192,7 +2177,8 @@ ConversionIsVisible(Oid conid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	connamespace = conform->connamespace;
+	Oid			connamespace = conform->connamespace;
+
 	if (connamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, connamespace))
 		visible = false;
@@ -2279,15 +2265,13 @@ get_statistics_object_oid(List *names, bool missing_ok)
 bool
 StatisticsObjIsVisible(Oid relid)
 {
-	HeapTuple	stxtup;
-	Form_pg_statistic_ext stxform;
-	Oid			stxnamespace;
 	bool		visible;
 
-	stxtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(relid));
+	HeapTuple	stxtup = SearchSysCache1(STATEXTOID, ObjectIdGetDatum(relid));
+
 	if (!HeapTupleIsValid(stxtup))
 		elog(ERROR, "cache lookup failed for statistics object %u", relid);
-	stxform = (Form_pg_statistic_ext) GETSTRUCT(stxtup);
+	Form_pg_statistic_ext stxform = (Form_pg_statistic_ext) GETSTRUCT(stxtup);
 
 	recomputeNamespacePath();
 
@@ -2296,7 +2280,8 @@ StatisticsObjIsVisible(Oid relid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	stxnamespace = stxform->stxnamespace;
+	Oid			stxnamespace = stxform->stxnamespace;
+
 	if (stxnamespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, stxnamespace))
 		visible = false;
@@ -2402,15 +2387,13 @@ get_ts_parser_oid(List *names, bool missing_ok)
 bool
 TSParserIsVisible(Oid prsId)
 {
-	HeapTuple	tup;
-	Form_pg_ts_parser form;
-	Oid			namespace;
 	bool		visible;
 
-	tup = SearchSysCache1(TSPARSEROID, ObjectIdGetDatum(prsId));
+	HeapTuple	tup = SearchSysCache1(TSPARSEROID, ObjectIdGetDatum(prsId));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for text search parser %u", prsId);
-	form = (Form_pg_ts_parser) GETSTRUCT(tup);
+	Form_pg_ts_parser form = (Form_pg_ts_parser) GETSTRUCT(tup);
 
 	recomputeNamespacePath();
 
@@ -2419,7 +2402,8 @@ TSParserIsVisible(Oid prsId)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	namespace = form->prsnamespace;
+	Oid			namespace = form->prsnamespace;
+
 	if (namespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, namespace))
 		visible = false;
@@ -2528,16 +2512,14 @@ get_ts_dict_oid(List *names, bool missing_ok)
 bool
 TSDictionaryIsVisible(Oid dictId)
 {
-	HeapTuple	tup;
-	Form_pg_ts_dict form;
-	Oid			namespace;
 	bool		visible;
 
-	tup = SearchSysCache1(TSDICTOID, ObjectIdGetDatum(dictId));
+	HeapTuple	tup = SearchSysCache1(TSDICTOID, ObjectIdGetDatum(dictId));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for text search dictionary %u",
 			 dictId);
-	form = (Form_pg_ts_dict) GETSTRUCT(tup);
+	Form_pg_ts_dict form = (Form_pg_ts_dict) GETSTRUCT(tup);
 
 	recomputeNamespacePath();
 
@@ -2546,7 +2528,8 @@ TSDictionaryIsVisible(Oid dictId)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	namespace = form->dictnamespace;
+	Oid			namespace = form->dictnamespace;
+
 	if (namespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, namespace))
 		visible = false;
@@ -2655,15 +2638,13 @@ get_ts_template_oid(List *names, bool missing_ok)
 bool
 TSTemplateIsVisible(Oid tmplId)
 {
-	HeapTuple	tup;
-	Form_pg_ts_template form;
-	Oid			namespace;
 	bool		visible;
 
-	tup = SearchSysCache1(TSTEMPLATEOID, ObjectIdGetDatum(tmplId));
+	HeapTuple	tup = SearchSysCache1(TSTEMPLATEOID, ObjectIdGetDatum(tmplId));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for text search template %u", tmplId);
-	form = (Form_pg_ts_template) GETSTRUCT(tup);
+	Form_pg_ts_template form = (Form_pg_ts_template) GETSTRUCT(tup);
 
 	recomputeNamespacePath();
 
@@ -2672,7 +2653,8 @@ TSTemplateIsVisible(Oid tmplId)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	namespace = form->tmplnamespace;
+	Oid			namespace = form->tmplnamespace;
+
 	if (namespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, namespace))
 		visible = false;
@@ -2781,16 +2763,14 @@ get_ts_config_oid(List *names, bool missing_ok)
 bool
 TSConfigIsVisible(Oid cfgid)
 {
-	HeapTuple	tup;
-	Form_pg_ts_config form;
-	Oid			namespace;
 	bool		visible;
 
-	tup = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgid));
+	HeapTuple	tup = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgid));
+
 	if (!HeapTupleIsValid(tup))
 		elog(ERROR, "cache lookup failed for text search configuration %u",
 			 cfgid);
-	form = (Form_pg_ts_config) GETSTRUCT(tup);
+	Form_pg_ts_config form = (Form_pg_ts_config) GETSTRUCT(tup);
 
 	recomputeNamespacePath();
 
@@ -2799,7 +2779,8 @@ TSConfigIsVisible(Oid cfgid)
 	 * the system namespace are surely in the path and so we needn't even do
 	 * list_member_oid() for them.
 	 */
-	namespace = form->cfgnamespace;
+	Oid			namespace = form->cfgnamespace;
+
 	if (namespace != PG_CATALOG_NAMESPACE &&
 		!list_member_oid(activeSearchPath, namespace))
 		visible = false;
@@ -2937,8 +2918,6 @@ LookupNamespaceNoError(const char *nspname)
 Oid
 LookupExplicitNamespace(const char *nspname, bool missing_ok)
 {
-	Oid			namespaceId;
-	AclResult	aclresult;
 
 	/* check for pg_temp alias */
 	if (strcmp(nspname, "pg_temp") == 0)
@@ -2953,11 +2932,13 @@ LookupExplicitNamespace(const char *nspname, bool missing_ok)
 		 */
 	}
 
-	namespaceId = get_namespace_oid(nspname, missing_ok);
+	Oid			namespaceId = get_namespace_oid(nspname, missing_ok);
+
 	if (missing_ok && !OidIsValid(namespaceId))
 		return InvalidOid;
 
-	aclresult = pg_namespace_aclcheck(namespaceId, GetUserId(), ACL_USAGE);
+	AclResult	aclresult = pg_namespace_aclcheck(namespaceId, GetUserId(), ACL_USAGE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_SCHEMA,
 					   nspname);
@@ -2980,8 +2961,6 @@ LookupExplicitNamespace(const char *nspname, bool missing_ok)
 Oid
 LookupCreationNamespace(const char *nspname)
 {
-	Oid			namespaceId;
-	AclResult	aclresult;
 
 	/* check for pg_temp alias */
 	if (strcmp(nspname, "pg_temp") == 0)
@@ -2991,9 +2970,10 @@ LookupCreationNamespace(const char *nspname)
 		return myTempNamespace;
 	}
 
-	namespaceId = get_namespace_oid(nspname, false);
+	Oid			namespaceId = get_namespace_oid(nspname, false);
 
-	aclresult = pg_namespace_aclcheck(namespaceId, GetUserId(), ACL_CREATE);
+	AclResult	aclresult = pg_namespace_aclcheck(namespaceId, GetUserId(), ACL_CREATE);
+
 	if (aclresult != ACLCHECK_OK)
 		aclcheck_error(aclresult, OBJECT_SCHEMA,
 					   nspname);
@@ -3087,10 +3067,10 @@ QualifiedNameGetCreationNamespace(List *names, char **objname_p)
 Oid
 get_namespace_oid(const char *nspname, bool missing_ok)
 {
-	Oid			oid;
 
-	oid = GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid,
-						  CStringGetDatum(nspname));
+	Oid			oid = GetSysCacheOid1(NAMESPACENAME, Anum_pg_namespace_oid,
+									  CStringGetDatum(nspname));
+
 	if (!OidIsValid(oid) && !missing_ok)
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_SCHEMA),
@@ -3239,15 +3219,15 @@ isTempOrTempToastNamespace(Oid namespaceId)
 bool
 isAnyTempNamespace(Oid namespaceId)
 {
-	bool		result;
-	char	   *nspname;
 
 	/* True if the namespace name starts with "pg_temp_" or "pg_toast_temp_" */
-	nspname = get_namespace_name(namespaceId);
+	char	   *nspname = get_namespace_name(namespaceId);
+
 	if (!nspname)
 		return false;			/* no such namespace? */
-	result = (strncmp(nspname, "pg_temp_", 8) == 0) ||
-		(strncmp(nspname, "pg_toast_temp_", 14) == 0);
+	bool		result = (strncmp(nspname, "pg_temp_", 8) == 0) ||
+	(strncmp(nspname, "pg_toast_temp_", 14) == 0);
+
 	pfree(nspname);
 	return result;
 }
@@ -3281,19 +3261,18 @@ isOtherTempNamespace(Oid namespaceId)
 TempNamespaceStatus
 checkTempNamespaceStatus(Oid namespaceId)
 {
-	PGPROC	   *proc;
-	int			backendId;
 
 	Assert(OidIsValid(MyDatabaseId));
 
-	backendId = GetTempNamespaceBackendId(namespaceId);
+	int			backendId = GetTempNamespaceBackendId(namespaceId);
 
 	/* No such namespace, or its name shows it's not temp? */
 	if (backendId == InvalidBackendId)
 		return TEMP_NAMESPACE_NOT_TEMP;
 
 	/* Is the backend alive? */
-	proc = BackendIdGetProc(backendId);
+	PGPROC	   *proc = BackendIdGetProc(backendId);
+
 	if (proc == NULL)
 		return TEMP_NAMESPACE_IDLE;
 
@@ -3319,10 +3298,10 @@ int
 GetTempNamespaceBackendId(Oid namespaceId)
 {
 	int			result;
-	char	   *nspname;
 
 	/* See if the namespace name starts with "pg_temp_" or "pg_toast_temp_" */
-	nspname = get_namespace_name(namespaceId);
+	char	   *nspname = get_namespace_name(namespaceId);
+
 	if (!nspname)
 		return InvalidBackendId;	/* no such namespace? */
 	if (strncmp(nspname, "pg_temp_", 8) == 0)
@@ -3404,16 +3383,14 @@ SetTempNamespaceState(Oid tempNamespaceId, Oid tempToastNamespaceId)
 OverrideSearchPath *
 GetOverrideSearchPath(MemoryContext context)
 {
-	OverrideSearchPath *result;
-	List	   *schemas;
-	MemoryContext oldcxt;
 
 	recomputeNamespacePath();
 
-	oldcxt = MemoryContextSwitchTo(context);
+	MemoryContext oldcxt = MemoryContextSwitchTo(context);
 
-	result = (OverrideSearchPath *) palloc0(sizeof(OverrideSearchPath));
-	schemas = list_copy(activeSearchPath);
+	OverrideSearchPath *result = (OverrideSearchPath *) palloc0(sizeof(OverrideSearchPath));
+	List	   *schemas = list_copy(activeSearchPath);
+
 	while (schemas && linitial_oid(schemas) != activeCreationNamespace)
 	{
 		if (linitial_oid(schemas) == myTempNamespace)
@@ -3441,9 +3418,9 @@ GetOverrideSearchPath(MemoryContext context)
 OverrideSearchPath *
 CopyOverrideSearchPath(OverrideSearchPath *path)
 {
-	OverrideSearchPath *result;
 
-	result = (OverrideSearchPath *) palloc(sizeof(OverrideSearchPath));
+	OverrideSearchPath *result = (OverrideSearchPath *) palloc(sizeof(OverrideSearchPath));
+
 	result->schemas = list_copy(path->schemas);
 	result->addCatalog = path->addCatalog;
 	result->addTemp = path->addTemp;
@@ -3534,18 +3511,15 @@ OverrideSearchPathMatchesCurrent(OverrideSearchPath *path)
 void
 PushOverrideSearchPath(OverrideSearchPath *newpath)
 {
-	OverrideStackEntry *entry;
-	List	   *oidlist;
 	Oid			firstNS;
-	MemoryContext oldcxt;
 
 	/*
 	 * Copy the list for safekeeping, and insert implicitly-searched
 	 * namespaces as needed.  This code should track recomputeNamespacePath.
 	 */
-	oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+	MemoryContext oldcxt = MemoryContextSwitchTo(TopMemoryContext);
 
-	oidlist = list_copy(newpath->schemas);
+	List	   *oidlist = list_copy(newpath->schemas);
 
 	/*
 	 * Remember the first member of the explicit list.
@@ -3569,7 +3543,8 @@ PushOverrideSearchPath(OverrideSearchPath *newpath)
 	/*
 	 * Build the new stack entry, then insert it at the head of the list.
 	 */
-	entry = (OverrideStackEntry *) palloc(sizeof(OverrideStackEntry));
+	OverrideStackEntry *entry = (OverrideStackEntry *) palloc(sizeof(OverrideStackEntry));
+
 	entry->searchPath = oidlist;
 	entry->creationNamespace = firstNS;
 	entry->nestLevel = GetCurrentTransactionNestLevel();
@@ -3601,12 +3576,12 @@ PushOverrideSearchPath(OverrideSearchPath *newpath)
 void
 PopOverrideSearchPath(void)
 {
-	OverrideStackEntry *entry;
 
 	/* Sanity checks. */
 	if (overrideStack == NIL)
 		elog(ERROR, "bogus PopOverrideSearchPath call");
-	entry = (OverrideStackEntry *) linitial(overrideStack);
+	OverrideStackEntry *entry = (OverrideStackEntry *) linitial(overrideStack);
+
 	if (entry->nestLevel != GetCurrentTransactionNestLevel())
 		elog(ERROR, "bogus PopOverrideSearchPath call");
 
@@ -3782,12 +3757,9 @@ static void
 recomputeNamespacePath(void)
 {
 	Oid			roleid = GetUserId();
-	char	   *rawname;
 	List	   *namelist;
-	List	   *oidlist;
 	List	   *newpath;
 	ListCell   *l;
-	bool		temp_missing;
 	Oid			firstNS;
 	bool		pathChanged;
 	MemoryContext oldcxt;
@@ -3801,7 +3773,7 @@ recomputeNamespacePath(void)
 		return;
 
 	/* Need a modifiable copy of namespace_search_path string */
-	rawname = pstrdup(namespace_search_path);
+	char	   *rawname = pstrdup(namespace_search_path);
 
 	/* Parse string into list of identifiers */
 	if (!SplitIdentifierString(rawname, ',', &namelist))
@@ -3817,8 +3789,9 @@ recomputeNamespacePath(void)
 	 * list.  (We can't raise an error, since the search_path setting has
 	 * already been accepted.)	Don't make duplicate entries, either.
 	 */
-	oidlist = NIL;
-	temp_missing = false;
+	List	   *oidlist = NIL;
+	bool		temp_missing = false;
+
 	foreach(l, namelist)
 	{
 		char	   *curname = (char *) lfirst(l);
@@ -3827,14 +3800,14 @@ recomputeNamespacePath(void)
 		if (strcmp(curname, "$user") == 0)
 		{
 			/* $user --- substitute namespace matching user name, if any */
-			HeapTuple	tuple;
 
-			tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+			HeapTuple	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+
 			if (HeapTupleIsValid(tuple))
 			{
-				char	   *rname;
 
-				rname = NameStr(((Form_pg_authid) GETSTRUCT(tuple))->rolname);
+				char	   *rname = NameStr(((Form_pg_authid) GETSTRUCT(tuple))->rolname);
+
 				namespaceId = get_namespace_oid(rname, true);
 				ReleaseSysCache(tuple);
 				if (OidIsValid(namespaceId) &&
@@ -3988,8 +3961,6 @@ static void
 InitTempTableNamespace(void)
 {
 	char		namespaceName[NAMEDATALEN];
-	Oid			namespaceId;
-	Oid			toastspaceId;
 
 	Assert(!OidIsValid(myTempNamespace));
 
@@ -4033,7 +4004,8 @@ InitTempTableNamespace(void)
 
 	snprintf(namespaceName, sizeof(namespaceName), "pg_temp_%d", MyBackendId);
 
-	namespaceId = get_namespace_oid(namespaceName, true);
+	Oid			namespaceId = get_namespace_oid(namespaceName, true);
+
 	if (!OidIsValid(namespaceId))
 	{
 		/*
@@ -4066,7 +4038,8 @@ InitTempTableNamespace(void)
 	snprintf(namespaceName, sizeof(namespaceName), "pg_toast_temp_%d",
 			 MyBackendId);
 
-	toastspaceId = get_namespace_oid(namespaceName, true);
+	Oid			toastspaceId = get_namespace_oid(namespaceName, true);
+
 	if (!OidIsValid(toastspaceId))
 	{
 		toastspaceId = NamespaceCreate(namespaceName, BOOTSTRAP_SUPERUSERID,
@@ -4149,9 +4122,9 @@ AtEOXact_Namespace(bool isCommit, bool parallel)
 			elog(WARNING, "leaked override search path");
 		while (overrideStack)
 		{
-			OverrideStackEntry *entry;
 
-			entry = (OverrideStackEntry *) linitial(overrideStack);
+			OverrideStackEntry *entry = (OverrideStackEntry *) linitial(overrideStack);
+
 			overrideStack = list_delete_first(overrideStack);
 			list_free(entry->searchPath);
 			pfree(entry);
@@ -4318,11 +4291,10 @@ ResetTempTableNamespace(void)
 bool
 check_search_path(char **newval, void **extra, GucSource source)
 {
-	char	   *rawname;
 	List	   *namelist;
 
 	/* Need a modifiable copy of string */
-	rawname = pstrdup(*newval);
+	char	   *rawname = pstrdup(*newval);
 
 	/* Parse string into list of identifiers */
 	if (!SplitIdentifierString(rawname, ',', &namelist))
@@ -4374,9 +4346,9 @@ InitializeSearchPath(void)
 		 * In bootstrap mode, the search path must be 'pg_catalog' so that
 		 * tables are created in the proper namespace; ignore the GUC setting.
 		 */
-		MemoryContext oldcxt;
 
-		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+		MemoryContext oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+
 		baseSearchPath = list_make1_oid(PG_CATALOG_NAMESPACE);
 		MemoryContextSwitchTo(oldcxt);
 		baseCreationNamespace = PG_CATALOG_NAMESPACE;
@@ -4427,7 +4399,6 @@ NamespaceCallback(Datum arg, int cacheid, uint32 hashvalue)
 List *
 fetch_search_path(bool includeImplicit)
 {
-	List	   *result;
 
 	recomputeNamespacePath();
 
@@ -4444,7 +4415,8 @@ fetch_search_path(bool includeImplicit)
 		recomputeNamespacePath();
 	}
 
-	result = list_copy(activeSearchPath);
+	List	   *result = list_copy(activeSearchPath);
+
 	if (!includeImplicit)
 	{
 		while (result && linitial_oid(result) != activeCreationNamespace)

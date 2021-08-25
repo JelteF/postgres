@@ -41,9 +41,9 @@ gistfillbuffer(Page page, IndexTuple *itup, int len, OffsetNumber off)
 	for (i = 0; i < len; i++)
 	{
 		Size		sz = IndexTupleSize(itup[i]);
-		OffsetNumber l;
 
-		l = PageAddItem(page, (Item) itup[i], sz, off, false, false);
+		OffsetNumber l = PageAddItem(page, (Item) itup[i], sz, off, false, false);
+
 		if (l == InvalidOffsetNumber)
 			elog(ERROR, "failed to add item to GiST index page, item %d out of %d, size %d bytes",
 				 i, len, (int) sz);
@@ -95,11 +95,11 @@ gistextractpage(Page page, int *len /* out */ )
 {
 	OffsetNumber i,
 				maxoff;
-	IndexTuple *itvec;
 
 	maxoff = PageGetMaxOffsetNumber(page);
 	*len = maxoff;
-	itvec = palloc(sizeof(IndexTuple) * maxoff);
+	IndexTuple *itvec = palloc(sizeof(IndexTuple) * maxoff);
+
 	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 		itvec[i - FirstOffsetNumber] = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
 
@@ -155,10 +155,9 @@ gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
 				   Datum *attr, bool *isnull)
 {
 	int			i;
-	GistEntryVector *evec;
 	int			attrsize;
 
-	evec = (GistEntryVector *) palloc((len + 2) * sizeof(GISTENTRY) + GEVHDRSZ);
+	GistEntryVector *evec = (GistEntryVector *) palloc((len + 2) * sizeof(GISTENTRY) + GEVHDRSZ);
 
 	for (i = 0; i < giststate->nonLeafTupdesc->natts; i++)
 	{
@@ -168,11 +167,11 @@ gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
 		evec->n = 0;
 		for (j = 0; j < len; j++)
 		{
-			Datum		datum;
 			bool		IsNull;
 
-			datum = index_getattr(itvec[j], i + 1, giststate->leafTupdesc,
-								  &IsNull);
+			Datum		datum = index_getattr(itvec[j], i + 1, giststate->leafTupdesc,
+											  &IsNull);
+
 			if (IsNull)
 				continue;
 
@@ -299,9 +298,9 @@ gistDeCompressAtt(GISTSTATE *giststate, Relation r, IndexTuple tuple, Page p,
 
 	for (i = 0; i < IndexRelationGetNumberOfKeyAttributes(r); i++)
 	{
-		Datum		datum;
 
-		datum = index_getattr(tuple, i + 1, giststate->leafTupdesc, &isnull[i]);
+		Datum		datum = index_getattr(tuple, i + 1, giststate->leafTupdesc, &isnull[i]);
+
 		gistdentryinit(giststate, i, &attdata[i],
 					   datum, r, p, o,
 					   false, isnull[i]);
@@ -373,14 +372,11 @@ OffsetNumber
 gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 		   GISTSTATE *giststate)
 {
-	OffsetNumber result;
-	OffsetNumber maxoff;
 	OffsetNumber i;
 	float		best_penalty[INDEX_MAX_KEYS];
 	GISTENTRY	entry,
 				identry[INDEX_MAX_KEYS];
 	bool		isnull[INDEX_MAX_KEYS];
-	int			keep_current_best;
 
 	Assert(!GistPageIsLeaf(p));
 
@@ -389,7 +385,7 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 					  identry, isnull);
 
 	/* we'll return FirstOffsetNumber if page is empty (shouldn't happen) */
-	result = FirstOffsetNumber;
+	OffsetNumber result = FirstOffsetNumber;
 
 	/*
 	 * The index may have multiple columns, and there's a penalty value for
@@ -426,36 +422,36 @@ gistchoose(Relation r, Page p, IndexTuple it,	/* it has compressed entry */
 	 * soon as we've made the replacement, but sometimes we make the choice in
 	 * advance of actually finding a replacement best tuple.)
 	 */
-	keep_current_best = -1;
+	int			keep_current_best = -1;
 
 	/*
 	 * Loop over tuples on page.
 	 */
-	maxoff = PageGetMaxOffsetNumber(p);
+	OffsetNumber maxoff = PageGetMaxOffsetNumber(p);
+
 	Assert(maxoff >= FirstOffsetNumber);
 
 	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 	{
 		IndexTuple	itup = (IndexTuple) PageGetItem(p, PageGetItemId(p, i));
-		bool		zero_penalty;
 		int			j;
 
-		zero_penalty = true;
+		bool		zero_penalty = true;
 
 		/* Loop over index attributes. */
 		for (j = 0; j < IndexRelationGetNumberOfKeyAttributes(r); j++)
 		{
-			Datum		datum;
-			float		usize;
 			bool		IsNull;
 
 			/* Compute penalty for this column. */
-			datum = index_getattr(itup, j + 1, giststate->leafTupdesc,
-								  &IsNull);
+			Datum		datum = index_getattr(itup, j + 1, giststate->leafTupdesc,
+											  &IsNull);
+
 			gistdentryinit(giststate, j, &entry, datum, r, p, i,
 						   false, IsNull);
-			usize = gistpenalty(giststate, j, &entry, IsNull,
-								&identry[j], isnull[j]);
+			float		usize = gistpenalty(giststate, j, &entry, IsNull,
+											&identry[j], isnull[j]);
+
 			if (usize > 0)
 				zero_penalty = false;
 
@@ -549,7 +545,6 @@ gistdentryinit(GISTSTATE *giststate, int nkey, GISTENTRY *e,
 {
 	if (!isNull)
 	{
-		GISTENTRY  *dep;
 
 		gistentryinit(*e, k, r, pg, o, l);
 
@@ -557,10 +552,11 @@ gistdentryinit(GISTSTATE *giststate, int nkey, GISTENTRY *e,
 		if (!OidIsValid(giststate->decompressFn[nkey].fn_oid))
 			return;
 
-		dep = (GISTENTRY *)
-			DatumGetPointer(FunctionCall1Coll(&giststate->decompressFn[nkey],
-											  giststate->supportCollation[nkey],
-											  PointerGetDatum(e)));
+		GISTENTRY  *dep = (GISTENTRY *)
+		DatumGetPointer(FunctionCall1Coll(&giststate->decompressFn[nkey],
+										  giststate->supportCollation[nkey],
+										  PointerGetDatum(e)));
+
 		/* decompressFn may just return the given pointer */
 		if (dep != e)
 			gistentryinit(*e, dep->key, dep->rel, dep->page, dep->offset,
@@ -575,13 +571,12 @@ gistFormTuple(GISTSTATE *giststate, Relation r,
 			  Datum *attdata, bool *isnull, bool isleaf)
 {
 	Datum		compatt[INDEX_MAX_KEYS];
-	IndexTuple	res;
 
 	gistCompressValues(giststate, r, attdata, isnull, isleaf, compatt);
 
-	res = index_form_tuple(isleaf ? giststate->leafTupdesc :
-						   giststate->nonLeafTupdesc,
-						   compatt, isnull);
+	IndexTuple	res = index_form_tuple(isleaf ? giststate->leafTupdesc :
+									   giststate->nonLeafTupdesc,
+									   compatt, isnull);
 
 	/*
 	 * The offset number on tuples on internal pages is unused. For historical
@@ -645,14 +640,13 @@ static Datum
 gistFetchAtt(GISTSTATE *giststate, int nkey, Datum k, Relation r)
 {
 	GISTENTRY	fentry;
-	GISTENTRY  *fep;
 
 	gistentryinit(fentry, k, r, NULL, (OffsetNumber) 0, false);
 
-	fep = (GISTENTRY *)
-		DatumGetPointer(FunctionCall1Coll(&giststate->fetchFn[nkey],
-										  giststate->supportCollation[nkey],
-										  PointerGetDatum(&fentry)));
+	GISTENTRY  *fep = (GISTENTRY *)
+	DatumGetPointer(FunctionCall1Coll(&giststate->fetchFn[nkey],
+									  giststate->supportCollation[nkey],
+									  PointerGetDatum(&fentry)));
 
 	/* fetchFn set 'key', return it to the caller */
 	return fep->key;
@@ -672,9 +666,8 @@ gistFetchTuple(GISTSTATE *giststate, Relation r, IndexTuple tuple)
 
 	for (i = 0; i < IndexRelationGetNumberOfKeyAttributes(r); i++)
 	{
-		Datum		datum;
 
-		datum = index_getattr(tuple, i + 1, giststate->leafTupdesc, &isnull[i]);
+		Datum		datum = index_getattr(tuple, i + 1, giststate->leafTupdesc, &isnull[i]);
 
 		if (giststate->fetchFn[i].fn_oid != InvalidOid)
 		{
@@ -755,11 +748,11 @@ gistpenalty(GISTSTATE *giststate, int attno,
 void
 gistinitpage(Page page, uint32 f)
 {
-	GISTPageOpaque opaque;
 
 	PageInit(page, BLCKSZ, sizeof(GISTPageOpaqueData));
 
-	opaque = GistPageGetOpaque(page);
+	GISTPageOpaque opaque = GistPageGetOpaque(page);
+
 	opaque->rightlink = InvalidBlockNumber;
 	opaque->flags = f;
 	opaque->gist_page_id = GIST_PAGE_ID;
@@ -771,9 +764,9 @@ gistinitpage(Page page, uint32 f)
 void
 GISTInitBuffer(Buffer b, uint32 f)
 {
-	Page		page;
 
-	page = BufferGetPage(b);
+	Page		page = BufferGetPage(b);
+
 	gistinitpage(page, f);
 }
 
@@ -823,7 +816,6 @@ Buffer
 gistNewBuffer(Relation r)
 {
 	Buffer		buffer;
-	bool		needLock;
 
 	/* First, try to get a page from FSM */
 	for (;;)
@@ -877,7 +869,7 @@ gistNewBuffer(Relation r)
 	}
 
 	/* Must extend the file */
-	needLock = !RELATION_IS_LOCAL(r);
+	bool		needLock = !RELATION_IS_LOCAL(r);
 
 	if (needLock)
 		LockRelationForExtension(r, ExclusiveLock);

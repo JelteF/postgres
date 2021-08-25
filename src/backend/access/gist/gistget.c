@@ -39,8 +39,6 @@ static void
 gistkillitems(IndexScanDesc scan)
 {
 	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	Buffer		buffer;
-	Page		page;
 	OffsetNumber offnum;
 	ItemId		iid;
 	int			i;
@@ -50,13 +48,14 @@ gistkillitems(IndexScanDesc scan)
 	Assert(!XLogRecPtrIsInvalid(so->curPageLSN));
 	Assert(so->killedItems != NULL);
 
-	buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
+	Buffer		buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
+
 	if (!BufferIsValid(buffer))
 		return;
 
 	LockBuffer(buffer, GIST_SHARE);
 	gistcheckpage(scan->indexRelation, buffer);
-	page = BufferGetPage(buffer);
+	Page		page = BufferGetPage(buffer);
 
 	/*
 	 * If page LSN differs it means that the page was modified since the last
@@ -134,7 +133,6 @@ gistindex_keytest(IndexScanDesc scan,
 	GISTSTATE  *giststate = so->giststate;
 	ScanKey		key = scan->keyData;
 	int			keySize = scan->numberOfKeys;
-	IndexOrderByDistance *distance_p;
 	Relation	r = scan->indexRelation;
 
 	*recheck_p = false;
@@ -162,13 +160,12 @@ gistindex_keytest(IndexScanDesc scan,
 	/* Check whether it matches according to the Consistent functions */
 	while (keySize > 0)
 	{
-		Datum		datum;
 		bool		isNull;
 
-		datum = index_getattr(tuple,
-							  key->sk_attno,
-							  giststate->leafTupdesc,
-							  &isNull);
+		Datum		datum = index_getattr(tuple,
+										  key->sk_attno,
+										  giststate->leafTupdesc,
+										  &isNull);
 
 		if (key->sk_flags & SK_ISNULL)
 		{
@@ -196,8 +193,6 @@ gistindex_keytest(IndexScanDesc scan,
 		}
 		else
 		{
-			Datum		test;
-			bool		recheck;
 			GISTENTRY	de;
 
 			gistdentryinit(giststate, key->sk_attno - 1, &de,
@@ -217,15 +212,15 @@ gistindex_keytest(IndexScanDesc scan,
 			 * We initialize the recheck flag to true (the safest assumption)
 			 * in case the Consistent function forgets to set it.
 			 */
-			recheck = true;
+			bool		recheck = true;
 
-			test = FunctionCall5Coll(&key->sk_func,
-									 key->sk_collation,
-									 PointerGetDatum(&de),
-									 key->sk_argument,
-									 Int16GetDatum(key->sk_strategy),
-									 ObjectIdGetDatum(key->sk_subtype),
-									 PointerGetDatum(&recheck));
+			Datum		test = FunctionCall5Coll(&key->sk_func,
+												 key->sk_collation,
+												 PointerGetDatum(&de),
+												 key->sk_argument,
+												 Int16GetDatum(key->sk_strategy),
+												 ObjectIdGetDatum(key->sk_subtype),
+												 PointerGetDatum(&recheck));
 
 			if (!DatumGetBool(test))
 				return false;
@@ -238,17 +233,17 @@ gistindex_keytest(IndexScanDesc scan,
 
 	/* OK, it passes --- now let's compute the distances */
 	key = scan->orderByData;
-	distance_p = so->distances;
+	IndexOrderByDistance *distance_p = so->distances;
+
 	keySize = scan->numberOfOrderBys;
 	while (keySize > 0)
 	{
-		Datum		datum;
 		bool		isNull;
 
-		datum = index_getattr(tuple,
-							  key->sk_attno,
-							  giststate->leafTupdesc,
-							  &isNull);
+		Datum		datum = index_getattr(tuple,
+										  key->sk_attno,
+										  giststate->leafTupdesc,
+										  &isNull);
 
 		if ((key->sk_flags & SK_ISNULL) || isNull)
 		{
@@ -258,8 +253,6 @@ gistindex_keytest(IndexScanDesc scan,
 		}
 		else
 		{
-			Datum		dist;
-			bool		recheck;
 			GISTENTRY	de;
 
 			gistdentryinit(giststate, key->sk_attno - 1, &de,
@@ -282,14 +275,15 @@ gistindex_keytest(IndexScanDesc scan,
 			 * version 9.5; distance functions written before that won't know
 			 * about the flag, but are expected to never be lossy.
 			 */
-			recheck = false;
-			dist = FunctionCall5Coll(&key->sk_func,
-									 key->sk_collation,
-									 PointerGetDatum(&de),
-									 key->sk_argument,
-									 Int16GetDatum(key->sk_strategy),
-									 ObjectIdGetDatum(key->sk_subtype),
-									 PointerGetDatum(&recheck));
+			bool		recheck = false;
+			Datum		dist = FunctionCall5Coll(&key->sk_func,
+												 key->sk_collation,
+												 PointerGetDatum(&de),
+												 key->sk_argument,
+												 Int16GetDatum(key->sk_strategy),
+												 ObjectIdGetDatum(key->sk_subtype),
+												 PointerGetDatum(&recheck));
+
 			*recheck_distances_p |= recheck;
 			distance_p->value = DatumGetFloat8(dist);
 			distance_p->isnull = false;
@@ -332,22 +326,20 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
 	GISTSTATE  *giststate = so->giststate;
 	Relation	r = scan->indexRelation;
-	Buffer		buffer;
-	Page		page;
-	GISTPageOpaque opaque;
-	OffsetNumber maxoff;
 	OffsetNumber i;
 	MemoryContext oldcxt;
 
 	Assert(!GISTSearchItemIsHeap(*pageItem));
 
-	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
+	Buffer		buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
+
 	LockBuffer(buffer, GIST_SHARE);
 	PredicateLockPage(r, BufferGetBlockNumber(buffer), scan->xs_snapshot);
 	gistcheckpage(scan->indexRelation, buffer);
-	page = BufferGetPage(buffer);
+	Page		page = BufferGetPage(buffer);
+
 	TestForOldSnapshot(scan->xs_snapshot, r, page);
-	opaque = GistPageGetOpaque(page);
+	GISTPageOpaque opaque = GistPageGetOpaque(page);
 
 	/*
 	 * Check if we need to follow the rightlink. We need to follow it if the
@@ -361,7 +353,6 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 		opaque->rightlink != InvalidBlockNumber /* sanity check */ )
 	{
 		/* There was a page split, follow right link to add pages */
-		GISTSearchItem *item;
 
 		/* This can't happen when starting at the root */
 		Assert(myDistances != NULL);
@@ -369,7 +360,8 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 		oldcxt = MemoryContextSwitchTo(so->queueCxt);
 
 		/* Create new GISTSearchItem for the right sibling index page */
-		item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
+		GISTSearchItem *item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
+
 		item->blkno = opaque->rightlink;
 		item->data.parentlsn = pageItem->data.parentlsn;
 
@@ -411,12 +403,11 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 	/*
 	 * check all tuples on page
 	 */
-	maxoff = PageGetMaxOffsetNumber(page);
+	OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
+
 	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 	{
 		ItemId		iid = PageGetItemId(page, i);
-		IndexTuple	it;
-		bool		match;
 		bool		recheck;
 		bool		recheck_distances;
 
@@ -427,7 +418,7 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 		if (scan->ignore_killed_tuples && ItemIdIsDead(iid))
 			continue;
 
-		it = (IndexTuple) PageGetItem(page, iid);
+		IndexTuple	it = (IndexTuple) PageGetItem(page, iid);
 
 		/*
 		 * Must call gistindex_keytest in tempCxt, and clean up any leftover
@@ -435,8 +426,8 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 		 */
 		oldcxt = MemoryContextSwitchTo(so->giststate->tempCxt);
 
-		match = gistindex_keytest(scan, it, page, i,
-								  &recheck, &recheck_distances);
+		bool		match = gistindex_keytest(scan, it, page, i,
+											  &recheck, &recheck_distances);
 
 		MemoryContextSwitchTo(oldcxt);
 		MemoryContextReset(so->giststate->tempCxt);
@@ -483,13 +474,12 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 			 * index page, and also for heap tuples if doing an ordered
 			 * search.
 			 */
-			GISTSearchItem *item;
 			int			nOrderBys = scan->numberOfOrderBys;
 
 			oldcxt = MemoryContextSwitchTo(so->queueCxt);
 
 			/* Create new GISTSearchItem for this item */
-			item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
+			GISTSearchItem *item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
 
 			if (GistPageIsLeaf(page))
 			{
@@ -709,12 +699,11 @@ gistgettuple(IndexScanDesc scan, ScanDirection dir)
 			/* find and process the next index page */
 			do
 			{
-				GISTSearchItem *item;
 
 				if ((so->curBlkno != InvalidBlockNumber) && (so->numKilled > 0))
 					gistkillitems(scan);
 
-				item = getNextGISTSearchItem(so);
+				GISTSearchItem *item = getNextGISTSearchItem(so);
 
 				if (!item)
 					return false;

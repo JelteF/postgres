@@ -57,11 +57,10 @@ get_current_ts_config(PG_FUNCTION_ARGS)
 static int
 compareWORD(const void *a, const void *b)
 {
-	int			res;
 
-	res = tsCompareString(((const ParsedWord *) a)->word, ((const ParsedWord *) a)->len,
-						  ((const ParsedWord *) b)->word, ((const ParsedWord *) b)->len,
-						  false);
+	int			res = tsCompareString(((const ParsedWord *) a)->word, ((const ParsedWord *) a)->len,
+									  ((const ParsedWord *) b)->word, ((const ParsedWord *) b)->len,
+									  false);
 
 	if (res == 0)
 	{
@@ -169,10 +168,6 @@ make_tsvector(ParsedText *prs)
 				j,
 				lenstr = 0,
 				totallen;
-	TSVector	in;
-	WordEntry  *ptr;
-	char	   *str;
-	int			stroff;
 
 	/* Merge duplicate words */
 	if (prs->curwords > 0)
@@ -195,13 +190,15 @@ make_tsvector(ParsedText *prs)
 				 errmsg("string is too long for tsvector (%d bytes, max %d bytes)", lenstr, MAXSTRPOS)));
 
 	totallen = CALCDATASIZE(prs->curwords, lenstr);
-	in = (TSVector) palloc0(totallen);
+	TSVector	in = (TSVector) palloc0(totallen);
+
 	SET_VARSIZE(in, totallen);
 	in->size = prs->curwords;
 
-	ptr = ARRPTR(in);
-	str = STRPTR(in);
-	stroff = 0;
+	WordEntry  *ptr = ARRPTR(in);
+	char	   *str = STRPTR(in);
+	int			stroff = 0;
+
 	for (i = 0; i < prs->curwords; i++)
 	{
 		ptr->len = prs->words[i].len;
@@ -212,7 +209,6 @@ make_tsvector(ParsedText *prs)
 		if (prs->words[i].alen)
 		{
 			int			k = prs->words[i].pos.apos[0];
-			WordEntryPos *wptr;
 
 			if (k > 0xFFFF)
 				elog(ERROR, "positions array too long");
@@ -220,7 +216,8 @@ make_tsvector(ParsedText *prs)
 			ptr->haspos = 1;
 			stroff = SHORTALIGN(stroff);
 			*(uint16 *) (str + stroff) = (uint16) k;
-			wptr = POSDATAPTR(in, ptr);
+			WordEntryPos *wptr = POSDATAPTR(in, ptr);
+
 			for (j = 0; j < k; j++)
 			{
 				WEP_SETWEIGHT(wptr[j], 0);
@@ -246,7 +243,6 @@ to_tsvector_byid(PG_FUNCTION_ARGS)
 	Oid			cfgId = PG_GETARG_OID(0);
 	text	   *in = PG_GETARG_TEXT_PP(1);
 	ParsedText	prs;
-	TSVector	out;
 
 	prs.lenwords = VARSIZE_ANY_EXHDR(in) / 6;	/* just estimation of word's
 												 * number */
@@ -260,7 +256,7 @@ to_tsvector_byid(PG_FUNCTION_ARGS)
 
 	PG_FREE_IF_COPY(in, 1);
 
-	out = make_tsvector(&prs);
+	TSVector	out = make_tsvector(&prs);
 
 	PG_RETURN_TSVECTOR(out);
 }
@@ -269,9 +265,9 @@ Datum
 to_tsvector(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(0);
-	Oid			cfgId;
 
-	cfgId = getTSCurrentConfig(true);
+	Oid			cfgId = getTSCurrentConfig(true);
+
 	PG_RETURN_DATUM(DirectFunctionCall2(to_tsvector_byid,
 										ObjectIdGetDatum(cfgId),
 										PointerGetDatum(in)));
@@ -301,9 +297,9 @@ jsonb_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
 	Oid			cfgId = PG_GETARG_OID(0);
 	Jsonb	   *jb = PG_GETARG_JSONB_P(1);
-	TSVector	result;
 
-	result = jsonb_to_tsvector_worker(cfgId, jb, jtiString);
+	TSVector	result = jsonb_to_tsvector_worker(cfgId, jb, jtiString);
+
 	PG_FREE_IF_COPY(jb, 1);
 
 	PG_RETURN_TSVECTOR(result);
@@ -313,11 +309,10 @@ Datum
 jsonb_string_to_tsvector(PG_FUNCTION_ARGS)
 {
 	Jsonb	   *jb = PG_GETARG_JSONB_P(0);
-	Oid			cfgId;
-	TSVector	result;
 
-	cfgId = getTSCurrentConfig(true);
-	result = jsonb_to_tsvector_worker(cfgId, jb, jtiString);
+	Oid			cfgId = getTSCurrentConfig(true);
+	TSVector	result = jsonb_to_tsvector_worker(cfgId, jb, jtiString);
+
 	PG_FREE_IF_COPY(jb, 0);
 
 	PG_RETURN_TSVECTOR(result);
@@ -329,10 +324,10 @@ jsonb_to_tsvector_byid(PG_FUNCTION_ARGS)
 	Oid			cfgId = PG_GETARG_OID(0);
 	Jsonb	   *jb = PG_GETARG_JSONB_P(1);
 	Jsonb	   *jbFlags = PG_GETARG_JSONB_P(2);
-	TSVector	result;
 	uint32		flags = parse_jsonb_index_flags(jbFlags);
 
-	result = jsonb_to_tsvector_worker(cfgId, jb, flags);
+	TSVector	result = jsonb_to_tsvector_worker(cfgId, jb, flags);
+
 	PG_FREE_IF_COPY(jb, 1);
 	PG_FREE_IF_COPY(jbFlags, 2);
 
@@ -344,12 +339,11 @@ jsonb_to_tsvector(PG_FUNCTION_ARGS)
 {
 	Jsonb	   *jb = PG_GETARG_JSONB_P(0);
 	Jsonb	   *jbFlags = PG_GETARG_JSONB_P(1);
-	Oid			cfgId;
-	TSVector	result;
 	uint32		flags = parse_jsonb_index_flags(jbFlags);
 
-	cfgId = getTSCurrentConfig(true);
-	result = jsonb_to_tsvector_worker(cfgId, jb, flags);
+	Oid			cfgId = getTSCurrentConfig(true);
+	TSVector	result = jsonb_to_tsvector_worker(cfgId, jb, flags);
+
 	PG_FREE_IF_COPY(jb, 0);
 	PG_FREE_IF_COPY(jbFlags, 1);
 
@@ -380,9 +374,9 @@ json_string_to_tsvector_byid(PG_FUNCTION_ARGS)
 {
 	Oid			cfgId = PG_GETARG_OID(0);
 	text	   *json = PG_GETARG_TEXT_P(1);
-	TSVector	result;
 
-	result = json_to_tsvector_worker(cfgId, json, jtiString);
+	TSVector	result = json_to_tsvector_worker(cfgId, json, jtiString);
+
 	PG_FREE_IF_COPY(json, 1);
 
 	PG_RETURN_TSVECTOR(result);
@@ -392,11 +386,10 @@ Datum
 json_string_to_tsvector(PG_FUNCTION_ARGS)
 {
 	text	   *json = PG_GETARG_TEXT_P(0);
-	Oid			cfgId;
-	TSVector	result;
 
-	cfgId = getTSCurrentConfig(true);
-	result = json_to_tsvector_worker(cfgId, json, jtiString);
+	Oid			cfgId = getTSCurrentConfig(true);
+	TSVector	result = json_to_tsvector_worker(cfgId, json, jtiString);
+
 	PG_FREE_IF_COPY(json, 0);
 
 	PG_RETURN_TSVECTOR(result);
@@ -408,10 +401,10 @@ json_to_tsvector_byid(PG_FUNCTION_ARGS)
 	Oid			cfgId = PG_GETARG_OID(0);
 	text	   *json = PG_GETARG_TEXT_P(1);
 	Jsonb	   *jbFlags = PG_GETARG_JSONB_P(2);
-	TSVector	result;
 	uint32		flags = parse_jsonb_index_flags(jbFlags);
 
-	result = json_to_tsvector_worker(cfgId, json, flags);
+	TSVector	result = json_to_tsvector_worker(cfgId, json, flags);
+
 	PG_FREE_IF_COPY(json, 1);
 	PG_FREE_IF_COPY(jbFlags, 2);
 
@@ -423,12 +416,11 @@ json_to_tsvector(PG_FUNCTION_ARGS)
 {
 	text	   *json = PG_GETARG_TEXT_P(0);
 	Jsonb	   *jbFlags = PG_GETARG_JSONB_P(1);
-	Oid			cfgId;
-	TSVector	result;
 	uint32		flags = parse_jsonb_index_flags(jbFlags);
 
-	cfgId = getTSCurrentConfig(true);
-	result = json_to_tsvector_worker(cfgId, json, flags);
+	Oid			cfgId = getTSCurrentConfig(true);
+	TSVector	result = json_to_tsvector_worker(cfgId, json, flags);
+
 	PG_FREE_IF_COPY(json, 0);
 	PG_FREE_IF_COPY(jbFlags, 1);
 
@@ -443,7 +435,6 @@ add_to_tsvector(void *_state, char *elem_value, int elem_len)
 {
 	TSVectorBuildState *state = (TSVectorBuildState *) _state;
 	ParsedText *prs = state->prs;
-	int32		prevwords;
 
 	if (prs->words == NULL)
 	{
@@ -457,7 +448,7 @@ add_to_tsvector(void *_state, char *elem_value, int elem_len)
 		prs->pos = 0;
 	}
 
-	prevwords = prs->curwords;
+	int32		prevwords = prs->curwords;
 
 	parsetext(state->cfgId, prs, elem_value, elem_len);
 
@@ -579,7 +570,6 @@ Datum
 to_tsquery_byid(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(1);
-	TSQuery		query;
 	MorphOpaque data;
 
 	data.cfg_id = PG_GETARG_OID(0);
@@ -592,10 +582,10 @@ to_tsquery_byid(PG_FUNCTION_ARGS)
 	 */
 	data.qoperator = OP_PHRASE;
 
-	query = parse_tsquery(text_to_cstring(in),
-						  pushval_morph,
-						  PointerGetDatum(&data),
-						  0);
+	TSQuery		query = parse_tsquery(text_to_cstring(in),
+									  pushval_morph,
+									  PointerGetDatum(&data),
+									  0);
 
 	PG_RETURN_TSQUERY(query);
 }
@@ -604,9 +594,9 @@ Datum
 to_tsquery(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(0);
-	Oid			cfgId;
 
-	cfgId = getTSCurrentConfig(true);
+	Oid			cfgId = getTSCurrentConfig(true);
+
 	PG_RETURN_DATUM(DirectFunctionCall2(to_tsquery_byid,
 										ObjectIdGetDatum(cfgId),
 										PointerGetDatum(in)));
@@ -616,7 +606,6 @@ Datum
 plainto_tsquery_byid(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(1);
-	TSQuery		query;
 	MorphOpaque data;
 
 	data.cfg_id = PG_GETARG_OID(0);
@@ -628,10 +617,10 @@ plainto_tsquery_byid(PG_FUNCTION_ARGS)
 	 */
 	data.qoperator = OP_AND;
 
-	query = parse_tsquery(text_to_cstring(in),
-						  pushval_morph,
-						  PointerGetDatum(&data),
-						  P_TSQ_PLAIN);
+	TSQuery		query = parse_tsquery(text_to_cstring(in),
+									  pushval_morph,
+									  PointerGetDatum(&data),
+									  P_TSQ_PLAIN);
 
 	PG_RETURN_POINTER(query);
 }
@@ -640,9 +629,9 @@ Datum
 plainto_tsquery(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(0);
-	Oid			cfgId;
 
-	cfgId = getTSCurrentConfig(true);
+	Oid			cfgId = getTSCurrentConfig(true);
+
 	PG_RETURN_DATUM(DirectFunctionCall2(plainto_tsquery_byid,
 										ObjectIdGetDatum(cfgId),
 										PointerGetDatum(in)));
@@ -653,7 +642,6 @@ Datum
 phraseto_tsquery_byid(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(1);
-	TSQuery		query;
 	MorphOpaque data;
 
 	data.cfg_id = PG_GETARG_OID(0);
@@ -665,10 +653,10 @@ phraseto_tsquery_byid(PG_FUNCTION_ARGS)
 	 */
 	data.qoperator = OP_PHRASE;
 
-	query = parse_tsquery(text_to_cstring(in),
-						  pushval_morph,
-						  PointerGetDatum(&data),
-						  P_TSQ_PLAIN);
+	TSQuery		query = parse_tsquery(text_to_cstring(in),
+									  pushval_morph,
+									  PointerGetDatum(&data),
+									  P_TSQ_PLAIN);
 
 	PG_RETURN_TSQUERY(query);
 }
@@ -677,9 +665,9 @@ Datum
 phraseto_tsquery(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(0);
-	Oid			cfgId;
 
-	cfgId = getTSCurrentConfig(true);
+	Oid			cfgId = getTSCurrentConfig(true);
+
 	PG_RETURN_DATUM(DirectFunctionCall2(phraseto_tsquery_byid,
 										ObjectIdGetDatum(cfgId),
 										PointerGetDatum(in)));
@@ -690,7 +678,6 @@ websearch_to_tsquery_byid(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(1);
 	MorphOpaque data;
-	TSQuery		query = NULL;
 
 	data.cfg_id = PG_GETARG_OID(0);
 
@@ -702,10 +689,10 @@ websearch_to_tsquery_byid(PG_FUNCTION_ARGS)
 	 */
 	data.qoperator = OP_PHRASE;
 
-	query = parse_tsquery(text_to_cstring(in),
-						  pushval_morph,
-						  PointerGetDatum(&data),
-						  P_TSQ_WEB);
+	TSQuery		query = parse_tsquery(text_to_cstring(in),
+									  pushval_morph,
+									  PointerGetDatum(&data),
+									  P_TSQ_WEB);
 
 	PG_RETURN_TSQUERY(query);
 }
@@ -714,9 +701,9 @@ Datum
 websearch_to_tsquery(PG_FUNCTION_ARGS)
 {
 	text	   *in = PG_GETARG_TEXT_PP(0);
-	Oid			cfgId;
 
-	cfgId = getTSCurrentConfig(true);
+	Oid			cfgId = getTSCurrentConfig(true);
+
 	PG_RETURN_DATUM(DirectFunctionCall2(websearch_to_tsquery_byid,
 										ObjectIdGetDatum(cfgId),
 										PointerGetDatum(in)));

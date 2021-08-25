@@ -573,9 +573,9 @@ static void
 initialize_reloptions(void)
 {
 	int			i;
-	int			j;
 
-	j = 0;
+	int			j = 0;
+
 	for (i = 0; boolRelOpts[i].gen.name; i++)
 	{
 		Assert(DoLockModesConflict(boolRelOpts[i].gen.lockmode,
@@ -696,9 +696,8 @@ add_reloption(relopt_gen *newoption)
 
 	if (num_custom_options >= max_custom_options)
 	{
-		MemoryContext oldcxt;
 
-		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+		MemoryContext oldcxt = MemoryContextSwitchTo(TopMemoryContext);
 
 		if (max_custom_options == 0)
 		{
@@ -770,7 +769,6 @@ allocate_reloption(bits32 kinds, int type, const char *name, const char *desc,
 {
 	MemoryContext oldcxt;
 	size_t		size;
-	relopt_gen *newoption;
 
 	if (kinds != RELOPT_KIND_LOCAL)
 		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
@@ -799,7 +797,7 @@ allocate_reloption(bits32 kinds, int type, const char *name, const char *desc,
 			return NULL;		/* keep compiler quiet */
 	}
 
-	newoption = palloc(size);
+	relopt_gen *newoption = palloc(size);
 
 	newoption->name = pstrdup(name);
 	if (desc)
@@ -825,10 +823,10 @@ static relopt_bool *
 init_bool_reloption(bits32 kinds, const char *name, const char *desc,
 					bool default_val, LOCKMODE lockmode)
 {
-	relopt_bool *newoption;
 
-	newoption = (relopt_bool *) allocate_reloption(kinds, RELOPT_TYPE_BOOL,
-												   name, desc, lockmode);
+	relopt_bool *newoption = (relopt_bool *) allocate_reloption(kinds, RELOPT_TYPE_BOOL,
+																name, desc, lockmode);
+
 	newoption->default_val = default_val;
 
 	return newoption;
@@ -875,10 +873,10 @@ init_int_reloption(bits32 kinds, const char *name, const char *desc,
 				   int default_val, int min_val, int max_val,
 				   LOCKMODE lockmode)
 {
-	relopt_int *newoption;
 
-	newoption = (relopt_int *) allocate_reloption(kinds, RELOPT_TYPE_INT,
-												  name, desc, lockmode);
+	relopt_int *newoption = (relopt_int *) allocate_reloption(kinds, RELOPT_TYPE_INT,
+															  name, desc, lockmode);
+
 	newoption->default_val = default_val;
 	newoption->min = min_val;
 	newoption->max = max_val;
@@ -928,10 +926,10 @@ init_real_reloption(bits32 kinds, const char *name, const char *desc,
 					double default_val, double min_val, double max_val,
 					LOCKMODE lockmode)
 {
-	relopt_real *newoption;
 
-	newoption = (relopt_real *) allocate_reloption(kinds, RELOPT_TYPE_REAL,
-												   name, desc, lockmode);
+	relopt_real *newoption = (relopt_real *) allocate_reloption(kinds, RELOPT_TYPE_REAL,
+																name, desc, lockmode);
+
 	newoption->default_val = default_val;
 	newoption->min = min_val;
 	newoption->max = max_val;
@@ -983,10 +981,10 @@ init_enum_reloption(bits32 kinds, const char *name, const char *desc,
 					relopt_enum_elt_def *members, int default_val,
 					const char *detailmsg, LOCKMODE lockmode)
 {
-	relopt_enum *newoption;
 
-	newoption = (relopt_enum *) allocate_reloption(kinds, RELOPT_TYPE_ENUM,
-												   name, desc, lockmode);
+	relopt_enum *newoption = (relopt_enum *) allocate_reloption(kinds, RELOPT_TYPE_ENUM,
+																name, desc, lockmode);
+
 	newoption->members = members;
 	newoption->default_val = default_val;
 	newoption->detailmsg = detailmsg;
@@ -1049,14 +1047,14 @@ init_string_reloption(bits32 kinds, const char *name, const char *desc,
 					  fill_string_relopt filler,
 					  LOCKMODE lockmode)
 {
-	relopt_string *newoption;
 
 	/* make sure the validator/default combination is sane */
 	if (validator)
 		(validator) (default_val);
 
-	newoption = (relopt_string *) allocate_reloption(kinds, RELOPT_TYPE_STRING,
-													 name, desc, lockmode);
+	relopt_string *newoption = (relopt_string *) allocate_reloption(kinds, RELOPT_TYPE_STRING,
+																	name, desc, lockmode);
+
 	newoption->validate_cb = validator;
 	newoption->fill_cb = filler;
 	if (default_val)
@@ -1150,7 +1148,6 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 					char *validnsps[], bool acceptOidsOff, bool isReset)
 {
 	Datum		result;
-	ArrayBuildState *astate;
 	ListCell   *cell;
 
 	/* no change if empty list */
@@ -1158,7 +1155,7 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 		return oldOptions;
 
 	/* We build new array using accumArrayResult */
-	astate = NULL;
+	ArrayBuildState *astate = NULL;
 
 	/* Copy any oldOptions that aren't to be replaced */
 	if (PointerIsValid(DatumGetPointer(oldOptions)))
@@ -1180,7 +1177,6 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 			foreach(cell, defList)
 			{
 				DefElem    *def = (DefElem *) lfirst(cell);
-				int			kw_len;
 
 				/* ignore if not in the same namespace */
 				if (namspace == NULL)
@@ -1193,7 +1189,8 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 				else if (strcmp(def->defnamespace, namspace) != 0)
 					continue;
 
-				kw_len = strlen(def->defname);
+				int			kw_len = strlen(def->defname);
+
 				if (text_len > kw_len && text_str[kw_len] == '=' &&
 					strncmp(text_str, def->defname, kw_len) == 0)
 					break;
@@ -1226,9 +1223,7 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 		}
 		else
 		{
-			text	   *t;
 			const char *value;
-			Size		len;
 
 			/*
 			 * Error out if the namespace is not valid.  A NULL namespace is
@@ -1296,9 +1291,11 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 				continue;
 			}
 
-			len = VARHDRSZ + strlen(def->defname) + 1 + strlen(value);
+			Size		len = VARHDRSZ + strlen(def->defname) + 1 + strlen(value);
+
 			/* +1 leaves room for sprintf's trailing null */
-			t = (text *) palloc(len + 1);
+			text	   *t = (text *) palloc(len + 1);
+
 			SET_VARSIZE(t, len);
 			sprintf(VARDATA(t), "%s=%s", def->defname, value);
 
@@ -1325,7 +1322,6 @@ List *
 untransformRelOptions(Datum options)
 {
 	List	   *result = NIL;
-	ArrayType  *array;
 	Datum	   *optiondatums;
 	int			noptions;
 	int			i;
@@ -1334,19 +1330,18 @@ untransformRelOptions(Datum options)
 	if (!PointerIsValid(DatumGetPointer(options)))
 		return result;
 
-	array = DatumGetArrayTypeP(options);
+	ArrayType  *array = DatumGetArrayTypeP(options);
 
 	deconstruct_array(array, TEXTOID, -1, false, TYPALIGN_INT,
 					  &optiondatums, NULL, &noptions);
 
 	for (i = 0; i < noptions; i++)
 	{
-		char	   *s;
-		char	   *p;
 		Node	   *val = NULL;
 
-		s = TextDatumGetCString(optiondatums[i]);
-		p = strchr(s, '=');
+		char	   *s = TextDatumGetCString(optiondatums[i]);
+		char	   *p = strchr(s, '=');
+
 		if (p)
 		{
 			*p++ = '\0';
@@ -1376,17 +1371,16 @@ extractRelOptions(HeapTuple tuple, TupleDesc tupdesc,
 {
 	bytea	   *options;
 	bool		isnull;
-	Datum		datum;
-	Form_pg_class classForm;
 
-	datum = fastgetattr(tuple,
-						Anum_pg_class_reloptions,
-						tupdesc,
-						&isnull);
+	Datum		datum = fastgetattr(tuple,
+									Anum_pg_class_reloptions,
+									tupdesc,
+									&isnull);
+
 	if (isnull)
 		return NULL;
 
-	classForm = (Form_pg_class) GETSTRUCT(tuple);
+	Form_pg_class classForm = (Form_pg_class) GETSTRUCT(tuple);
 
 	/* Parse into appropriate format; don't error out here */
 	switch (classForm->relkind)
@@ -1452,11 +1446,10 @@ parseRelOptionsInternal(Datum options, bool validate,
 
 		if (j >= numoptions && validate)
 		{
-			char	   *s;
-			char	   *p;
 
-			s = TextDatumGetCString(optiondatums[i]);
-			p = strchr(s, '=');
+			char	   *s = TextDatumGetCString(optiondatums[i]);
+			char	   *p = strchr(s, '=');
+
 			if (p)
 				*p = '\0';
 			ereport(ERROR,
@@ -1565,8 +1558,6 @@ static void
 parse_one_reloption(relopt_value *option, char *text_str, int text_len,
 					bool validate)
 {
-	char	   *value;
-	int			value_len;
 	bool		parsed;
 	bool		nofree = false;
 
@@ -1576,8 +1567,9 @@ parse_one_reloption(relopt_value *option, char *text_str, int text_len,
 				 errmsg("parameter \"%s\" specified more than once",
 						option->gen->name)));
 
-	value_len = text_len - option->gen->namelen - 1;
-	value = (char *) palloc(value_len + 1);
+	int			value_len = text_len - option->gen->namelen - 1;
+	char	   *value = (char *) palloc(value_len + 1);
+
 	memcpy(value, text_str + option->gen->namelen + 1, value_len);
 	value[value_len] = '\0';
 
@@ -1908,11 +1900,10 @@ build_reloptions(Datum reloptions, bool validate,
 				 int num_relopt_elems)
 {
 	int			numoptions;
-	relopt_value *options;
-	void	   *rdopts;
 
 	/* parse options specific to given relation option kind */
-	options = parseRelOptions(reloptions, validate, kind, &numoptions);
+	relopt_value *options = parseRelOptions(reloptions, validate, kind, &numoptions);
+
 	Assert(numoptions <= num_relopt_elems);
 
 	/* if none set, we're done */
@@ -1923,7 +1914,8 @@ build_reloptions(Datum reloptions, bool validate,
 	}
 
 	/* allocate and fill the structure */
-	rdopts = allocateReloptStruct(relopt_struct_size, options, numoptions);
+	void	   *rdopts = allocateReloptStruct(relopt_struct_size, options, numoptions);
+
 	fillRelOptions(rdopts, relopt_struct_size, options, numoptions,
 				   validate, relopt_elems, num_relopt_elems);
 
@@ -1942,8 +1934,6 @@ build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 {
 	int			noptions = list_length(relopts->options);
 	relopt_parse_elt *elems = palloc(sizeof(*elems) * noptions);
-	relopt_value *vals;
-	void	   *opts;
 	int			i = 0;
 	ListCell   *lc;
 
@@ -1958,8 +1948,9 @@ build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 		i++;
 	}
 
-	vals = parseLocalRelOptions(relopts, options, validate);
-	opts = allocateReloptStruct(relopts->relopt_struct_size, vals, noptions);
+	relopt_value *vals = parseLocalRelOptions(relopts, options, validate);
+	void	   *opts = allocateReloptStruct(relopts->relopt_struct_size, vals, noptions);
+
 	fillRelOptions(opts, relopts->relopt_struct_size, vals, noptions, validate,
 				   elems, noptions);
 

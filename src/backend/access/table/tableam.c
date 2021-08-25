@@ -90,11 +90,9 @@ table_slot_callbacks(Relation relation)
 TupleTableSlot *
 table_slot_create(Relation relation, List **reglist)
 {
-	const TupleTableSlotOps *tts_cb;
-	TupleTableSlot *slot;
 
-	tts_cb = table_slot_callbacks(relation);
-	slot = MakeSingleTupleTableSlot(RelationGetDescr(relation), tts_cb);
+	const TupleTableSlotOps *tts_cb = table_slot_callbacks(relation);
+	TupleTableSlot *slot = MakeSingleTupleTableSlot(RelationGetDescr(relation), tts_cb);
 
 	if (reglist)
 		*reglist = lappend(*reglist, slot);
@@ -221,15 +219,13 @@ table_index_fetch_tuple_check(Relation rel,
 							  Snapshot snapshot,
 							  bool *all_dead)
 {
-	IndexFetchTableData *scan;
-	TupleTableSlot *slot;
 	bool		call_again = false;
-	bool		found;
 
-	slot = table_slot_create(rel, NULL);
-	scan = table_index_fetch_begin(rel);
-	found = table_index_fetch_tuple(scan, tid, snapshot, slot, &call_again,
-									all_dead);
+	TupleTableSlot *slot = table_slot_create(rel, NULL);
+	IndexFetchTableData *scan = table_index_fetch_begin(rel);
+	bool		found = table_index_fetch_tuple(scan, tid, snapshot, slot, &call_again,
+												all_dead);
+
 	table_index_fetch_end(scan);
 	ExecDropSingleTupleTableSlot(slot);
 
@@ -300,14 +296,13 @@ simple_table_tuple_insert(Relation rel, TupleTableSlot *slot)
 void
 simple_table_tuple_delete(Relation rel, ItemPointer tid, Snapshot snapshot)
 {
-	TM_Result	result;
 	TM_FailureData tmfd;
 
-	result = table_tuple_delete(rel, tid,
-								GetCurrentCommandId(true),
-								snapshot, InvalidSnapshot,
-								true /* wait for commit */ ,
-								&tmfd, false /* changingPart */ );
+	TM_Result	result = table_tuple_delete(rel, tid,
+											GetCurrentCommandId(true),
+											snapshot, InvalidSnapshot,
+											true /* wait for commit */ ,
+											&tmfd, false /* changingPart */ );
 
 	switch (result)
 	{
@@ -348,15 +343,14 @@ simple_table_tuple_update(Relation rel, ItemPointer otid,
 						  Snapshot snapshot,
 						  bool *update_indexes)
 {
-	TM_Result	result;
 	TM_FailureData tmfd;
 	LockTupleMode lockmode;
 
-	result = table_tuple_update(rel, otid, slot,
-								GetCurrentCommandId(true),
-								snapshot, InvalidSnapshot,
-								true /* wait for commit */ ,
-								&tmfd, &lockmode, update_indexes);
+	TM_Result	result = table_tuple_update(rel, otid, slot,
+											GetCurrentCommandId(true),
+											snapshot, InvalidSnapshot,
+											true /* wait for commit */ ,
+											&tmfd, &lockmode, update_indexes);
 
 	switch (result)
 	{
@@ -668,19 +662,15 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
 								   Size overhead_bytes_per_tuple,
 								   Size usable_bytes_per_page)
 {
-	BlockNumber curpages;
-	BlockNumber relpages;
-	double		reltuples;
-	BlockNumber relallvisible;
 	double		density;
 
 	/* it should have storage, so we can call the smgr */
-	curpages = RelationGetNumberOfBlocks(rel);
+	BlockNumber curpages = RelationGetNumberOfBlocks(rel);
 
 	/* coerce values in pg_class to more desirable types */
-	relpages = (BlockNumber) rel->rd_rel->relpages;
-	reltuples = (double) rel->rd_rel->reltuples;
-	relallvisible = (BlockNumber) rel->rd_rel->relallvisible;
+	BlockNumber relpages = (BlockNumber) rel->rd_rel->relpages;
+	double		reltuples = (double) rel->rd_rel->reltuples;
+	BlockNumber relallvisible = (BlockNumber) rel->rd_rel->relallvisible;
 
 	/*
 	 * HACK: if the relation has never yet been vacuumed, use a minimum size
@@ -738,9 +728,9 @@ table_block_relation_estimate_size(Relation rel, int32 *attr_widths,
 		 * default plans which are kind of a headache for regression testing,
 		 * and (c) different table AMs might use different padding schemes.
 		 */
-		int32		tuple_width;
 
-		tuple_width = get_rel_data_width(rel, attr_widths);
+		int32		tuple_width = get_rel_data_width(rel, attr_widths);
+
 		tuple_width += overhead_bytes_per_tuple;
 		/* note: integer division is intentional here */
 		density = usable_bytes_per_page / tuple_width;

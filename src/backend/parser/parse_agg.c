@@ -129,12 +129,12 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 		 * aggregated args; we must split them apart.
 		 */
 		int			numDirectArgs = list_length(args) - list_length(aggorder);
-		List	   *aargs;
 		ListCell   *lc2;
 
 		Assert(numDirectArgs >= 0);
 
-		aargs = list_copy_tail(args, numDirectArgs);
+		List	   *aargs = list_copy_tail(args, numDirectArgs);
+
 		agg->aggdirectargs = list_truncate(args, numDirectArgs);
 
 		/*
@@ -147,10 +147,10 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 		{
 			Expr	   *arg = (Expr *) lfirst(lc);
 			SortBy	   *sortby = (SortBy *) lfirst(lc2);
-			TargetEntry *tle;
 
 			/* We don't bother to assign column names to the entries */
-			tle = makeTargetEntry(arg, attno++, NULL, false);
+			TargetEntry *tle = makeTargetEntry(arg, attno++, NULL, false);
+
 			tlist = lappend(tlist, tle);
 
 			torder = addTargetToSortList(pstate, tle,
@@ -171,10 +171,10 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 		foreach(lc, args)
 		{
 			Expr	   *arg = (Expr *) lfirst(lc);
-			TargetEntry *tle;
 
 			/* We don't bother to assign column names to the entries */
-			tle = makeTargetEntry(arg, attno++, NULL, false);
+			TargetEntry *tle = makeTargetEntry(arg, attno++, NULL, false);
+
 			tlist = lappend(tlist, tle);
 		}
 
@@ -259,9 +259,8 @@ transformGroupingFunc(ParseState *pstate, GroupingFunc *p)
 
 	foreach(lc, args)
 	{
-		Node	   *current_result;
 
-		current_result = transformExpr(pstate, (Node *) lfirst(lc), pstate->p_expr_kind);
+		Node	   *current_result = transformExpr(pstate, (Node *) lfirst(lc), pstate->p_expr_kind);
 
 		/* acceptability of expressions is checked later */
 
@@ -288,11 +287,8 @@ check_agglevels_and_constraints(ParseState *pstate, Node *expr)
 	List	   *directargs = NIL;
 	List	   *args = NIL;
 	Expr	   *filter = NULL;
-	int			min_varlevel;
 	int			location = -1;
 	Index	   *p_levelsup;
-	const char *err;
-	bool		errkind;
 	bool		isAgg = IsA(expr, Aggref);
 
 	if (isAgg)
@@ -318,10 +314,10 @@ check_agglevels_and_constraints(ParseState *pstate, Node *expr)
 	 * Check the arguments to compute the aggregate's level and detect
 	 * improper nesting.
 	 */
-	min_varlevel = check_agg_arguments(pstate,
-									   directargs,
-									   args,
-									   filter);
+	int			min_varlevel = check_agg_arguments(pstate,
+												   directargs,
+												   args,
+												   filter);
 
 	*p_levelsup = min_varlevel;
 
@@ -340,8 +336,9 @@ check_agglevels_and_constraints(ParseState *pstate, Node *expr)
 	 * what it will return is just a SQL keyword.  (Otherwise, use a custom
 	 * message to avoid creating translation problems.)
 	 */
-	err = NULL;
-	errkind = false;
+	const char *err = NULL;
+	bool		errkind = false;
+
 	switch (pstate->p_expr_kind)
 	{
 		case EXPR_KIND_NONE:
@@ -651,9 +648,9 @@ check_agg_arguments(ParseState *pstate,
 	 */
 	if (agglevel == context.min_agglevel)
 	{
-		int			aggloc;
 
-		aggloc = locate_agg_of_level((Node *) args, agglevel);
+		int			aggloc = locate_agg_of_level((Node *) args, agglevel);
+
 		if (aggloc < 0)
 			aggloc = locate_agg_of_level((Node *) filter, agglevel);
 		ereport(ERROR,
@@ -771,13 +768,13 @@ check_agg_arguments_walker(Node *node,
 	if (IsA(node, Query))
 	{
 		/* Recurse into subselects */
-		bool		result;
 
 		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   check_agg_arguments_walker,
-								   (void *) context,
-								   0);
+		bool		result = query_tree_walker((Query *) node,
+											   check_agg_arguments_walker,
+											   (void *) context,
+											   0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -802,8 +799,6 @@ void
 transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
 						WindowDef *windef)
 {
-	const char *err;
-	bool		errkind;
 
 	/*
 	 * A window function call can't contain another one (but aggs are OK). XXX
@@ -831,8 +826,9 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
 	 * what it will return is just a SQL keyword.  (Otherwise, use a custom
 	 * message to avoid creating translation problems.)
 	 */
-	err = NULL;
-	errkind = false;
+	const char *err = NULL;
+	bool		errkind = false;
+
 	switch (pstate->p_expr_kind)
 	{
 		case EXPR_KIND_NONE:
@@ -1054,12 +1050,9 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
 	List	   *gset_common = NIL;
 	List	   *groupClauses = NIL;
 	List	   *groupClauseCommonVars = NIL;
-	bool		have_non_var_grouping;
 	List	   *func_grouped_rels = NIL;
 	ListCell   *l;
-	bool		hasJoinRTEs;
 	bool		hasSelfRefRTEs;
-	Node	   *clause;
 
 	/* This should only be called if we found aggregates or grouping */
 	Assert(pstate->p_hasAggs || qry->groupClause || qry->havingQual || qry->groupingSets);
@@ -1115,7 +1108,8 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
 	 * Scan the range table to see if there are JOIN or self-reference CTE
 	 * entries.  We'll need this info below.
 	 */
-	hasJoinRTEs = hasSelfRefRTEs = false;
+	bool		hasJoinRTEs = hasSelfRefRTEs = false;
+
 	foreach(l, pstate->p_rtable)
 	{
 		RangeTblEntry *rte = (RangeTblEntry *) lfirst(l);
@@ -1136,9 +1130,9 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
 	foreach(l, qry->groupClause)
 	{
 		SortGroupClause *grpcl = (SortGroupClause *) lfirst(l);
-		TargetEntry *expr;
 
-		expr = get_sortgroupclause_tle(grpcl, qry->targetList);
+		TargetEntry *expr = get_sortgroupclause_tle(grpcl, qry->targetList);
+
 		if (expr == NULL)
 			continue;			/* probably cannot happen */
 
@@ -1164,7 +1158,8 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
 	 * groupClauseCommonVars, since these are the only ones we can use to
 	 * check for functional dependencies.
 	 */
-	have_non_var_grouping = false;
+	bool		have_non_var_grouping = false;
+
 	foreach(l, groupClauses)
 	{
 		TargetEntry *tle = lfirst(l);
@@ -1191,7 +1186,8 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
 	 * We also finalize GROUPING expressions, but for that we need to traverse
 	 * the original (unflattened) clause in order to modify nodes.
 	 */
-	clause = (Node *) qry->targetList;
+	Node	   *clause = (Node *) qry->targetList;
+
 	finalize_grouping_exprs(clause, pstate, qry,
 							groupClauses, hasJoinRTEs,
 							have_non_var_grouping);
@@ -1291,12 +1287,12 @@ check_ungrouped_columns_walker(Node *node,
 			 * We set a special flag in the context to help produce a useful
 			 * error message for ungrouped vars in direct arguments.
 			 */
-			bool		result;
 
 			Assert(!context->in_agg_direct_args);
 			context->in_agg_direct_args = true;
-			result = check_ungrouped_columns_walker((Node *) agg->aggdirectargs,
-													context);
+			bool		result = check_ungrouped_columns_walker((Node *) agg->aggdirectargs,
+																context);
+
 			context->in_agg_direct_args = false;
 			return result;
 		}
@@ -1348,8 +1344,6 @@ check_ungrouped_columns_walker(Node *node,
 	if (IsA(node, Var))
 	{
 		Var		   *var = (Var *) node;
-		RangeTblEntry *rte;
-		char	   *attname;
 
 		if (var->varlevelsup != context->sublevels_up)
 			return false;		/* it's not local to my query, ignore */
@@ -1392,7 +1386,8 @@ check_ungrouped_columns_walker(Node *node,
 
 		Assert(var->varno > 0 &&
 			   (int) var->varno <= list_length(context->pstate->p_rtable));
-		rte = rt_fetch(var->varno, context->pstate->p_rtable);
+		RangeTblEntry *rte = rt_fetch(var->varno, context->pstate->p_rtable);
+
 		if (rte->rtekind == RTE_RELATION)
 		{
 			if (check_functional_grouping(rte->relid,
@@ -1408,7 +1403,8 @@ check_ungrouped_columns_walker(Node *node,
 		}
 
 		/* Found an ungrouped local variable; generate error message */
-		attname = get_rte_attribute_name(rte, var->varattno);
+		char	   *attname = get_rte_attribute_name(rte, var->varattno);
+
 		if (context->sublevels_up == 0)
 			ereport(ERROR,
 					(errcode(ERRCODE_GROUPING_ERROR),
@@ -1428,13 +1424,13 @@ check_ungrouped_columns_walker(Node *node,
 	if (IsA(node, Query))
 	{
 		/* Recurse into subselects */
-		bool		result;
 
 		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   check_ungrouped_columns_walker,
-								   (void *) context,
-								   0);
+		bool		result = query_tree_walker((Query *) node,
+											   check_ungrouped_columns_walker,
+											   (void *) context,
+											   0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -1496,12 +1492,12 @@ finalize_grouping_exprs_walker(Node *node,
 			 * filter; GROUPING exprs of this level are not allowed there. But
 			 * check direct arguments as though they weren't in an aggregate.
 			 */
-			bool		result;
 
 			Assert(!context->in_agg_direct_args);
 			context->in_agg_direct_args = true;
-			result = finalize_grouping_exprs_walker((Node *) agg->aggdirectargs,
-													context);
+			bool		result = finalize_grouping_exprs_walker((Node *) agg->aggdirectargs,
+																context);
+
 			context->in_agg_direct_args = false;
 			return result;
 		}
@@ -1601,13 +1597,13 @@ finalize_grouping_exprs_walker(Node *node,
 	if (IsA(node, Query))
 	{
 		/* Recurse into subselects */
-		bool		result;
 
 		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   finalize_grouping_exprs_walker,
-								   (void *) context,
-								   0);
+		bool		result = query_tree_walker((Query *) node,
+											   finalize_grouping_exprs_walker,
+											   (void *) context,
+											   0);
+
 		context->sublevels_up--;
 		return result;
 	}
@@ -1679,13 +1675,12 @@ expand_groupingset_node(GroupingSet *gs)
 			{
 				List	   *cube_list = gs->content;
 				int			number_bits = list_length(cube_list);
-				uint32		num_sets;
 				uint32		i;
 
 				/* parser should cap this much lower */
 				Assert(number_bits < 31);
 
-				num_sets = (1U << number_bits);
+				uint32		num_sets = (1U << number_bits);
 
 				for (i = 0; i < num_sets; i++)
 				{
@@ -1786,10 +1781,9 @@ expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 
 	foreach(lc, groupingSets)
 	{
-		List	   *current_result = NIL;
 		GroupingSet *gs = lfirst(lc);
 
-		current_result = expand_groupingset_node(gs);
+		List	   *current_result = expand_groupingset_node(gs);
 
 		Assert(current_result != NIL);
 
@@ -1838,7 +1832,6 @@ expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 	else
 	{
 		ListCell   *cell;
-		List	   *prev;
 
 		/* Sort each groupset individually */
 		foreach(cell, result)
@@ -1848,7 +1841,8 @@ expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 		list_sort(result, cmp_list_len_contents_asc);
 
 		/* Finally, remove duplicates */
-		prev = linitial(result);
+		List	   *prev = linitial(result);
+
 		for_each_from(cell, result, 1)
 		{
 			if (equal(lfirst(cell), prev))
@@ -1974,14 +1968,12 @@ build_aggregate_transfn_expr(Oid *agg_input_types,
 							 Expr **transfnexpr,
 							 Expr **invtransfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
 	int			i;
 
 	/*
 	 * Build arg list to use in the transfn FuncExpr node.
 	 */
-	args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
+	List	   *args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
 
 	for (i = agg_num_direct_inputs; i < agg_num_inputs; i++)
 	{
@@ -1989,12 +1981,13 @@ build_aggregate_transfn_expr(Oid *agg_input_types,
 					   make_agg_arg(agg_input_types[i], agg_input_collation));
 	}
 
-	fexpr = makeFuncExpr(transfn_oid,
-						 agg_state_type,
-						 args,
-						 InvalidOid,
-						 agg_input_collation,
-						 COERCE_EXPLICIT_CALL);
+	FuncExpr   *fexpr = makeFuncExpr(transfn_oid,
+									 agg_state_type,
+									 args,
+									 InvalidOid,
+									 agg_input_collation,
+									 COERCE_EXPLICIT_CALL);
+
 	fexpr->funcvariadic = agg_variadic;
 	*transfnexpr = (Expr *) fexpr;
 
@@ -2027,18 +2020,17 @@ void
 build_aggregate_serialfn_expr(Oid serialfn_oid,
 							  Expr **serialfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
 
 	/* serialfn always takes INTERNAL and returns BYTEA */
-	args = list_make1(make_agg_arg(INTERNALOID, InvalidOid));
+	List	   *args = list_make1(make_agg_arg(INTERNALOID, InvalidOid));
 
-	fexpr = makeFuncExpr(serialfn_oid,
-						 BYTEAOID,
-						 args,
-						 InvalidOid,
-						 InvalidOid,
-						 COERCE_EXPLICIT_CALL);
+	FuncExpr   *fexpr = makeFuncExpr(serialfn_oid,
+									 BYTEAOID,
+									 args,
+									 InvalidOid,
+									 InvalidOid,
+									 COERCE_EXPLICIT_CALL);
+
 	*serialfnexpr = (Expr *) fexpr;
 }
 
@@ -2050,19 +2042,18 @@ void
 build_aggregate_deserialfn_expr(Oid deserialfn_oid,
 								Expr **deserialfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
 
 	/* deserialfn always takes BYTEA, INTERNAL and returns INTERNAL */
-	args = list_make2(make_agg_arg(BYTEAOID, InvalidOid),
-					  make_agg_arg(INTERNALOID, InvalidOid));
+	List	   *args = list_make2(make_agg_arg(BYTEAOID, InvalidOid),
+								  make_agg_arg(INTERNALOID, InvalidOid));
 
-	fexpr = makeFuncExpr(deserialfn_oid,
-						 INTERNALOID,
-						 args,
-						 InvalidOid,
-						 InvalidOid,
-						 COERCE_EXPLICIT_CALL);
+	FuncExpr   *fexpr = makeFuncExpr(deserialfn_oid,
+									 INTERNALOID,
+									 args,
+									 InvalidOid,
+									 InvalidOid,
+									 COERCE_EXPLICIT_CALL);
+
 	*deserialfnexpr = (Expr *) fexpr;
 }
 
@@ -2079,13 +2070,12 @@ build_aggregate_finalfn_expr(Oid *agg_input_types,
 							 Oid finalfn_oid,
 							 Expr **finalfnexpr)
 {
-	List	   *args;
 	int			i;
 
 	/*
 	 * Build expr tree for final function
 	 */
-	args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
+	List	   *args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
 
 	/* finalfn may take additional args, which match agg's input types */
 	for (i = 0; i < num_finalfn_inputs - 1; i++)

@@ -69,14 +69,11 @@ pg_visibility_map(PG_FUNCTION_ARGS)
 {
 	Oid			relid = PG_GETARG_OID(0);
 	int64		blkno = PG_GETARG_INT64(1);
-	int32		mapbits;
-	Relation	rel;
 	Buffer		vmbuffer = InvalidBuffer;
-	TupleDesc	tupdesc;
 	Datum		values[2];
 	bool		nulls[2];
 
-	rel = relation_open(relid, AccessShareLock);
+	Relation	rel = relation_open(relid, AccessShareLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
@@ -86,10 +83,12 @@ pg_visibility_map(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("invalid block number")));
 
-	tupdesc = pg_visibility_tupdesc(false, false);
+	TupleDesc	tupdesc = pg_visibility_tupdesc(false, false);
+
 	MemSet(nulls, 0, sizeof(nulls));
 
-	mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+	int32		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+
 	if (vmbuffer != InvalidBuffer)
 		ReleaseBuffer(vmbuffer);
 	values[0] = BoolGetDatum((mapbits & VISIBILITYMAP_ALL_VISIBLE) != 0);
@@ -109,16 +108,13 @@ pg_visibility(PG_FUNCTION_ARGS)
 {
 	Oid			relid = PG_GETARG_OID(0);
 	int64		blkno = PG_GETARG_INT64(1);
-	int32		mapbits;
-	Relation	rel;
 	Buffer		vmbuffer = InvalidBuffer;
 	Buffer		buffer;
 	Page		page;
-	TupleDesc	tupdesc;
 	Datum		values[3];
 	bool		nulls[3];
 
-	rel = relation_open(relid, AccessShareLock);
+	Relation	rel = relation_open(relid, AccessShareLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
@@ -128,10 +124,12 @@ pg_visibility(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("invalid block number")));
 
-	tupdesc = pg_visibility_tupdesc(false, true);
+	TupleDesc	tupdesc = pg_visibility_tupdesc(false, true);
+
 	MemSet(nulls, 0, sizeof(nulls));
 
-	mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+	int32		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+
 	if (vmbuffer != InvalidBuffer)
 		ReleaseBuffer(vmbuffer);
 	values[0] = BoolGetDatum((mapbits & VISIBILITYMAP_ALL_VISIBLE) != 0);
@@ -166,15 +164,14 @@ Datum
 pg_visibility_map_rel(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
-	vbits	   *info;
 
 	if (SRF_IS_FIRSTCALL())
 	{
 		Oid			relid = PG_GETARG_OID(0);
-		MemoryContext oldcontext;
 
 		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
 		funcctx->tuple_desc = pg_visibility_tupdesc(true, false);
 		/* collect_visibility_data will verify the relkind */
 		funcctx->user_fctx = collect_visibility_data(relid, false);
@@ -182,13 +179,12 @@ pg_visibility_map_rel(PG_FUNCTION_ARGS)
 	}
 
 	funcctx = SRF_PERCALL_SETUP();
-	info = (vbits *) funcctx->user_fctx;
+	vbits	   *info = (vbits *) funcctx->user_fctx;
 
 	if (info->next < info->count)
 	{
 		Datum		values[3];
 		bool		nulls[3];
-		HeapTuple	tuple;
 
 		MemSet(nulls, 0, sizeof(nulls));
 		values[0] = Int64GetDatum(info->next);
@@ -196,7 +192,8 @@ pg_visibility_map_rel(PG_FUNCTION_ARGS)
 		values[2] = BoolGetDatum((info->bits[info->next] & (1 << 1)) != 0);
 		info->next++;
 
-		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		HeapTuple	tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+
 		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
 	}
 
@@ -211,15 +208,14 @@ Datum
 pg_visibility_rel(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
-	vbits	   *info;
 
 	if (SRF_IS_FIRSTCALL())
 	{
 		Oid			relid = PG_GETARG_OID(0);
-		MemoryContext oldcontext;
 
 		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
 		funcctx->tuple_desc = pg_visibility_tupdesc(true, true);
 		/* collect_visibility_data will verify the relkind */
 		funcctx->user_fctx = collect_visibility_data(relid, true);
@@ -227,13 +223,12 @@ pg_visibility_rel(PG_FUNCTION_ARGS)
 	}
 
 	funcctx = SRF_PERCALL_SETUP();
-	info = (vbits *) funcctx->user_fctx;
+	vbits	   *info = (vbits *) funcctx->user_fctx;
 
 	if (info->next < info->count)
 	{
 		Datum		values[4];
 		bool		nulls[4];
-		HeapTuple	tuple;
 
 		MemSet(nulls, 0, sizeof(nulls));
 		values[0] = Int64GetDatum(info->next);
@@ -242,7 +237,8 @@ pg_visibility_rel(PG_FUNCTION_ARGS)
 		values[3] = BoolGetDatum((info->bits[info->next] & (1 << 2)) != 0);
 		info->next++;
 
-		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+		HeapTuple	tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+
 		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
 	}
 
@@ -257,32 +253,29 @@ Datum
 pg_visibility_map_summary(PG_FUNCTION_ARGS)
 {
 	Oid			relid = PG_GETARG_OID(0);
-	Relation	rel;
-	BlockNumber nblocks;
 	BlockNumber blkno;
 	Buffer		vmbuffer = InvalidBuffer;
 	int64		all_visible = 0;
 	int64		all_frozen = 0;
-	TupleDesc	tupdesc;
 	Datum		values[2];
 	bool		nulls[2];
 
-	rel = relation_open(relid, AccessShareLock);
+	Relation	rel = relation_open(relid, AccessShareLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
 
-	nblocks = RelationGetNumberOfBlocks(rel);
+	BlockNumber nblocks = RelationGetNumberOfBlocks(rel);
 
 	for (blkno = 0; blkno < nblocks; ++blkno)
 	{
-		int32		mapbits;
 
 		/* Make sure we are interruptible. */
 		CHECK_FOR_INTERRUPTS();
 
 		/* Get map info. */
-		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+		int32		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+
 		if ((mapbits & VISIBILITYMAP_ALL_VISIBLE) != 0)
 			++all_visible;
 		if ((mapbits & VISIBILITYMAP_ALL_FROZEN) != 0)
@@ -294,7 +287,8 @@ pg_visibility_map_summary(PG_FUNCTION_ARGS)
 		ReleaseBuffer(vmbuffer);
 	relation_close(rel, AccessShareLock);
 
-	tupdesc = CreateTemplateTupleDesc(2);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(2);
+
 	TupleDescInitEntry(tupdesc, (AttrNumber) 1, "all_visible", INT8OID, -1, 0);
 	TupleDescInitEntry(tupdesc, (AttrNumber) 2, "all_frozen", INT8OID, -1, 0);
 	tupdesc = BlessTupleDesc(tupdesc);
@@ -315,22 +309,21 @@ Datum
 pg_check_frozen(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
-	corrupt_items *items;
 
 	if (SRF_IS_FIRSTCALL())
 	{
 		Oid			relid = PG_GETARG_OID(0);
-		MemoryContext oldcontext;
 
 		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
 		/* collect_corrupt_items will verify the relkind */
 		funcctx->user_fctx = collect_corrupt_items(relid, false, true);
 		MemoryContextSwitchTo(oldcontext);
 	}
 
 	funcctx = SRF_PERCALL_SETUP();
-	items = (corrupt_items *) funcctx->user_fctx;
+	corrupt_items *items = (corrupt_items *) funcctx->user_fctx;
 
 	if (items->next < items->count)
 		SRF_RETURN_NEXT(funcctx, PointerGetDatum(&items->tids[items->next++]));
@@ -347,22 +340,21 @@ Datum
 pg_check_visible(PG_FUNCTION_ARGS)
 {
 	FuncCallContext *funcctx;
-	corrupt_items *items;
 
 	if (SRF_IS_FIRSTCALL())
 	{
 		Oid			relid = PG_GETARG_OID(0);
-		MemoryContext oldcontext;
 
 		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+		MemoryContext oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+
 		/* collect_corrupt_items will verify the relkind */
 		funcctx->user_fctx = collect_corrupt_items(relid, true, false);
 		MemoryContextSwitchTo(oldcontext);
 	}
 
 	funcctx = SRF_PERCALL_SETUP();
-	items = (corrupt_items *) funcctx->user_fctx;
+	corrupt_items *items = (corrupt_items *) funcctx->user_fctx;
 
 	if (items->next < items->count)
 		SRF_RETURN_NEXT(funcctx, PointerGetDatum(&items->tids[items->next++]));
@@ -382,11 +374,9 @@ Datum
 pg_truncate_visibility_map(PG_FUNCTION_ARGS)
 {
 	Oid			relid = PG_GETARG_OID(0);
-	Relation	rel;
 	ForkNumber	fork;
-	BlockNumber block;
 
-	rel = relation_open(relid, AccessExclusiveLock);
+	Relation	rel = relation_open(relid, AccessExclusiveLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
@@ -394,7 +384,8 @@ pg_truncate_visibility_map(PG_FUNCTION_ARGS)
 	/* Forcibly reset cached file size */
 	RelationGetSmgr(rel)->smgr_cached_nblocks[VISIBILITYMAP_FORKNUM] = InvalidBlockNumber;
 
-	block = visibilitymap_prepare_truncate(rel, 0);
+	BlockNumber block = visibilitymap_prepare_truncate(rel, 0);
+
 	if (BlockNumberIsValid(block))
 	{
 		fork = VISIBILITYMAP_FORKNUM;
@@ -448,7 +439,6 @@ pg_truncate_visibility_map(PG_FUNCTION_ARGS)
 static TupleDesc
 pg_visibility_tupdesc(bool include_blkno, bool include_pd)
 {
-	TupleDesc	tupdesc;
 	AttrNumber	maxattr = 2;
 	AttrNumber	a = 0;
 
@@ -456,7 +446,8 @@ pg_visibility_tupdesc(bool include_blkno, bool include_pd)
 		++maxattr;
 	if (include_pd)
 		++maxattr;
-	tupdesc = CreateTemplateTupleDesc(maxattr);
+	TupleDesc	tupdesc = CreateTemplateTupleDesc(maxattr);
+
 	if (include_blkno)
 		TupleDescInitEntry(tupdesc, ++a, "blkno", INT8OID, -1, 0);
 	TupleDescInitEntry(tupdesc, ++a, "all_visible", BOOLOID, -1, 0);
@@ -477,32 +468,30 @@ pg_visibility_tupdesc(bool include_blkno, bool include_pd)
 static vbits *
 collect_visibility_data(Oid relid, bool include_pd)
 {
-	Relation	rel;
-	BlockNumber nblocks;
-	vbits	   *info;
 	BlockNumber blkno;
 	Buffer		vmbuffer = InvalidBuffer;
 	BufferAccessStrategy bstrategy = GetAccessStrategy(BAS_BULKREAD);
 
-	rel = relation_open(relid, AccessShareLock);
+	Relation	rel = relation_open(relid, AccessShareLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
 
-	nblocks = RelationGetNumberOfBlocks(rel);
-	info = palloc0(offsetof(vbits, bits) + nblocks);
+	BlockNumber nblocks = RelationGetNumberOfBlocks(rel);
+	vbits	   *info = palloc0(offsetof(vbits, bits) + nblocks);
+
 	info->next = 0;
 	info->count = nblocks;
 
 	for (blkno = 0; blkno < nblocks; ++blkno)
 	{
-		int32		mapbits;
 
 		/* Make sure we are interruptible. */
 		CHECK_FOR_INTERRUPTS();
 
 		/* Get map info. */
-		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+		int32		mapbits = (int32) visibilitymap_get_status(rel, blkno, &vmbuffer);
+
 		if ((mapbits & VISIBILITYMAP_ALL_VISIBLE) != 0)
 			info->bits[blkno] |= (1 << 0);
 		if ((mapbits & VISIBILITYMAP_ALL_FROZEN) != 0)
@@ -515,14 +504,14 @@ collect_visibility_data(Oid relid, bool include_pd)
 		 */
 		if (include_pd)
 		{
-			Buffer		buffer;
-			Page		page;
 
-			buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-										bstrategy);
+			Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
+													bstrategy);
+
 			LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
-			page = BufferGetPage(buffer);
+			Page		page = BufferGetPage(buffer);
+
 			if (PageIsAllVisible(page))
 				info->bits[blkno] |= (1 << 2);
 
@@ -555,15 +544,12 @@ collect_visibility_data(Oid relid, bool include_pd)
 static corrupt_items *
 collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 {
-	Relation	rel;
-	BlockNumber nblocks;
-	corrupt_items *items;
 	BlockNumber blkno;
 	Buffer		vmbuffer = InvalidBuffer;
 	BufferAccessStrategy bstrategy = GetAccessStrategy(BAS_BULKREAD);
 	TransactionId OldestXmin = InvalidTransactionId;
 
-	rel = relation_open(relid, AccessShareLock);
+	Relation	rel = relation_open(relid, AccessShareLock);
 
 	/* Only some relkinds have a visibility map */
 	check_relation_relkind(rel);
@@ -571,7 +557,7 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 	if (all_visible)
 		OldestXmin = GetOldestNonRemovableTransactionId(rel);
 
-	nblocks = RelationGetNumberOfBlocks(rel);
+	BlockNumber nblocks = RelationGetNumberOfBlocks(rel);
 
 	/*
 	 * Guess an initial array size. We don't expect many corrupted tuples, so
@@ -581,7 +567,8 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 	 * number of entries allocated.  We'll repurpose these fields before
 	 * returning.
 	 */
-	items = palloc0(sizeof(corrupt_items));
+	corrupt_items *items = palloc0(sizeof(corrupt_items));
+
 	items->next = 0;
 	items->count = 64;
 	items->tids = palloc(items->count * sizeof(ItemPointerData));
@@ -591,8 +578,6 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 	{
 		bool		check_frozen = false;
 		bool		check_visible = false;
-		Buffer		buffer;
-		Page		page;
 		OffsetNumber offnum,
 					maxoff;
 
@@ -608,11 +593,13 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 			continue;
 
 		/* Read and lock the page. */
-		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-									bstrategy);
+		Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
+												bstrategy);
+
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
-		page = BufferGetPage(buffer);
+		Page		page = BufferGetPage(buffer);
+
 		maxoff = PageGetMaxOffsetNumber(page);
 
 		/*
@@ -635,9 +622,8 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 			 offnum = OffsetNumberNext(offnum))
 		{
 			HeapTupleData tuple;
-			ItemId		itemid;
 
-			itemid = PageGetItemId(page, offnum);
+			ItemId		itemid = PageGetItemId(page, offnum);
 
 			/* Unused or redirect line pointers are of no interest. */
 			if (!ItemIdIsUsed(itemid) || ItemIdIsRedirected(itemid))
@@ -664,7 +650,6 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 			if (check_visible &&
 				!tuple_all_visible(&tuple, OldestXmin, buffer))
 			{
-				TransactionId RecomputedOldestXmin;
 
 				/*
 				 * Time has passed since we computed OldestXmin, so it's
@@ -681,7 +666,7 @@ collect_corrupt_items(Oid relid, bool all_visible, bool all_frozen)
 				 * buffer lock. And this shouldn't happen often, so it's worth
 				 * being careful so as to avoid false positives.
 				 */
-				RecomputedOldestXmin = GetOldestNonRemovableTransactionId(rel);
+				TransactionId RecomputedOldestXmin = GetOldestNonRemovableTransactionId(rel);
 
 				if (!TransactionIdPrecedes(OldestXmin, RecomputedOldestXmin))
 					record_corrupt_item(items, &tuple.t_self);
@@ -748,10 +733,9 @@ record_corrupt_item(corrupt_items *items, ItemPointer tid)
 static bool
 tuple_all_visible(HeapTuple tup, TransactionId OldestXmin, Buffer buffer)
 {
-	HTSV_Result state;
-	TransactionId xmin;
 
-	state = HeapTupleSatisfiesVacuum(tup, OldestXmin, buffer);
+	HTSV_Result state = HeapTupleSatisfiesVacuum(tup, OldestXmin, buffer);
+
 	if (state != HEAPTUPLE_LIVE)
 		return false;			/* all-visible implies live */
 
@@ -762,7 +746,8 @@ tuple_all_visible(HeapTuple tup, TransactionId OldestXmin, Buffer buffer)
 	 * be set here.  So just check the xmin.
 	 */
 
-	xmin = HeapTupleHeaderGetXmin(tup->t_data);
+	TransactionId xmin = HeapTupleHeaderGetXmin(tup->t_data);
+
 	if (!TransactionIdPrecedes(xmin, OldestXmin))
 		return false;			/* xmin not old enough for all to see */
 

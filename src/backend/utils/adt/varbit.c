@@ -89,11 +89,9 @@ static VarBit *bit_overlay(VarBit *t1, VarBit *t2, int sp, int sl);
 static int32
 anybit_typmodin(ArrayType *ta, const char *typename)
 {
-	int32		typmod;
-	int32	   *tl;
 	int			n;
 
-	tl = ArrayGetIntegerTypmods(ta, &n);
+	int32	   *tl = ArrayGetIntegerTypmods(ta, &n);
 
 	/*
 	 * we're not too tense about good error message here because grammar
@@ -115,7 +113,7 @@ anybit_typmodin(ArrayType *ta, const char *typename)
 				 errmsg("length for type %s cannot exceed %d",
 						typename, MaxAttrSize * BITS_PER_BYTE)));
 
-	typmod = *tl;
+	int32		typmod = *tl;
 
 	return typmod;
 }
@@ -291,7 +289,6 @@ bit_out(PG_FUNCTION_ARGS)
 	VarBit	   *s = PG_GETARG_VARBIT_P(0);
 	char	   *result,
 			   *r;
-	bits8	   *sp;
 	int			i,
 				len,
 				bitlen;
@@ -302,7 +299,8 @@ bit_out(PG_FUNCTION_ARGS)
 	bitlen = VARBITLEN(s);
 	len = (bitlen + 3) / 4;
 	result = (char *) palloc(len + 2);
-	sp = VARBITS(s);
+	bits8	   *sp = VARBITS(s);
+
 	r = result;
 	*r++ = 'X';
 	/* we cheat by knowing that we store full bytes zero padded */
@@ -336,7 +334,6 @@ bit_recv(PG_FUNCTION_ARGS)
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		atttypmod = PG_GETARG_INT32(2);
-	VarBit	   *result;
 	int			len,
 				bitlen;
 
@@ -357,7 +354,8 @@ bit_recv(PG_FUNCTION_ARGS)
 						bitlen, atttypmod)));
 
 	len = VARBITTOTALLEN(bitlen);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen;
 
@@ -393,8 +391,6 @@ bit(PG_FUNCTION_ARGS)
 	VarBit	   *arg = PG_GETARG_VARBIT_P(0);
 	int32		len = PG_GETARG_INT32(1);
 	bool		isExplicit = PG_GETARG_BOOL(2);
-	VarBit	   *result;
-	int			rlen;
 
 	/* No work if typmod is invalid or supplied data matches it already */
 	if (len <= 0 || len > VARBITMAXLEN || len == VARBITLEN(arg))
@@ -406,9 +402,11 @@ bit(PG_FUNCTION_ARGS)
 				 errmsg("bit string length %d does not match type bit(%d)",
 						VARBITLEN(arg), len)));
 
-	rlen = VARBITTOTALLEN(len);
+	int			rlen = VARBITTOTALLEN(len);
+
 	/* set to 0 so that string is zero-padded */
-	result = (VarBit *) palloc0(rlen);
+	VarBit	   *result = (VarBit *) palloc0(rlen);
+
 	SET_VARSIZE(result, rlen);
 	VARBITLEN(result) = len;
 
@@ -589,7 +587,6 @@ varbit_out(PG_FUNCTION_ARGS)
 	VarBit	   *s = PG_GETARG_VARBIT_P(0);
 	char	   *result,
 			   *r;
-	bits8	   *sp;
 	bits8		x;
 	int			i,
 				k,
@@ -600,7 +597,8 @@ varbit_out(PG_FUNCTION_ARGS)
 
 	len = VARBITLEN(s);
 	result = (char *) palloc(len + 1);
-	sp = VARBITS(s);
+	bits8	   *sp = VARBITS(s);
+
 	r = result;
 	for (i = 0; i <= len - BITS_PER_BYTE; i += BITS_PER_BYTE, sp++)
 	{
@@ -641,7 +639,6 @@ varbit_recv(PG_FUNCTION_ARGS)
 	Oid			typelem = PG_GETARG_OID(1);
 #endif
 	int32		atttypmod = PG_GETARG_INT32(2);
-	VarBit	   *result;
 	int			len,
 				bitlen;
 
@@ -662,7 +659,8 @@ varbit_recv(PG_FUNCTION_ARGS)
 						atttypmod)));
 
 	len = VARBITTOTALLEN(bitlen);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen;
 
@@ -708,11 +706,10 @@ varbit_support(PG_FUNCTION_ARGS)
 	{
 		SupportRequestSimplify *req = (SupportRequestSimplify *) rawreq;
 		FuncExpr   *expr = req->fcall;
-		Node	   *typmod;
 
 		Assert(list_length(expr->args) >= 2);
 
-		typmod = (Node *) lsecond(expr->args);
+		Node	   *typmod = (Node *) lsecond(expr->args);
 
 		if (IsA(typmod, Const) && !((Const *) typmod)->constisnull)
 		{
@@ -744,8 +741,6 @@ varbit(PG_FUNCTION_ARGS)
 	VarBit	   *arg = PG_GETARG_VARBIT_P(0);
 	int32		len = PG_GETARG_INT32(1);
 	bool		isExplicit = PG_GETARG_BOOL(2);
-	VarBit	   *result;
-	int			rlen;
 
 	/* No work if typmod is invalid or supplied data matches it already */
 	if (len <= 0 || len >= VARBITLEN(arg))
@@ -757,8 +752,9 @@ varbit(PG_FUNCTION_ARGS)
 				 errmsg("bit string too long for type bit varying(%d)",
 						len)));
 
-	rlen = VARBITTOTALLEN(len);
-	result = (VarBit *) palloc(rlen);
+	int			rlen = VARBITTOTALLEN(len);
+	VarBit	   *result = (VarBit *) palloc(rlen);
+
 	SET_VARSIZE(result, rlen);
 	VARBITLEN(result) = len;
 
@@ -821,12 +817,12 @@ bit_cmp(VarBit *arg1, VarBit *arg2)
 				bytelen1,
 				bitlen2,
 				bytelen2;
-	int32		cmp;
 
 	bytelen1 = VARBITBYTES(arg1);
 	bytelen2 = VARBITBYTES(arg2);
 
-	cmp = memcmp(VARBITS(arg1), VARBITS(arg2), Min(bytelen1, bytelen2));
+	int32		cmp = memcmp(VARBITS(arg1), VARBITS(arg2), Min(bytelen1, bytelen2));
+
 	if (cmp == 0)
 	{
 		bitlen1 = VARBITLEN(arg1);
@@ -890,9 +886,8 @@ bitlt(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	bool		result;
 
-	result = (bit_cmp(arg1, arg2) < 0);
+	bool		result = (bit_cmp(arg1, arg2) < 0);
 
 	PG_FREE_IF_COPY(arg1, 0);
 	PG_FREE_IF_COPY(arg2, 1);
@@ -905,9 +900,8 @@ bitle(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	bool		result;
 
-	result = (bit_cmp(arg1, arg2) <= 0);
+	bool		result = (bit_cmp(arg1, arg2) <= 0);
 
 	PG_FREE_IF_COPY(arg1, 0);
 	PG_FREE_IF_COPY(arg2, 1);
@@ -920,9 +914,8 @@ bitgt(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	bool		result;
 
-	result = (bit_cmp(arg1, arg2) > 0);
+	bool		result = (bit_cmp(arg1, arg2) > 0);
 
 	PG_FREE_IF_COPY(arg1, 0);
 	PG_FREE_IF_COPY(arg2, 1);
@@ -935,9 +928,8 @@ bitge(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	bool		result;
 
-	result = (bit_cmp(arg1, arg2) >= 0);
+	bool		result = (bit_cmp(arg1, arg2) >= 0);
 
 	PG_FREE_IF_COPY(arg1, 0);
 	PG_FREE_IF_COPY(arg2, 1);
@@ -950,9 +942,8 @@ bitcmp(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	int32		result;
 
-	result = bit_cmp(arg1, arg2);
+	int32		result = bit_cmp(arg1, arg2);
 
 	PG_FREE_IF_COPY(arg1, 0);
 	PG_FREE_IF_COPY(arg2, 1);
@@ -976,7 +967,6 @@ bitcat(PG_FUNCTION_ARGS)
 static VarBit *
 bit_catenate(VarBit *arg1, VarBit *arg2)
 {
-	VarBit	   *result;
 	int			bitlen1,
 				bitlen2,
 				bytelen,
@@ -995,7 +985,8 @@ bit_catenate(VarBit *arg1, VarBit *arg2)
 						VARBITMAXLEN)));
 	bytelen = VARBITTOTALLEN(bitlen1 + bitlen2);
 
-	result = (VarBit *) palloc(bytelen);
+	VarBit	   *result = (VarBit *) palloc(bytelen);
+
 	SET_VARSIZE(result, bytelen);
 	VARBITLEN(result) = bitlen1 + bitlen2;
 
@@ -1166,18 +1157,15 @@ bitoverlay_no_len(PG_FUNCTION_ARGS)
 	VarBit	   *t1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *t2 = PG_GETARG_VARBIT_P(1);
 	int			sp = PG_GETARG_INT32(2);	/* substring start position */
-	int			sl;
 
-	sl = VARBITLEN(t2);			/* defaults to length(t2) */
+	int			sl = VARBITLEN(t2); /* defaults to length(t2) */
+
 	PG_RETURN_VARBIT_P(bit_overlay(t1, t2, sp, sl));
 }
 
 static VarBit *
 bit_overlay(VarBit *t1, VarBit *t2, int sp, int sl)
 {
-	VarBit	   *result;
-	VarBit	   *s1;
-	VarBit	   *s2;
 	int			sp_pl_sl;
 
 	/*
@@ -1194,9 +1182,10 @@ bit_overlay(VarBit *t1, VarBit *t2, int sp, int sl)
 				(errcode(ERRCODE_NUMERIC_VALUE_OUT_OF_RANGE),
 				 errmsg("integer out of range")));
 
-	s1 = bitsubstring(t1, 1, sp - 1, false);
-	s2 = bitsubstring(t1, sp_pl_sl, -1, true);
-	result = bit_catenate(s1, t2);
+	VarBit	   *s1 = bitsubstring(t1, 1, sp - 1, false);
+	VarBit	   *s2 = bitsubstring(t1, sp_pl_sl, -1, true);
+	VarBit	   *result = bit_catenate(s1, t2);
+
 	result = bit_catenate(result, s2);
 
 	return result;
@@ -1244,7 +1233,6 @@ bit_and(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	VarBit	   *result;
 	int			len,
 				bitlen1,
 				bitlen2,
@@ -1261,7 +1249,8 @@ bit_and(PG_FUNCTION_ARGS)
 				 errmsg("cannot AND bit strings of different sizes")));
 
 	len = VARSIZE(arg1);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen1;
 
@@ -1285,7 +1274,6 @@ bit_or(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	VarBit	   *result;
 	int			len,
 				bitlen1,
 				bitlen2,
@@ -1301,7 +1289,8 @@ bit_or(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_STRING_DATA_LENGTH_MISMATCH),
 				 errmsg("cannot OR bit strings of different sizes")));
 	len = VARSIZE(arg1);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen1;
 
@@ -1325,7 +1314,6 @@ bitxor(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	VarBit	   *arg2 = PG_GETARG_VARBIT_P(1);
-	VarBit	   *result;
 	int			len,
 				bitlen1,
 				bitlen2,
@@ -1342,7 +1330,8 @@ bitxor(PG_FUNCTION_ARGS)
 				 errmsg("cannot XOR bit strings of different sizes")));
 
 	len = VARSIZE(arg1);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen1;
 
@@ -1365,11 +1354,11 @@ Datum
 bitnot(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg = PG_GETARG_VARBIT_P(0);
-	VarBit	   *result;
 	bits8	   *p,
 			   *r;
 
-	result = (VarBit *) palloc(VARSIZE(arg));
+	VarBit	   *result = (VarBit *) palloc(VARSIZE(arg));
+
 	SET_VARSIZE(result, VARSIZE(arg));
 	VARBITLEN(result) = VARBITLEN(arg);
 
@@ -1393,7 +1382,6 @@ bitshiftleft(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg = PG_GETARG_VARBIT_P(0);
 	int32		shft = PG_GETARG_INT32(1);
-	VarBit	   *result;
 	int			byte_shift,
 				ishift,
 				len;
@@ -1411,7 +1399,8 @@ bitshiftleft(PG_FUNCTION_ARGS)
 											Int32GetDatum(-shft)));
 	}
 
-	result = (VarBit *) palloc(VARSIZE(arg));
+	VarBit	   *result = (VarBit *) palloc(VARSIZE(arg));
+
 	SET_VARSIZE(result, VARSIZE(arg));
 	VARBITLEN(result) = VARBITLEN(arg);
 	r = VARBITS(result);
@@ -1460,7 +1449,6 @@ bitshiftright(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg = PG_GETARG_VARBIT_P(0);
 	int32		shft = PG_GETARG_INT32(1);
-	VarBit	   *result;
 	int			byte_shift,
 				ishift,
 				len;
@@ -1478,7 +1466,8 @@ bitshiftright(PG_FUNCTION_ARGS)
 											Int32GetDatum(-shft)));
 	}
 
-	result = (VarBit *) palloc(VARSIZE(arg));
+	VarBit	   *result = (VarBit *) palloc(VARSIZE(arg));
+
 	SET_VARSIZE(result, VARSIZE(arg));
 	VARBITLEN(result) = VARBITLEN(arg);
 	r = VARBITS(result);
@@ -1532,21 +1521,20 @@ bitfromint4(PG_FUNCTION_ARGS)
 {
 	int32		a = PG_GETARG_INT32(0);
 	int32		typmod = PG_GETARG_INT32(1);
-	VarBit	   *result;
-	bits8	   *r;
-	int			rlen;
 	int			destbitsleft,
 				srcbitsleft;
 
 	if (typmod <= 0 || typmod > VARBITMAXLEN)
 		typmod = 1;				/* default bit length */
 
-	rlen = VARBITTOTALLEN(typmod);
-	result = (VarBit *) palloc(rlen);
+	int			rlen = VARBITTOTALLEN(typmod);
+	VarBit	   *result = (VarBit *) palloc(rlen);
+
 	SET_VARSIZE(result, rlen);
 	VARBITLEN(result) = typmod;
 
-	r = VARBITS(result);
+	bits8	   *r = VARBITS(result);
+
 	destbitsleft = typmod;
 	srcbitsleft = 32;
 	/* drop any input bits that don't fit */
@@ -1612,21 +1600,20 @@ bitfromint8(PG_FUNCTION_ARGS)
 {
 	int64		a = PG_GETARG_INT64(0);
 	int32		typmod = PG_GETARG_INT32(1);
-	VarBit	   *result;
-	bits8	   *r;
-	int			rlen;
 	int			destbitsleft,
 				srcbitsleft;
 
 	if (typmod <= 0 || typmod > VARBITMAXLEN)
 		typmod = 1;				/* default bit length */
 
-	rlen = VARBITTOTALLEN(typmod);
-	result = (VarBit *) palloc(rlen);
+	int			rlen = VARBITTOTALLEN(typmod);
+	VarBit	   *result = (VarBit *) palloc(rlen);
+
 	SET_VARSIZE(result, rlen);
 	VARBITLEN(result) = typmod;
 
-	r = VARBITS(result);
+	bits8	   *r = VARBITS(result);
+
 	destbitsleft = typmod;
 	srcbitsleft = 64;
 	/* drop any input bits that don't fit */
@@ -1809,7 +1796,6 @@ bitsetbit(PG_FUNCTION_ARGS)
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	int32		n = PG_GETARG_INT32(1);
 	int32		newBit = PG_GETARG_INT32(2);
-	VarBit	   *result;
 	int			len,
 				bitlen;
 	bits8	   *r,
@@ -1833,7 +1819,8 @@ bitsetbit(PG_FUNCTION_ARGS)
 				 errmsg("new bit must be 0 or 1")));
 
 	len = VARSIZE(arg1);
-	result = (VarBit *) palloc(len);
+	VarBit	   *result = (VarBit *) palloc(len);
+
 	SET_VARSIZE(result, len);
 	VARBITLEN(result) = bitlen;
 
@@ -1870,19 +1857,18 @@ bitgetbit(PG_FUNCTION_ARGS)
 {
 	VarBit	   *arg1 = PG_GETARG_VARBIT_P(0);
 	int32		n = PG_GETARG_INT32(1);
-	int			bitlen;
-	bits8	   *p;
 	int			byteNo,
 				bitNo;
 
-	bitlen = VARBITLEN(arg1);
+	int			bitlen = VARBITLEN(arg1);
+
 	if (n < 0 || n >= bitlen)
 		ereport(ERROR,
 				(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR),
 				 errmsg("bit index %d out of valid range (0..%d)",
 						n, bitlen - 1)));
 
-	p = VARBITS(arg1);
+	bits8	   *p = VARBITS(arg1);
 
 	byteNo = n / BITS_PER_BYTE;
 	bitNo = BITS_PER_BYTE - 1 - (n % BITS_PER_BYTE);

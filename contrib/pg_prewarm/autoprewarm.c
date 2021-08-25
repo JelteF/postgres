@@ -226,16 +226,14 @@ autoprewarm_main(Datum main_arg)
 		}
 		else
 		{
-			TimestampTz next_dump_time;
-			long		delay_in_ms;
 
 			/* Compute the next dump time. */
-			next_dump_time =
-				TimestampTzPlusMilliseconds(last_dump_time,
-											autoprewarm_interval * 1000);
-			delay_in_ms =
-				TimestampDifferenceMilliseconds(GetCurrentTimestamp(),
-												next_dump_time);
+			TimestampTz next_dump_time =
+			TimestampTzPlusMilliseconds(last_dump_time,
+										autoprewarm_interval * 1000);
+			long		delay_in_ms =
+			TimestampDifferenceMilliseconds(GetCurrentTimestamp(),
+											next_dump_time);
 
 			/* Perform a dump if it's time. */
 			if (delay_in_ms <= 0)
@@ -271,11 +269,8 @@ autoprewarm_main(Datum main_arg)
 static void
 apw_load_buffers(void)
 {
-	FILE	   *file = NULL;
 	int			num_elements,
 				i;
-	BlockInfoRecord *blkinfo;
-	dsm_segment *seg;
 
 	/*
 	 * Skip the prewarm if the dump file is in use; otherwise, prevent any
@@ -298,7 +293,8 @@ apw_load_buffers(void)
 	 * Open the block dump file.  Exit quietly if it doesn't exist, but report
 	 * any other error.
 	 */
-	file = AllocateFile(AUTOPREWARM_FILE, "r");
+	FILE	   *file = AllocateFile(AUTOPREWARM_FILE, "r");
+
 	if (!file)
 	{
 		if (errno == ENOENT)
@@ -322,8 +318,8 @@ apw_load_buffers(void)
 						AUTOPREWARM_FILE)));
 
 	/* Allocate a dynamic shared memory segment to store the record data. */
-	seg = dsm_create(sizeof(BlockInfoRecord) * num_elements, 0);
-	blkinfo = (BlockInfoRecord *) dsm_segment_address(seg);
+	dsm_segment *seg = dsm_create(sizeof(BlockInfoRecord) * num_elements, 0);
+	BlockInfoRecord *blkinfo = (BlockInfoRecord *) dsm_segment_address(seg);
 
 	/* Read records, one per line. */
 	for (i = 0; i < num_elements; i++)
@@ -432,12 +428,9 @@ apw_load_buffers(void)
 void
 autoprewarm_database_main(Datum main_arg)
 {
-	int			pos;
-	BlockInfoRecord *block_info;
 	Relation	rel = NULL;
 	BlockNumber nblocks = 0;
 	BlockInfoRecord *old_blk = NULL;
-	dsm_segment *seg;
 
 	/* Establish signal handlers; once that's done, unblock signals. */
 	pqsignal(SIGTERM, die);
@@ -445,14 +438,15 @@ autoprewarm_database_main(Datum main_arg)
 
 	/* Connect to correct database and get block information. */
 	apw_init_shmem();
-	seg = dsm_attach(apw_state->block_info_handle);
+	dsm_segment *seg = dsm_attach(apw_state->block_info_handle);
+
 	if (seg == NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("could not map dynamic shared memory segment")));
 	BackgroundWorkerInitializeConnectionByOid(apw_state->database, InvalidOid, 0);
-	block_info = (BlockInfoRecord *) dsm_segment_address(seg);
-	pos = apw_state->prewarm_start_idx;
+	BlockInfoRecord *block_info = (BlockInfoRecord *) dsm_segment_address(seg);
+	int			pos = apw_state->prewarm_start_idx;
 
 	/*
 	 * Loop until we run out of blocks to prewarm or until we run out of free
@@ -461,7 +455,6 @@ autoprewarm_database_main(Datum main_arg)
 	while (pos < apw_state->prewarm_stop_idx && have_free_buffer())
 	{
 		BlockInfoRecord *blk = &block_info[pos++];
-		Buffer		buf;
 
 		CHECK_FOR_INTERRUPTS();
 
@@ -492,11 +485,11 @@ autoprewarm_database_main(Datum main_arg)
 		 */
 		if (old_blk == NULL || old_blk->filenode != blk->filenode)
 		{
-			Oid			reloid;
 
 			Assert(rel == NULL);
 			StartTransactionCommand();
-			reloid = RelidByRelfilenode(blk->tablespace, blk->filenode);
+			Oid			reloid = RelidByRelfilenode(blk->tablespace, blk->filenode);
+
 			if (OidIsValid(reloid))
 				rel = try_relation_open(reloid, AccessShareLock);
 
@@ -535,8 +528,9 @@ autoprewarm_database_main(Datum main_arg)
 		}
 
 		/* Prewarm buffer. */
-		buf = ReadBufferExtended(rel, blk->forknum, blk->blocknum, RBM_NORMAL,
-								 NULL);
+		Buffer		buf = ReadBufferExtended(rel, blk->forknum, blk->blocknum, RBM_NORMAL,
+											 NULL);
+
 		if (BufferIsValid(buf))
 		{
 			apw_state->prewarmed_blocks++;
@@ -567,15 +561,12 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 {
 	int			num_blocks;
 	int			i;
-	int			ret;
-	BlockInfoRecord *block_info_array;
 	BufferDesc *bufHdr;
-	FILE	   *file;
 	char		transient_dump_file_path[MAXPGPATH];
-	pid_t		pid;
 
 	LWLockAcquire(&apw_state->lock, LW_EXCLUSIVE);
-	pid = apw_state->pid_using_dumpfile;
+	pid_t		pid = apw_state->pid_using_dumpfile;
+
 	if (apw_state->pid_using_dumpfile == InvalidPid)
 		apw_state->pid_using_dumpfile = MyProcPid;
 	LWLockRelease(&apw_state->lock);
@@ -593,19 +584,18 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 		return 0;
 	}
 
-	block_info_array =
-		(BlockInfoRecord *) palloc(sizeof(BlockInfoRecord) * NBuffers);
+	BlockInfoRecord *block_info_array =
+	(BlockInfoRecord *) palloc(sizeof(BlockInfoRecord) * NBuffers);
 
 	for (num_blocks = 0, i = 0; i < NBuffers; i++)
 	{
-		uint32		buf_state;
 
 		CHECK_FOR_INTERRUPTS();
 
 		bufHdr = GetBufferDescriptor(i);
 
 		/* Lock each buffer header before inspecting. */
-		buf_state = LockBufHdr(bufHdr);
+		uint32		buf_state = LockBufHdr(bufHdr);
 
 		/*
 		 * Unlogged tables will be automatically truncated after a crash or
@@ -627,14 +617,16 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 	}
 
 	snprintf(transient_dump_file_path, MAXPGPATH, "%s.tmp", AUTOPREWARM_FILE);
-	file = AllocateFile(transient_dump_file_path, "w");
+	FILE	   *file = AllocateFile(transient_dump_file_path, "w");
+
 	if (!file)
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not open file \"%s\": %m",
 						transient_dump_file_path)));
 
-	ret = fprintf(file, "<<%d>>\n", num_blocks);
+	int			ret = fprintf(file, "<<%d>>\n", num_blocks);
+
 	if (ret < 0)
 	{
 		int			save_errno = errno;
@@ -705,7 +697,6 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 Datum
 autoprewarm_start_worker(PG_FUNCTION_ARGS)
 {
-	pid_t		pid;
 
 	if (!autoprewarm)
 		ereport(ERROR,
@@ -714,7 +705,8 @@ autoprewarm_start_worker(PG_FUNCTION_ARGS)
 
 	apw_init_shmem();
 	LWLockAcquire(&apw_state->lock, LW_EXCLUSIVE);
-	pid = apw_state->bgworker_pid;
+	pid_t		pid = apw_state->bgworker_pid;
+
 	LWLockRelease(&apw_state->lock);
 
 	if (pid != InvalidPid)
@@ -800,7 +792,6 @@ apw_start_leader_worker(void)
 {
 	BackgroundWorker worker;
 	BackgroundWorkerHandle *handle;
-	BgwHandleStatus status;
 	pid_t		pid;
 
 	MemSet(&worker, 0, sizeof(BackgroundWorker));
@@ -826,7 +817,8 @@ apw_start_leader_worker(void)
 				 errmsg("could not register background process"),
 				 errhint("You may need to increase max_worker_processes.")));
 
-	status = WaitForBackgroundWorkerStartup(handle, &pid);
+	BgwHandleStatus status = WaitForBackgroundWorkerStartup(handle, &pid);
+
 	if (status != BGWH_STARTED)
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),

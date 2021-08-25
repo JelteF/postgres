@@ -126,12 +126,11 @@ BarrierArriveAndWait(Barrier *barrier, uint32 wait_event_info)
 {
 	bool		release = false;
 	bool		elected;
-	int			start_phase;
-	int			next_phase;
 
 	SpinLockAcquire(&barrier->mutex);
-	start_phase = barrier->phase;
-	next_phase = start_phase + 1;
+	int			start_phase = barrier->phase;
+	int			next_phase = start_phase + 1;
+
 	++barrier->arrived;
 	if (barrier->arrived == barrier->participants)
 	{
@@ -235,13 +234,13 @@ BarrierArriveAndDetachExceptLast(Barrier *barrier)
 int
 BarrierAttach(Barrier *barrier)
 {
-	int			phase;
 
 	Assert(!barrier->static_party);
 
 	SpinLockAcquire(&barrier->mutex);
 	++barrier->participants;
-	phase = barrier->phase;
+	int			phase = barrier->phase;
+
 	SpinLockRelease(&barrier->mutex);
 
 	return phase;
@@ -280,10 +279,10 @@ BarrierPhase(Barrier *barrier)
 int
 BarrierParticipants(Barrier *barrier)
 {
-	int			participants;
 
 	SpinLockAcquire(&barrier->mutex);
-	participants = barrier->participants;
+	int			participants = barrier->participants;
+
 	SpinLockRelease(&barrier->mutex);
 
 	return participants;
@@ -300,7 +299,6 @@ static inline bool
 BarrierDetachImpl(Barrier *barrier, bool arrive)
 {
 	bool		release;
-	bool		last;
 
 	Assert(!barrier->static_party);
 
@@ -323,7 +321,8 @@ BarrierDetachImpl(Barrier *barrier, bool arrive)
 	else
 		release = false;
 
-	last = barrier->participants == 0;
+	bool		last = barrier->participants == 0;
+
 	SpinLockRelease(&barrier->mutex);
 
 	if (release)

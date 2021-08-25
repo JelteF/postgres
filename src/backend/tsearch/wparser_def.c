@@ -503,12 +503,12 @@ p_isasclet(TParser *prs)
 static int
 p_isurlchar(TParser *prs)
 {
-	char		ch;
 
 	/* no non-ASCII need apply */
 	if (prs->state->charlen != 1)
 		return 0;
-	ch = *(prs->str + prs->state->posbyte);
+	char		ch = *(prs->str + prs->state->posbyte);
+
 	/* no spaces or control characters */
 	if (ch <= 0x20 || ch >= 0x7F)
 		return 0;
@@ -1799,10 +1799,10 @@ TParserGet(TParser *prs)
 		}
 		else if (item->flags & A_CLEAR)
 		{						/* clear previous pushed state */
-			TParserPosition *ptr;
 
 			Assert(prs->state->prev);
-			ptr = prs->state->prev->prev;
+			TParserPosition *ptr = prs->state->prev->prev;
+
 			pfree(prs->state->prev);
 			prs->state->prev = ptr;
 		}
@@ -2205,9 +2205,8 @@ mark_hl_fragments(HeadlineParsedText *prs, TSQuery query, bool highlightall,
 	int32		minI,
 				minwords,
 				maxitems;
-	CoverPos   *covers;
 
-	covers = palloc(maxcovers * sizeof(CoverPos));
+	CoverPos   *covers = palloc(maxcovers * sizeof(CoverPos));
 
 	/* get all covers */
 	while (hlCover(prs, query, max_cover, &p, &q))
@@ -2539,7 +2538,6 @@ prsd_headline(PG_FUNCTION_ARGS)
 	int			shortword = 3;
 	int			max_fragments = 0;
 	bool		highlightall = false;
-	int			max_cover;
 	ListCell   *l;
 
 	/* Extract configuration option values */
@@ -2584,7 +2582,8 @@ prsd_headline(PG_FUNCTION_ARGS)
 	 * now, just compute a reasonable value based on max_words and
 	 * max_fragments.
 	 */
-	max_cover = Max(max_words * 10, 100);
+	int			max_cover = Max(max_words * 10, 100);
+
 	if (max_fragments > 0)
 		max_cover *= max_fragments;
 

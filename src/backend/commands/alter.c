@@ -171,28 +171,27 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 	AttrNumber	Anum_name = get_object_attnum_name(classId);
 	AttrNumber	Anum_namespace = get_object_attnum_namespace(classId);
 	AttrNumber	Anum_owner = get_object_attnum_owner(classId);
-	HeapTuple	oldtup;
 	HeapTuple	newtup;
-	Datum		datum;
 	bool		isnull;
 	Oid			namespaceId;
 	Oid			ownerId;
-	char	   *old_name;
 	AclResult	aclresult;
 	Datum	   *values;
 	bool	   *nulls;
 	bool	   *replaces;
 	NameData	nameattrdata;
 
-	oldtup = SearchSysCache1(oidCacheId, ObjectIdGetDatum(objectId));
+	HeapTuple	oldtup = SearchSysCache1(oidCacheId, ObjectIdGetDatum(objectId));
+
 	if (!HeapTupleIsValid(oldtup))
 		elog(ERROR, "cache lookup failed for object %u of catalog \"%s\"",
 			 objectId, RelationGetRelationName(rel));
 
-	datum = heap_getattr(oldtup, Anum_name,
-						 RelationGetDescr(rel), &isnull);
+	Datum		datum = heap_getattr(oldtup, Anum_name,
+									 RelationGetDescr(rel), &isnull);
+
 	Assert(!isnull);
-	old_name = NameStr(*(DatumGetName(datum)));
+	char	   *old_name = NameStr(*(DatumGetName(datum)));
 
 	/* Get OID of namespace */
 	if (Anum_namespace > 0)
@@ -394,17 +393,17 @@ ExecRenameStmt(RenameStmt *stmt)
 		case OBJECT_PUBLICATION:
 		case OBJECT_SUBSCRIPTION:
 			{
-				ObjectAddress address;
-				Relation	catalog;
 				Relation	relation;
 
-				address = get_object_address(stmt->renameType,
-											 stmt->object,
-											 &relation,
-											 AccessExclusiveLock, false);
+				ObjectAddress address = get_object_address(stmt->renameType,
+														   stmt->object,
+														   &relation,
+														   AccessExclusiveLock, false);
+
 				Assert(relation == NULL);
 
-				catalog = table_open(address.classId, RowExclusiveLock);
+				Relation	catalog = table_open(address.classId, RowExclusiveLock);
+
 				AlterObjectRename_internal(catalog,
 										   address.objectId,
 										   stmt->newname);
@@ -430,13 +429,11 @@ ExecRenameStmt(RenameStmt *stmt)
 ObjectAddress
 ExecAlterObjectDependsStmt(AlterObjectDependsStmt *stmt, ObjectAddress *refAddress)
 {
-	ObjectAddress address;
-	ObjectAddress refAddr;
 	Relation	rel;
 
-	address =
-		get_object_address_rv(stmt->objectType, stmt->relation, (List *) stmt->object,
-							  &rel, AccessExclusiveLock, false);
+	ObjectAddress address =
+	get_object_address_rv(stmt->objectType, stmt->relation, (List *) stmt->object,
+						  &rel, AccessExclusiveLock, false);
 
 	/*
 	 * Verify that the user is entitled to run the command.
@@ -456,8 +453,9 @@ ExecAlterObjectDependsStmt(AlterObjectDependsStmt *stmt, ObjectAddress *refAddre
 	if (rel)
 		table_close(rel, NoLock);
 
-	refAddr = get_object_address(OBJECT_EXTENSION, (Node *) stmt->extname,
-								 &rel, AccessExclusiveLock, false);
+	ObjectAddress refAddr = get_object_address(OBJECT_EXTENSION, (Node *) stmt->extname,
+											   &rel, AccessExclusiveLock, false);
+
 	Assert(rel == NULL);
 	if (refAddress)
 		*refAddress = refAddr;
@@ -470,11 +468,11 @@ ExecAlterObjectDependsStmt(AlterObjectDependsStmt *stmt, ObjectAddress *refAddre
 	}
 	else
 	{
-		List	   *currexts;
 
 		/* Avoid duplicates */
-		currexts = getAutoExtensionsOfObject(address.classId,
-											 address.objectId);
+		List	   *currexts = getAutoExtensionsOfObject(address.classId,
+														 address.objectId);
+
 		if (!list_member_oid(currexts, refAddr.objectId))
 			recordDependencyOn(&address, &refAddr, DEPENDENCY_AUTO_EXTENSION);
 	}
@@ -537,10 +535,8 @@ ExecAlterObjectSchemaStmt(AlterObjectSchemaStmt *stmt,
 		case OBJECT_TSPARSER:
 		case OBJECT_TSTEMPLATE:
 			{
-				Relation	catalog;
 				Relation	relation;
 				Oid			classId;
-				Oid			nspOid;
 
 				address = get_object_address(stmt->objectType,
 											 stmt->object,
@@ -549,8 +545,8 @@ ExecAlterObjectSchemaStmt(AlterObjectSchemaStmt *stmt,
 											 false);
 				Assert(relation == NULL);
 				classId = address.classId;
-				catalog = table_open(classId, RowExclusiveLock);
-				nspOid = LookupCreationNamespace(stmt->newschema);
+				Relation	catalog = table_open(classId, RowExclusiveLock);
+				Oid			nspOid = LookupCreationNamespace(stmt->newschema);
 
 				oldNspOid = AlterObjectNamespace_internal(catalog, address.objectId,
 														  nspOid);
@@ -600,9 +596,9 @@ AlterObjectNamespace_oid(Oid classId, Oid objid, Oid nspOid,
 	{
 		case OCLASS_CLASS:
 			{
-				Relation	rel;
 
-				rel = relation_open(objid, AccessExclusiveLock);
+				Relation	rel = relation_open(objid, AccessExclusiveLock);
+
 				oldNspOid = RelationGetNamespace(rel);
 
 				AlterTableNamespaceInternal(rel, oldNspOid, nspOid, objsMoved);
@@ -627,9 +623,8 @@ AlterObjectNamespace_oid(Oid classId, Oid objid, Oid nspOid,
 		case OCLASS_TSTEMPLATE:
 		case OCLASS_TSCONFIG:
 			{
-				Relation	catalog;
 
-				catalog = table_open(classId, RowExclusiveLock);
+				Relation	catalog = table_open(classId, RowExclusiveLock);
 
 				oldNspOid = AlterObjectNamespace_internal(catalog, objid,
 														  nspOid);
@@ -695,15 +690,11 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 	AttrNumber	Anum_name = get_object_attnum_name(classId);
 	AttrNumber	Anum_namespace = get_object_attnum_namespace(classId);
 	AttrNumber	Anum_owner = get_object_attnum_owner(classId);
-	Oid			oldNspOid;
 	Datum		name,
 				namespace;
 	bool		isnull;
 	HeapTuple	tup,
 				newtup;
-	Datum	   *values;
-	bool	   *nulls;
-	bool	   *replaces;
 
 	tup = SearchSysCacheCopy1(oidCacheId, ObjectIdGetDatum(objid));
 	if (!HeapTupleIsValid(tup)) /* should not happen */
@@ -715,7 +706,7 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 	namespace = heap_getattr(tup, Anum_namespace, RelationGetDescr(rel),
 							 &isnull);
 	Assert(!isnull);
-	oldNspOid = DatumGetObjectId(namespace);
+	Oid			oldNspOid = DatumGetObjectId(namespace);
 
 	/*
 	 * If the object is already in the correct namespace, we don't need to do
@@ -733,9 +724,6 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 	/* Permission checks ... superusers can always do it */
 	if (!superuser())
 	{
-		Datum		owner;
-		Oid			ownerId;
-		AclResult	aclresult;
 
 		/* Fail if object does not have an explicit owner */
 		if (Anum_owner <= 0)
@@ -745,16 +733,18 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 							getObjectDescriptionOids(classId, objid))));
 
 		/* Otherwise, must be owner of the existing object */
-		owner = heap_getattr(tup, Anum_owner, RelationGetDescr(rel), &isnull);
+		Datum		owner = heap_getattr(tup, Anum_owner, RelationGetDescr(rel), &isnull);
+
 		Assert(!isnull);
-		ownerId = DatumGetObjectId(owner);
+		Oid			ownerId = DatumGetObjectId(owner);
 
 		if (!has_privs_of_role(GetUserId(), ownerId))
 			aclcheck_error(ACLCHECK_NOT_OWNER, get_object_type(classId, objid),
 						   NameStr(*(DatumGetName(name))));
 
 		/* User must have CREATE privilege on new namespace */
-		aclresult = pg_namespace_aclcheck(nspOid, GetUserId(), ACL_CREATE);
+		AclResult	aclresult = pg_namespace_aclcheck(nspOid, GetUserId(), ACL_CREATE);
+
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_SCHEMA,
 						   get_namespace_name(nspOid));
@@ -800,9 +790,10 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 								  nspOid);
 
 	/* Build modified tuple */
-	values = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(Datum));
-	nulls = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(bool));
-	replaces = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(bool));
+	Datum	   *values = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(Datum));
+	bool	   *nulls = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(bool));
+	bool	   *replaces = palloc0(RelationGetNumberOfAttributes(rel) * sizeof(bool));
+
 	values[Anum_namespace - 1] = ObjectIdGetDatum(nspOid);
 	replaces[Anum_namespace - 1] = true;
 	newtup = heap_modify_tuple(tup, RelationGetDescr(rel),
@@ -884,16 +875,15 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 		case OBJECT_TSDICTIONARY:
 		case OBJECT_TSCONFIGURATION:
 			{
-				Relation	catalog;
 				Relation	relation;
 				Oid			classId;
-				ObjectAddress address;
 
-				address = get_object_address(stmt->objectType,
-											 stmt->object,
-											 &relation,
-											 AccessExclusiveLock,
-											 false);
+				ObjectAddress address = get_object_address(stmt->objectType,
+														   stmt->object,
+														   &relation,
+														   AccessExclusiveLock,
+														   false);
+
 				Assert(relation == NULL);
 				classId = address.classId;
 
@@ -905,7 +895,7 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 				if (classId == LargeObjectRelationId)
 					classId = LargeObjectMetadataRelationId;
 
-				catalog = table_open(classId, RowExclusiveLock);
+				Relation	catalog = table_open(classId, RowExclusiveLock);
 
 				AlterObjectOwner_internal(catalog, address.objectId, newowner);
 				table_close(catalog, RowExclusiveLock);
@@ -939,21 +929,20 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 	AttrNumber	Anum_namespace = get_object_attnum_namespace(classId);
 	AttrNumber	Anum_acl = get_object_attnum_acl(classId);
 	AttrNumber	Anum_name = get_object_attnum_name(classId);
-	HeapTuple	oldtup;
-	Datum		datum;
 	bool		isnull;
-	Oid			old_ownerId;
 	Oid			namespaceId = InvalidOid;
 
-	oldtup = get_catalog_object_by_oid(rel, Anum_oid, objectId);
+	HeapTuple	oldtup = get_catalog_object_by_oid(rel, Anum_oid, objectId);
+
 	if (oldtup == NULL)
 		elog(ERROR, "cache lookup failed for object %u of catalog \"%s\"",
 			 objectId, RelationGetRelationName(rel));
 
-	datum = heap_getattr(oldtup, Anum_owner,
-						 RelationGetDescr(rel), &isnull);
+	Datum		datum = heap_getattr(oldtup, Anum_owner,
+									 RelationGetDescr(rel), &isnull);
+
 	Assert(!isnull);
-	old_ownerId = DatumGetObjectId(datum);
+	Oid			old_ownerId = DatumGetObjectId(datum);
 
 	if (Anum_namespace != InvalidAttrNumber)
 	{
@@ -965,11 +954,6 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 
 	if (old_ownerId != new_ownerId)
 	{
-		AttrNumber	nattrs;
-		HeapTuple	newtup;
-		Datum	   *values;
-		bool	   *nulls;
-		bool	   *replaces;
 
 		/* Superusers can bypass permission checks */
 		if (!superuser())
@@ -1001,10 +985,10 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 			/* New owner must have CREATE privilege on namespace */
 			if (OidIsValid(namespaceId))
 			{
-				AclResult	aclresult;
 
-				aclresult = pg_namespace_aclcheck(namespaceId, new_ownerId,
-												  ACL_CREATE);
+				AclResult	aclresult = pg_namespace_aclcheck(namespaceId, new_ownerId,
+															  ACL_CREATE);
+
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_SCHEMA,
 								   get_namespace_name(namespaceId));
@@ -1012,10 +996,11 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 		}
 
 		/* Build a modified tuple */
-		nattrs = RelationGetNumberOfAttributes(rel);
-		values = palloc0(nattrs * sizeof(Datum));
-		nulls = palloc0(nattrs * sizeof(bool));
-		replaces = palloc0(nattrs * sizeof(bool));
+		AttrNumber	nattrs = RelationGetNumberOfAttributes(rel);
+		Datum	   *values = palloc0(nattrs * sizeof(Datum));
+		bool	   *nulls = palloc0(nattrs * sizeof(bool));
+		bool	   *replaces = palloc0(nattrs * sizeof(bool));
+
 		values[Anum_owner - 1] = ObjectIdGetDatum(new_ownerId);
 		replaces[Anum_owner - 1] = true;
 
@@ -1029,17 +1014,17 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 								 Anum_acl, RelationGetDescr(rel), &isnull);
 			if (!isnull)
 			{
-				Acl		   *newAcl;
 
-				newAcl = aclnewowner(DatumGetAclP(datum),
-									 old_ownerId, new_ownerId);
+				Acl		   *newAcl = aclnewowner(DatumGetAclP(datum),
+												 old_ownerId, new_ownerId);
+
 				values[Anum_acl - 1] = PointerGetDatum(newAcl);
 				replaces[Anum_acl - 1] = true;
 			}
 		}
 
-		newtup = heap_modify_tuple(oldtup, RelationGetDescr(rel),
-								   values, nulls, replaces);
+		HeapTuple	newtup = heap_modify_tuple(oldtup, RelationGetDescr(rel),
+											   values, nulls, replaces);
 
 		/* Perform actual update */
 		CatalogTupleUpdate(rel, &newtup->t_self, newtup);

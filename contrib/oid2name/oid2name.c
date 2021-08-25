@@ -82,11 +82,10 @@ get_opts(int argc, char **argv, struct options *my_opts)
 	};
 
 	int			c;
-	const char *progname;
 	int			optindex;
 
 	pg_logging_init(argv[0]);
-	progname = get_progname(argv[0]);
+	const char *progname = get_progname(argv[0]);
 
 	/* set the defaults */
 	my_opts->quiet = false;
@@ -373,18 +372,14 @@ sql_conn(struct options *my_opts)
 int
 sql_exec(PGconn *conn, const char *todo, bool quiet)
 {
-	PGresult   *res;
 
-	int			nfields;
-	int			nrows;
 	int			i,
 				j,
 				l;
-	int		   *length;
 	char	   *pad;
 
 	/* make the call */
-	res = PQexec(conn, todo);
+	PGresult   *res = PQexec(conn, todo);
 
 	/* check and deal with errors */
 	if (!res || PQresultStatus(res) > 2)
@@ -398,11 +393,12 @@ sql_exec(PGconn *conn, const char *todo, bool quiet)
 	}
 
 	/* get the number of fields */
-	nrows = PQntuples(res);
-	nfields = PQnfields(res);
+	int			nrows = PQntuples(res);
+	int			nfields = PQnfields(res);
 
 	/* for each field, get the needed width */
-	length = (int *) pg_malloc(sizeof(int) * nfields);
+	int		   *length = (int *) pg_malloc(sizeof(int) * nfields);
+
 	for (j = 0; j < nfields; j++)
 		length[j] = strlen(PQfname(res, j));
 
@@ -502,7 +498,6 @@ sql_exec_dumpalltables(PGconn *conn, struct options *opts)
 void
 sql_exec_searchtables(PGconn *conn, struct options *opts)
 {
-	char	   *todo;
 	char	   *qualifiers,
 			   *ptr;
 	char	   *comma_oids,
@@ -544,24 +539,24 @@ sql_exec_searchtables(PGconn *conn, struct options *opts)
 	free(comma_filenodes);
 
 	/* now build the query */
-	todo = psprintf("SELECT pg_catalog.pg_relation_filenode(c.oid) as \"Filenode\", relname as \"Table Name\" %s\n"
-					"FROM pg_catalog.pg_class c\n"
-					"	LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
-					"	LEFT JOIN pg_catalog.pg_database d ON d.datname = pg_catalog.current_database(),\n"
-					"	pg_catalog.pg_tablespace t\n"
-					"WHERE relkind IN (" CppAsString2(RELKIND_RELATION) ","
-					CppAsString2(RELKIND_MATVIEW) ","
-					CppAsString2(RELKIND_INDEX) ","
-					CppAsString2(RELKIND_SEQUENCE) ","
-					CppAsString2(RELKIND_TOASTVALUE) ") AND\n"
-					"		t.oid = CASE\n"
-					"			WHEN reltablespace <> 0 THEN reltablespace\n"
-					"			ELSE dattablespace\n"
-					"		END AND\n"
-					"  (%s)\n"
-					"ORDER BY relname\n",
-					opts->extended ? addfields : "",
-					qualifiers);
+	char	   *todo = psprintf("SELECT pg_catalog.pg_relation_filenode(c.oid) as \"Filenode\", relname as \"Table Name\" %s\n"
+								"FROM pg_catalog.pg_class c\n"
+								"	LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
+								"	LEFT JOIN pg_catalog.pg_database d ON d.datname = pg_catalog.current_database(),\n"
+								"	pg_catalog.pg_tablespace t\n"
+								"WHERE relkind IN (" CppAsString2(RELKIND_RELATION) ","
+								CppAsString2(RELKIND_MATVIEW) ","
+								CppAsString2(RELKIND_INDEX) ","
+								CppAsString2(RELKIND_SEQUENCE) ","
+								CppAsString2(RELKIND_TOASTVALUE) ") AND\n"
+								"		t.oid = CASE\n"
+								"			WHEN reltablespace <> 0 THEN reltablespace\n"
+								"			ELSE dattablespace\n"
+								"		END AND\n"
+								"  (%s)\n"
+								"ORDER BY relname\n",
+								opts->extended ? addfields : "",
+								qualifiers);
 
 	free(qualifiers);
 
@@ -583,10 +578,8 @@ sql_exec_dumpalltbspc(PGconn *conn, struct options *opts)
 int
 main(int argc, char **argv)
 {
-	struct options *my_opts;
-	PGconn	   *pgconn;
 
-	my_opts = (struct options *) pg_malloc(sizeof(struct options));
+	struct options *my_opts = (struct options *) pg_malloc(sizeof(struct options));
 
 	my_opts->oids = (eary *) pg_malloc(sizeof(eary));
 	my_opts->tables = (eary *) pg_malloc(sizeof(eary));
@@ -604,7 +597,7 @@ main(int argc, char **argv)
 		my_opts->dbname = "postgres";
 		my_opts->nodb = true;
 	}
-	pgconn = sql_conn(my_opts);
+	PGconn	   *pgconn = sql_conn(my_opts);
 
 	/* display only tablespaces */
 	if (my_opts->tablespaces)

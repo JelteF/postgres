@@ -112,14 +112,14 @@ iso8859_to_utf8(PG_FUNCTION_ARGS)
 	{
 		if (encoding == maps[i].encoding)
 		{
-			int			converted;
 
-			converted = LocalToUtf(src, len, dest,
-								   maps[i].map1,
-								   NULL, 0,
-								   NULL,
-								   encoding,
-								   noError);
+			int			converted = LocalToUtf(src, len, dest,
+											   maps[i].map1,
+											   NULL, 0,
+											   NULL,
+											   encoding,
+											   noError);
+
 			PG_RETURN_INT32(converted);
 		}
 	}
@@ -148,14 +148,14 @@ utf8_to_iso8859(PG_FUNCTION_ARGS)
 	{
 		if (encoding == maps[i].encoding)
 		{
-			int			converted;
 
-			converted = UtfToLocal(src, len, dest,
-								   maps[i].map2,
-								   NULL, 0,
-								   NULL,
-								   encoding,
-								   noError);
+			int			converted = UtfToLocal(src, len, dest,
+											   maps[i].map2,
+											   NULL, 0,
+											   NULL,
+											   encoding,
+											   noError);
+
 			PG_RETURN_INT32(converted);
 		}
 	}

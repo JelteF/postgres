@@ -95,10 +95,9 @@ static int
 parse_old_len(PullFilter *src, int *len_p, int lentype)
 {
 	uint8		b;
-	int			len;
 
 	GETBYTE(src, b);
-	len = b;
+	int			len = b;
 
 	if (lentype == 1)
 	{
@@ -129,11 +128,11 @@ int
 pgp_parse_pkt_hdr(PullFilter *src, uint8 *tag, int *len_p, int allow_ctx)
 {
 	int			lentype;
-	int			res;
 	uint8	   *p;
 
 	/* EOF is normal here, thus we don't use GETBYTE */
-	res = pullf_read(src, 1, &p);
+	int			res = pullf_read(src, 1, &p);
+
 	if (res < 0)
 		return res;
 	if (res == 0)
@@ -223,12 +222,12 @@ int
 pgp_create_pkt_reader(PullFilter **pf_p, PullFilter *src, int len,
 					  int pkttype, PGP_Context *ctx)
 {
-	int			res;
 	struct PktData *pkt = palloc(sizeof(*pkt));
 
 	pkt->type = pkttype;
 	pkt->len = len;
-	res = pullf_create(pf_p, &pktreader_filter, pkt, src);
+	int			res = pullf_create(pf_p, &pktreader_filter, pkt, src);
+
 	if (res < 0)
 		pfree(pkt);
 	return res;
@@ -244,16 +243,16 @@ static int
 prefix_init(void **priv_p, void *arg, PullFilter *src)
 {
 	PGP_Context *ctx = arg;
-	int			len;
-	int			res;
 	uint8	   *buf;
 	uint8		tmpbuf[PGP_MAX_BLOCK + 2];
 
-	len = pgp_get_cipher_block_size(ctx->cipher_algo);
+	int			len = pgp_get_cipher_block_size(ctx->cipher_algo);
+
 	if (len > sizeof(tmpbuf))
 		return PXE_BUG;
 
-	res = pullf_read_max(src, len + 2, &buf, tmpbuf);
+	int			res = pullf_read_max(src, len + 2, &buf, tmpbuf);
+
 	if (res < 0)
 		return res;
 	if (res != len + 2)
@@ -299,9 +298,9 @@ decrypt_read(void *priv, PullFilter *src, int len,
 {
 	PGP_CFB    *cfb = priv;
 	uint8	   *tmp;
-	int			res;
 
-	res = pullf_read(src, len, &tmp);
+	int			res = pullf_read(src, len, &tmp);
+
 	if (res > 0)
 	{
 		pgp_cfb_decrypt(cfb, tmp, res, buf);
@@ -342,7 +341,6 @@ mdc_free(void *priv)
 static int
 mdc_finish(PGP_Context *ctx, PullFilter *src, int len)
 {
-	int			res;
 	uint8		hash[20];
 	uint8		tmpbuf[20];
 	uint8	   *data;
@@ -359,7 +357,8 @@ mdc_finish(PGP_Context *ctx, PullFilter *src, int len)
 	ctx->in_mdc_pkt = 1;
 
 	/* read data */
-	res = pullf_read_max(src, len, &data, tmpbuf);
+	int			res = pullf_read_max(src, len, &data, tmpbuf);
+
 	if (res < 0)
 		return res;
 	if (res == 0)
@@ -395,14 +394,14 @@ static int
 mdc_read(void *priv, PullFilter *src, int len,
 		 uint8 **data_p, uint8 *buf, int buflen)
 {
-	int			res;
 	PGP_Context *ctx = priv;
 
 	/* skip this filter? */
 	if (ctx->use_mdcbuf_filter || ctx->in_mdc_pkt)
 		return pullf_read(src, len, data_p);
 
-	res = pullf_read(src, len, data_p);
+	int			res = pullf_read(src, len, data_p);
+
 	if (res < 0)
 		return res;
 	if (res == 0)
@@ -462,7 +461,6 @@ static int
 mdcbuf_finish(struct MDCBufData *st)
 {
 	uint8		hash[20];
-	int			res;
 
 	st->eof = 1;
 
@@ -473,7 +471,8 @@ mdcbuf_finish(struct MDCBufData *st)
 	}
 	px_md_update(st->ctx->mdc_ctx, st->mdc_buf, 2);
 	px_md_finish(st->ctx->mdc_ctx, hash);
-	res = memcmp(hash, st->mdc_buf + 2, 20);
+	int			res = memcmp(hash, st->mdc_buf + 2, 20);
+
 	px_memset(hash, 0, 20);
 	if (res)
 	{
@@ -504,8 +503,6 @@ static int
 mdcbuf_refill(struct MDCBufData *st, PullFilter *src)
 {
 	uint8	   *data;
-	int			res;
-	int			need;
 
 	/* put avail data in start */
 	if (st->avail > 0 && st->pos != st->buf)
@@ -513,8 +510,9 @@ mdcbuf_refill(struct MDCBufData *st, PullFilter *src)
 	st->pos = st->buf;
 
 	/* read new data */
-	need = st->buflen + 22 - st->avail - st->mdc_avail;
-	res = pullf_read(src, need, &data);
+	int			need = st->buflen + 22 - st->avail - st->mdc_avail;
+	int			res = pullf_read(src, need, &data);
+
 	if (res < 0)
 		return res;
 	if (res == 0)
@@ -589,12 +587,12 @@ static struct PullFilterOps mdcbuf_filter = {
 static int
 decrypt_key(PGP_Context *ctx, const uint8 *src, int len)
 {
-	int			res;
 	uint8		algo;
 	PGP_CFB    *cfb;
 
-	res = pgp_cfb_create(&cfb, ctx->s2k_cipher_algo,
-						 ctx->s2k.key, ctx->s2k.key_len, 0, NULL);
+	int			res = pgp_cfb_create(&cfb, ctx->s2k_cipher_algo,
+									 ctx->s2k.key, ctx->s2k.key_len, 0, NULL);
+
 	if (res < 0)
 		return res;
 
@@ -623,7 +621,6 @@ static int
 parse_symenc_sesskey(PGP_Context *ctx, PullFilter *src)
 {
 	uint8	   *p;
-	int			res;
 	uint8		tmpbuf[PGP_MAX_KEY + 2];
 	uint8		ver;
 
@@ -638,7 +635,8 @@ parse_symenc_sesskey(PGP_Context *ctx, PullFilter *src)
 	/*
 	 * read S2K info
 	 */
-	res = pgp_s2k_read(src, &ctx->s2k);
+	int			res = pgp_s2k_read(src, &ctx->s2k);
+
 	if (res < 0)
 		return res;
 	ctx->s2k_mode = ctx->s2k.mode;
@@ -695,10 +693,10 @@ copy_crlf(MBuf *dst, uint8 *data, int len, int *got_cr)
 	uint8	   *data_end = data + len;
 	uint8		tmpbuf[1024];
 	uint8	   *tmp_end = tmpbuf + sizeof(tmpbuf);
-	uint8	   *p;
 	int			res;
 
-	p = tmpbuf;
+	uint8	   *p = tmpbuf;
+
 	if (*got_cr)
 	{
 		if (*data != '\n')
@@ -976,13 +974,13 @@ process_data_packets(PGP_Context *ctx, MBuf *dst, PullFilter *src,
 static int
 parse_symenc_data(PGP_Context *ctx, PullFilter *pkt, MBuf *dst)
 {
-	int			res;
 	PGP_CFB    *cfb = NULL;
 	PullFilter *pf_decrypt = NULL;
 	PullFilter *pf_prefix = NULL;
 
-	res = pgp_cfb_create(&cfb, ctx->cipher_algo,
-						 ctx->sess_key, ctx->sess_key_len, 1, NULL);
+	int			res = pgp_cfb_create(&cfb, ctx->cipher_algo,
+									 ctx->sess_key, ctx->sess_key_len, 1, NULL);
+
 	if (res < 0)
 		goto out;
 
@@ -1010,7 +1008,6 @@ out:
 static int
 parse_symenc_mdc_data(PGP_Context *ctx, PullFilter *pkt, MBuf *dst)
 {
-	int			res;
 	PGP_CFB    *cfb = NULL;
 	PullFilter *pf_decrypt = NULL;
 	PullFilter *pf_prefix = NULL;
@@ -1024,8 +1021,9 @@ parse_symenc_mdc_data(PGP_Context *ctx, PullFilter *pkt, MBuf *dst)
 		return PXE_PGP_CORRUPT_DATA;
 	}
 
-	res = pgp_cfb_create(&cfb, ctx->cipher_algo,
-						 ctx->sess_key, ctx->sess_key_len, 0, NULL);
+	int			res = pgp_cfb_create(&cfb, ctx->cipher_algo,
+									 ctx->sess_key, ctx->sess_key_len, 0, NULL);
+
 	if (res < 0)
 		goto out;
 
@@ -1076,10 +1074,10 @@ pgp_skip_packet(PullFilter *pkt)
 int
 pgp_expect_packet_end(PullFilter *pkt)
 {
-	int			res;
 	uint8	   *tmp;
 
-	res = pullf_read(pkt, 32 * 1024, &tmp);
+	int			res = pullf_read(pkt, 32 * 1024, &tmp);
+
 	if (res > 0)
 	{
 		px_debug("pgp_expect_packet_end: got data");
@@ -1091,7 +1089,6 @@ pgp_expect_packet_end(PullFilter *pkt)
 int
 pgp_decrypt(PGP_Context *ctx, MBuf *msrc, MBuf *mdst)
 {
-	int			res;
 	PullFilter *src = NULL;
 	PullFilter *pkt = NULL;
 	uint8		tag;
@@ -1099,7 +1096,7 @@ pgp_decrypt(PGP_Context *ctx, MBuf *msrc, MBuf *mdst)
 	int			got_key = 0;
 	int			got_data = 0;
 
-	res = pullf_create_mbuf_reader(&src, msrc);
+	int			res = pullf_create_mbuf_reader(&src, msrc);
 
 	while (res >= 0)
 	{

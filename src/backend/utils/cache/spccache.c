@@ -105,8 +105,6 @@ InitializeTableSpaceCache(void)
 static TableSpaceCacheEntry *
 get_tablespace(Oid spcid)
 {
-	TableSpaceCacheEntry *spc;
-	HeapTuple	tp;
 	TableSpaceOpts *opts;
 
 	/*
@@ -119,10 +117,11 @@ get_tablespace(Oid spcid)
 	/* Find existing cache entry, if any. */
 	if (!TableSpaceCacheHash)
 		InitializeTableSpaceCache();
-	spc = (TableSpaceCacheEntry *) hash_search(TableSpaceCacheHash,
-											   (void *) &spcid,
-											   HASH_FIND,
-											   NULL);
+	TableSpaceCacheEntry *spc = (TableSpaceCacheEntry *) hash_search(TableSpaceCacheHash,
+																	 (void *) &spcid,
+																	 HASH_FIND,
+																	 NULL);
+
 	if (spc)
 		return spc;
 
@@ -132,18 +131,19 @@ get_tablespace(Oid spcid)
 	 * details for a non-existent tablespace.  We'll just treat that case as
 	 * if no options were specified.
 	 */
-	tp = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(spcid));
+	HeapTuple	tp = SearchSysCache1(TABLESPACEOID, ObjectIdGetDatum(spcid));
+
 	if (!HeapTupleIsValid(tp))
 		opts = NULL;
 	else
 	{
-		Datum		datum;
 		bool		isNull;
 
-		datum = SysCacheGetAttr(TABLESPACEOID,
-								tp,
-								Anum_pg_tablespace_spcoptions,
-								&isNull);
+		Datum		datum = SysCacheGetAttr(TABLESPACEOID,
+											tp,
+											Anum_pg_tablespace_spcoptions,
+											&isNull);
+
 		if (isNull)
 			opts = NULL;
 		else

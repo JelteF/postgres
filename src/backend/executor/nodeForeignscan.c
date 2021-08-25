@@ -45,10 +45,10 @@ ForeignNext(ForeignScanState *node)
 	ForeignScan *plan = (ForeignScan *) node->ss.ps.plan;
 	ExprContext *econtext = node->ss.ps.ps_ExprContext;
 	EState	   *estate = node->ss.ps.state;
-	MemoryContext oldcontext;
 
 	/* Call the Iterate function in short-lived context */
-	oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+	MemoryContext oldcontext = MemoryContextSwitchTo(econtext->ecxt_per_tuple_memory);
+
 	if (plan->operation != CMD_SELECT)
 	{
 		/*
@@ -81,12 +81,11 @@ static bool
 ForeignRecheck(ForeignScanState *node, TupleTableSlot *slot)
 {
 	FdwRoutine *fdwroutine = node->fdwroutine;
-	ExprContext *econtext;
 
 	/*
 	 * extract necessary information from foreign scan node
 	 */
-	econtext = node->ss.ps.ps_ExprContext;
+	ExprContext *econtext = node->ss.ps.ps_ExprContext;
 
 	/* Does the tuple meet the remote qual condition? */
 	econtext->ecxt_scantuple = slot;
@@ -135,7 +134,6 @@ ExecForeignScan(PlanState *pstate)
 ForeignScanState *
 ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 {
-	ForeignScanState *scanstate;
 	Relation	currentRelation = NULL;
 	Index		scanrelid = node->scan.scanrelid;
 	Index		tlistvarno;
@@ -147,7 +145,8 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 	/*
 	 * create state structure
 	 */
-	scanstate = makeNode(ForeignScanState);
+	ForeignScanState *scanstate = makeNode(ForeignScanState);
+
 	scanstate->ss.ps.plan = (Plan *) node;
 	scanstate->ss.ps.state = estate;
 	scanstate->ss.ps.ExecProcNode = ExecForeignScan;
@@ -181,9 +180,9 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 	 */
 	if (node->fdw_scan_tlist != NIL || currentRelation == NULL)
 	{
-		TupleDesc	scan_tupdesc;
 
-		scan_tupdesc = ExecTypeFromTL(node->fdw_scan_tlist);
+		TupleDesc	scan_tupdesc = ExecTypeFromTL(node->fdw_scan_tlist);
+
 		ExecInitScanTupleSlot(estate, &scanstate->ss, scan_tupdesc,
 							  &TTSOpsHeapTuple);
 		/* Node's targetlist will contain Vars with varno = INDEX_VAR */
@@ -191,10 +190,10 @@ ExecInitForeignScan(ForeignScan *node, EState *estate, int eflags)
 	}
 	else
 	{
-		TupleDesc	scan_tupdesc;
 
 		/* don't trust FDWs to return tuples fulfilling NOT NULL constraints */
-		scan_tupdesc = CreateTupleDescCopy(RelationGetDescr(currentRelation));
+		TupleDesc	scan_tupdesc = CreateTupleDescCopy(RelationGetDescr(currentRelation));
+
 		ExecInitScanTupleSlot(estate, &scanstate->ss, scan_tupdesc,
 							  &TTSOpsHeapTuple);
 		/* Node's targetlist will contain Vars with varno = scanrelid */
@@ -368,9 +367,9 @@ ExecForeignScanInitializeDSM(ForeignScanState *node, ParallelContext *pcxt)
 	if (fdwroutine->InitializeDSMForeignScan)
 	{
 		int			plan_node_id = node->ss.ps.plan->plan_node_id;
-		void	   *coordinate;
 
-		coordinate = shm_toc_allocate(pcxt->toc, node->pscan_len);
+		void	   *coordinate = shm_toc_allocate(pcxt->toc, node->pscan_len);
+
 		fdwroutine->InitializeDSMForeignScan(node, pcxt, coordinate);
 		shm_toc_insert(pcxt->toc, plan_node_id, coordinate);
 	}
@@ -390,9 +389,9 @@ ExecForeignScanReInitializeDSM(ForeignScanState *node, ParallelContext *pcxt)
 	if (fdwroutine->ReInitializeDSMForeignScan)
 	{
 		int			plan_node_id = node->ss.ps.plan->plan_node_id;
-		void	   *coordinate;
 
-		coordinate = shm_toc_lookup(pcxt->toc, plan_node_id, false);
+		void	   *coordinate = shm_toc_lookup(pcxt->toc, plan_node_id, false);
+
 		fdwroutine->ReInitializeDSMForeignScan(node, pcxt, coordinate);
 	}
 }
@@ -412,9 +411,9 @@ ExecForeignScanInitializeWorker(ForeignScanState *node,
 	if (fdwroutine->InitializeWorkerForeignScan)
 	{
 		int			plan_node_id = node->ss.ps.plan->plan_node_id;
-		void	   *coordinate;
 
-		coordinate = shm_toc_lookup(pwcxt->toc, plan_node_id, false);
+		void	   *coordinate = shm_toc_lookup(pwcxt->toc, plan_node_id, false);
+
 		fdwroutine->InitializeWorkerForeignScan(node, pwcxt->toc, coordinate);
 	}
 }

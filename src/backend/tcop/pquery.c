@@ -140,14 +140,13 @@ ProcessQuery(PlannedStmt *plan,
 			 DestReceiver *dest,
 			 QueryCompletion *qc)
 {
-	QueryDesc  *queryDesc;
 
 	/*
 	 * Create the QueryDesc object
 	 */
-	queryDesc = CreateQueryDesc(plan, sourceText,
-								GetActiveSnapshot(), InvalidSnapshot,
-								dest, params, queryEnv, 0);
+	QueryDesc  *queryDesc = CreateQueryDesc(plan, sourceText,
+											GetActiveSnapshot(), InvalidSnapshot,
+											dest, params, queryEnv, 0);
 
 	/*
 	 * Call ExecutorStart to prepare the plan for execution
@@ -205,7 +204,6 @@ ProcessQuery(PlannedStmt *plan,
 PortalStrategy
 ChoosePortalStrategy(List *stmts)
 {
-	int			nSetTag;
 	ListCell   *lc;
 
 	/*
@@ -271,7 +269,8 @@ ChoosePortalStrategy(List *stmts)
 	 * Choose PORTAL_ONE_RETURNING if there is exactly one canSetTag query and
 	 * it has a RETURNING list.
 	 */
-	nSetTag = 0;
+	int			nSetTag = 0;
+
 	foreach(lc, stmts)
 	{
 		Node	   *stmt = (Node *) lfirst(lc);
@@ -385,19 +384,19 @@ FetchStatementTargetList(Node *stmt)
 	if (IsA(stmt, FetchStmt))
 	{
 		FetchStmt  *fstmt = (FetchStmt *) stmt;
-		Portal		subportal;
 
 		Assert(!fstmt->ismove);
-		subportal = GetPortalByName(fstmt->portalname);
+		Portal		subportal = GetPortalByName(fstmt->portalname);
+
 		Assert(PortalIsValid(subportal));
 		return FetchPortalTargetList(subportal);
 	}
 	if (IsA(stmt, ExecuteStmt))
 	{
 		ExecuteStmt *estmt = (ExecuteStmt *) stmt;
-		PreparedStatement *entry;
 
-		entry = FetchPreparedStatement(estmt->name, true);
+		PreparedStatement *entry = FetchPreparedStatement(estmt->name, true);
+
 		return FetchPreparedStatementTargetList(entry);
 	}
 	return NIL;
@@ -430,9 +429,6 @@ void
 PortalStart(Portal portal, ParamListInfo params,
 			int eflags, Snapshot snapshot)
 {
-	Portal		saveActivePortal;
-	ResourceOwner saveResourceOwner;
-	MemoryContext savePortalContext;
 	MemoryContext oldContext;
 	QueryDesc  *queryDesc;
 	int			myeflags;
@@ -443,9 +439,10 @@ PortalStart(Portal portal, ParamListInfo params,
 	/*
 	 * Set up global portal context pointers.
 	 */
-	saveActivePortal = ActivePortal;
-	saveResourceOwner = CurrentResourceOwner;
-	savePortalContext = PortalContext;
+	Portal		saveActivePortal = ActivePortal;
+	ResourceOwner saveResourceOwner = CurrentResourceOwner;
+	MemoryContext savePortalContext = PortalContext;
+
 	PG_TRY();
 	{
 		ActivePortal = portal;
@@ -539,9 +536,9 @@ PortalStart(Portal portal, ParamListInfo params,
 				 * portal.  We do need to set up the result tupdesc.
 				 */
 				{
-					PlannedStmt *pstmt;
 
-					pstmt = PortalGetPrimaryStmt(portal);
+					PlannedStmt *pstmt = PortalGetPrimaryStmt(portal);
+
 					portal->tupDesc =
 						ExecCleanTypeFromTL(pstmt->planTree->targetlist);
 				}
@@ -617,13 +614,13 @@ PortalStart(Portal portal, ParamListInfo params,
 void
 PortalSetResultFormat(Portal portal, int nFormats, int16 *formats)
 {
-	int			natts;
 	int			i;
 
 	/* Do nothing if portal won't return tuples */
 	if (portal->tupDesc == NULL)
 		return;
-	natts = portal->tupDesc->natts;
+	int			natts = portal->tupDesc->natts;
+
 	portal->formats = (int16 *)
 		MemoryContextAlloc(portal->portalContext,
 						   natts * sizeof(int16));
@@ -682,12 +679,6 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
 {
 	bool		result;
 	uint64		nprocessed;
-	ResourceOwner saveTopTransactionResourceOwner;
-	MemoryContext saveTopTransactionContext;
-	Portal		saveActivePortal;
-	ResourceOwner saveResourceOwner;
-	MemoryContext savePortalContext;
-	MemoryContext saveMemoryContext;
 
 	AssertArg(PortalIsValid(portal));
 
@@ -727,12 +718,13 @@ PortalRun(Portal portal, long count, bool isTopLevel, bool run_once,
 	 * CurrentMemoryContext has a similar problem, but the other pointers we
 	 * save here will be NULL or pointing to longer-lived objects.
 	 */
-	saveTopTransactionResourceOwner = TopTransactionResourceOwner;
-	saveTopTransactionContext = TopTransactionContext;
-	saveActivePortal = ActivePortal;
-	saveResourceOwner = CurrentResourceOwner;
-	savePortalContext = PortalContext;
-	saveMemoryContext = CurrentMemoryContext;
+	ResourceOwner saveTopTransactionResourceOwner = TopTransactionResourceOwner;
+	MemoryContext saveTopTransactionContext = TopTransactionContext;
+	Portal		saveActivePortal = ActivePortal;
+	ResourceOwner saveResourceOwner = CurrentResourceOwner;
+	MemoryContext savePortalContext = PortalContext;
+	MemoryContext saveMemoryContext = CurrentMemoryContext;
+
 	PG_TRY();
 	{
 		ActivePortal = portal;
@@ -864,7 +856,6 @@ PortalRunSelect(Portal portal,
 				long count,
 				DestReceiver *dest)
 {
-	QueryDesc  *queryDesc;
 	ScanDirection direction;
 	uint64		nprocessed;
 
@@ -872,7 +863,7 @@ PortalRunSelect(Portal portal,
 	 * NB: queryDesc will be NULL if we are fetching from a held cursor or a
 	 * completed utility query; can't use it in that path.
 	 */
-	queryDesc = portal->queryDesc;
+	QueryDesc  *queryDesc = portal->queryDesc;
 
 	/* Caller messed up if we have neither a ready query nor held data. */
 	Assert(queryDesc || portal->holdStore);
@@ -994,12 +985,12 @@ PortalRunSelect(Portal portal,
 static void
 FillPortalStore(Portal portal, bool isTopLevel)
 {
-	DestReceiver *treceiver;
 	QueryCompletion qc;
 
 	InitializeQueryCompletion(&qc);
 	PortalCreateHoldStore(portal);
-	treceiver = CreateDestReceiver(DestTuplestore);
+	DestReceiver *treceiver = CreateDestReceiver(DestTuplestore);
+
 	SetTuplestoreDestReceiverParams(treceiver,
 									portal->holdStore,
 									portal->holdContext,
@@ -1057,9 +1048,8 @@ RunFromStore(Portal portal, ScanDirection direction, uint64 count,
 			 DestReceiver *dest)
 {
 	uint64		current_tuple_count = 0;
-	TupleTableSlot *slot;
 
-	slot = MakeSingleTupleTableSlot(portal->tupDesc, &TTSOpsMinimalTuple);
+	TupleTableSlot *slot = MakeSingleTupleTableSlot(portal->tupDesc, &TTSOpsMinimalTuple);
 
 	dest->rStartup(dest, CMD_SELECT, portal->tupDesc);
 
@@ -1073,13 +1063,11 @@ RunFromStore(Portal portal, ScanDirection direction, uint64 count,
 
 		for (;;)
 		{
-			MemoryContext oldcontext;
-			bool		ok;
 
-			oldcontext = MemoryContextSwitchTo(portal->holdContext);
+			MemoryContext oldcontext = MemoryContextSwitchTo(portal->holdContext);
 
-			ok = tuplestore_gettupleslot(portal->holdStore, forward, false,
-										 slot);
+			bool		ok = tuplestore_gettupleslot(portal->holdStore, forward, false,
+													 slot);
 
 			MemoryContextSwitchTo(oldcontext);
 
@@ -1383,9 +1371,6 @@ PortalRunFetch(Portal portal,
 			   DestReceiver *dest)
 {
 	uint64		result;
-	Portal		saveActivePortal;
-	ResourceOwner saveResourceOwner;
-	MemoryContext savePortalContext;
 	MemoryContext oldContext;
 
 	AssertArg(PortalIsValid(portal));
@@ -1401,9 +1386,10 @@ PortalRunFetch(Portal portal,
 	/*
 	 * Set up global portal context pointers.
 	 */
-	saveActivePortal = ActivePortal;
-	saveResourceOwner = CurrentResourceOwner;
-	savePortalContext = PortalContext;
+	Portal		saveActivePortal = ActivePortal;
+	ResourceOwner saveResourceOwner = CurrentResourceOwner;
+	MemoryContext savePortalContext = PortalContext;
+
 	PG_TRY();
 	{
 		ActivePortal = portal;
@@ -1484,7 +1470,6 @@ DoPortalRunFetch(Portal portal,
 				 long count,
 				 DestReceiver *dest)
 {
-	bool		forward;
 
 	Assert(portal->strategy == PORTAL_ONE_SELECT ||
 		   portal->strategy == PORTAL_ONE_RETURNING ||
@@ -1608,17 +1593,16 @@ DoPortalRunFetch(Portal portal,
 	 * Get here with fdirection == FETCH_FORWARD or FETCH_BACKWARD, and count
 	 * >= 0.
 	 */
-	forward = (fdirection == FETCH_FORWARD);
+	bool		forward = (fdirection == FETCH_FORWARD);
 
 	/*
 	 * Zero count means to re-fetch the current row, if any (per SQL)
 	 */
 	if (count == 0)
 	{
-		bool		on_row;
 
 		/* Are we sitting on a row? */
-		on_row = (!portal->atStart && !portal->atEnd);
+		bool		on_row = (!portal->atStart && !portal->atEnd);
 
 		if (dest->mydest == DestNone)
 		{
@@ -1666,20 +1650,20 @@ DoPortalRunFetch(Portal portal,
 static void
 DoPortalRewind(Portal portal)
 {
-	QueryDesc  *queryDesc;
 
 	/* Rewind holdStore, if we have one */
 	if (portal->holdStore)
 	{
-		MemoryContext oldcontext;
 
-		oldcontext = MemoryContextSwitchTo(portal->holdContext);
+		MemoryContext oldcontext = MemoryContextSwitchTo(portal->holdContext);
+
 		tuplestore_rescan(portal->holdStore);
 		MemoryContextSwitchTo(oldcontext);
 	}
 
 	/* Rewind executor, if active */
-	queryDesc = portal->queryDesc;
+	QueryDesc  *queryDesc = portal->queryDesc;
+
 	if (queryDesc)
 	{
 		PushActiveSnapshot(queryDesc->snapshot);
@@ -1746,7 +1730,6 @@ PlannedStmtRequiresSnapshot(PlannedStmt *pstmt)
 void
 EnsurePortalSnapshotExists(void)
 {
-	Portal		portal;
 
 	/*
 	 * Nothing to do if a snapshot is set.  (We take it on faith that the
@@ -1757,7 +1740,8 @@ EnsurePortalSnapshotExists(void)
 		return;
 
 	/* Otherwise, we'd better have an active Portal */
-	portal = ActivePortal;
+	Portal		portal = ActivePortal;
+
 	if (unlikely(portal == NULL))
 		elog(ERROR, "cannot execute SQL without an outer snapshot or portal");
 	Assert(portal->portalSnapshot == NULL);

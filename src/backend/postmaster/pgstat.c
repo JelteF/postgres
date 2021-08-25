@@ -357,7 +357,7 @@ static void pgstat_recv_vacuum(PgStat_MsgVacuum *msg, int len);
 static void pgstat_recv_analyze(PgStat_MsgAnalyze *msg, int len);
 static void pgstat_recv_archiver(PgStat_MsgArchiver *msg, int len);
 static void pgstat_recv_bgwriter(PgStat_MsgBgWriter *msg, int len);
-static void pgstat_recv_checkpointer(PgStat_MsgCheckpointer *msg, int len);
+static void pgstat_recv_checkpointer(PgStat_MsgCheckpointer * msg, int len);
 static void pgstat_recv_wal(PgStat_MsgWal *msg, int len);
 static void pgstat_recv_slru(PgStat_MsgSLRU *msg, int len);
 static void pgstat_recv_funcstat(PgStat_MsgFuncstat *msg, int len);
@@ -618,7 +618,6 @@ retry2:
 	 */
 	{
 		int			old_rcvbuf;
-		int			new_rcvbuf;
 		ACCEPT_TYPE_ARG3 rcvbufsize = sizeof(old_rcvbuf);
 
 		if (getsockopt(pgStatSock, SOL_SOCKET, SO_RCVBUF,
@@ -630,7 +629,8 @@ retry2:
 			old_rcvbuf = 0;
 		}
 
-		new_rcvbuf = PGSTAT_MIN_RCVBUF;
+		int			new_rcvbuf = PGSTAT_MIN_RCVBUF;
+
 		if (old_rcvbuf < new_rcvbuf)
 		{
 			if (setsockopt(pgStatSock, SOL_SOCKET, SO_RCVBUF,
@@ -673,11 +673,11 @@ startup_failed:
 static void
 pgstat_reset_remove_files(const char *directory)
 {
-	DIR		   *dir;
 	struct dirent *entry;
 	char		fname[MAXPGPATH * 2];
 
-	dir = AllocateDir(directory);
+	DIR		   *dir = AllocateDir(directory);
+
 	while ((entry = ReadDir(dir, directory)) != NULL)
 	{
 		int			nchars;
@@ -763,7 +763,6 @@ pgstat_forkexec(void)
 int
 pgstat_start(void)
 {
-	time_t		curtime;
 	pid_t		pgStatPid;
 
 	/*
@@ -779,7 +778,8 @@ pgstat_start(void)
 	 * is dying immediately at launch.  Note that since we will be re-called
 	 * from the postmaster main loop, we will get another chance later.
 	 */
-	curtime = time(NULL);
+	time_t		curtime = time(NULL);
+
 	if ((unsigned int) (curtime - last_pgstat_start_time) <
 		(unsigned int) PGSTAT_RESTART_INTERVAL)
 		return 0;
@@ -856,7 +856,6 @@ pgstat_report_stat(bool disconnect)
 	static const PgStat_TableCounts all_zeroes;
 	static TimestampTz last_report = 0;
 
-	TimestampTz now;
 	PgStat_MsgTabstat regular_msg;
 	PgStat_MsgTabstat shared_msg;
 	TabStatusArray *tsa;
@@ -884,7 +883,8 @@ pgstat_report_stat(bool disconnect)
 	 * Don't send a message unless it's been at least PGSTAT_STAT_INTERVAL
 	 * msec since we last sent one, or the backend is about to exit.
 	 */
-	now = GetCurrentTransactionStopTimestamp();
+	TimestampTz now = GetCurrentTransactionStopTimestamp();
+
 	if (!disconnect &&
 		!TimestampDifferenceExceeds(last_report, now, PGSTAT_STAT_INTERVAL))
 		return;
@@ -922,8 +922,6 @@ pgstat_report_stat(bool disconnect)
 		for (i = 0; i < tsa->tsa_used; i++)
 		{
 			PgStat_TableStatus *entry = &tsa->tsa_entries[i];
-			PgStat_MsgTabstat *this_msg;
-			PgStat_TableEntry *this_ent;
 
 			/* Shouldn't have any pending transaction-dependent counts */
 			Assert(entry->trans == NULL);
@@ -939,8 +937,9 @@ pgstat_report_stat(bool disconnect)
 			/*
 			 * OK, insert data into the appropriate message, and send if full.
 			 */
-			this_msg = entry->t_shared ? &shared_msg : &regular_msg;
-			this_ent = &this_msg->m_entry[this_msg->m_nentries];
+			PgStat_MsgTabstat *this_msg = entry->t_shared ? &shared_msg : &regular_msg;
+			PgStat_TableEntry *this_ent = &this_msg->m_entry[this_msg->m_nentries];
+
 			this_ent->t_id = entry->t_id;
 			memcpy(&this_ent->t_counts, &entry->t_counts,
 				   sizeof(PgStat_TableCounts));
@@ -982,8 +981,6 @@ pgstat_report_stat(bool disconnect)
 static void
 pgstat_send_tabstat(PgStat_MsgTabstat *tsmsg)
 {
-	int			n;
-	int			len;
 
 	/* It's unlikely we'd get here with no socket, but maybe not impossible */
 	if (pgStatSock == PGINVALID_SOCKET)
@@ -1012,9 +1009,9 @@ pgstat_send_tabstat(PgStat_MsgTabstat *tsmsg)
 		tsmsg->m_block_write_time = 0;
 	}
 
-	n = tsmsg->m_nentries;
-	len = offsetof(PgStat_MsgTabstat, m_entry[0]) +
-		n * sizeof(PgStat_TableEntry);
+	int			n = tsmsg->m_nentries;
+	int			len = offsetof(PgStat_MsgTabstat, m_entry[0]) +
+	n * sizeof(PgStat_TableEntry);
 
 	pgstat_setheader(&tsmsg->m_hdr, PGSTAT_MTYPE_TABSTAT);
 	pgstat_send(tsmsg, len);
@@ -1043,7 +1040,6 @@ pgstat_send_funcstats(void)
 	hash_seq_init(&fstat, pgStatFunctions);
 	while ((entry = (PgStat_BackendFunctionEntry *) hash_seq_search(&fstat)) != NULL)
 	{
-		PgStat_FunctionEntry *m_ent;
 
 		/* Skip it if no counts accumulated since last time */
 		if (memcmp(&entry->f_counts, &all_zeroes,
@@ -1051,7 +1047,8 @@ pgstat_send_funcstats(void)
 			continue;
 
 		/* need to convert format of time accumulators */
-		m_ent = &msg.m_entry[msg.m_nentries];
+		PgStat_FunctionEntry *m_ent = &msg.m_entry[msg.m_nentries];
+
 		m_ent->f_id = entry->f_id;
 		m_ent->f_numcalls = entry->f_counts.f_numcalls;
 		m_ent->f_total_time = INSTR_TIME_GET_MICROSEC(entry->f_counts.f_total_time);
@@ -1085,7 +1082,6 @@ pgstat_send_funcstats(void)
 void
 pgstat_vacuum_stat(void)
 {
-	HTAB	   *htab;
 	PgStat_MsgTabpurge msg;
 	PgStat_MsgFuncpurge f_msg;
 	HASH_SEQ_STATUS hstat;
@@ -1106,7 +1102,7 @@ pgstat_vacuum_stat(void)
 	/*
 	 * Read pg_database and make a list of OIDs of all existing databases
 	 */
-	htab = pgstat_collect_oids(DatabaseRelationId, Anum_pg_database_oid);
+	HTAB	   *htab = pgstat_collect_oids(DatabaseRelationId, Anum_pg_database_oid);
 
 	/*
 	 * Search the database hash table for dead databases and tell the
@@ -1285,30 +1281,27 @@ pgstat_vacuum_stat(void)
 static HTAB *
 pgstat_collect_oids(Oid catalogid, AttrNumber anum_oid)
 {
-	HTAB	   *htab;
 	HASHCTL		hash_ctl;
-	Relation	rel;
-	TableScanDesc scan;
 	HeapTuple	tup;
-	Snapshot	snapshot;
 
 	hash_ctl.keysize = sizeof(Oid);
 	hash_ctl.entrysize = sizeof(Oid);
 	hash_ctl.hcxt = CurrentMemoryContext;
-	htab = hash_create("Temporary table of OIDs",
-					   PGSTAT_TAB_HASH_SIZE,
-					   &hash_ctl,
-					   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	HTAB	   *htab = hash_create("Temporary table of OIDs",
+								   PGSTAT_TAB_HASH_SIZE,
+								   &hash_ctl,
+								   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-	rel = table_open(catalogid, AccessShareLock);
-	snapshot = RegisterSnapshot(GetLatestSnapshot());
-	scan = table_beginscan(rel, snapshot, 0, NULL);
+	Relation	rel = table_open(catalogid, AccessShareLock);
+	Snapshot	snapshot = RegisterSnapshot(GetLatestSnapshot());
+	TableScanDesc scan = table_beginscan(rel, snapshot, 0, NULL);
+
 	while ((tup = heap_getnext(scan, ForwardScanDirection)) != NULL)
 	{
-		Oid			thisoid;
 		bool		isnull;
 
-		thisoid = heap_getattr(tup, anum_oid, RelationGetDescr(rel), &isnull);
+		Oid			thisoid = heap_getattr(tup, anum_oid, RelationGetDescr(rel), &isnull);
+
 		Assert(!isnull);
 
 		CHECK_FOR_INTERRUPTS();
@@ -1361,7 +1354,6 @@ void
 pgstat_drop_relation(Oid relid)
 {
 	PgStat_MsgTabpurge msg;
-	int			len;
 
 	if (pgStatSock == PGINVALID_SOCKET)
 		return;
@@ -1369,7 +1361,7 @@ pgstat_drop_relation(Oid relid)
 	msg.m_tableid[0] = relid;
 	msg.m_nentries = 1;
 
-	len = offsetof(PgStat_MsgTabpurge, m_tableid[0]) + sizeof(Oid);
+	int			len = offsetof(PgStat_MsgTabpurge, m_tableid[0]) + sizeof(Oid);
 
 	pgstat_setheader(&msg.m_hdr, PGSTAT_MTYPE_TABPURGE);
 	msg.m_databaseid = MyDatabaseId;
@@ -1865,7 +1857,6 @@ void
 pgstat_init_function_usage(FunctionCallInfo fcinfo,
 						   PgStat_FunctionCallUsage *fcu)
 {
-	PgStat_BackendFunctionEntry *htabent;
 	bool		found;
 
 	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
@@ -1889,8 +1880,9 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 	}
 
 	/* Get the stats entry for this function, create if necessary */
-	htabent = hash_search(pgStatFunctions, &fcinfo->flinfo->fn_oid,
-						  HASH_ENTER, &found);
+	PgStat_BackendFunctionEntry *htabent = hash_search(pgStatFunctions, &fcinfo->flinfo->fn_oid,
+													   HASH_ENTER, &found);
+
 	if (!found)
 		MemSet(&htabent->f_counts, 0, sizeof(PgStat_FunctionCounts));
 
@@ -1939,8 +1931,6 @@ pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 {
 	PgStat_FunctionCounts *fs = fcu->fs;
 	instr_time	f_total;
-	instr_time	f_others;
-	instr_time	f_self;
 
 	/* stats not wanted? */
 	if (fs == NULL)
@@ -1951,9 +1941,11 @@ pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 	INSTR_TIME_SUBTRACT(f_total, fcu->f_start);
 
 	/* self usage: elapsed minus anything already charged to other calls */
-	f_others = total_func_time;
+	instr_time	f_others = total_func_time;
+
 	INSTR_TIME_SUBTRACT(f_others, fcu->save_total);
-	f_self = f_total;
+	instr_time	f_self = f_total;
+
 	INSTR_TIME_SUBTRACT(f_self, f_others);
 
 	/* update backend-wide total time */
@@ -2029,9 +2021,6 @@ pgstat_initstats(Relation rel)
 static PgStat_TableStatus *
 get_tabstat_entry(Oid rel_id, bool isshared)
 {
-	TabStatHashEntry *hash_entry;
-	PgStat_TableStatus *entry;
-	TabStatusArray *tsa;
 	bool		found;
 
 	pgstat_assert_is_up();
@@ -2055,7 +2044,8 @@ get_tabstat_entry(Oid rel_id, bool isshared)
 	/*
 	 * Find an entry or create a new one.
 	 */
-	hash_entry = hash_search(pgStatTabHash, &rel_id, HASH_ENTER, &found);
+	TabStatHashEntry *hash_entry = hash_search(pgStatTabHash, &rel_id, HASH_ENTER, &found);
+
 	if (!found)
 	{
 		/* initialize new entry with null pointer */
@@ -2081,7 +2071,8 @@ get_tabstat_entry(Oid rel_id, bool isshared)
 								   sizeof(TabStatusArray));
 	}
 
-	tsa = pgStatTabList;
+	TabStatusArray *tsa = pgStatTabList;
+
 	while (tsa->tsa_used >= TABSTAT_QUANTUM)
 	{
 		if (tsa->tsa_next == NULL)
@@ -2095,7 +2086,8 @@ get_tabstat_entry(Oid rel_id, bool isshared)
 	 * Allocate a PgStat_TableStatus entry within this list entry.  We assume
 	 * the entry was already zeroed, either at creation or after last use.
 	 */
-	entry = &tsa->tsa_entries[tsa->tsa_used++];
+	PgStat_TableStatus *entry = &tsa->tsa_entries[tsa->tsa_used++];
+
 	entry->t_id = rel_id;
 	entry->t_shared = isshared;
 
@@ -2119,13 +2111,13 @@ get_tabstat_entry(Oid rel_id, bool isshared)
 PgStat_TableStatus *
 find_tabstat_entry(Oid rel_id)
 {
-	TabStatHashEntry *hash_entry;
 
 	/* If hashtable doesn't exist, there are no entries at all */
 	if (!pgStatTabHash)
 		return NULL;
 
-	hash_entry = hash_search(pgStatTabHash, &rel_id, HASH_FIND, NULL);
+	TabStatHashEntry *hash_entry = hash_search(pgStatTabHash, &rel_id, HASH_FIND, NULL);
+
 	if (!hash_entry)
 		return NULL;
 
@@ -2139,9 +2131,9 @@ find_tabstat_entry(Oid rel_id)
 static PgStat_SubXactStatus *
 get_tabstat_stack_level(int nest_level)
 {
-	PgStat_SubXactStatus *xact_state;
 
-	xact_state = pgStatXactStack;
+	PgStat_SubXactStatus *xact_state = pgStatXactStack;
+
 	if (xact_state == NULL || xact_state->nest_level != nest_level)
 	{
 		xact_state = (PgStat_SubXactStatus *)
@@ -2161,19 +2153,18 @@ get_tabstat_stack_level(int nest_level)
 static void
 add_tabstat_xact_level(PgStat_TableStatus *pgstat_info, int nest_level)
 {
-	PgStat_SubXactStatus *xact_state;
-	PgStat_TableXactStatus *trans;
 
 	/*
 	 * If this is the first rel to be modified at the current nest level, we
 	 * first have to push a transaction stack entry.
 	 */
-	xact_state = get_tabstat_stack_level(nest_level);
+	PgStat_SubXactStatus *xact_state = get_tabstat_stack_level(nest_level);
 
 	/* Now make a per-table stack entry */
-	trans = (PgStat_TableXactStatus *)
-		MemoryContextAllocZero(TopTransactionContext,
-							   sizeof(PgStat_TableXactStatus));
+	PgStat_TableXactStatus *trans = (PgStat_TableXactStatus *)
+	MemoryContextAllocZero(TopTransactionContext,
+						   sizeof(PgStat_TableXactStatus));
+
 	trans->nest_level = nest_level;
 	trans->upper = pgstat_info->trans;
 	trans->parent = pgstat_info;
@@ -2334,7 +2325,6 @@ pgstat_update_heap_dead_tuples(Relation rel, int delta)
 void
 AtEOXact_PgStat(bool isCommit, bool parallel)
 {
-	PgStat_SubXactStatus *xact_state;
 
 	/* Don't count parallel worker transaction stats */
 	if (!parallel)
@@ -2354,7 +2344,8 @@ AtEOXact_PgStat(bool isCommit, bool parallel)
 	 * entries.  We don't bother to free any of the transactional state, since
 	 * it's all in TopTransactionContext and will go away anyway.
 	 */
-	xact_state = pgStatXactStack;
+	PgStat_SubXactStatus *xact_state = pgStatXactStack;
+
 	if (xact_state != NULL)
 	{
 		PgStat_TableXactStatus *trans;
@@ -2363,11 +2354,11 @@ AtEOXact_PgStat(bool isCommit, bool parallel)
 		Assert(xact_state->prev == NULL);
 		for (trans = xact_state->first; trans != NULL; trans = trans->next)
 		{
-			PgStat_TableStatus *tabstat;
 
 			Assert(trans->nest_level == 1);
 			Assert(trans->upper == NULL);
-			tabstat = trans->parent;
+			PgStat_TableStatus *tabstat = trans->parent;
+
 			Assert(tabstat->trans == trans);
 			/* restore pre-truncate stats (if any) in case of aborted xact */
 			if (!isCommit)
@@ -2421,13 +2412,13 @@ AtEOXact_PgStat(bool isCommit, bool parallel)
 void
 AtEOSubXact_PgStat(bool isCommit, int nestDepth)
 {
-	PgStat_SubXactStatus *xact_state;
 
 	/*
 	 * Transfer transactional insert/update counts into the next higher
 	 * subtransaction state.
 	 */
-	xact_state = pgStatXactStack;
+	PgStat_SubXactStatus *xact_state = pgStatXactStack;
+
 	if (xact_state != NULL &&
 		xact_state->nest_level >= nestDepth)
 	{
@@ -2439,11 +2430,11 @@ AtEOSubXact_PgStat(bool isCommit, int nestDepth)
 
 		for (trans = xact_state->first; trans != NULL; trans = next_trans)
 		{
-			PgStat_TableStatus *tabstat;
 
 			next_trans = trans->next;
 			Assert(trans->nest_level == nestDepth);
-			tabstat = trans->parent;
+			PgStat_TableStatus *tabstat = trans->parent;
+
 			Assert(tabstat->trans == trans);
 			if (isCommit)
 			{
@@ -2477,9 +2468,9 @@ AtEOSubXact_PgStat(bool isCommit, int nestDepth)
 					 * into the parent level, though, and that might mean
 					 * pushing a new entry into the pgStatXactStack.
 					 */
-					PgStat_SubXactStatus *upper_xact_state;
 
-					upper_xact_state = get_tabstat_stack_level(nestDepth - 1);
+					PgStat_SubXactStatus *upper_xact_state = get_tabstat_stack_level(nestDepth - 1);
+
 					trans->next = upper_xact_state->first;
 					upper_xact_state->first = trans;
 					trans->nest_level = nestDepth - 1;
@@ -2520,9 +2511,9 @@ AtEOSubXact_PgStat(bool isCommit, int nestDepth)
 void
 AtPrepare_PgStat(void)
 {
-	PgStat_SubXactStatus *xact_state;
 
-	xact_state = pgStatXactStack;
+	PgStat_SubXactStatus *xact_state = pgStatXactStack;
+
 	if (xact_state != NULL)
 	{
 		PgStat_TableXactStatus *trans;
@@ -2531,12 +2522,12 @@ AtPrepare_PgStat(void)
 		Assert(xact_state->prev == NULL);
 		for (trans = xact_state->first; trans != NULL; trans = trans->next)
 		{
-			PgStat_TableStatus *tabstat;
 			TwoPhasePgStatRecord record;
 
 			Assert(trans->nest_level == 1);
 			Assert(trans->upper == NULL);
-			tabstat = trans->parent;
+			PgStat_TableStatus *tabstat = trans->parent;
+
 			Assert(tabstat->trans == trans);
 
 			record.tuples_inserted = trans->tuples_inserted;
@@ -2569,22 +2560,22 @@ AtPrepare_PgStat(void)
 void
 PostPrepare_PgStat(void)
 {
-	PgStat_SubXactStatus *xact_state;
 
 	/*
 	 * We don't bother to free any of the transactional state, since it's all
 	 * in TopTransactionContext and will go away anyway.
 	 */
-	xact_state = pgStatXactStack;
+	PgStat_SubXactStatus *xact_state = pgStatXactStack;
+
 	if (xact_state != NULL)
 	{
 		PgStat_TableXactStatus *trans;
 
 		for (trans = xact_state->first; trans != NULL; trans = trans->next)
 		{
-			PgStat_TableStatus *tabstat;
 
-			tabstat = trans->parent;
+			PgStat_TableStatus *tabstat = trans->parent;
+
 			tabstat->trans = NULL;
 		}
 	}
@@ -2604,10 +2595,9 @@ pgstat_twophase_postcommit(TransactionId xid, uint16 info,
 						   void *recdata, uint32 len)
 {
 	TwoPhasePgStatRecord *rec = (TwoPhasePgStatRecord *) recdata;
-	PgStat_TableStatus *pgstat_info;
 
 	/* Find or create a tabstat entry for the rel */
-	pgstat_info = get_tabstat_entry(rec->t_id, rec->t_shared);
+	PgStat_TableStatus *pgstat_info = get_tabstat_entry(rec->t_id, rec->t_shared);
 
 	/* Same math as in AtEOXact_PgStat, commit case */
 	pgstat_info->t_counts.t_tuples_inserted += rec->tuples_inserted;
@@ -2640,10 +2630,9 @@ pgstat_twophase_postabort(TransactionId xid, uint16 info,
 						  void *recdata, uint32 len)
 {
 	TwoPhasePgStatRecord *rec = (TwoPhasePgStatRecord *) recdata;
-	PgStat_TableStatus *pgstat_info;
 
 	/* Find or create a tabstat entry for the rel */
-	pgstat_info = get_tabstat_entry(rec->t_id, rec->t_shared);
+	PgStat_TableStatus *pgstat_info = get_tabstat_entry(rec->t_id, rec->t_shared);
 
 	/* Same math as in AtEOXact_PgStat, abort case */
 	if (rec->t_truncated)
@@ -2699,8 +2688,6 @@ pgstat_fetch_stat_dbentry(Oid dbid)
 PgStat_StatTabEntry *
 pgstat_fetch_stat_tabentry(Oid relid)
 {
-	Oid			dbid;
-	PgStat_StatDBEntry *dbentry;
 	PgStat_StatTabEntry *tabentry;
 
 	/*
@@ -2712,10 +2699,11 @@ pgstat_fetch_stat_tabentry(Oid relid)
 	/*
 	 * Lookup our database, then look in its table hash table.
 	 */
-	dbid = MyDatabaseId;
-	dbentry = (PgStat_StatDBEntry *) hash_search(pgStatDBHash,
-												 (void *) &dbid,
-												 HASH_FIND, NULL);
+	Oid			dbid = MyDatabaseId;
+	PgStat_StatDBEntry *dbentry = (PgStat_StatDBEntry *) hash_search(pgStatDBHash,
+																	 (void *) &dbid,
+																	 HASH_FIND, NULL);
+
 	if (dbentry != NULL && dbentry->tables != NULL)
 	{
 		tabentry = (PgStat_StatTabEntry *) hash_search(dbentry->tables,
@@ -2755,14 +2743,14 @@ pgstat_fetch_stat_tabentry(Oid relid)
 PgStat_StatFuncEntry *
 pgstat_fetch_stat_funcentry(Oid func_id)
 {
-	PgStat_StatDBEntry *dbentry;
 	PgStat_StatFuncEntry *funcentry = NULL;
 
 	/* load the stats file if needed */
 	backend_read_statsfile();
 
 	/* Lookup our database, then find the requested function.  */
-	dbentry = pgstat_fetch_stat_dbentry(MyDatabaseId);
+	PgStat_StatDBEntry *dbentry = pgstat_fetch_stat_dbentry(MyDatabaseId);
+
 	if (dbentry != NULL && dbentry->functions != NULL)
 	{
 		funcentry = (PgStat_StatFuncEntry *) hash_search(dbentry->functions,
@@ -3143,9 +3131,9 @@ pgstat_send_wal(bool force)
 		WalUsage	walusage;
 
 		/*
-		 * Calculate how much WAL usage counters were increased by
-		 * subtracting the previous counters from the current ones. Fill the
-		 * results in WAL stats message.
+		 * Calculate how much WAL usage counters were increased by subtracting
+		 * the previous counters from the current ones. Fill the results in
+		 * WAL stats message.
 		 */
 		MemSet(&walusage, 0, sizeof(WalUsage));
 		WalUsageAccumDiff(&walusage, &pgWalUsage, &prevWalUsage);
@@ -3228,7 +3216,6 @@ PgstatCollectorMain(int argc, char *argv[])
 	PgStat_Msg	msg;
 	int			wr;
 	WaitEvent	event;
-	WaitEventSet *wes;
 
 	/*
 	 * Ignore all signals usually bound to some action in the postmaster,
@@ -3257,7 +3244,8 @@ PgstatCollectorMain(int argc, char *argv[])
 	pgStatDBHash = pgstat_read_statsfiles(InvalidOid, true, true);
 
 	/* Prepare to wait for our latch or data in our socket. */
-	wes = CreateWaitEventSet(CurrentMemoryContext, 3);
+	WaitEventSet *wes = CreateWaitEventSet(CurrentMemoryContext, 3);
+
 	AddWaitEventToSet(wes, WL_LATCH_SET, PGINVALID_SOCKET, MyLatch, NULL);
 	AddWaitEventToSet(wes, WL_POSTMASTER_DEATH, PGINVALID_SOCKET, NULL, NULL);
 	AddWaitEventToSet(wes, WL_SOCKET_READABLE, pgStatSock, NULL, NULL);
@@ -3571,14 +3559,13 @@ reset_dbentry_counters(PgStat_StatDBEntry *dbentry)
 static PgStat_StatDBEntry *
 pgstat_get_db_entry(Oid databaseid, bool create)
 {
-	PgStat_StatDBEntry *result;
 	bool		found;
 	HASHACTION	action = (create ? HASH_ENTER : HASH_FIND);
 
 	/* Lookup or create the hash table entry for this database */
-	result = (PgStat_StatDBEntry *) hash_search(pgStatDBHash,
-												&databaseid,
-												action, &found);
+	PgStat_StatDBEntry *result = (PgStat_StatDBEntry *) hash_search(pgStatDBHash,
+																	&databaseid,
+																	action, &found);
 
 	if (!create && !found)
 		return NULL;
@@ -3602,14 +3589,13 @@ pgstat_get_db_entry(Oid databaseid, bool create)
 static PgStat_StatTabEntry *
 pgstat_get_tab_entry(PgStat_StatDBEntry *dbentry, Oid tableoid, bool create)
 {
-	PgStat_StatTabEntry *result;
 	bool		found;
 	HASHACTION	action = (create ? HASH_ENTER : HASH_FIND);
 
 	/* Lookup or create the hash table entry for this table */
-	result = (PgStat_StatTabEntry *) hash_search(dbentry->tables,
-												 &tableoid,
-												 action, &found);
+	PgStat_StatTabEntry *result = (PgStat_StatTabEntry *) hash_search(dbentry->tables,
+																	  &tableoid,
+																	  action, &found);
 
 	if (!create && !found)
 		return NULL;
@@ -3663,18 +3649,16 @@ pgstat_write_statsfiles(bool permanent, bool allDbs)
 {
 	HASH_SEQ_STATUS hstat;
 	PgStat_StatDBEntry *dbentry;
-	FILE	   *fpout;
-	int32		format_id;
 	const char *tmpfile = permanent ? PGSTAT_STAT_PERMANENT_TMPFILE : pgstat_stat_tmpname;
 	const char *statfile = permanent ? PGSTAT_STAT_PERMANENT_FILENAME : pgstat_stat_filename;
-	int			rc;
 
 	elog(DEBUG2, "writing stats file \"%s\"", statfile);
 
 	/*
 	 * Open the statistics temp file to write out the current values.
 	 */
-	fpout = AllocateFile(tmpfile, PG_BINARY_W);
+	FILE	   *fpout = AllocateFile(tmpfile, PG_BINARY_W);
+
 	if (fpout == NULL)
 	{
 		ereport(LOG,
@@ -3692,8 +3676,9 @@ pgstat_write_statsfiles(bool permanent, bool allDbs)
 	/*
 	 * Write the file header --- currently just a format ID.
 	 */
-	format_id = PGSTAT_FILE_FORMAT_ID;
-	rc = fwrite(&format_id, sizeof(format_id), 1, fpout);
+	int32		format_id = PGSTAT_FILE_FORMAT_ID;
+	int			rc = fwrite(&format_id, sizeof(format_id), 1, fpout);
+
 	(void) rc;					/* we'll check for error with ferror */
 
 	/*
@@ -3815,14 +3800,14 @@ static void
 get_dbstat_filename(bool permanent, bool tempname, Oid databaseid,
 					char *filename, int len)
 {
-	int			printed;
 
 	/* NB -- pgstat_reset_remove_files knows about the pattern this uses */
-	printed = snprintf(filename, len, "%s/db_%u.%s",
-					   permanent ? PGSTAT_STAT_PERMANENT_DIRECTORY :
-					   pgstat_stat_directory,
-					   databaseid,
-					   tempname ? "tmp" : "stat");
+	int			printed = snprintf(filename, len, "%s/db_%u.%s",
+								   permanent ? PGSTAT_STAT_PERMANENT_DIRECTORY :
+								   pgstat_stat_directory,
+								   databaseid,
+								   tempname ? "tmp" : "stat");
+
 	if (printed >= len)
 		elog(ERROR, "overlength pgstat path");
 }
@@ -3844,10 +3829,7 @@ pgstat_write_db_statsfile(PgStat_StatDBEntry *dbentry, bool permanent)
 	HASH_SEQ_STATUS fstat;
 	PgStat_StatTabEntry *tabentry;
 	PgStat_StatFuncEntry *funcentry;
-	FILE	   *fpout;
-	int32		format_id;
 	Oid			dbid = dbentry->databaseid;
-	int			rc;
 	char		tmpfile[MAXPGPATH];
 	char		statfile[MAXPGPATH];
 
@@ -3859,7 +3841,8 @@ pgstat_write_db_statsfile(PgStat_StatDBEntry *dbentry, bool permanent)
 	/*
 	 * Open the statistics temp file to write out the current values.
 	 */
-	fpout = AllocateFile(tmpfile, PG_BINARY_W);
+	FILE	   *fpout = AllocateFile(tmpfile, PG_BINARY_W);
+
 	if (fpout == NULL)
 	{
 		ereport(LOG,
@@ -3872,8 +3855,9 @@ pgstat_write_db_statsfile(PgStat_StatDBEntry *dbentry, bool permanent)
 	/*
 	 * Write the file header --- currently just a format ID.
 	 */
-	format_id = PGSTAT_FILE_FORMAT_ID;
-	rc = fwrite(&format_id, sizeof(format_id), 1, fpout);
+	int32		format_id = PGSTAT_FILE_FORMAT_ID;
+	int			rc = fwrite(&format_id, sizeof(format_id), 1, fpout);
+
 	(void) rc;					/* we'll check for error with ferror */
 
 	/*
@@ -3966,13 +3950,11 @@ pgstat_read_statsfiles(Oid onlydb, bool permanent, bool deep)
 	PgStat_StatDBEntry *dbentry;
 	PgStat_StatDBEntry dbbuf;
 	HASHCTL		hash_ctl;
-	HTAB	   *dbhash;
 	FILE	   *fpin;
 	int32		format_id;
 	bool		found;
 	const char *statfile = permanent ? PGSTAT_STAT_PERMANENT_FILENAME : pgstat_stat_filename;
 	int			i;
-	TimestampTz	ts;
 
 	/*
 	 * The tables will live in pgStatLocalContext.
@@ -3985,8 +3967,8 @@ pgstat_read_statsfiles(Oid onlydb, bool permanent, bool deep)
 	hash_ctl.keysize = sizeof(Oid);
 	hash_ctl.entrysize = sizeof(PgStat_StatDBEntry);
 	hash_ctl.hcxt = pgStatLocalContext;
-	dbhash = hash_create("Databases hash", PGSTAT_DB_HASH_SIZE, &hash_ctl,
-						 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	HTAB	   *dbhash = hash_create("Databases hash", PGSTAT_DB_HASH_SIZE, &hash_ctl,
+									 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
 	/*
 	 * Clear out global, archiver, WAL and SLRU statistics so they start from
@@ -4001,7 +3983,8 @@ pgstat_read_statsfiles(Oid onlydb, bool permanent, bool deep)
 	 * Set the current timestamp (will be kept only in case we can't load an
 	 * existing statsfile).
 	 */
-	ts = GetCurrentTimestamp();
+	TimestampTz ts = GetCurrentTimestamp();
+
 	globalStats.bgwriter.stat_reset_timestamp = ts;
 	archiverStats.stat_reset_timestamp = ts;
 	walStats.stat_reset_timestamp = ts;
@@ -4623,15 +4606,14 @@ backend_read_statsfile(void)
 	 */
 	for (count = 0; count < PGSTAT_POLL_LOOP_COUNT; count++)
 	{
-		bool		ok;
 		TimestampTz file_ts = 0;
-		TimestampTz cur_ts;
 
 		CHECK_FOR_INTERRUPTS();
 
-		ok = pgstat_read_db_statsfile_timestamp(inquiry_db, false, &file_ts);
+		bool		ok = pgstat_read_db_statsfile_timestamp(inquiry_db, false, &file_ts);
 
-		cur_ts = GetCurrentTimestamp();
+		TimestampTz cur_ts = GetCurrentTimestamp();
+
 		/* Calculate min acceptable timestamp, if we didn't already */
 		if (count == 0 || cur_ts < ref_ts)
 		{
@@ -4676,12 +4658,11 @@ backend_read_statsfile(void)
 			 */
 			if (file_ts >= TimestampTzPlusMilliseconds(cur_ts, 1000))
 			{
-				char	   *filetime;
-				char	   *mytime;
 
 				/* Copy because timestamptz_to_str returns a static buffer */
-				filetime = pstrdup(timestamptz_to_str(file_ts));
-				mytime = pstrdup(timestamptz_to_str(cur_ts));
+				char	   *filetime = pstrdup(timestamptz_to_str(file_ts));
+				char	   *mytime = pstrdup(timestamptz_to_str(cur_ts));
+
 				ereport(LOG,
 						(errmsg("statistics collector's time %s is later than backend local time %s",
 								filetime, mytime)));
@@ -4790,7 +4771,6 @@ pgstat_clear_snapshot(void)
 static void
 pgstat_recv_inquiry(PgStat_MsgInquiry *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
 	elog(DEBUG2, "received inquiry for database %u", msg->databaseid);
 
@@ -4818,7 +4798,8 @@ pgstat_recv_inquiry(PgStat_MsgInquiry *msg, int len)
 	 * retreat in the system clock reading could otherwise cause us to neglect
 	 * to update the stats file for a long time.
 	 */
-	dbentry = pgstat_get_db_entry(msg->databaseid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->databaseid, false);
+
 	if (dbentry == NULL)
 	{
 		/*
@@ -4839,12 +4820,11 @@ pgstat_recv_inquiry(PgStat_MsgInquiry *msg, int len)
 			 * Sure enough, time went backwards.  Force a new stats file write
 			 * to get back in sync; but first, log a complaint.
 			 */
-			char	   *writetime;
-			char	   *mytime;
 
 			/* Copy because timestamptz_to_str returns a static buffer */
-			writetime = pstrdup(timestamptz_to_str(dbentry->stats_timestamp));
-			mytime = pstrdup(timestamptz_to_str(cur_ts));
+			char	   *writetime = pstrdup(timestamptz_to_str(dbentry->stats_timestamp));
+			char	   *mytime = pstrdup(timestamptz_to_str(cur_ts));
+
 			ereport(LOG,
 					(errmsg("stats_timestamp %s is later than collector's time %s for database %u",
 							writetime, mytime, dbentry->databaseid)));
@@ -4883,12 +4863,11 @@ pgstat_recv_inquiry(PgStat_MsgInquiry *msg, int len)
 static void
 pgstat_recv_tabstat(PgStat_MsgTabstat *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 	PgStat_StatTabEntry *tabentry;
 	int			i;
 	bool		found;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	/*
 	 * Update database-wide stats.
@@ -4993,10 +4972,9 @@ pgstat_recv_tabstat(PgStat_MsgTabstat *msg, int len)
 static void
 pgstat_recv_tabpurge(PgStat_MsgTabpurge *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 	int			i;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
 
 	/*
 	 * No need to purge if we don't even know the database.
@@ -5027,12 +5005,11 @@ static void
 pgstat_recv_dropdb(PgStat_MsgDropdb *msg, int len)
 {
 	Oid			dbid = msg->m_databaseid;
-	PgStat_StatDBEntry *dbentry;
 
 	/*
 	 * Lookup the database in the hashtable.
 	 */
-	dbentry = pgstat_get_db_entry(dbid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(dbid, false);
 
 	/*
 	 * If found, remove it (along with the db statfile).
@@ -5069,12 +5046,11 @@ pgstat_recv_dropdb(PgStat_MsgDropdb *msg, int len)
 static void
 pgstat_recv_resetcounter(PgStat_MsgResetcounter *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
 	/*
 	 * Lookup the database in the hashtable.  Nothing to do if not there.
 	 */
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
 
 	if (!dbentry)
 		return;
@@ -5109,7 +5085,10 @@ pgstat_recv_resetsharedcounter(PgStat_MsgResetsharedcounter *msg, int len)
 {
 	if (msg->m_resettarget == RESET_BGWRITER)
 	{
-		/* Reset the global, bgwriter and checkpointer statistics for the cluster. */
+		/*
+		 * Reset the global, bgwriter and checkpointer statistics for the
+		 * cluster.
+		 */
 		memset(&globalStats, 0, sizeof(globalStats));
 		globalStats.bgwriter.stat_reset_timestamp = GetCurrentTimestamp();
 	}
@@ -5141,9 +5120,8 @@ pgstat_recv_resetsharedcounter(PgStat_MsgResetsharedcounter *msg, int len)
 static void
 pgstat_recv_resetsinglecounter(PgStat_MsgResetsinglecounter *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
 
 	if (!dbentry)
 		return;
@@ -5194,13 +5172,13 @@ pgstat_recv_resetreplslotcounter(PgStat_MsgResetreplslotcounter *msg,
 								 int len)
 {
 	PgStat_StatReplSlotEntry *slotent;
-	TimestampTz ts;
 
 	/* Return if we don't have replication slot statistics */
 	if (replSlotStatHash == NULL)
 		return;
 
-	ts = GetCurrentTimestamp();
+	TimestampTz ts = GetCurrentTimestamp();
+
 	if (msg->clearall)
 	{
 		HASH_SEQ_STATUS sstat;
@@ -5238,12 +5216,11 @@ pgstat_recv_resetreplslotcounter(PgStat_MsgResetreplslotcounter *msg,
 static void
 pgstat_recv_autovac(PgStat_MsgAutovacStart *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
 	/*
 	 * Store the last autovacuum time in the database's hashtable entry.
 	 */
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	dbentry->last_autovac_time = msg->m_start_time;
 }
@@ -5257,15 +5234,13 @@ pgstat_recv_autovac(PgStat_MsgAutovacStart *msg, int len)
 static void
 pgstat_recv_vacuum(PgStat_MsgVacuum *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
-	PgStat_StatTabEntry *tabentry;
 
 	/*
 	 * Store the data in the table's hashtable entry.
 	 */
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
-	tabentry = pgstat_get_tab_entry(dbentry, msg->m_tableoid, true);
+	PgStat_StatTabEntry *tabentry = pgstat_get_tab_entry(dbentry, msg->m_tableoid, true);
 
 	tabentry->n_live_tuples = msg->m_live_tuples;
 	tabentry->n_dead_tuples = msg->m_dead_tuples;
@@ -5303,15 +5278,13 @@ pgstat_recv_vacuum(PgStat_MsgVacuum *msg, int len)
 static void
 pgstat_recv_analyze(PgStat_MsgAnalyze *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
-	PgStat_StatTabEntry *tabentry;
 
 	/*
 	 * Store the data in the table's hashtable entry.
 	 */
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
-	tabentry = pgstat_get_tab_entry(dbentry, msg->m_tableoid, true);
+	PgStat_StatTabEntry *tabentry = pgstat_get_tab_entry(dbentry, msg->m_tableoid, true);
 
 	tabentry->n_live_tuples = msg->m_live_tuples;
 	tabentry->n_dead_tuples = msg->m_dead_tuples;
@@ -5385,7 +5358,7 @@ pgstat_recv_bgwriter(PgStat_MsgBgWriter *msg, int len)
  * ----------
  */
 static void
-pgstat_recv_checkpointer(PgStat_MsgCheckpointer *msg, int len)
+pgstat_recv_checkpointer(PgStat_MsgCheckpointer * msg, int len)
 {
 	globalStats.checkpointer.timed_checkpoints += msg->m_timed_checkpoints;
 	globalStats.checkpointer.requested_checkpoints += msg->m_requested_checkpoints;
@@ -5442,9 +5415,8 @@ pgstat_recv_slru(PgStat_MsgSLRU *msg, int len)
 static void
 pgstat_recv_recoveryconflict(PgStat_MsgRecoveryConflict *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	switch (msg->m_reason)
 	{
@@ -5482,9 +5454,8 @@ pgstat_recv_recoveryconflict(PgStat_MsgRecoveryConflict *msg, int len)
 static void
 pgstat_recv_deadlock(PgStat_MsgDeadlock *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	dbentry->n_deadlocks++;
 }
@@ -5498,9 +5469,8 @@ pgstat_recv_deadlock(PgStat_MsgDeadlock *msg, int len)
 static void
 pgstat_recv_checksum_failure(PgStat_MsgChecksumFailure *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	dbentry->n_checksum_failures += msg->m_failurecount;
 	dbentry->last_checksum_failure = msg->m_failure_time;
@@ -5528,9 +5498,9 @@ pgstat_recv_replslot(PgStat_MsgReplSlot *msg, int len)
 	}
 	else
 	{
-		PgStat_StatReplSlotEntry *slotent;
 
-		slotent = pgstat_get_replslot_entry(msg->m_slotname, true);
+		PgStat_StatReplSlotEntry *slotent = pgstat_get_replslot_entry(msg->m_slotname, true);
+
 		Assert(slotent);
 
 		if (msg->m_create)
@@ -5566,9 +5536,8 @@ pgstat_recv_replslot(PgStat_MsgReplSlot *msg, int len)
 static void
 pgstat_recv_connstat(PgStat_MsgConn *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	dbentry->n_sessions += msg->m_count;
 	dbentry->total_session_time += msg->m_session_time;
@@ -5601,9 +5570,8 @@ pgstat_recv_connstat(PgStat_MsgConn *msg, int len)
 static void
 pgstat_recv_tempfile(PgStat_MsgTempFile *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	dbentry->n_temp_bytes += msg->m_filesize;
 	dbentry->n_temp_files += 1;
@@ -5619,12 +5587,11 @@ static void
 pgstat_recv_funcstat(PgStat_MsgFuncstat *msg, int len)
 {
 	PgStat_FunctionEntry *funcmsg = &(msg->m_entry[0]);
-	PgStat_StatDBEntry *dbentry;
 	PgStat_StatFuncEntry *funcentry;
 	int			i;
 	bool		found;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, true);
 
 	/*
 	 * Process all function entries in the message.
@@ -5666,10 +5633,9 @@ pgstat_recv_funcstat(PgStat_MsgFuncstat *msg, int len)
 static void
 pgstat_recv_funcpurge(PgStat_MsgFuncpurge *msg, int len)
 {
-	PgStat_StatDBEntry *dbentry;
 	int			i;
 
-	dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
+	PgStat_StatDBEntry *dbentry = pgstat_get_db_entry(msg->m_databaseid, false);
 
 	/*
 	 * No need to purge if we don't even know the database.
@@ -5742,7 +5708,6 @@ pgstat_db_requested(Oid databaseid)
 static PgStat_StatReplSlotEntry *
 pgstat_get_replslot_entry(NameData name, bool create)
 {
-	PgStat_StatReplSlotEntry *slotent;
 	bool		found;
 
 	if (replSlotStatHash == NULL)
@@ -5764,10 +5729,10 @@ pgstat_get_replslot_entry(NameData name, bool create)
 									   HASH_ELEM | HASH_BLOBS);
 	}
 
-	slotent = (PgStat_StatReplSlotEntry *) hash_search(replSlotStatHash,
-													   (void *) &name,
-													   create ? HASH_ENTER : HASH_FIND,
-													   &found);
+	PgStat_StatReplSlotEntry *slotent = (PgStat_StatReplSlotEntry *) hash_search(replSlotStatHash,
+																				 (void *) &name,
+																				 create ? HASH_ENTER : HASH_FIND,
+																				 &found);
 
 	if (!slotent)
 	{

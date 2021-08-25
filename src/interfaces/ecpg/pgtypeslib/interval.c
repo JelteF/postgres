@@ -22,12 +22,12 @@
 static void
 AdjustFractSeconds(double frac, struct /* pg_ */ tm *tm, fsec_t *fsec, int scale)
 {
-	int			sec;
 
 	if (frac == 0)
 		return;
 	frac *= scale;
-	sec = (int) frac;
+	int			sec = (int) frac;
+
 	tm->tm_sec += sec;
 	frac -= sec;
 	*fsec += rint(frac * 1000000);
@@ -40,12 +40,12 @@ AdjustFractSeconds(double frac, struct /* pg_ */ tm *tm, fsec_t *fsec, int scale
 static void
 AdjustFractDays(double frac, struct /* pg_ */ tm *tm, fsec_t *fsec, int scale)
 {
-	int			extra_days;
 
 	if (frac == 0)
 		return;
 	frac *= scale;
-	extra_days = (int) frac;
+	int			extra_days = (int) frac;
+
 	tm->tm_mday += extra_days;
 	frac -= extra_days;
 	AdjustFractSeconds(frac, tm, fsec, SECS_PER_DAY);
@@ -55,12 +55,12 @@ AdjustFractDays(double frac, struct /* pg_ */ tm *tm, fsec_t *fsec, int scale)
 static int
 ParseISO8601Number(const char *str, char **endptr, int *ipart, double *fpart)
 {
-	double		val;
 
 	if (!(isdigit((unsigned char) *str) || *str == '-' || *str == '.'))
 		return DTERR_BAD_FORMAT;
 	errno = 0;
-	val = strtod(str, endptr);
+	double		val = strtod(str, endptr);
+
 	/* did we not see anything that looks like a double? */
 	if (*endptr == str || errno != 0)
 		return DTERR_BAD_FORMAT;
@@ -124,11 +124,8 @@ DecodeISO8601Interval(char *str,
 	str++;
 	while (*str)
 	{
-		char	   *fieldstart;
 		int			val;
 		double		fval;
-		char		unit;
-		int			dterr;
 
 		if (*str == 'T')		/* T indicates the beginning of the time part */
 		{
@@ -138,8 +135,9 @@ DecodeISO8601Interval(char *str,
 			continue;
 		}
 
-		fieldstart = str;
-		dterr = ParseISO8601Number(str, &str, &val, &fval);
+		char	   *fieldstart = str;
+		int			dterr = ParseISO8601Number(str, &str, &val, &fval);
+
 		if (dterr)
 			return dterr;
 
@@ -147,7 +145,7 @@ DecodeISO8601Interval(char *str,
 		 * Note: we could step off the end of the string here.  Code below
 		 * *must* exit the loop if unit == '\0'.
 		 */
-		unit = *str++;
+		char		unit = *str++;
 
 		if (datepart)
 		{
@@ -439,9 +437,9 @@ DecodeInterval(char **field, int *ftype, int nf,	/* int range, */
 				if (*cp == '-')
 				{
 					/* SQL "years-months" syntax */
-					int			val2;
 
-					val2 = strtoint(cp + 1, &cp, 10);
+					int			val2 = strtoint(cp + 1, &cp, 10);
+
 					if (errno == ERANGE || val2 < 0 || val2 >= MONTHS_PER_YEAR)
 						return DTERR_FIELD_OVERFLOW;
 					if (*cp != '\0')
@@ -599,9 +597,9 @@ DecodeInterval(char **field, int *ftype, int nf,	/* int range, */
 	/* ensure fractional seconds are fractional */
 	if (*fsec != 0)
 	{
-		int			sec;
 
-		sec = *fsec / USECS_PER_SEC;
+		int			sec = *fsec / USECS_PER_SEC;
+
 		*fsec -= sec * USECS_PER_SEC;
 		tm->tm_sec += sec;
 	}
@@ -987,9 +985,9 @@ tm2interval(struct tm *tm, fsec_t fsec, interval * span)
 interval *
 PGTYPESinterval_new(void)
 {
-	interval   *result;
 
-	result = (interval *) pgtypes_alloc(sizeof(interval));
+	interval   *result = (interval *) pgtypes_alloc(sizeof(interval));
+
 	/* result can be NULL if we run out of memory */
 	return result;
 }
@@ -1003,8 +1001,6 @@ PGTYPESinterval_free(interval * intvl)
 interval *
 PGTYPESinterval_from_asc(char *str, char **endptr)
 {
-	interval   *result = NULL;
-	fsec_t		fsec;
 	struct tm	tt,
 			   *tm = &tt;
 	int			dtype;
@@ -1021,7 +1017,7 @@ PGTYPESinterval_from_asc(char *str, char **endptr)
 	tm->tm_hour = 0;
 	tm->tm_min = 0;
 	tm->tm_sec = 0;
-	fsec = 0;
+	fsec_t		fsec = 0;
 
 	if (strlen(str) > MAXDATELEN)
 	{
@@ -1037,7 +1033,8 @@ PGTYPESinterval_from_asc(char *str, char **endptr)
 		return NULL;
 	}
 
-	result = (interval *) pgtypes_alloc(sizeof(interval));
+	interval   *result = (interval *) pgtypes_alloc(sizeof(interval));
+
 	if (!result)
 		return NULL;
 

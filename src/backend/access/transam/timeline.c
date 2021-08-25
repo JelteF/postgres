@@ -75,13 +75,10 @@ restoreTimeLineHistoryFiles(TimeLineID begin, TimeLineID end)
 List *
 readTimeLineHistory(TimeLineID targetTLI)
 {
-	List	   *result;
 	char		path[MAXPGPATH];
 	char		histfname[MAXFNAMELEN];
-	FILE	   *fd;
 	TimeLineHistoryEntry *entry;
 	TimeLineID	lasttli = 0;
-	XLogRecPtr	prevend;
 	bool		fromArchive = false;
 
 	/* Timeline 1 does not have a history file, so no need to check */
@@ -102,7 +99,8 @@ readTimeLineHistory(TimeLineID targetTLI)
 	else
 		TLHistoryFilePath(path, targetTLI);
 
-	fd = AllocateFile(path, "r");
+	FILE	   *fd = AllocateFile(path, "r");
+
 	if (fd == NULL)
 	{
 		if (errno != ENOENT)
@@ -116,16 +114,16 @@ readTimeLineHistory(TimeLineID targetTLI)
 		return list_make1(entry);
 	}
 
-	result = NIL;
+	List	   *result = NIL;
 
 	/*
 	 * Parse the file...
 	 */
-	prevend = InvalidXLogRecPtr;
+	XLogRecPtr	prevend = InvalidXLogRecPtr;
+
 	for (;;)
 	{
 		char		fline[MAXPGPATH];
-		char	   *res;
 		char	   *ptr;
 		TimeLineID	tli;
 		uint32		switchpoint_hi;
@@ -133,7 +131,8 @@ readTimeLineHistory(TimeLineID targetTLI)
 		int			nfields;
 
 		pgstat_report_wait_start(WAIT_EVENT_TIMELINE_HISTORY_READ);
-		res = fgets(fline, sizeof(fline), fd);
+		char	   *res = fgets(fline, sizeof(fline), fd);
+
 		pgstat_report_wait_end();
 		if (res == NULL)
 		{
@@ -223,7 +222,6 @@ existsTimeLineHistory(TimeLineID probeTLI)
 {
 	char		path[MAXPGPATH];
 	char		histfname[MAXFNAMELEN];
-	FILE	   *fd;
 
 	/* Timeline 1 does not have a history file, so no need to check */
 	if (probeTLI == 1)
@@ -237,7 +235,8 @@ existsTimeLineHistory(TimeLineID probeTLI)
 	else
 		TLHistoryFilePath(path, probeTLI);
 
-	fd = AllocateFile(path, "r");
+	FILE	   *fd = AllocateFile(path, "r");
+
 	if (fd != NULL)
 	{
 		FreeFile(fd);
@@ -263,14 +262,13 @@ existsTimeLineHistory(TimeLineID probeTLI)
 TimeLineID
 findNewestTimeLine(TimeLineID startTLI)
 {
-	TimeLineID	newestTLI;
 	TimeLineID	probeTLI;
 
 	/*
 	 * The algorithm is just to probe for the existence of timeline history
 	 * files.  XXX is it useful to allow gaps in the sequence?
 	 */
-	newestTLI = startTLI;
+	TimeLineID	newestTLI = startTLI;
 
 	for (probeTLI = startTLI + 1;; probeTLI++)
 	{
@@ -308,8 +306,6 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
 	char		tmppath[MAXPGPATH];
 	char		histfname[MAXFNAMELEN];
 	char		buffer[BLCKSZ];
-	int			srcfd;
-	int			fd;
 	int			nbytes;
 
 	Assert(newTLI > parentTLI); /* else bad selection of newTLI */
@@ -322,7 +318,8 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
 	unlink(tmppath);
 
 	/* do not use get_sync_bit() here --- want to fsync only at end of fill */
-	fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
+	int			fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
+
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
@@ -339,7 +336,8 @@ writeTimeLineHistory(TimeLineID newTLI, TimeLineID parentTLI,
 	else
 		TLHistoryFilePath(path, parentTLI);
 
-	srcfd = OpenTransientFile(path, O_RDONLY);
+	int			srcfd = OpenTransientFile(path, O_RDONLY);
+
 	if (srcfd < 0)
 	{
 		if (errno != ENOENT)
@@ -468,7 +466,6 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
 {
 	char		path[MAXPGPATH];
 	char		tmppath[MAXPGPATH];
-	int			fd;
 
 	/*
 	 * Write into a temp file name.
@@ -478,7 +475,8 @@ writeTimeLineHistoryFile(TimeLineID tli, char *content, int size)
 	unlink(tmppath);
 
 	/* do not use get_sync_bit() here --- want to fsync only at end of fill */
-	fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
+	int			fd = OpenTransientFile(tmppath, O_RDWR | O_CREAT | O_EXCL);
+
 	if (fd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),

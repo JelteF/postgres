@@ -86,7 +86,6 @@ pq_verify_peer_name_matches_certificate_name(PGconn *conn,
 											 const char *namedata, size_t namelen,
 											 char **store_name)
 {
-	char	   *name;
 	int			result;
 	char	   *host = conn->connhost[conn->whichhost].host;
 
@@ -103,7 +102,8 @@ pq_verify_peer_name_matches_certificate_name(PGconn *conn,
 	 * There is no guarantee the string returned from the certificate is
 	 * NULL-terminated, so make a copy that is.
 	 */
-	name = malloc(namelen + 1);
+	char	   *name = malloc(namelen + 1);
+
 	if (name == NULL)
 	{
 		appendPQExpBufferStr(&conn->errorMessage,
@@ -153,7 +153,6 @@ bool
 pq_verify_peer_name_matches_certificate(PGconn *conn)
 {
 	char	   *host = conn->connhost[conn->whichhost].host;
-	int			rc;
 	int			names_examined = 0;
 	char	   *first_name = NULL;
 
@@ -172,7 +171,7 @@ pq_verify_peer_name_matches_certificate(PGconn *conn)
 		return false;
 	}
 
-	rc = pgtls_verify_peer_name_matches_certificate_guts(conn, &names_examined, &first_name);
+	int			rc = pgtls_verify_peer_name_matches_certificate_guts(conn, &names_examined, &first_name);
 
 	if (rc == 0)
 	{

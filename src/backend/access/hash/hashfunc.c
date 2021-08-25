@@ -140,7 +140,6 @@ Datum
 hashfloat4(PG_FUNCTION_ARGS)
 {
 	float4		key = PG_GETARG_FLOAT4(0);
-	float8		key8;
 
 	/*
 	 * On IEEE-float machines, minus zero and zero have different bit patterns
@@ -157,7 +156,7 @@ hashfloat4(PG_FUNCTION_ARGS)
 	 * than have hashfloat8 try to narrow its value to float4; that could fail
 	 * on overflow.)
 	 */
-	key8 = key;
+	float8		key8 = key;
 
 	return hash_any((unsigned char *) &key8, sizeof(key8));
 }
@@ -167,12 +166,11 @@ hashfloat4extended(PG_FUNCTION_ARGS)
 {
 	float4		key = PG_GETARG_FLOAT4(0);
 	uint64		seed = PG_GETARG_INT64(1);
-	float8		key8;
 
 	/* Same approach as hashfloat4 */
 	if (key == (float4) 0)
 		PG_RETURN_UINT64(seed);
-	key8 = key;
+	float8		key8 = key;
 
 	return hash_any_extended((unsigned char *) &key8, sizeof(key8), seed);
 }
@@ -268,16 +266,14 @@ hashtext(PG_FUNCTION_ARGS)
 #ifdef USE_ICU
 		if (mylocale->provider == COLLPROVIDER_ICU)
 		{
-			int32_t		ulen = -1;
 			UChar	   *uchar = NULL;
-			Size		bsize;
-			uint8_t    *buf;
 
-			ulen = icu_to_uchar(&uchar, VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
+			int32_t		ulen = icu_to_uchar(&uchar, VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
 
-			bsize = ucol_getSortKey(mylocale->info.icu.ucol,
-									uchar, ulen, NULL, 0);
-			buf = palloc(bsize);
+			Size		bsize = ucol_getSortKey(mylocale->info.icu.ucol,
+												uchar, ulen, NULL, 0);
+			uint8_t    *buf = palloc(bsize);
+
 			ucol_getSortKey(mylocale->info.icu.ucol,
 							uchar, ulen, buf, bsize);
 
@@ -325,16 +321,14 @@ hashtextextended(PG_FUNCTION_ARGS)
 #ifdef USE_ICU
 		if (mylocale->provider == COLLPROVIDER_ICU)
 		{
-			int32_t		ulen = -1;
 			UChar	   *uchar = NULL;
-			Size		bsize;
-			uint8_t    *buf;
 
-			ulen = icu_to_uchar(&uchar, VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
+			int32_t		ulen = icu_to_uchar(&uchar, VARDATA_ANY(key), VARSIZE_ANY_EXHDR(key));
 
-			bsize = ucol_getSortKey(mylocale->info.icu.ucol,
-									uchar, ulen, NULL, 0);
-			buf = palloc(bsize);
+			Size		bsize = ucol_getSortKey(mylocale->info.icu.ucol,
+												uchar, ulen, NULL, 0);
+			uint8_t    *buf = palloc(bsize);
+
 			ucol_getSortKey(mylocale->info.icu.ucol,
 							uchar, ulen, buf, bsize);
 
@@ -361,10 +355,9 @@ Datum
 hashvarlena(PG_FUNCTION_ARGS)
 {
 	struct varlena *key = PG_GETARG_VARLENA_PP(0);
-	Datum		result;
 
-	result = hash_any((unsigned char *) VARDATA_ANY(key),
-					  VARSIZE_ANY_EXHDR(key));
+	Datum		result = hash_any((unsigned char *) VARDATA_ANY(key),
+								  VARSIZE_ANY_EXHDR(key));
 
 	/* Avoid leaking memory for toasted inputs */
 	PG_FREE_IF_COPY(key, 0);
@@ -376,11 +369,10 @@ Datum
 hashvarlenaextended(PG_FUNCTION_ARGS)
 {
 	struct varlena *key = PG_GETARG_VARLENA_PP(0);
-	Datum		result;
 
-	result = hash_any_extended((unsigned char *) VARDATA_ANY(key),
-							   VARSIZE_ANY_EXHDR(key),
-							   PG_GETARG_INT64(1));
+	Datum		result = hash_any_extended((unsigned char *) VARDATA_ANY(key),
+										   VARSIZE_ANY_EXHDR(key),
+										   PG_GETARG_INT64(1));
 
 	PG_FREE_IF_COPY(key, 0);
 
