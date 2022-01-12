@@ -397,6 +397,10 @@ struct pg_conn
 	char	   *ssl_max_protocol_version;	/* maximum TLS protocol version */
 	char	   *target_session_attrs;	/* desired session properties */
 
+	bool		cancelRequest;	/* true if this connection is used to send a
+								 * cancel request, instead of being a normal
+								 * connection that's used for queries */
+
 	/* Optional file to write trace info to */
 	FILE	   *Pfdebug;
 	int			traceFlags;
@@ -592,6 +596,11 @@ struct pg_conn
 
 	/* Buffer for receiving various parts of messages */
 	PQExpBufferData workBuffer; /* expansible string */
+};
+
+struct pg_cancel_conn
+{
+	PGconn		conn;
 };
 
 /* PGcancel stores all data necessary to cancel a connection. A copy of this
