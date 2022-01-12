@@ -59,12 +59,15 @@ typedef enum
 {
 	CONNECTION_OK,
 	CONNECTION_BAD,
+	CONNECTION_CANCEL_FINISHED,
 	/* Non-blocking mode only below here */
 
 	/*
 	 * The existence of these should never be relied upon - they should only
 	 * be used for user feedback or similar purposes.
 	 */
+	CONNECTION_STARTING,		/* Waiting for connection attempt to be
+								 * started.  */
 	CONNECTION_STARTED,			/* Waiting for connection to be made.  */
 	CONNECTION_MADE,			/* Connection OK; waiting to send.     */
 	CONNECTION_AWAITING_RESPONSE,	/* Waiting for a response from the
@@ -164,6 +167,10 @@ typedef enum
  * The contents of this struct are not supposed to be known to applications.
  */
 typedef struct pg_conn PGconn;
+
+/* PGcancelConn encapsulates a cancel connection to the backend.
+ * The contents of this struct are not supposed to be known to applications.
+ */
 
 /* PGresult encapsulates the result of a query (or more precisely, of a single
  * SQL command --- a query string given to PQsendQuery can contain multiple
@@ -282,6 +289,7 @@ extern PGconn *PQconnectStart(const char *conninfo);
 extern PGconn *PQconnectStartParams(const char *const *keywords,
 									const char *const *values, int expand_dbname);
 extern PostgresPollingStatusType PQconnectPoll(PGconn *conn);
+extern int	PQconnectComplete(PGconn *conn);
 
 /* Synchronous (blocking) */
 extern PGconn *PQconnectdb(const char *conninfo);
@@ -330,8 +338,11 @@ extern void PQfreeCancel(PGcancel *cancel);
 /* issue a cancel request */
 extern int	PQcancel(PGcancel *cancel, char *errbuf, int errbufsize);
 
-/* backwards compatible version of PQcancel; not thread-safe */
+/* more secure version of PQcancel */
 extern int	PQrequestCancel(PGconn *conn);
+
+/* non blocking and thread safe version of PQrequestCancel */
+extern PGconn *PQrequestCancelStart(PGconn *conn);
 
 /* Accessor functions for PGconn objects */
 extern char *PQdb(const PGconn *conn);

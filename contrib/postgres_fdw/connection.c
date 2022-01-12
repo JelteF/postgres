@@ -1263,8 +1263,6 @@ pgfdw_reset_xact_state(ConnCacheEntry *entry, bool toplevel)
 static bool
 pgfdw_cancel_query(PGconn *conn)
 {
-	PGcancel   *cancel;
-	char		errbuf[256];
 	PGresult   *result = NULL;
 	TimestampTz endtime;
 	bool		timed_out;
@@ -1279,18 +1277,13 @@ pgfdw_cancel_query(PGconn *conn)
 	 * Issue cancel request.  Unfortunately, there's no good way to limit the
 	 * amount of time that we might block inside PQgetCancel().
 	 */
-	if ((cancel = PQgetCancel(conn)))
+	if (!PQrequestCancel(conn))
 	{
-		if (!PQcancel(cancel, errbuf, sizeof(errbuf)))
-		{
-			ereport(WARNING,
-					(errcode(ERRCODE_CONNECTION_FAILURE),
-					 errmsg("could not send cancel request: %s",
-							errbuf)));
-			PQfreeCancel(cancel);
-			return false;
-		}
-		PQfreeCancel(cancel);
+		ereport(WARNING,
+				(errcode(ERRCODE_CONNECTION_FAILURE),
+				 errmsg("could not send cancel request: %s",
+						pchomp(PQerrorMessage(conn)))));
+		return false;
 	}
 
 	/* Get and discard the result of the query. */
