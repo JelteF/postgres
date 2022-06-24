@@ -682,6 +682,7 @@ json_lex_string(JsonLexContext *lex)
 	char	   *s;
 	int			len;
 	int			hi_surrogate = -1;
+	int unescaped_sequence_length = 0;
 
 	if (lex->strval != NULL)
 		resetStringInfo(lex->strval);
@@ -700,7 +701,16 @@ json_lex_string(JsonLexContext *lex)
 			return JSON_INVALID_TOKEN;
 		}
 		else if (*s == '"')
+		{
+			if (unescaped_sequence_length) {
+				appendBinaryStringInfo(
+						lex->strval,
+						s - unescaped_sequence_length,
+						unescaped_sequence_length);
+
+			}
 			break;
+		}
 		else if ((unsigned char) *s < 32)
 		{
 			/* Per RFC4627, these characters MUST be escaped. */
@@ -710,6 +720,14 @@ json_lex_string(JsonLexContext *lex)
 		}
 		else if (*s == '\\')
 		{
+			if (unescaped_sequence_length) {
+				appendBinaryStringInfo(
+						lex->strval,
+						s - unescaped_sequence_length,
+						unescaped_sequence_length);
+				unescaped_sequence_length = 0;
+
+			}
 			/* OK, we have an escape character. */
 			s++;
 			len++;
@@ -826,7 +844,7 @@ json_lex_string(JsonLexContext *lex)
 					case '"':
 					case '\\':
 					case '/':
-						appendStringInfoChar(lex->strval, *s);
+						unescaped_sequence_length++;
 						break;
 					case 'b':
 						appendStringInfoChar(lex->strval, '\b');
@@ -870,7 +888,7 @@ json_lex_string(JsonLexContext *lex)
 			if (hi_surrogate != -1)
 				return JSON_UNICODE_LOW_SURROGATE;
 
-			appendStringInfoChar(lex->strval, *s);
+			unescaped_sequence_length++;
 		}
 
 	}
