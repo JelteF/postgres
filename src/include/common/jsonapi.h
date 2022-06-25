@@ -21,6 +21,7 @@ typedef enum
 	JSON_TOKEN_INVALID,
 	JSON_TOKEN_STRING,
 	JSON_TOKEN_NUMBER,
+	JSON_TOKEN_INT,
 	JSON_TOKEN_OBJECT_START,
 	JSON_TOKEN_OBJECT_END,
 	JSON_TOKEN_ARRAY_START,
@@ -74,6 +75,7 @@ typedef struct JsonLexContext
 	char	   *input;
 	int			input_length;
 	int			input_encoding;
+	char	   *pos;
 	char	   *token_start;
 	char	   *token_terminator;
 	char	   *prev_token_terminator;
@@ -82,6 +84,7 @@ typedef struct JsonLexContext
 	int			line_number;	/* line number, starting from 1 */
 	char	   *line_start;		/* where that line starts within input */
 	StringInfo	strval;
+	int64		intval;
 } JsonLexContext;
 
 typedef void (*json_struct_action) (void *state);
@@ -126,6 +129,8 @@ typedef struct JsonSemAction
  */
 extern JsonParseErrorType pg_parse_json(JsonLexContext *lex,
 										JsonSemAction *sem);
+extern JsonParseErrorType pg_parse_ubjson(JsonLexContext *lex,
+										JsonSemAction *sem);
 
 /* the null action object used for pure validation */
 extern PGDLLIMPORT JsonSemAction nullSemAction;
@@ -155,6 +160,7 @@ extern JsonLexContext *makeJsonLexContextCstringLen(char *json,
 
 /* lex one token */
 extern JsonParseErrorType json_lex(JsonLexContext *lex);
+extern JsonParseErrorType ubjson_lex(JsonLexContext *lex);
 
 /* construct an error detail string for a json error */
 extern char *json_errdetail(JsonParseErrorType error, JsonLexContext *lex);

@@ -47,6 +47,7 @@ typedef struct JsonbAggState
 } JsonbAggState;
 
 static inline Datum jsonb_from_cstring(char *json, int len, bool unique_keys);
+static inline Datum jsonb_from_ubjson(char *json, int len, bool unique_keys);
 static size_t checkStringLen(size_t len);
 static void jsonb_in_object_start(void *pstate);
 static void jsonb_in_object_end(void *pstate);
@@ -67,6 +68,7 @@ static void add_jsonb(Datum val, bool is_null, JsonbInState *result,
 					  Oid val_type, bool key_scalar);
 static JsonbParseState *clone_parse_state(JsonbParseState *state);
 static char *JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool indent);
+static char * JsonbToUbjson(StringInfo out, JsonbContainer *in, int estimated_len);
 static void add_indent(StringInfo out, bool indent, int level);
 
 /*
@@ -96,12 +98,18 @@ jsonb_recv(PG_FUNCTION_ARGS)
 	char	   *str;
 	int			nbytes;
 
-	if (version == 1)
+	if (version == 1) {
 		str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+		return jsonb_from_cstring(str, nbytes, false);
+	}
+	else if (version == 2) {
+		nbytes = pq_getmsgint(buf, 4);
+		str = (char *) pq_getmsgbytes(buf, nbytes);
+		return jsonb_from_ubjson(str, nbytes, false);
+	}
 	else
 		elog(ERROR, "unsupported jsonb version number %d", version);
 
-	return jsonb_from_cstring(str, nbytes, false);
 }
 
 /*
@@ -129,13 +137,14 @@ jsonb_send(PG_FUNCTION_ARGS)
 	Jsonb	   *jb = PG_GETARG_JSONB_P(0);
 	StringInfoData buf;
 	StringInfo	jtext = makeStringInfo();
-	int			version = 1;
+	int			version = 2;
 
-	(void) JsonbToCString(jtext, &jb->root, VARSIZE(jb));
+	(void) JsonbToUbjson(jtext, &jb->root, VARSIZE(jb));
 
 	pq_begintypsend(&buf);
 	pq_sendint8(&buf, version);
-	pq_sendtext(&buf, jtext->data, jtext->len);
+	pq_sendint32(&buf, jtext->len);
+	pq_sendbytes(&buf, jtext->data, jtext->len);
 	pfree(jtext->data);
 	pfree(jtext);
 
@@ -267,6 +276,42 @@ jsonb_from_cstring(char *json, int len, bool unique_keys)
 	PG_RETURN_POINTER(JsonbValueToJsonb(state.res));
 }
 
+/*
+ * jsonb_from_ubjson
+ *
+ * Turns json string into a jsonb Datum.
+ *
+ * Uses the json parser (with hooks) to construct a jsonb.
+ */
+static inline Datum
+jsonb_from_ubjson(char *json, int len, bool unique_keys)
+{
+	JsonLexContext *lex;
+	JsonbInState state;
+	JsonSemAction sem;
+
+	memset(&state, 0, sizeof(state));
+	memset(&sem, 0, sizeof(sem));
+	lex = makeJsonLexContextCstringLen(json, len, GetDatabaseEncoding(), true);
+
+	state.unique_keys = unique_keys;
+
+	sem.semstate = (void *) &state;
+
+	sem.object_start = jsonb_in_object_start;
+	sem.array_start = jsonb_in_array_start;
+	sem.object_end = jsonb_in_object_end;
+	sem.array_end = jsonb_in_array_end;
+	sem.scalar = jsonb_in_scalar;
+	sem.object_field_start = jsonb_in_object_field_start;
+
+	pg_parse_ubjson_or_ereport(lex, &sem);
+
+	/* after parsing, the item member has the composed jsonb structure */
+	PG_RETURN_POINTER(JsonbValueToJsonb(state.res));
+}
+
+
 static size_t
 checkStringLen(size_t len)
 {
@@ -348,6 +393,55 @@ jsonb_put_escaped_value(StringInfo out, JsonbValue *scalarVal)
 				appendBinaryStringInfo(out, "true", 4);
 			else
 				appendBinaryStringInfo(out, "false", 5);
+			break;
+		default:
+			elog(ERROR, "unknown jsonb scalar type");
+	}
+}
+
+static void
+jsonb_put_ubjson_key(StringInfo out, JsonbValue *scalarVal)
+{
+	uint32 stringLen;
+	Assert(scalarVal->type == jbvString);
+	stringLen = pg_hton32(scalarVal->val.string.len);
+	appendStringInfoString(out, "I");
+	appendBinaryStringInfo(out, (char*) &stringLen, sizeof(uint32));
+	appendBinaryStringInfo(out, scalarVal->val.string.val, scalarVal->val.string.len);
+}
+
+
+static void
+jsonb_put_ubjson_value(StringInfo out, JsonbValue *scalarVal)
+{
+	char * str;
+	uint32 stringLen;
+	switch (scalarVal->type)
+	{
+		case jbvNull:
+			appendStringInfoChar(out, 'Z');
+			break;
+		case jbvString:
+			stringLen = pg_hton32(scalarVal->val.string.len);
+			appendStringInfoString(out, "SI");
+			appendBinaryStringInfo(out, (char*) &stringLen, sizeof(uint32));
+			appendBinaryStringInfo(out, scalarVal->val.string.val, scalarVal->val.string.len);
+			break;
+		case jbvNumeric:
+			str = DatumGetCString(
+					DirectFunctionCall1(numeric_out,
+									   PointerGetDatum(scalarVal->val.numeric)));
+			stringLen = pg_hton32(strlen(str));
+
+			appendStringInfoString(out, "HI");
+			appendBinaryStringInfo(out, (char*) &stringLen, sizeof(uint32));
+			appendStringInfoString(out, str);
+			break;
+		case jbvBool:
+			if (scalarVal->val.boolean)
+				appendStringInfoChar(out, 'T');
+			else
+				appendStringInfoChar(out, 'F');
 			break;
 		default:
 			elog(ERROR, "unknown jsonb scalar type");
@@ -584,6 +678,88 @@ JsonbToCStringWorker(StringInfo out, JsonbContainer *in, int estimated_len, bool
 	}
 
 	Assert(level == 0);
+
+	return out->data;
+}
+
+/*
+ * common worker for above two functions
+ */
+static char *
+JsonbToUbjson(StringInfo out, JsonbContainer *in, int estimated_len)
+{
+	JsonbIterator *it;
+	JsonbValue	v;
+	JsonbIteratorToken type = WJB_DONE;
+	bool		redo_switch = false;
+
+	bool		raw_scalar = false;
+
+	if (out == NULL)
+		out = makeStringInfo();
+
+	enlargeStringInfo(out, (estimated_len >= 0) ? estimated_len : 64);
+
+	it = JsonbIteratorInit(in);
+
+	while (redo_switch ||
+		   ((type = JsonbIteratorNext(&it, &v, false)) != WJB_DONE))
+	{
+		redo_switch = false;
+		switch (type)
+		{
+			case WJB_BEGIN_ARRAY:
+				if (!v.val.array.rawScalar)
+				{
+					appendStringInfoCharMacro(out, '[');
+				}
+				else
+					raw_scalar = true;
+
+				break;
+			case WJB_BEGIN_OBJECT:
+				appendStringInfoCharMacro(out, '{');
+
+				break;
+			case WJB_KEY:
+
+				/* json rules guarantee this is a string */
+				jsonb_put_ubjson_key(out, &v);
+
+				type = JsonbIteratorNext(&it, &v, false);
+				if (type == WJB_VALUE)
+				{
+					jsonb_put_ubjson_value(out, &v);
+				}
+				else
+				{
+					Assert(type == WJB_BEGIN_OBJECT || type == WJB_BEGIN_ARRAY);
+
+					/*
+					 * We need to rerun the current switch() since we need to
+					 * output the object which we just got from the iterator
+					 * before calling the iterator again.
+					 */
+					redo_switch = true;
+				}
+				break;
+			case WJB_ELEM:
+
+				jsonb_put_ubjson_value(out, &v);
+				break;
+			case WJB_END_ARRAY:
+				if (!raw_scalar)
+				{
+					appendStringInfoCharMacro(out, ']');
+				}
+				break;
+			case WJB_END_OBJECT:
+				appendStringInfoCharMacro(out, '}');
+				break;
+			default:
+				elog(ERROR, "unknown jsonb iterator token type");
+		}
+	}
 
 	return out->data;
 }

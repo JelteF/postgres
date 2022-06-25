@@ -508,6 +508,23 @@ pg_parse_json_or_ereport(JsonLexContext *lex, JsonSemAction *sem)
 }
 
 /*
+ * pg_parse_ubjson_or_ereport
+ *
+ * This function is like pg_parse_json, except that it does not return a
+ * JsonParseErrorType. Instead, in case of any failure, this function will
+ * ereport(ERROR).
+ */
+void
+pg_parse_ubjson_or_ereport(JsonLexContext *lex, JsonSemAction *sem)
+{
+	JsonParseErrorType result;
+
+	result = pg_parse_ubjson(lex, sem);
+	if (result != JSON_SUCCESS)
+		json_ereport_error(result, lex);
+}
+
+/*
  * makeJsonLexContext
  *
  * This is like makeJsonLexContextCstringLen, but it accepts a text value

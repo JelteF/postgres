@@ -19,6 +19,8 @@
 
 #include "common/jsonapi.h"
 #include "mb/pg_wchar.h"
+#include "port/pg_bswap.h"
+#include "utils/elog.h"
 
 #ifndef FRONTEND
 #include "miscadmin.h"
@@ -43,13 +45,21 @@ typedef enum					/* contexts of JSON parser */
 } JsonParseContext;
 
 static inline JsonParseErrorType json_lex_string(JsonLexContext *lex);
+static inline JsonParseErrorType ubjson_lex_string(JsonLexContext *lex);
 static inline JsonParseErrorType json_lex_number(JsonLexContext *lex, char *s,
 												 bool *num_err, int *total_len);
+static inline JsonParseErrorType ubjson_lex_int32(JsonLexContext *lex);
+static inline JsonParseErrorType ubjson_lex_key(JsonLexContext *lex);
 static inline JsonParseErrorType parse_scalar(JsonLexContext *lex, JsonSemAction *sem);
+static inline JsonParseErrorType ubjson_parse_scalar(JsonLexContext *lex, JsonSemAction *sem);
 static JsonParseErrorType parse_object_field(JsonLexContext *lex, JsonSemAction *sem);
+static JsonParseErrorType ubjson_parse_object_field(JsonLexContext *lex, JsonSemAction *sem);
 static JsonParseErrorType parse_object(JsonLexContext *lex, JsonSemAction *sem);
+static JsonParseErrorType ubjson_parse_object(JsonLexContext *lex, JsonSemAction *sem);
 static JsonParseErrorType parse_array_element(JsonLexContext *lex, JsonSemAction *sem);
+static JsonParseErrorType ubjson_parse_array_element(JsonLexContext *lex, JsonSemAction *sem);
 static JsonParseErrorType parse_array(JsonLexContext *lex, JsonSemAction *sem);
+static JsonParseErrorType ubjson_parse_array(JsonLexContext *lex, JsonSemAction *sem);
 static JsonParseErrorType report_parse_error(JsonParseContext ctx, JsonLexContext *lex);
 
 /* the null action object used for pure validation */
@@ -86,6 +96,22 @@ lex_expect(JsonParseContext ctx, JsonLexContext *lex, JsonTokenType token)
 	else
 		return report_parse_error(ctx, lex);
 }
+
+/*
+ * lex_expect
+ *
+ * move the lexer to the next token if the current look_ahead token matches
+ * the parameter token. Otherwise, report an error.
+ */
+static inline JsonParseErrorType
+ubjson_lex_expect(JsonParseContext ctx, JsonLexContext *lex, JsonTokenType token)
+{
+	if (lex_peek(lex) == token)
+		return ubjson_lex(lex);
+	else
+		return report_parse_error(ctx, lex);
+}
+
 
 /* chars to consider as part of an alphanumeric token */
 #define JSON_ALPHANUMERIC_CHAR(c)  \
@@ -152,6 +178,52 @@ makeJsonLexContextCstringLen(char *json, int len, int encoding, bool need_escape
 	if (need_escapes)
 		lex->strval = makeStringInfo();
 	return lex;
+}
+
+/*
+ * pg_parse_ubjson
+ *
+ * Publicly visible entry point for the JSON parser.
+ *
+ * lex is a lexing context, set up for the json to be processed by calling
+ * makeJsonLexContext(). sem is a structure of function pointers to semantic
+ * action routines to be called at appropriate spots during parsing, and a
+ * pointer to a state object to be passed to those routines.
+ */
+JsonParseErrorType
+pg_parse_ubjson(JsonLexContext *lex, JsonSemAction *sem)
+{
+	JsonTokenType tok;
+	JsonParseErrorType result;
+	if (lex->pos == NULL) {
+		lex->pos = lex->input;
+	}
+
+	/* get the initial token */
+	result = ubjson_lex(lex);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	tok = lex_peek(lex);
+
+	/* parse by recursive descent */
+	switch (tok)
+	{
+		case JSON_TOKEN_OBJECT_START:
+			result = ubjson_parse_object(lex, sem);
+			break;
+		case JSON_TOKEN_ARRAY_START:
+			result = ubjson_parse_array(lex, sem);
+			break;
+		default:
+			result = ubjson_parse_scalar(lex, sem);	/* json can be a bare scalar */
+	}
+
+	if (result == JSON_SUCCESS)
+		result = ubjson_lex_expect(JSON_PARSE_END, lex, JSON_TOKEN_END);
+
+
+	return result;
 }
 
 /*
@@ -276,6 +348,7 @@ parse_scalar(JsonLexContext *lex, JsonSemAction *sem)
 	if (sfunc == NULL)
 		return json_lex(lex);
 
+
 	/* extract the de-escaped string value, or the raw lexeme */
 	if (lex_peek(lex) == JSON_TOKEN_STRING)
 	{
@@ -301,6 +374,60 @@ parse_scalar(JsonLexContext *lex, JsonSemAction *sem)
 
 	return JSON_SUCCESS;
 }
+
+/*
+ *	Recursive Descent parse routines. There is one for each structural
+ *	element in a json document:
+ *	  - scalar (string, number, true, false, null)
+ *	  - array  ( [ ] )
+ *	  - array element
+ *	  - object ( { } )
+ *	  - object field
+ */
+static inline JsonParseErrorType
+ubjson_parse_scalar(JsonLexContext *lex, JsonSemAction *sem)
+{
+	char	   *val = NULL;
+	json_scalar_action sfunc = sem->scalar;
+	JsonTokenType tok = lex_peek(lex);
+	JsonParseErrorType result;
+
+	/* a scalar must be a string, a number, true, false, or null */
+	if (tok != JSON_TOKEN_STRING && tok != JSON_TOKEN_NUMBER &&
+		tok != JSON_TOKEN_TRUE && tok != JSON_TOKEN_FALSE &&
+		tok != JSON_TOKEN_NULL)
+		return report_parse_error(JSON_PARSE_VALUE, lex);
+
+	/* if no semantic function, just consume the token */
+	if (sfunc == NULL)
+		return json_lex(lex);
+
+	/* extract the de-escaped string value, or the raw lexeme */
+	if (lex_peek(lex) == JSON_TOKEN_STRING || lex_peek(lex) == JSON_TOKEN_NUMBER)
+	{
+		if (lex->strval != NULL)
+			val = pstrdup(lex->strval->data);
+	}
+	else
+	{
+		int			len = (lex->token_terminator - lex->token_start);
+
+		val = palloc(len + 1);
+		memcpy(val, lex->token_start, len);
+		val[len] = '\0';
+	}
+
+	/* consume the token */
+	result = ubjson_lex(lex);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	/* invoke the callback */
+	(*sfunc) (sem->semstate, val, tok);
+
+	return JSON_SUCCESS;
+}
+
 
 static JsonParseErrorType
 parse_object_field(JsonLexContext *lex, JsonSemAction *sem)
@@ -354,6 +481,57 @@ parse_object_field(JsonLexContext *lex, JsonSemAction *sem)
 		(*oend) (sem->semstate, fname, isnull);
 	return JSON_SUCCESS;
 }
+
+static JsonParseErrorType
+ubjson_parse_object_field(JsonLexContext *lex, JsonSemAction *sem)
+{
+	/*
+	 * An object field is "fieldname" : value where value can be a scalar,
+	 * object or array.  Note: in user-facing docs and error messages, we
+	 * generally call a field name a "key".
+	 */
+
+	char	   *fname = NULL;	/* keep compiler quiet */
+	json_ofield_action ostart = sem->object_field_start;
+	json_ofield_action oend = sem->object_field_end;
+	bool		isnull;
+	JsonTokenType tok;
+	JsonParseErrorType result;
+
+	if (lex_peek(lex) != JSON_TOKEN_INT)
+		return report_parse_error(JSON_PARSE_STRING, lex);
+	ubjson_lex_key(lex);
+	if ((ostart != NULL || oend != NULL) && lex->strval != NULL)
+		fname = pstrdup(lex->strval->data);
+	result = ubjson_lex(lex);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	tok = lex_peek(lex);
+	isnull = tok == JSON_TOKEN_NULL;
+
+	if (ostart != NULL)
+		(*ostart) (sem->semstate, fname, isnull);
+
+	switch (tok)
+	{
+		case JSON_TOKEN_OBJECT_START:
+			result = ubjson_parse_object(lex, sem);
+			break;
+		case JSON_TOKEN_ARRAY_START:
+			result = ubjson_parse_array(lex, sem);
+			break;
+		default:
+			result = ubjson_parse_scalar(lex, sem);
+	}
+	if (result != JSON_SUCCESS)
+		return result;
+
+	if (oend != NULL)
+		(*oend) (sem->semstate, fname, isnull);
+	return JSON_SUCCESS;
+}
+
 
 static JsonParseErrorType
 parse_object(JsonLexContext *lex, JsonSemAction *sem)
@@ -422,6 +600,70 @@ parse_object(JsonLexContext *lex, JsonSemAction *sem)
 }
 
 static JsonParseErrorType
+ubjson_parse_object(JsonLexContext *lex, JsonSemAction *sem)
+{
+	/*
+	 * an object is a possibly empty sequence of object fields, separated by
+	 * commas and surrounded by curly braces.
+	 */
+	json_struct_action ostart = sem->object_start;
+	json_struct_action oend = sem->object_end;
+	JsonTokenType tok;
+	JsonParseErrorType result;
+
+#ifndef FRONTEND
+	check_stack_depth();
+#endif
+
+	if (ostart != NULL)
+		(*ostart) (sem->semstate);
+
+	/*
+	 * Data inside an object is at a higher nesting level than the object
+	 * itself. Note that we increment this after we call the semantic routine
+	 * for the object start and restore it before we call the routine for the
+	 * object end.
+	 */
+	lex->lex_level++;
+
+	Assert(lex_peek(lex) == JSON_TOKEN_OBJECT_START);
+	result = ubjson_lex(lex);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	tok = lex_peek(lex);
+	switch (tok)
+	{
+		case JSON_TOKEN_INT:
+			result = ubjson_parse_object_field(lex, sem);
+			while (result == JSON_SUCCESS && lex_peek(lex) == JSON_TOKEN_INT)
+			{
+				result = ubjson_parse_object_field(lex, sem);
+			}
+			break;
+		case JSON_TOKEN_OBJECT_END:
+			break;
+		default:
+			/* case of an invalid initial token inside the object */
+			result = report_parse_error(JSON_PARSE_OBJECT_START, lex);
+	}
+	if (result != JSON_SUCCESS)
+		return result;
+
+	result = ubjson_lex_expect(JSON_PARSE_OBJECT_NEXT, lex, JSON_TOKEN_OBJECT_END);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	lex->lex_level--;
+
+	if (oend != NULL)
+		(*oend) (sem->semstate);
+
+	return JSON_SUCCESS;
+}
+
+
+static JsonParseErrorType
 parse_array_element(JsonLexContext *lex, JsonSemAction *sem)
 {
 	json_aelem_action astart = sem->array_element_start;
@@ -457,6 +699,44 @@ parse_array_element(JsonLexContext *lex, JsonSemAction *sem)
 
 	return JSON_SUCCESS;
 }
+
+static JsonParseErrorType
+ubjson_parse_array_element(JsonLexContext *lex, JsonSemAction *sem)
+{
+	json_aelem_action astart = sem->array_element_start;
+	json_aelem_action aend = sem->array_element_end;
+	JsonTokenType tok = lex_peek(lex);
+	JsonParseErrorType result;
+
+	bool		isnull;
+
+	isnull = tok == JSON_TOKEN_NULL;
+
+	if (astart != NULL)
+		(*astart) (sem->semstate, isnull);
+
+	/* an array element is any object, array or scalar */
+	switch (tok)
+	{
+		case JSON_TOKEN_OBJECT_START:
+			result = ubjson_parse_object(lex, sem);
+			break;
+		case JSON_TOKEN_ARRAY_START:
+			result = ubjson_parse_array(lex, sem);
+			break;
+		default:
+			result = ubjson_parse_scalar(lex, sem);
+	}
+
+	if (result != JSON_SUCCESS)
+		return result;
+
+	if (aend != NULL)
+		(*aend) (sem->semstate, isnull);
+
+	return JSON_SUCCESS;
+}
+
 
 static JsonParseErrorType
 parse_array(JsonLexContext *lex, JsonSemAction *sem)
@@ -511,6 +791,56 @@ parse_array(JsonLexContext *lex, JsonSemAction *sem)
 
 	return JSON_SUCCESS;
 }
+
+static JsonParseErrorType
+ubjson_parse_array(JsonLexContext *lex, JsonSemAction *sem)
+{
+	/*
+	 * an array is a possibly empty sequence of array elements, separated by
+	 * commas and surrounded by square brackets.
+	 */
+	json_struct_action astart = sem->array_start;
+	json_struct_action aend = sem->array_end;
+	JsonParseErrorType result;
+
+
+#ifndef FRONTEND
+	check_stack_depth();
+#endif
+
+	if (astart != NULL)
+		(*astart) (sem->semstate);
+
+	/*
+	 * Data inside an array is at a higher nesting level than the array
+	 * itself. Note that we increment this after we call the semantic routine
+	 * for the array start and restore it before we call the routine for the
+	 * array end.
+	 */
+	lex->lex_level++;
+
+	result = ubjson_lex_expect(JSON_PARSE_ARRAY_START, lex, JSON_TOKEN_ARRAY_START);
+	while (result == JSON_SUCCESS)
+	{
+		if (result != JSON_SUCCESS || lex_peek(lex) == JSON_TOKEN_ARRAY_END)
+			break;
+		result = ubjson_parse_array_element(lex, sem);
+	}
+	if (result != JSON_SUCCESS)
+		return result;
+
+	result = ubjson_lex_expect(JSON_PARSE_ARRAY_NEXT, lex, JSON_TOKEN_ARRAY_END);
+	if (result != JSON_SUCCESS)
+		return result;
+
+	lex->lex_level--;
+
+	if (aend != NULL)
+		(*aend) (sem->semstate);
+
+	return JSON_SUCCESS;
+}
+
 
 /*
  * Lex one token from the input stream.
@@ -661,6 +991,156 @@ json_lex(JsonLexContext *lex)
 
 	return JSON_SUCCESS;
 }
+
+/*
+ * Lex one token from the input stream.
+ */
+JsonParseErrorType
+ubjson_lex(JsonLexContext *lex)
+{
+	char	   *s;
+	int			len;
+	JsonParseErrorType result;
+
+	/* Skip no-ops */
+	s = lex->token_terminator;
+	len = s - lex->input;
+	/*
+	 * TODO: is this correct?
+	 */
+	while (len < lex->input_length && *s == 'N')
+	{
+		len++;
+	}
+	lex->token_start = s;
+
+	/* Determine token type. */
+	if (len >= lex->input_length)
+	{
+		lex->token_start = NULL;
+		lex->prev_token_terminator = lex->token_terminator;
+		lex->token_terminator = s;
+		lex->token_type = JSON_TOKEN_END;
+	}
+	else
+	{
+		switch (*s)
+		{
+				/* Single-character token, some kind of punctuation mark. */
+			case '{':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_OBJECT_START;
+				break;
+			case '}':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_OBJECT_END;
+				break;
+			case '[':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_ARRAY_START;
+				break;
+			case ']':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_ARRAY_END;
+				break;
+			case 'Z':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_NULL;
+				break;
+			case 'T':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_TRUE;
+				break;
+			case 'F':
+				lex->prev_token_terminator = lex->token_terminator;
+				lex->token_terminator = s + 1;
+				lex->token_type = JSON_TOKEN_FALSE;
+				break;
+			case 'S':
+				/* string */
+				result = ubjson_lex_string(lex);
+				if (result != JSON_SUCCESS)
+					return result;
+				lex->token_type = JSON_TOKEN_STRING;
+				break;
+			case 'H':
+				/* number */
+				result = ubjson_lex_string(lex);
+				if (result != JSON_SUCCESS)
+					return result;
+				/* TODO: validate that the string contents are a valid JSON
+				 * number */
+				lex->token_type = JSON_TOKEN_NUMBER;
+				break;
+			case 'I':
+				/* int32 */
+				result = ubjson_lex_int32(lex);
+				if (result != JSON_SUCCESS)
+					return result;
+				lex->token_type = JSON_TOKEN_INT;
+				break;
+
+			default:
+				{
+					char	   *p;
+
+					/*
+					 * We're not dealing with a string, number, legal
+					 * punctuation mark, or end of string.  The only legal
+					 * tokens we might find here are true, false, and null,
+					 * but for error reporting purposes we scan until we see a
+					 * non-alphanumeric character.  That way, we can report
+					 * the whole word as an unexpected token, rather than just
+					 * some unintuitive prefix thereof.
+					 */
+					for (p = s; p - s < lex->input_length - len && JSON_ALPHANUMERIC_CHAR(*p); p++)
+						 /* skip */ ;
+
+					/*
+					 * We got some sort of unexpected punctuation or an
+					 * otherwise unexpected character, so just complain about
+					 * that one character.
+					 */
+					if (p == s)
+					{
+						lex->prev_token_terminator = lex->token_terminator;
+						lex->token_terminator = s + 1;
+						return JSON_INVALID_TOKEN;
+					}
+
+					/*
+					 * We've got a real alphanumeric token here.  If it
+					 * happens to be true, false, or null, all is well.  If
+					 * not, error out.
+					 */
+					lex->prev_token_terminator = lex->token_terminator;
+					lex->token_terminator = p;
+					if (p - s == 4)
+					{
+						if (memcmp(s, "true", 4) == 0)
+							lex->token_type = JSON_TOKEN_TRUE;
+						else if (memcmp(s, "null", 4) == 0)
+							lex->token_type = JSON_TOKEN_NULL;
+						else
+							return JSON_INVALID_TOKEN;
+					}
+					else if (p - s == 5 && memcmp(s, "false", 5) == 0)
+						lex->token_type = JSON_TOKEN_FALSE;
+					else
+						return JSON_INVALID_TOKEN;
+				}
+		}						/* end of switch */
+	}
+
+	return JSON_SUCCESS;
+}
+
 
 /*
  * The next token in the input stream is known to be a string; lex it.
@@ -888,6 +1368,127 @@ json_lex_string(JsonLexContext *lex)
 	lex->token_terminator = s + 1;
 	return JSON_SUCCESS;
 }
+
+/*
+ * The next token in the input stream is known to be a string; lex it.
+ */
+static inline JsonParseErrorType
+ubjson_lex_string(JsonLexContext *lex)
+{
+	char	   *s;
+	int			intLength;
+	uint64		stringLength;
+	int			len;
+	uint32      stringLength32;
+
+	if (lex->strval != NULL)
+		resetStringInfo(lex->strval);
+	Assert(lex->input_length > 0);
+	s = lex->token_start;
+	len = lex->token_start - lex->input;
+	/* Premature end of the data. */
+	if (len + 1 >= lex->input_length)
+	{
+		lex->token_terminator = s;
+		return JSON_INVALID_TOKEN;
+	}
+
+	s++;
+	
+	switch(*s)
+	{
+		case 'I':
+			intLength = 4;
+			break;
+		default:
+			return JSON_INVALID_TOKEN;
+
+	}
+	if (len + intLength >= lex->input_length)
+	{
+		lex->token_terminator = s;
+		return JSON_INVALID_TOKEN;
+	}
+	switch(*s)
+	{
+		case 'I':
+			memcpy(&stringLength32, &s[1], intLength);
+			stringLength = pg_ntoh32(stringLength32);
+			break;
+		default:
+			return JSON_INVALID_TOKEN;
+	}
+
+	s += 1 + intLength;
+
+#ifndef FRONTEND
+	pg_verify_mbstr(PG_UTF8, s, stringLength, false);
+#endif
+	appendBinaryStringInfo(lex->strval, s, stringLength);
+
+	/* Hooray, we found the end of the string! */
+	lex->prev_token_terminator = lex->token_terminator;
+	lex->token_terminator = s + stringLength;
+	return JSON_SUCCESS;
+}
+
+/*
+ * The next token in the input stream is known to be a key; lex it.
+ */
+static inline JsonParseErrorType
+ubjson_lex_key(JsonLexContext *lex)
+{
+	char	   *s;
+	int			len;
+
+	if (lex->strval != NULL)
+		resetStringInfo(lex->strval);
+	Assert(lex->input_length > 0);
+	lex->token_start = lex->token_terminator;
+	s = lex->token_start;
+	len = lex->token_start - lex->input;
+	/* Premature end of the data. */
+	if (len + lex->intval >= lex->input_length)
+	{
+		lex->token_terminator = s;
+		return JSON_INVALID_TOKEN;
+	}
+
+	appendBinaryStringInfo(lex->strval, s, lex->intval);
+
+	/* Hooray, we found the end of the string! */
+	lex->prev_token_terminator = lex->token_terminator;
+	lex->token_terminator = s + lex->intval;
+	return JSON_SUCCESS;
+}
+
+/*
+ * The next token in the input stream is known to be a string; lex it.
+ */
+static inline JsonParseErrorType
+ubjson_lex_int32(JsonLexContext *lex)
+{
+	char	   *s;
+	int			len;
+	uint32      buf;
+
+	Assert(lex->input_length > 0);
+	s = lex->token_start;
+	len = lex->token_start - lex->input;
+	if (len + sizeof(buf) >= lex->input_length)
+	{
+		lex->token_terminator = s;
+		return JSON_INVALID_TOKEN;
+	}
+	memcpy(&buf, &s[1], sizeof(buf));
+	lex->intval = (int32) pg_ntoh32(buf);
+
+	/* Hooray, we found the end of the string! */
+	lex->prev_token_terminator = lex->token_terminator;
+	lex->token_terminator = s + 1 + sizeof(buf);
+	return JSON_SUCCESS;
+}
+
 
 /*
  * The next token in the input stream is known to be a number; lex it.
