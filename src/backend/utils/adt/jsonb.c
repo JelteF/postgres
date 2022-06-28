@@ -93,10 +93,13 @@ jsonb_in(PG_FUNCTION_ARGS)
 Datum
 jsonb_recv(PG_FUNCTION_ARGS)
 {
-	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-	int			version = pq_getmsgint(buf, 1);
+	bytea	   *value = PG_GETARG_BYTEA_PP(0);
+	StringInfo	buf = makeStringInfo();
+	int			version;
 	char	   *str;
 	int			nbytes;
+	appendBinaryStringInfo(buf, VARDATA_ANY(value), VARSIZE_ANY_EXHDR(value));
+	version = pq_getmsgint(buf, 1);
 
 	if (version == 1) {
 		str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);

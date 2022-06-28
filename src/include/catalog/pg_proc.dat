@@ -9691,7 +9691,7 @@
   proname => 'jsonb_in', prorettype => 'jsonb', proargtypes => 'cstring',
   prosrc => 'jsonb_in' },
 { oid => '3805', descr => 'I/O',
-  proname => 'jsonb_recv', prorettype => 'jsonb', proargtypes => 'internal',
+  proname => 'jsonb_recv', prorettype => 'jsonb', proargtypes => 'bytea',
   prosrc => 'jsonb_recv' },
 { oid => '3804', descr => 'I/O',
   proname => 'jsonb_out', prorettype => 'cstring', proargtypes => 'jsonb',
