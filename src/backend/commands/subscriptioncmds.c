@@ -50,6 +50,7 @@ static List *fetch_table_list(WalReceiverConn *wrconn, List *publications);
 static void check_duplicates_in_publist(List *publist, Datum *datums);
 static List *merge_publications(List *oldpublist, List *newpublist, bool addpub, const char *subname);
 static void ReportSlotConnectionError(List *rstates, Oid subid, char *slotname, char *err);
+static Oid	LockSubscription(Relation rel, const char *subname, bool missing_ok);
 
 
 /*
@@ -750,6 +751,86 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data)
 		table_close(rel, NoLock);
 }
 
+static Oid
+LockSubscription(Relation rel, const char *subname, bool missing_ok)
+{
+	HeapTuple	tup;
+	Form_pg_subscription form;
+	Oid			subid;
+
+	/*
+	 * Loop covers the rare case where the subscription is renamed before we
+	 * can lock it. We try again just in case we can find a new one of the
+	 * same name.
+	 */
+	while (true)
+	{
+		tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
+							  CStringGetDatum(subname));
+
+		if (!HeapTupleIsValid(tup))
+		{
+			if (!missing_ok)
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+						 errmsg("subscription \"%s\" does not exist",
+								subname)));
+			else
+				ereport(NOTICE,
+						(errmsg("subscription \"%s\" does not exist, skipping",
+								subname)));
+
+			return InvalidOid;
+		}
+
+		form = (Form_pg_subscription) GETSTRUCT(tup);
+		subid = form->oid;
+
+		/* must be owner */
+		if (!pg_subscription_ownercheck(subid, GetUserId()))
+			aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SUBSCRIPTION,
+						   subname);
+
+		/*
+		 * Lock the subscription so nobody else can do anything with it
+		 * (including the replication workers).
+		 */
+		LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
+
+		/*
+		 * And now, re-fetch the tuple by OID.  If it's still there and still
+		 * the same name, we win; else, drop the lock and loop back to try
+		 * again.
+		 */
+		ReleaseSysCache(tup);
+		tup = SearchSysCache1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
+		if (HeapTupleIsValid(tup))
+		{
+
+			form = (Form_pg_subscription) GETSTRUCT(tup);
+
+			/*
+			 * if the name changes we try te fetch a subscription with the
+			 * same name again, in case a new one was created.
+			 */
+			if (strcmp(subname, NameStr(form->subname)) == 0)
+			{
+				/* must still be owner */
+				if (!pg_subscription_ownercheck(subid, GetUserId()))
+					aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SUBSCRIPTION,
+								   subname);
+				break;
+			}
+			/* can only get here if subscription was just renamed */
+			ReleaseSysCache(tup);
+		}
+		UnlockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
+	}
+	ReleaseSysCache(tup);
+	return subid;
+}
+
+
 /*
  * Alter the existing subscription.
  */
@@ -765,32 +846,24 @@ AlterSubscription(AlterSubscriptionStmt *stmt, bool isTopLevel)
 	Oid			subid;
 	bool		update_tuple = false;
 	Subscription *sub;
-	Form_pg_subscription form;
 
 	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
+	subid = LockSubscription(rel, stmt->subname, false);
 
 	/* Fetch the existing tuple. */
-	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
-							  CStringGetDatum(stmt->subname));
+	tup = SearchSysCacheCopy1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
 
+	/*
+	 * This should never happen since we already locked the subscription, so
+	 * we know it exists.
+	 */
 	if (!HeapTupleIsValid(tup))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("subscription \"%s\" does not exist",
 						stmt->subname)));
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
-	subid = form->oid;
-
-	/* must be owner */
-	if (!pg_subscription_ownercheck(subid, GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SUBSCRIPTION,
-					   stmt->subname);
-
 	sub = GetSubscription(subid, false);
-
-	/* Lock the subscription so nobody else can do anything with it. */
-	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
 
 	/* Form a new tuple. */
 	memset(values, 0, sizeof(values));
@@ -1066,7 +1139,6 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	char		originname[NAMEDATALEN];
 	char	   *err = NULL;
 	WalReceiverConn *wrconn;
-	Form_pg_subscription form;
 	List	   *rstates;
 
 	/*
@@ -1075,42 +1147,27 @@ DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel)
 	 */
 	rel = table_open(SubscriptionRelationId, AccessExclusiveLock);
 
-	tup = SearchSysCache2(SUBSCRIPTIONNAME, MyDatabaseId,
-						  CStringGetDatum(stmt->subname));
-
-	if (!HeapTupleIsValid(tup))
+	subid = LockSubscription(rel, stmt->subname, stmt->missing_ok);
+	if (subid == InvalidOid)
 	{
 		table_close(rel, NoLock);
-
-		if (!stmt->missing_ok)
-			ereport(ERROR,
-					(errcode(ERRCODE_UNDEFINED_OBJECT),
-					 errmsg("subscription \"%s\" does not exist",
-							stmt->subname)));
-		else
-			ereport(NOTICE,
-					(errmsg("subscription \"%s\" does not exist, skipping",
-							stmt->subname)));
-
 		return;
 	}
 
-	form = (Form_pg_subscription) GETSTRUCT(tup);
-	subid = form->oid;
+	tup = SearchSysCache1(SUBSCRIPTIONOID, ObjectIdGetDatum(subid));
 
-	/* must be owner */
-	if (!pg_subscription_ownercheck(subid, GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SUBSCRIPTION,
-					   stmt->subname);
+	/*
+	 * This should never happen since we already locked the subscription, so
+	 * we know it exists.
+	 */
+	if (!HeapTupleIsValid(tup))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("subscription \"%s\" does not exist",
+						stmt->subname)));
 
 	/* DROP hook for the subscription being removed */
 	InvokeObjectDropHook(SubscriptionRelationId, subid, 0);
-
-	/*
-	 * Lock the subscription so nobody else can do anything with it (including
-	 * the replication workers).
-	 */
-	LockSharedObject(SubscriptionRelationId, subid, 0, AccessExclusiveLock);
 
 	/* Get subname */
 	datum = SysCacheGetAttr(SUBSCRIPTIONOID, tup,
@@ -1421,6 +1478,8 @@ AlterSubscriptionOwner(const char *name, Oid newOwnerId)
 	Form_pg_subscription form;
 
 	rel = table_open(SubscriptionRelationId, RowExclusiveLock);
+
+	subid = LockSubscription(rel, name, false);
 
 	tup = SearchSysCacheCopy2(SUBSCRIPTIONNAME, MyDatabaseId,
 							  CStringGetDatum(name));
