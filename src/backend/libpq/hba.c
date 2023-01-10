@@ -2921,7 +2921,7 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 		/* Not regular expression, so make complete match */
 		if (case_insensitive)
 		{
-			if (pg_strcasecmp(identLine->pg_role, pg_role) == 0 &&
+			if (strcmp(identLine->pg_role, pg_role) == 0 &&
 				pg_strcasecmp(identLine->token->string, ident_user) == 0)
 				*found_p = true;
 		}
