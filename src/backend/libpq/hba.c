@@ -998,7 +998,7 @@ is_member(Oid userid, const char *role)
  * expressions (if any) and the exact match.
  */
 static bool
-check_role(const char *role, Oid roleid, List *tokens)
+check_role(const char *role, Oid roleid, List *tokens, bool case_insensitive)
 {
 	ListCell   *cell;
 	AuthToken  *tok;
@@ -1016,6 +1016,11 @@ check_role(const char *role, Oid roleid, List *tokens)
 		else if (token_has_regexp(tok))
 		{
 			if (regexec_auth_token(role, tok, 0, NULL) == REG_OKAY)
+				return true;
+		}
+		else if (case_insensitive)
+		{
+			if (pg_strcasecmp(tok->string, role) == 0)
 				return true;
 		}
 		else if (token_matches(tok, role))
@@ -2614,7 +2619,7 @@ check_hba(hbaPort *port)
 					  hba->databases))
 			continue;
 
-		if (!check_role(port->user_name, roleid, hba->roles))
+		if (!check_role(port->user_name, roleid, hba->roles, false))
 			continue;
 
 		/* Found a record that matched! */
@@ -2804,7 +2809,7 @@ parse_ident_line(TokenizedAuthLine *tok_line, int elevel)
 
 	/*
 	 * Now that the field validation is done, compile a regex from the user
-	 * token, if necessary.
+	 * tokens, if necessary.
 	 */
 	if (regcomp_auth_token(parsedline->system_user, file_name, line_num,
 						   err_msg, elevel))
@@ -2812,6 +2817,14 @@ parse_ident_line(TokenizedAuthLine *tok_line, int elevel)
 		/* err_msg includes the error to report */
 		return NULL;
 	}
+
+	if (regcomp_auth_token(parsedline->pg_user, file_name, line_num,
+						   err_msg, elevel))
+	{
+		/* err_msg includes the error to report */
+		return NULL;
+	}
+
 
 	return parsedline;
 }
@@ -2827,12 +2840,17 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 					const char *pg_user, const char *system_user,
 					bool case_insensitive, bool *found_p, bool *error_p)
 {
+	Oid			roleid;
+
 	*found_p = false;
 	*error_p = false;
 
 	if (strcmp(identLine->usermap, usermap_name) != 0)
 		/* Line does not match the map name we're looking for, so just abort */
 		return;
+
+	/* Get the target role's OID.  Note we do not error out for bad role. */
+	roleid = get_role_oid(pg_user, true);
 
 	/* Match? */
 	if (token_has_regexp(identLine->system_user))
@@ -2845,7 +2863,8 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 		int			r;
 		regmatch_t	matches[2];
 		char	   *ofs;
-		char	   *expanded_pg_user;
+		AuthToken  *expanded_pg_user_token;
+		bool		created_temporary_token = false;
 
 		r = regexec_auth_token(system_user, identLine->system_user, 2, matches);
 		if (r)
@@ -2865,9 +2884,14 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 			return;
 		}
 
+		/*
+		 * Create a temporary token with \1 substituted if the string is not
+		 * quoted and has no indicaters of other special meanings.
+		 */
 		if (!identLine->pg_user->quoted &&
 			(ofs = strstr(identLine->pg_user->string, "\\1")) != NULL)
 		{
+			char	   *expanded_pg_user;
 			int			offset;
 
 			/* substitution of the first argument requested */
@@ -2892,46 +2916,44 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 				   system_user + matches[1].rm_so,
 				   matches[1].rm_eo - matches[1].rm_so);
 			strcat(expanded_pg_user, ofs + 2);
+			/*
+			 * Mark the token as quoted, so it will only be compared literally
+			 * and not for special meanings like, such as "all" and membership
+			 * checks using the + prefix.
+			 */
+			expanded_pg_user_token = make_auth_token(expanded_pg_user, true);
+			created_temporary_token = true;
+			pfree(expanded_pg_user);
 		}
 		else
 		{
-			/* no substitution, so copy the match */
-			expanded_pg_user = pstrdup(identLine->pg_user->string);
+			expanded_pg_user_token = identLine->pg_user;
 		}
 
-		/*
-		 * now check if the username actually matched what the user is trying
-		 * to connect as
-		 */
-		if (case_insensitive)
-		{
-			if (pg_strcasecmp(expanded_pg_user, pg_user) == 0)
-				*found_p = true;
-		}
-		else
-		{
-			if (strcmp(expanded_pg_user, pg_user) == 0)
-				*found_p = true;
-		}
-		pfree(expanded_pg_user);
+		*found_p = check_role(pg_user, roleid, list_make1(expanded_pg_user_token), case_insensitive);
+
+		if (created_temporary_token)
+			free_auth_token(expanded_pg_user_token);
 
 		return;
 	}
 	else
 	{
-		/* Not regular expression, so make complete match */
+		/*
+		 * If the systemuser does not match, there's no match
+		 */
 		if (case_insensitive)
 		{
-			if (pg_strcasecmp(identLine->pg_user->string, pg_user) == 0 &&
-				pg_strcasecmp(identLine->system_user->string, system_user) == 0)
-				*found_p = true;
+			if (pg_strcasecmp(identLine->system_user->string, system_user) != 0)
+				return;
 		}
 		else
 		{
-			if (strcmp(identLine->pg_user->string, pg_user) == 0 &&
-				strcmp(identLine->system_user->string, system_user) == 0)
-				*found_p = true;
+			if (strcmp(identLine->system_user->string, system_user) != 0)
+				return;
 		}
+
+		*found_p = check_role(pg_user, roleid, list_make1(identLine->pg_user), case_insensitive);
 	}
 }
 
