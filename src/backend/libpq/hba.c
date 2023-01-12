@@ -2865,7 +2865,8 @@ check_ident_usermap(IdentLine *identLine, const char *usermap_name,
 			return;
 		}
 
-		if ((ofs = strstr(identLine->pg_user->string, "\\1")) != NULL)
+		if (!identLine->pg_user->quoted &&
+			(ofs = strstr(identLine->pg_user->string, "\\1")) != NULL)
 		{
 			int			offset;
 

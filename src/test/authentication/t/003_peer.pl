@@ -153,6 +153,18 @@ test_role(
 	log_like =>
 	  [qr/connection authenticated: identity="$system_user" method=peer/]);
 
+# Failure since the \1 is part of a quoted string
+reset_pg_ident($node, 'mypeermap', qq{/^$system_user(.*)\$},
+	'"test\1mapuser"');
+test_role(
+	$node,
+	qq{testmapuser},
+	'peer',
+	2,
+	'with regular expression in user name map with a quoted \1',
+	log_like =>
+	  [qr/connection authenticated: identity="$system_user" method=peer/]);
+
 # Failure as the regular expression doesn't contain a group, but the database
 # user contains \1
 reset_pg_ident($node, 'mypeermap', qq{/^$system_user\$},
