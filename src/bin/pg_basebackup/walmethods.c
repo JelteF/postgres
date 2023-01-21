@@ -44,18 +44,18 @@ static Walfile *dir_open_for_write(WalWriteMethod *wwmethod,
 								   const char *pathname,
 								   const char *temp_suffix,
 								   size_t pad_to_size);
-static int dir_close(Walfile *f, WalCloseMethod method);
+static int	dir_close(Walfile *f, WalCloseMethod method);
 static bool dir_existsfile(WalWriteMethod *wwmethod, const char *pathname);
 static ssize_t dir_get_file_size(WalWriteMethod *wwmethod,
 								 const char *pathname);
 static char *dir_get_file_name(WalWriteMethod *wwmethod,
 							   const char *pathname, const char *temp_suffix);
 static ssize_t dir_write(Walfile *f, const void *buf, size_t count);
-static int dir_sync(Walfile *f);
+static int	dir_sync(Walfile *f);
 static bool dir_finish(WalWriteMethod *wwmethod);
 static void dir_free(WalWriteMethod *wwmethod);
 
-const WalWriteMethodOps WalDirectoryMethodOps = {
+const		WalWriteMethodOps WalDirectoryMethodOps = {
 	.open_for_write = dir_open_for_write,
 	.close = dir_close,
 	.existsfile = dir_existsfile,
@@ -72,7 +72,7 @@ const WalWriteMethodOps WalDirectoryMethodOps = {
  */
 typedef struct DirectoryMethodData
 {
-	WalWriteMethod	base;
+	WalWriteMethod base;
 	char	   *basedir;
 } DirectoryMethodData;
 
@@ -639,7 +639,7 @@ CreateWalDirectoryMethod(const char *basedir,
 	DirectoryMethodData *wwmethod;
 
 	wwmethod = pg_malloc0(sizeof(DirectoryMethodData));
-	*((const WalWriteMethodOps **) &wwmethod->base.ops) =
+	*((const WalWriteMethodOps * *) &wwmethod->base.ops) =
 		&WalDirectoryMethodOps;
 	wwmethod->base.compression_algorithm = compression_algorithm;
 	wwmethod->base.compression_level = compression_level;
@@ -660,18 +660,18 @@ static Walfile *tar_open_for_write(WalWriteMethod *wwmethod,
 								   const char *pathname,
 								   const char *temp_suffix,
 								   size_t pad_to_size);
-static int tar_close(Walfile *f, WalCloseMethod method);
+static int	tar_close(Walfile *f, WalCloseMethod method);
 static bool tar_existsfile(WalWriteMethod *wwmethod, const char *pathname);
 static ssize_t tar_get_file_size(WalWriteMethod *wwmethod,
 								 const char *pathname);
 static char *tar_get_file_name(WalWriteMethod *wwmethod,
 							   const char *pathname, const char *temp_suffix);
 static ssize_t tar_write(Walfile *f, const void *buf, size_t count);
-static int tar_sync(Walfile *f);
+static int	tar_sync(Walfile *f);
 static bool tar_finish(WalWriteMethod *wwmethod);
 static void tar_free(WalWriteMethod *wwmethod);
 
-const WalWriteMethodOps WalTarMethodOps = {
+const		WalWriteMethodOps WalTarMethodOps = {
 	.open_for_write = tar_open_for_write,
 	.close = tar_close,
 	.existsfile = tar_existsfile,
@@ -693,7 +693,7 @@ typedef struct TarMethodFile
 
 typedef struct TarMethodData
 {
-	WalWriteMethod	base;
+	WalWriteMethod base;
 	char	   *tarfilename;
 	int			fd;
 	TarMethodFile *currentfile;
@@ -1356,7 +1356,7 @@ CreateWalTarMethod(const char *tarbase,
 	".tar.gz" : ".tar";
 
 	wwmethod = pg_malloc0(sizeof(TarMethodData));
-	*((const WalWriteMethodOps **) &wwmethod->base.ops) =
+	*((const WalWriteMethodOps * *) &wwmethod->base.ops) =
 		&WalTarMethodOps;
 	wwmethod->base.compression_algorithm = compression_algorithm;
 	wwmethod->base.compression_level = compression_level;

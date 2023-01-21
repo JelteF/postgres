@@ -55,13 +55,13 @@ typedef struct RecoveryLockEntry
 {
 	xl_standby_lock key;		/* hash key: xid, dbOid, relOid */
 	struct RecoveryLockEntry *next; /* chain link */
-} RecoveryLockEntry;
+}			RecoveryLockEntry;
 
 typedef struct RecoveryLockXidEntry
 {
 	TransactionId xid;			/* hash key -- must be first */
 	struct RecoveryLockEntry *head; /* chain head */
-} RecoveryLockXidEntry;
+}			RecoveryLockXidEntry;
 
 static HTAB *RecoveryLockHash = NULL;
 static HTAB *RecoveryLockXidHash = NULL;
@@ -1028,7 +1028,7 @@ StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
  * Release all the locks associated with this RecoveryLockXidEntry.
  */
 static void
-StandbyReleaseXidEntryLocks(RecoveryLockXidEntry *xidentry)
+StandbyReleaseXidEntryLocks(RecoveryLockXidEntry * xidentry)
 {
 	RecoveryLockEntry *entry;
 	RecoveryLockEntry *next;

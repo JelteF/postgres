@@ -1226,8 +1226,8 @@ ExecInitExprRec(Expr *node, ExprState *state,
 
 				/* Check permission to call function */
 				aclresult = object_aclcheck(ProcedureRelationId, cmpfuncid,
-											 GetUserId(),
-											 ACL_EXECUTE);
+											GetUserId(),
+											ACL_EXECUTE);
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_FUNCTION,
 								   get_func_name(cmpfuncid));
@@ -1236,8 +1236,8 @@ ExecInitExprRec(Expr *node, ExprState *state,
 				if (OidIsValid(opexpr->hashfuncid))
 				{
 					aclresult = object_aclcheck(ProcedureRelationId, opexpr->hashfuncid,
-												 GetUserId(),
-												 ACL_EXECUTE);
+												GetUserId(),
+												ACL_EXECUTE);
 					if (aclresult != ACLCHECK_OK)
 						aclcheck_error(aclresult, OBJECT_FUNCTION,
 									   get_func_name(opexpr->hashfuncid));

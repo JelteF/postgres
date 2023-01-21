@@ -230,7 +230,7 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 		if (OidIsValid(namespaceId))
 		{
 			aclresult = object_aclcheck(NamespaceRelationId, namespaceId, GetUserId(),
-											  ACL_CREATE);
+										ACL_CREATE);
 			if (aclresult != ACLCHECK_OK)
 				aclcheck_error(aclresult, OBJECT_SCHEMA,
 							   get_namespace_name(namespaceId));
@@ -1011,7 +1011,7 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 				AclResult	aclresult;
 
 				aclresult = object_aclcheck(NamespaceRelationId, namespaceId, new_ownerId,
-												  ACL_CREATE);
+											ACL_CREATE);
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_SCHEMA,
 								   get_namespace_name(namespaceId));

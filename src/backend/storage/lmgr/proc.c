@@ -331,7 +331,7 @@ InitProcess(void)
 
 	if (!dlist_is_empty(procgloballist))
 	{
-		MyProc = (PGPROC*) dlist_pop_head_node(procgloballist);
+		MyProc = (PGPROC *) dlist_pop_head_node(procgloballist);
 		SpinLockRelease(ProcStructLock);
 	}
 	else
@@ -1009,7 +1009,7 @@ ProcSleep(LOCALLOCK *locallock, LockMethod lockMethodTable)
 	uint32		hashcode = locallock->hashcode;
 	LWLock	   *partitionLock = LockHashPartitionLock(hashcode);
 	dclist_head *waitQueue = &lock->waitProcs;
-	PGPROC     *insert_before = NULL;
+	PGPROC	   *insert_before = NULL;
 	LOCKMASK	myHeldLocks = MyProc->heldLocks;
 	TimestampTz standbyWaitStart = 0;
 	bool		early_deadlock = false;

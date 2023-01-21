@@ -144,7 +144,7 @@ typedef enum PgFdwSamplingMethod
 	ANALYZE_SAMPLE_RANDOM,		/* remote random() */
 	ANALYZE_SAMPLE_SYSTEM,		/* TABLESAMPLE system */
 	ANALYZE_SAMPLE_BERNOULLI	/* TABLESAMPLE bernoulli */
-} PgFdwSamplingMethod;
+}			PgFdwSamplingMethod;
 
 /* in postgres_fdw.c */
 extern int	set_transmission_modes(void);

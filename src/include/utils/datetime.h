@@ -293,7 +293,7 @@ typedef struct DateTimeErrorExtra
 	const char *dtee_timezone;	/* incorrect time zone name */
 	/* Needed for DTERR_BAD_ZONE_ABBREV: */
 	const char *dtee_abbrev;	/* relevant time zone abbreviation */
-} DateTimeErrorExtra;
+}			DateTimeErrorExtra;
 
 
 extern void GetCurrentDateTime(struct pg_tm *tm);
@@ -306,17 +306,17 @@ extern int	ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 						  int maxfields, int *numfields);
 extern int	DecodeDateTime(char **field, int *ftype, int nf,
 						   int *dtype, struct pg_tm *tm, fsec_t *fsec, int *tzp,
-						   DateTimeErrorExtra *extra);
+						   DateTimeErrorExtra * extra);
 extern int	DecodeTimezone(const char *str, int *tzp);
 extern int	DecodeTimeOnly(char **field, int *ftype, int nf,
 						   int *dtype, struct pg_tm *tm, fsec_t *fsec, int *tzp,
-						   DateTimeErrorExtra *extra);
+						   DateTimeErrorExtra * extra);
 extern int	DecodeInterval(char **field, int *ftype, int nf, int range,
 						   int *dtype, struct pg_itm_in *itm_in);
 extern int	DecodeISO8601Interval(char *str,
 								  int *dtype, struct pg_itm_in *itm_in);
 
-extern void DateTimeParseError(int dterr, DateTimeErrorExtra *extra,
+extern void DateTimeParseError(int dterr, DateTimeErrorExtra * extra,
 							   const char *str, const char *datatype,
 							   struct Node *escontext);
 
@@ -336,7 +336,7 @@ extern int	ValidateDate(int fmask, bool isjulian, bool is2digits, bool bc,
 
 extern int	DecodeTimezoneAbbrev(int field, const char *lowtoken,
 								 int *ftype, int *offset, pg_tz **tz,
-								 DateTimeErrorExtra *extra);
+								 DateTimeErrorExtra * extra);
 extern int	DecodeSpecial(int field, const char *lowtoken, int *val);
 extern int	DecodeUnits(int field, const char *lowtoken, int *val);
 

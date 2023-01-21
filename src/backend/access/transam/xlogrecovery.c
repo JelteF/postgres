@@ -3031,9 +3031,9 @@ ReadRecord(XLogPrefetcher *xlogprefetcher, int emode,
 		{
 			/*
 			 * When we find that WAL ends in an incomplete record, keep track
-			 * of that record.  After recovery is done, we'll write a record to
-			 * indicate to downstream WAL readers that that portion is to be
-			 * ignored.
+			 * of that record.  After recovery is done, we'll write a record
+			 * to indicate to downstream WAL readers that that portion is to
+			 * be ignored.
 			 *
 			 * However, when ArchiveRecoveryRequested = true, we're going to
 			 * switch to a new timeline at the end of recovery. We will only

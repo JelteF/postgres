@@ -202,7 +202,7 @@ typedef struct
 {
 	const char *gucname;		/* hash key */
 	struct config_generic *gucvar;	/* -> GUC's defining structure */
-} GUCHashEntry;
+}			GUCHashEntry;
 
 static HTAB *guc_hashtab;		/* entries are GUCHashEntrys */
 

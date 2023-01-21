@@ -31,9 +31,9 @@ PG_MODULE_MAGIC;
  */
 typedef struct xl_testcustomrmgrs_message
 {
-	Size		message_size;   /* size of the message */
+	Size		message_size;	/* size of the message */
 	char		message[FLEXIBLE_ARRAY_MEMBER]; /* payload */
-} xl_testcustomrmgrs_message;
+}			xl_testcustomrmgrs_message;
 
 #define SizeOfTestCustomRmgrsMessage	(offsetof(xl_testcustomrmgrs_message, message))
 #define XLOG_TEST_CUSTOM_RMGRS_MESSAGE	0x00

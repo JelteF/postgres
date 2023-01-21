@@ -85,7 +85,7 @@ typedef struct ua_page_stats
 	int64		blkno;
 	int64		blk_count;
 	bool		allpages;
-} ua_page_stats;
+}			ua_page_stats;
 
 /*
  * cross-call data structure for SRF for page items
@@ -97,7 +97,7 @@ typedef struct ua_page_items
 	bool		leafpage;
 	bool		rightmost;
 	TupleDesc	tupd;
-} ua_page_items;
+}			ua_page_items;
 
 
 /* -------------------------------------------------
@@ -481,7 +481,7 @@ bt_multi_page_stats(PG_FUNCTION_ARGS)
  * ------------------------------------------------------
  */
 static Datum
-bt_page_print_tuples(ua_page_items *uargs)
+bt_page_print_tuples(ua_page_items * uargs)
 {
 	Page		page = uargs->page;
 	OffsetNumber offset = uargs->offset;

@@ -1351,8 +1351,8 @@ static void
 setup_auth(FILE *cmdfd)
 {
 	/*
-	 * The authid table shouldn't be readable except through views, to
-	 * ensure passwords are not publicly visible.
+	 * The authid table shouldn't be readable except through views, to ensure
+	 * passwords are not publicly visible.
 	 */
 	PG_CMD_PUTS("REVOKE ALL ON pg_authid FROM public;\n\n");
 
@@ -1745,9 +1745,9 @@ make_template0(FILE *cmdfd)
 				" STRATEGY = file_copy;\n\n");
 
 	/*
-	 * template0 shouldn't have any collation-dependent objects, so unset
-	 * the collation version.  This disables collation version checks when
-	 * making a new database from it.
+	 * template0 shouldn't have any collation-dependent objects, so unset the
+	 * collation version.  This disables collation version checks when making
+	 * a new database from it.
 	 */
 	PG_CMD_PUTS("UPDATE pg_database SET datcollversion = NULL WHERE datname = 'template0';\n\n");
 
@@ -1757,9 +1757,8 @@ make_template0(FILE *cmdfd)
 	PG_CMD_PUTS("UPDATE pg_database SET datcollversion = pg_database_collation_actual_version(oid) WHERE datname = 'template1';\n\n");
 
 	/*
-	 * Explicitly revoke public create-schema and create-temp-table
-	 * privileges in template1 and template0; else the latter would be on
-	 * by default
+	 * Explicitly revoke public create-schema and create-temp-table privileges
+	 * in template1 and template0; else the latter would be on by default
 	 */
 	PG_CMD_PUTS("REVOKE CREATE,TEMPORARY ON DATABASE template1 FROM public;\n\n");
 	PG_CMD_PUTS("REVOKE CREATE,TEMPORARY ON DATABASE template0 FROM public;\n\n");

@@ -70,7 +70,7 @@ static bool DetermineTimeZoneAbbrevOffsetInternal(pg_time_t t,
 												  const char *abbr, pg_tz *tzp,
 												  int *offset, int *isdst);
 static pg_tz *FetchDynamicTimeZone(TimeZoneAbbrevTable *tbl, const datetkn *tp,
-								   DateTimeErrorExtra *extra);
+								   DateTimeErrorExtra * extra);
 
 
 const int	day_tab[2][13] =
@@ -978,7 +978,7 @@ ParseDateTime(const char *timestr, char *workbuf, size_t buflen,
 int
 DecodeDateTime(char **field, int *ftype, int nf,
 			   int *dtype, struct pg_tm *tm, fsec_t *fsec, int *tzp,
-			   DateTimeErrorExtra *extra)
+			   DateTimeErrorExtra * extra)
 {
 	int			fmask = 0,
 				tmask,
@@ -1928,7 +1928,7 @@ DetermineTimeZoneAbbrevOffsetInternal(pg_time_t t, const char *abbr, pg_tz *tzp,
 int
 DecodeTimeOnly(char **field, int *ftype, int nf,
 			   int *dtype, struct pg_tm *tm, fsec_t *fsec, int *tzp,
-			   DateTimeErrorExtra *extra)
+			   DateTimeErrorExtra * extra)
 {
 	int			fmask = 0,
 				tmask,
@@ -3233,7 +3233,7 @@ DecodeTimezone(const char *str, int *tzp)
 int
 DecodeTimezoneAbbrev(int field, const char *lowtoken,
 					 int *ftype, int *offset, pg_tz **tz,
-					 DateTimeErrorExtra *extra)
+					 DateTimeErrorExtra * extra)
 {
 	const datetkn *tp;
 
@@ -4040,7 +4040,7 @@ DecodeUnits(int field, const char *lowtoken, int *val)
  * separate SQLSTATE codes, so ...
  */
 void
-DateTimeParseError(int dterr, DateTimeErrorExtra *extra,
+DateTimeParseError(int dterr, DateTimeErrorExtra * extra,
 				   const char *str, const char *datatype,
 				   Node *escontext)
 {
@@ -4919,7 +4919,7 @@ InstallTimeZoneAbbrevs(TimeZoneAbbrevTable *tbl)
  */
 static pg_tz *
 FetchDynamicTimeZone(TimeZoneAbbrevTable *tbl, const datetkn *tp,
-					 DateTimeErrorExtra *extra)
+					 DateTimeErrorExtra * extra)
 {
 	DynamicZoneAbbrev *dtza;
 

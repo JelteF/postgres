@@ -587,7 +587,7 @@ typedef struct _loInfo
 	DumpableObject dobj;
 	DumpableAcl dacl;
 	const char *rolname;
-} LoInfo;
+}			LoInfo;
 
 /*
  * The PolicyInfo struct is used to represent policies on a table and

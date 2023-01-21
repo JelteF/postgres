@@ -799,9 +799,9 @@ llvm_session_initialize(void)
 	LLVMInitializeNativeAsmParser();
 
 	/*
-	 * When targeting an LLVM version with opaque pointers enabled by
-	 * default, turn them off for the context we build our code in.  We don't
-	 * need to do so for other contexts (e.g. llvm_ts_context).  Once the IR is
+	 * When targeting an LLVM version with opaque pointers enabled by default,
+	 * turn them off for the context we build our code in.  We don't need to
+	 * do so for other contexts (e.g. llvm_ts_context).  Once the IR is
 	 * generated, it carries the necessary information.
 	 */
 #if LLVM_VERSION_MAJOR > 14

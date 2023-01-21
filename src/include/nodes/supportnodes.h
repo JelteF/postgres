@@ -341,6 +341,6 @@ typedef struct SupportRequestOptimizeWindowClause
 	/* Input/Output fields: */
 	int			frameOptions;	/* New frameOptions, or left untouched if no
 								 * optimizations are possible. */
-} SupportRequestOptimizeWindowClause;
+}			SupportRequestOptimizeWindowClause;
 
 #endif							/* SUPPORTNODES_H */

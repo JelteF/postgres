@@ -284,7 +284,7 @@ static char *getFormattedOperatorName(const char *oproid);
 static char *convertTSFunction(Archive *fout, Oid funcOid);
 static const char *getFormattedTypeName(Archive *fout, Oid oid, OidOptions opts);
 static void getLOs(Archive *fout);
-static void dumpLO(Archive *fout, const LoInfo *binfo);
+static void dumpLO(Archive *fout, const LoInfo * binfo);
 static int	dumpLOs(Archive *fout, const void *arg);
 static void dumpPolicy(Archive *fout, const PolicyInfo *polinfo);
 static void dumpPublication(Archive *fout, const PublicationInfo *pubinfo);
@@ -845,8 +845,8 @@ main(int argc, char **argv)
 	/*
 	 * Dumping LOs is the default for dumps where an inclusion switch is not
 	 * used (an "include everything" dump).  -B can be used to exclude LOs
-	 * from those dumps.  -b can be used to include LOs even when an
-	 * inclusion switch is used.
+	 * from those dumps.  -b can be used to include LOs even when an inclusion
+	 * switch is used.
 	 *
 	 * -s means "schema only" and LOs are data, not schema, so we never
 	 * include LOs when -s is used.
@@ -881,8 +881,8 @@ main(int argc, char **argv)
 	 * data or the associated metadata that resides in the pg_largeobject and
 	 * pg_largeobject_metadata tables, respectively.
 	 *
-	 * However, we do need to collect LO information as there may be
-	 * comments or other information on LOs that we do need to dump out.
+	 * However, we do need to collect LO information as there may be comments
+	 * or other information on LOs that we do need to dump out.
 	 */
 	if (dopt.outputLOs || dopt.binary_upgrade)
 		getLOs(fout);
@@ -3208,8 +3208,8 @@ dumpDatabase(Archive *fout)
 		appendPQExpBufferStr(loOutQry, "\n-- For binary upgrade, preserve pg_largeobject and index relfilenodes\n");
 		for (int i = 0; i < PQntuples(lo_res); ++i)
 		{
-			Oid		oid;
-			RelFileNumber	relfilenumber;
+			Oid			oid;
+			RelFileNumber relfilenumber;
 
 			appendPQExpBuffer(loHorizonQry, "UPDATE pg_catalog.pg_class\n"
 							  "SET relfrozenxid = '%u', relminmxid = '%u'\n"
@@ -3492,8 +3492,8 @@ getLOs(Archive *fout)
 			loinfo[i].dobj.components |= DUMP_COMPONENT_ACL;
 
 		/*
-		 * In binary-upgrade mode for LOs, we do *not* dump out the LO
-		 * data, as it will be copied by pg_upgrade, which simply copies the
+		 * In binary-upgrade mode for LOs, we do *not* dump out the LO data,
+		 * as it will be copied by pg_upgrade, which simply copies the
 		 * pg_largeobject table. We *do* however dump out anything but the
 		 * data, as pg_upgrade copies just pg_largeobject, but not
 		 * pg_largeobject_metadata, after the dump is restored.
@@ -3526,7 +3526,7 @@ getLOs(Archive *fout)
  * dump the definition (metadata) of the given large object
  */
 static void
-dumpLO(Archive *fout, const LoInfo *loinfo)
+dumpLO(Archive *fout, const LoInfo * loinfo)
 {
 	PQExpBuffer cquery = createPQExpBuffer();
 	PQExpBuffer dquery = createPQExpBuffer();
@@ -14632,7 +14632,10 @@ dumpSecLabel(Archive *fout, const char *type, const char *name,
 	if (dopt->no_security_labels)
 		return;
 
-	/* Security labels are schema not data ... except large object labels are data */
+	/*
+	 * Security labels are schema not data ... except large object labels are
+	 * data
+	 */
 	if (strcmp(type, "LARGE OBJECT") != 0)
 	{
 		if (dopt->dataOnly)

@@ -1502,7 +1502,7 @@ LockCheckConflicts(LockMethod lockMethodTable,
 	dlist_foreach(proclock_iter, &lock->procLocks)
 	{
 		PROCLOCK   *otherproclock =
-			dlist_container(PROCLOCK, lockLink, proclock_iter.cur);
+		dlist_container(PROCLOCK, lockLink, proclock_iter.cur);
 
 		if (proclock != otherproclock &&
 			proclock->groupLeader == otherproclock->groupLeader &&
@@ -3913,7 +3913,7 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 	dlist_foreach(proclock_iter, &theLock->procLocks)
 	{
 		PROCLOCK   *proclock =
-			dlist_container(PROCLOCK, lockLink, proclock_iter.cur);
+		dlist_container(PROCLOCK, lockLink, proclock_iter.cur);
 		PGPROC	   *proc = proclock->tag.myProc;
 		LOCK	   *lock = proclock->tag.myLock;
 		LockInstanceData *instance;
@@ -3956,6 +3956,7 @@ GetSingleProcBlockerStatusData(PGPROC *blocked_proc, BlockedProcsData *data)
 	dclist_foreach(proc_iter, waitQueue)
 	{
 		PGPROC	   *queued_proc = dlist_container(PGPROC, links, proc_iter.cur);
+
 		if (queued_proc == blocked_proc)
 			break;
 		data->waiter_pids[data->npids++] = queued_proc->pid;

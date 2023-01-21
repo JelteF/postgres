@@ -4783,7 +4783,7 @@ text_to_array(PG_FUNCTION_ARGS)
 		PG_RETURN_ARRAYTYPE_P(construct_empty_array(TEXTOID));
 
 	PG_RETURN_DATUM(makeArrayResult(tstate.astate,
-										  CurrentMemoryContext));
+									CurrentMemoryContext));
 }
 
 /*
@@ -6218,7 +6218,7 @@ rest_of_char_same(const char *s1, const char *s2, int len)
  * distance to consider.
  */
 void
-initClosestMatch(ClosestMatchState *state, const char *source, int max_d)
+initClosestMatch(ClosestMatchState * state, const char *source, int max_d)
 {
 	Assert(state);
 	Assert(max_d >= 0);
@@ -6238,7 +6238,7 @@ initClosestMatch(ClosestMatchState *state, const char *source, int max_d)
  * allowed or more than half the characters are different, no action is taken.
  */
 void
-updateClosestMatch(ClosestMatchState *state, const char *candidate)
+updateClosestMatch(ClosestMatchState * state, const char *candidate)
 {
 	int			dist;
 
@@ -6273,7 +6273,7 @@ updateClosestMatch(ClosestMatchState *state, const char *candidate)
  * updateClosestMatch(), return NULL.
  */
 const char *
-getClosestMatch(ClosestMatchState *state)
+getClosestMatch(ClosestMatchState * state)
 {
 	Assert(state);
 

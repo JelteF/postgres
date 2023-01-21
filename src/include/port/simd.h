@@ -61,9 +61,9 @@ typedef uint64 Vector8;
 #endif
 
 /* load/store operations */
-static inline void vector8_load(Vector8 *v, const uint8 *s);
+static inline void vector8_load(Vector8 * v, const uint8 *s);
 #ifndef USE_NO_SIMD
-static inline void vector32_load(Vector32 *v, const uint32 *s);
+static inline void vector32_load(Vector32 * v, const uint32 *s);
 #endif
 
 /* assignment operations */
@@ -103,7 +103,7 @@ static inline Vector32 vector32_eq(const Vector32 v1, const Vector32 v2);
  * Load a chunk of memory into the given vector.
  */
 static inline void
-vector8_load(Vector8 *v, const uint8 *s)
+vector8_load(Vector8 * v, const uint8 *s)
 {
 #if defined(USE_SSE2)
 	*v = _mm_loadu_si128((const __m128i *) s);
@@ -116,7 +116,7 @@ vector8_load(Vector8 *v, const uint8 *s)
 
 #ifndef USE_NO_SIMD
 static inline void
-vector32_load(Vector32 *v, const uint32 *s)
+vector32_load(Vector32 * v, const uint32 *s)
 {
 #ifdef USE_SSE2
 	*v = _mm_loadu_si128((const __m128i *) s);

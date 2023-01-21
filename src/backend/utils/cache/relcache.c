@@ -3764,12 +3764,12 @@ RelationSetNewRelfilenumber(Relation relation, char persistence)
 	 */
 	if (IsBinaryUpgrade)
 	{
-		SMgrRelation	srel;
+		SMgrRelation srel;
 
 		/*
 		 * During a binary upgrade, we use this code path to ensure that
-		 * pg_largeobject and its index have the same relfilenumbers as in
-		 * the old cluster. This is necessary because pg_upgrade treats
+		 * pg_largeobject and its index have the same relfilenumbers as in the
+		 * old cluster. This is necessary because pg_upgrade treats
 		 * pg_largeobject like a user table, not a system table. It is however
 		 * possible that a table or index may need to end up with the same
 		 * relfilenumber in the new cluster as what it had in the old cluster.

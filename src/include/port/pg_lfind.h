@@ -98,7 +98,7 @@ pg_lfind32(uint32 key, uint32 *base, uint32 nelem)
 	 * on a block of four registers.  Testing for SSE2 has showed this is ~40%
 	 * faster than using a block of two registers.
 	 */
-	const Vector32 keys = vector32_broadcast(key);	/* load copies of key */
+	const		Vector32 keys = vector32_broadcast(key);	/* load copies of key */
 	const uint32 nelem_per_vector = sizeof(Vector32) / sizeof(uint32);
 	const uint32 nelem_per_iteration = 4 * nelem_per_vector;
 

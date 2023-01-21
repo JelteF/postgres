@@ -59,7 +59,7 @@ typedef struct ValidIOData
 	Oid			typiofunc;
 	Oid			typioparam;
 	FmgrInfo	inputproc;
-} ValidIOData;
+}			ValidIOData;
 
 static bool pg_input_is_valid_common(FunctionCallInfo fcinfo,
 									 text *txt, text *typname,

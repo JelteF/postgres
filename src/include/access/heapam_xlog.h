@@ -330,7 +330,7 @@ typedef struct xl_heap_freeze_plan
 
 	/* Length of individual page offset numbers array for this plan */
 	uint16		ntuples;
-} xl_heap_freeze_plan;
+}			xl_heap_freeze_plan;
 
 /*
  * This is what we need to know about a block being frozen during vacuum

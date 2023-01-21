@@ -3681,7 +3681,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
 
 		/* Check permission to call aggregate function */
 		aclresult = object_aclcheck(ProcedureRelationId, aggref->aggfnoid, GetUserId(),
-									 ACL_EXECUTE);
+									ACL_EXECUTE);
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_AGGREGATE,
 						   get_func_name(aggref->aggfnoid));
@@ -3748,7 +3748,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
 			if (OidIsValid(finalfn_oid))
 			{
 				aclresult = object_aclcheck(ProcedureRelationId, finalfn_oid, aggOwner,
-											 ACL_EXECUTE);
+											ACL_EXECUTE);
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_FUNCTION,
 								   get_func_name(finalfn_oid));
@@ -3757,7 +3757,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
 			if (OidIsValid(serialfn_oid))
 			{
 				aclresult = object_aclcheck(ProcedureRelationId, serialfn_oid, aggOwner,
-											 ACL_EXECUTE);
+											ACL_EXECUTE);
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_FUNCTION,
 								   get_func_name(serialfn_oid));
@@ -3766,7 +3766,7 @@ ExecInitAgg(Agg *node, EState *estate, int eflags)
 			if (OidIsValid(deserialfn_oid))
 			{
 				aclresult = object_aclcheck(ProcedureRelationId, deserialfn_oid, aggOwner,
-											 ACL_EXECUTE);
+											ACL_EXECUTE);
 				if (aclresult != ACLCHECK_OK)
 					aclcheck_error(aclresult, OBJECT_FUNCTION,
 								   get_func_name(deserialfn_oid));

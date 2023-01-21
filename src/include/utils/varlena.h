@@ -46,8 +46,8 @@ typedef struct ClosestMatchState
 	const char *match;
 }			ClosestMatchState;
 
-extern void initClosestMatch(ClosestMatchState *state, const char *source, int max_d);
-extern void updateClosestMatch(ClosestMatchState *state, const char *candidate);
-extern const char *getClosestMatch(ClosestMatchState *state);
+extern void initClosestMatch(ClosestMatchState * state, const char *source, int max_d);
+extern void updateClosestMatch(ClosestMatchState * state, const char *candidate);
+extern const char *getClosestMatch(ClosestMatchState * state);
 
 #endif

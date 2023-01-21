@@ -1497,8 +1497,8 @@ ParallelWorkerMain(Datum main_arg)
 	RestoreClientConnectionInfo(clientconninfospace);
 
 	/*
-	 * Initialize SystemUser now that MyClientConnectionInfo is restored.
-	 * Also ensure that auth_method is actually valid, aka authn_id is not NULL.
+	 * Initialize SystemUser now that MyClientConnectionInfo is restored. Also
+	 * ensure that auth_method is actually valid, aka authn_id is not NULL.
 	 */
 	if (MyClientConnectionInfo.authn_id)
 		InitializeSystemUser(MyClientConnectionInfo.authn_id,

@@ -19,11 +19,12 @@ typedef struct
 	WalWriteMethod *wwmethod;
 	off_t		currpos;
 	char	   *pathname;
+
 	/*
 	 * MORE DATA FOLLOWS AT END OF STRUCT
 	 *
-	 * Each WalWriteMethod is expected to embed this as the first member of
-	 * a larger struct with method-specific fields following.
+	 * Each WalWriteMethod is expected to embed this as the first member of a
+	 * larger struct with method-specific fields following.
 	 */
 } Walfile;
 
@@ -45,7 +46,7 @@ typedef struct WalWriteMethodOps
 	 * automatically renamed in close(). If pad_to_size is specified, the file
 	 * will be padded with NUL up to that size, if supported by the Walmethod.
 	 */
-	Walfile	   *(*open_for_write) (WalWriteMethod *wwmethod, const char *pathname, const char *temp_suffix, size_t pad_to_size);
+	Walfile    *(*open_for_write) (WalWriteMethod *wwmethod, const char *pathname, const char *temp_suffix, size_t pad_to_size);
 
 	/*
 	 * Close an open Walfile, using one or more methods for handling automatic
@@ -89,7 +90,7 @@ typedef struct WalWriteMethodOps
 	 * WalWriteMethod itself.
 	 */
 	void		(*free) (WalWriteMethod *wwmethod);
-} WalWriteMethodOps;
+}			WalWriteMethodOps;
 
 /*
  * A WalWriteMethod structure represents a way of writing streaming WAL as
@@ -101,17 +102,18 @@ typedef struct WalWriteMethodOps
  */
 struct WalWriteMethod
 {
-	const WalWriteMethodOps *ops;
+	const		WalWriteMethodOps *ops;
 	pg_compress_algorithm compression_algorithm;
 	int			compression_level;
 	bool		sync;
 	const char *lasterrstring;	/* if set, takes precedence over lasterrno */
 	int			lasterrno;
+
 	/*
 	 * MORE DATA FOLLOWS AT END OF STRUCT
 	 *
-	 * Each WalWriteMethod is expected to embed this as the first member of
-	 * a larger struct with method-specific fields following.
+	 * Each WalWriteMethod is expected to embed this as the first member of a
+	 * larger struct with method-specific fields following.
 	 */
 };
 

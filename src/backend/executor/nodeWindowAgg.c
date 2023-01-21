@@ -2574,7 +2574,7 @@ ExecInitWindowAgg(WindowAgg *node, EState *estate, int eflags)
 
 		/* Check permission to call window function */
 		aclresult = object_aclcheck(ProcedureRelationId, wfunc->winfnoid, GetUserId(),
-									 ACL_EXECUTE);
+									ACL_EXECUTE);
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_FUNCTION,
 						   get_func_name(wfunc->winfnoid));
@@ -2855,7 +2855,7 @@ initialize_peragg(WindowAggState *winstate, WindowFunc *wfunc,
 		ReleaseSysCache(procTuple);
 
 		aclresult = object_aclcheck(ProcedureRelationId, transfn_oid, aggOwner,
-									 ACL_EXECUTE);
+									ACL_EXECUTE);
 		if (aclresult != ACLCHECK_OK)
 			aclcheck_error(aclresult, OBJECT_FUNCTION,
 						   get_func_name(transfn_oid));
@@ -2864,7 +2864,7 @@ initialize_peragg(WindowAggState *winstate, WindowFunc *wfunc,
 		if (OidIsValid(invtransfn_oid))
 		{
 			aclresult = object_aclcheck(ProcedureRelationId, invtransfn_oid, aggOwner,
-										 ACL_EXECUTE);
+										ACL_EXECUTE);
 			if (aclresult != ACLCHECK_OK)
 				aclcheck_error(aclresult, OBJECT_FUNCTION,
 							   get_func_name(invtransfn_oid));
@@ -2874,7 +2874,7 @@ initialize_peragg(WindowAggState *winstate, WindowFunc *wfunc,
 		if (OidIsValid(finalfn_oid))
 		{
 			aclresult = object_aclcheck(ProcedureRelationId, finalfn_oid, aggOwner,
-										 ACL_EXECUTE);
+										ACL_EXECUTE);
 			if (aclresult != ACLCHECK_OK)
 				aclcheck_error(aclresult, OBJECT_FUNCTION,
 							   get_func_name(finalfn_oid));
