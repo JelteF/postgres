@@ -17,7 +17,6 @@
 
 #include <signal.h>
 
-
 /*
  * This version of pqsignal() exists only because pre-9.3 releases
  * of libpq exported pqsignal(), and some old client programs still
@@ -36,8 +35,7 @@ pqsigfunc
 pqsignal(int signo, pqsigfunc func)
 {
 #ifndef WIN32
-	struct sigaction act,
-				oact;
+	struct sigaction act, oact;
 
 	act.sa_handler = func;
 	sigemptyset(&act.sa_mask);
@@ -51,7 +49,7 @@ pqsignal(int signo, pqsigfunc func)
 	if (sigaction(signo, &act, &oact) < 0)
 		return SIG_ERR;
 	return oact.sa_handler;
-#else							/* WIN32 */
+#else /* WIN32 */
 	return signal(signo, func);
 #endif
 }

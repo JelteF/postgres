@@ -54,21 +54,22 @@
 
 #ifndef WIN32
 
-#define SIGPIPE_MASKED(conn)	((conn)->sigpipe_so || (conn)->sigpipe_flag)
+#define SIGPIPE_MASKED(conn) ((conn)->sigpipe_so || (conn)->sigpipe_flag)
 
 #ifdef ENABLE_THREAD_SAFETY
 
 struct sigpipe_info
 {
-	sigset_t	oldsigmask;
-	bool		sigpipe_pending;
-	bool		got_epipe;
+	sigset_t oldsigmask;
+	bool	 sigpipe_pending;
+	bool	 got_epipe;
 };
 
 #define DECLARE_SIGPIPE_INFO(spinfo) struct sigpipe_info spinfo
 
 #define DISABLE_SIGPIPE(conn, spinfo, failaction) \
-	do { \
+	do \
+	{ \
 		(spinfo).got_epipe = false; \
 		if (!SIGPIPE_MASKED(conn)) \
 		{ \
@@ -79,23 +80,26 @@ struct sigpipe_info
 	} while (0)
 
 #define REMEMBER_EPIPE(spinfo, cond) \
-	do { \
+	do \
+	{ \
 		if (cond) \
 			(spinfo).got_epipe = true; \
 	} while (0)
 
 #define RESTORE_SIGPIPE(conn, spinfo) \
-	do { \
+	do \
+	{ \
 		if (!SIGPIPE_MASKED(conn)) \
 			pq_reset_sigpipe(&(spinfo).oldsigmask, (spinfo).sigpipe_pending, \
 							 (spinfo).got_epipe); \
 	} while (0)
-#else							/* !ENABLE_THREAD_SAFETY */
+#else /* !ENABLE_THREAD_SAFETY */
 
 #define DECLARE_SIGPIPE_INFO(spinfo) pqsigfunc spinfo = NULL
 
 #define DISABLE_SIGPIPE(conn, spinfo, failaction) \
-	do { \
+	do \
+	{ \
 		if (!SIGPIPE_MASKED(conn)) \
 			spinfo = pqsignal(SIGPIPE, SIG_IGN); \
 	} while (0)
@@ -103,23 +107,23 @@ struct sigpipe_info
 #define REMEMBER_EPIPE(spinfo, cond)
 
 #define RESTORE_SIGPIPE(conn, spinfo) \
-	do { \
+	do \
+	{ \
 		if (!SIGPIPE_MASKED(conn)) \
 			pqsignal(SIGPIPE, spinfo); \
 	} while (0)
-#endif							/* ENABLE_THREAD_SAFETY */
-#else							/* WIN32 */
+#endif /* ENABLE_THREAD_SAFETY */
+#else  /* WIN32 */
 
 #define DECLARE_SIGPIPE_INFO(spinfo)
 #define DISABLE_SIGPIPE(conn, spinfo, failaction)
 #define REMEMBER_EPIPE(spinfo, cond)
 #define RESTORE_SIGPIPE(conn, spinfo)
-#endif							/* WIN32 */
+#endif /* WIN32 */
 
 /* ------------------------------------------------------------ */
 /*			 Procedures common to all secure sessions			*/
 /* ------------------------------------------------------------ */
-
 
 int
 PQsslInUse(PGconn *conn)
@@ -159,7 +163,7 @@ PQinitOpenSSL(int do_ssl, int do_crypto)
 int
 pqsecure_initialize(PGconn *conn, bool do_ssl, bool do_crypto)
 {
-	int			r = 0;
+	int r = 0;
 
 #ifdef USE_SSL
 	r = pgtls_init(conn, do_ssl, do_crypto);
@@ -203,7 +207,7 @@ pqsecure_close(PGconn *conn)
 ssize_t
 pqsecure_read(PGconn *conn, void *ptr, size_t len)
 {
-	ssize_t		n;
+	ssize_t n;
 
 #ifdef USE_SSL
 	if (conn->ssl_in_use)
@@ -213,7 +217,7 @@ pqsecure_read(PGconn *conn, void *ptr, size_t len)
 	else
 #endif
 #ifdef ENABLE_GSS
-	if (conn->gssenc)
+		if (conn->gssenc)
 	{
 		n = pg_GSS_read(conn, ptr, len);
 	}
@@ -229,9 +233,9 @@ pqsecure_read(PGconn *conn, void *ptr, size_t len)
 ssize_t
 pqsecure_raw_read(PGconn *conn, void *ptr, size_t len)
 {
-	ssize_t		n;
-	int			result_errno = 0;
-	char		sebuf[PG_STRERROR_R_BUFLEN];
+	ssize_t n;
+	int		result_errno = 0;
+	char	sebuf[PG_STRERROR_R_BUFLEN];
 
 	n = recv(conn->sock, ptr, len, 0);
 
@@ -254,15 +258,17 @@ pqsecure_raw_read(PGconn *conn, void *ptr, size_t len)
 
 			case EPIPE:
 			case ECONNRESET:
-				libpq_append_conn_error(conn, "server closed the connection unexpectedly\n"
-										"\tThis probably means the server terminated abnormally\n"
-										"\tbefore or while processing the request.");
+				libpq_append_conn_error(
+					conn,
+					"server closed the connection unexpectedly\n"
+					"\tThis probably means the server terminated abnormally\n"
+					"\tbefore or while processing the request.");
 				break;
 
 			default:
-				libpq_append_conn_error(conn, "could not receive data from server: %s",
-										SOCK_STRERROR(result_errno,
-													  sebuf, sizeof(sebuf)));
+				libpq_append_conn_error(
+					conn, "could not receive data from server: %s",
+					SOCK_STRERROR(result_errno, sebuf, sizeof(sebuf)));
 				break;
 		}
 	}
@@ -296,7 +302,7 @@ pqsecure_raw_read(PGconn *conn, void *ptr, size_t len)
 ssize_t
 pqsecure_write(PGconn *conn, const void *ptr, size_t len)
 {
-	ssize_t		n;
+	ssize_t n;
 
 #ifdef USE_SSL
 	if (conn->ssl_in_use)
@@ -306,7 +312,7 @@ pqsecure_write(PGconn *conn, const void *ptr, size_t len)
 	else
 #endif
 #ifdef ENABLE_GSS
-	if (conn->gssenc)
+		if (conn->gssenc)
 	{
 		n = pg_GSS_write(conn, ptr, len);
 	}
@@ -345,11 +351,11 @@ pqsecure_write(PGconn *conn, const void *ptr, size_t len)
 ssize_t
 pqsecure_raw_write(PGconn *conn, const void *ptr, size_t len)
 {
-	ssize_t		n;
-	int			flags = 0;
-	int			result_errno = 0;
-	char		msgbuf[1024];
-	char		sebuf[PG_STRERROR_R_BUFLEN];
+	ssize_t n;
+	int		flags = 0;
+	int		result_errno = 0;
+	char	msgbuf[1024];
+	char	sebuf[PG_STRERROR_R_BUFLEN];
 
 	DECLARE_SIGPIPE_INFO(spinfo);
 
@@ -368,7 +374,7 @@ pqsecure_raw_write(PGconn *conn, const void *ptr, size_t len)
 		flags |= MSG_NOSIGNAL;
 
 retry_masked:
-#endif							/* MSG_NOSIGNAL */
+#endif /* MSG_NOSIGNAL */
 
 	DISABLE_SIGPIPE(conn, spinfo, return -1);
 
@@ -390,7 +396,7 @@ retry_masked:
 			flags = 0;
 			goto retry_masked;
 		}
-#endif							/* MSG_NOSIGNAL */
+#endif /* MSG_NOSIGNAL */
 
 		/* Set error message if appropriate */
 		switch (result_errno)
@@ -416,9 +422,11 @@ retry_masked:
 				/* Store error message in conn->write_err_msg, if possible */
 				/* (strdup failure is OK, we'll cope later) */
 				snprintf(msgbuf, sizeof(msgbuf),
-						 libpq_gettext("server closed the connection unexpectedly\n"
-									   "\tThis probably means the server terminated abnormally\n"
-									   "\tbefore or while processing the request."));
+						 libpq_gettext(
+							 "server closed the connection unexpectedly\n"
+							 "\tThis probably means the server terminated "
+							 "abnormally\n"
+							 "\tbefore or while processing the request."));
 				/* keep newline out of translated string */
 				strlcat(msgbuf, "\n", sizeof(msgbuf));
 				conn->write_err_msg = strdup(msgbuf);
@@ -432,8 +440,7 @@ retry_masked:
 				/* (strdup failure is OK, we'll cope later) */
 				snprintf(msgbuf, sizeof(msgbuf),
 						 libpq_gettext("could not send data to server: %s"),
-						 SOCK_STRERROR(result_errno,
-									   sebuf, sizeof(sebuf)));
+						 SOCK_STRERROR(result_errno, sebuf, sizeof(sebuf)));
 				/* keep newline out of translated string */
 				strlcat(msgbuf, "\n", sizeof(msgbuf));
 				conn->write_err_msg = strdup(msgbuf);
@@ -475,11 +482,11 @@ PQsslAttribute(PGconn *conn, const char *attribute_name)
 const char *const *
 PQsslAttributeNames(PGconn *conn)
 {
-	static const char *const result[] = {NULL};
+	static const char *const result[] = { NULL };
 
 	return result;
 }
-#endif							/* USE_SSL */
+#endif /* USE_SSL */
 
 /*
  * Dummy versions of OpenSSL key password hook functions, when built without
@@ -504,9 +511,10 @@ PQdefaultSSLKeyPassHook_OpenSSL(char *buf, int size, PGconn *conn)
 {
 	return 0;
 }
-#endif							/* USE_OPENSSL */
+#endif /* USE_OPENSSL */
 
-/* Dummy version of GSSAPI information functions, when built without GSS support */
+/* Dummy version of GSSAPI information functions, when built without GSS
+ * support */
 #ifndef ENABLE_GSS
 
 void *
@@ -521,8 +529,7 @@ PQgssEncInUse(PGconn *conn)
 	return 0;
 }
 
-#endif							/* ENABLE_GSS */
-
+#endif /* ENABLE_GSS */
 
 #if defined(ENABLE_THREAD_SAFETY) && !defined(WIN32)
 
@@ -533,8 +540,8 @@ PQgssEncInUse(PGconn *conn)
 int
 pq_block_sigpipe(sigset_t *osigset, bool *sigpipe_pending)
 {
-	sigset_t	sigpipe_sigset;
-	sigset_t	sigset;
+	sigset_t sigpipe_sigset;
+	sigset_t sigset;
 
 	sigemptyset(&sigpipe_sigset);
 	sigaddset(&sigpipe_sigset, SIGPIPE);
@@ -583,17 +590,16 @@ pq_block_sigpipe(sigset_t *osigset, bool *sigpipe_pending)
 void
 pq_reset_sigpipe(sigset_t *osigset, bool sigpipe_pending, bool got_epipe)
 {
-	int			save_errno = SOCK_ERRNO;
-	int			signo;
-	sigset_t	sigset;
+	int		 save_errno = SOCK_ERRNO;
+	int		 signo;
+	sigset_t sigset;
 
 	/* Clear SIGPIPE only if none was pending */
 	if (got_epipe && !sigpipe_pending)
 	{
-		if (sigpending(&sigset) == 0 &&
-			sigismember(&sigset, SIGPIPE))
+		if (sigpending(&sigset) == 0 && sigismember(&sigset, SIGPIPE))
 		{
-			sigset_t	sigpipe_sigset;
+			sigset_t sigpipe_sigset;
 
 			sigemptyset(&sigpipe_sigset);
 			sigaddset(&sigpipe_sigset, SIGPIPE);
@@ -608,4 +614,4 @@ pq_reset_sigpipe(sigset_t *osigset, bool sigpipe_pending, bool got_epipe)
 	SOCK_ERRNO_SET(save_errno);
 }
 
-#endif							/* ENABLE_THREAD_SAFETY && !WIN32 */
+#endif /* ENABLE_THREAD_SAFETY && !WIN32 */

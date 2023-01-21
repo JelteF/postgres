@@ -25,14 +25,14 @@
 static void
 pg_GSS_error_int(PQExpBuffer str, OM_uint32 stat, int type)
 {
-	OM_uint32	lmin_s;
+	OM_uint32		lmin_s;
 	gss_buffer_desc lmsg;
-	OM_uint32	msg_ctx = 0;
+	OM_uint32		msg_ctx = 0;
 
 	do
 	{
-		if (gss_display_status(&lmin_s, stat, type, GSS_C_NO_OID,
-							   &msg_ctx, &lmsg) != GSS_S_COMPLETE)
+		if (gss_display_status(&lmin_s, stat, type, GSS_C_NO_OID, &msg_ctx,
+							   &lmsg) != GSS_S_COMPLETE)
 			break;
 		appendPQExpBufferChar(str, ' ');
 		appendBinaryPQExpBuffer(str, lmsg.value, lmsg.length);
@@ -44,8 +44,8 @@ pg_GSS_error_int(PQExpBuffer str, OM_uint32 stat, int type)
  * GSSAPI errors contain two parts; put both into conn->errorMessage.
  */
 void
-pg_GSS_error(const char *mprefix, PGconn *conn,
-			 OM_uint32 maj_stat, OM_uint32 min_stat)
+pg_GSS_error(const char *mprefix, PGconn *conn, OM_uint32 maj_stat,
+			 OM_uint32 min_stat)
 {
 	appendPQExpBuffer(&conn->errorMessage, "%s:", mprefix);
 	pg_GSS_error_int(&conn->errorMessage, maj_stat, GSS_C_GSS_CODE);
@@ -60,8 +60,7 @@ pg_GSS_error(const char *mprefix, PGconn *conn,
 bool
 pg_GSS_have_cred_cache(gss_cred_id_t *cred_out)
 {
-	OM_uint32	major,
-				minor;
+	OM_uint32	  major, minor;
 	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
 
 	major = gss_acquire_cred(&minor, GSS_C_NO_NAME, 0, GSS_C_NO_OID_SET,
@@ -81,11 +80,10 @@ pg_GSS_have_cred_cache(gss_cred_id_t *cred_out)
 int
 pg_GSS_load_servicename(PGconn *conn)
 {
-	OM_uint32	maj_stat,
-				min_stat;
-	int			maxlen;
+	OM_uint32		maj_stat, min_stat;
+	int				maxlen;
 	gss_buffer_desc temp_gbuf;
-	char	   *host;
+	char		   *host;
 
 	if (conn->gtarg_nam != NULL)
 		/* Already taken care of - move along */
@@ -109,8 +107,7 @@ pg_GSS_load_servicename(PGconn *conn)
 		libpq_append_conn_error(conn, "out of memory");
 		return STATUS_ERROR;
 	}
-	snprintf(temp_gbuf.value, maxlen, "%s@%s",
-			 conn->krbsrvname, host);
+	snprintf(temp_gbuf.value, maxlen, "%s@%s", conn->krbsrvname, host);
 	temp_gbuf.length = strlen(temp_gbuf.value);
 
 	maj_stat = gss_import_name(&min_stat, &temp_gbuf,
@@ -119,9 +116,8 @@ pg_GSS_load_servicename(PGconn *conn)
 
 	if (maj_stat != GSS_S_COMPLETE)
 	{
-		pg_GSS_error(libpq_gettext("GSSAPI name import error"),
-					 conn,
-					 maj_stat, min_stat);
+		pg_GSS_error(libpq_gettext("GSSAPI name import error"), conn, maj_stat,
+					 min_stat);
 		return STATUS_ERROR;
 	}
 	return STATUS_OK;

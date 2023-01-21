@@ -18,13 +18,13 @@
 #include "libpq-int.h"
 #include "port/pg_bswap.h"
 
-
 /*
  * Require encryption support, as well as mutual authentication and
  * tamperproofing measures.
  */
-#define GSS_REQUIRED_FLAGS GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG | \
-	GSS_C_SEQUENCE_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG
+#define GSS_REQUIRED_FLAGS \
+	GSS_C_MUTUAL_FLAG | GSS_C_REPLAY_FLAG | GSS_C_SEQUENCE_FLAG | \
+		GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG
 
 /*
  * Handle the encryption/decryption of data using GSSAPI.
@@ -69,9 +69,9 @@
 #define PqGSSResultNext (conn->gss_ResultNext)
 #define PqGSSMaxPktSize (conn->gss_MaxPktSize)
 
-
 /*
- * Attempt to write len bytes of data from ptr to a GSSAPI-encrypted connection.
+ * Attempt to write len bytes of data from ptr to a GSSAPI-encrypted
+ * connection.
  *
  * The connection must be already set up for GSSAPI encryption (i.e., GSSAPI
  * transport negotiation is complete).
@@ -85,15 +85,13 @@
 ssize_t
 pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 {
-	OM_uint32	major,
-				minor;
-	gss_buffer_desc input,
-				output = GSS_C_EMPTY_BUFFER;
-	ssize_t		ret = -1;
-	size_t		bytes_sent = 0;
-	size_t		bytes_to_encrypt;
-	size_t		bytes_encrypted;
-	gss_ctx_id_t gctx = conn->gctx;
+	OM_uint32		major, minor;
+	gss_buffer_desc input, output = GSS_C_EMPTY_BUFFER;
+	ssize_t			ret = -1;
+	size_t			bytes_sent = 0;
+	size_t			bytes_to_encrypt;
+	size_t			bytes_encrypted;
+	gss_ctx_id_t	gctx = conn->gctx;
 
 	/*
 	 * When we get a failure, we must not tell the caller we have successfully
@@ -107,7 +105,8 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 	if (len < PqGSSSendConsumed)
 	{
 		appendPQExpBufferStr(&conn->errorMessage,
-							 "GSSAPI caller failed to retransmit all data needing to be retried\n");
+							 "GSSAPI caller failed to retransmit all data "
+							 "needing to be retried\n");
 		errno = EINVAL;
 		return -1;
 	}
@@ -124,8 +123,8 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 	 */
 	while (bytes_to_encrypt || PqGSSSendLength)
 	{
-		int			conf_state = 0;
-		uint32		netlen;
+		int	   conf_state = 0;
+		uint32 netlen;
 
 		/*
 		 * Check if we have data in the encrypted output buffer that needs to
@@ -135,10 +134,11 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 		 */
 		if (PqGSSSendLength)
 		{
-			ssize_t		retval;
-			ssize_t		amount = PqGSSSendLength - PqGSSSendNext;
+			ssize_t retval;
+			ssize_t amount = PqGSSSendLength - PqGSSSendNext;
 
-			retval = pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext, amount);
+			retval = pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext,
+										amount);
 			if (retval <= 0)
 			{
 				/*
@@ -194,28 +194,32 @@ pg_GSS_write(PGconn *conn, const void *ptr, size_t len)
 		 * Create the next encrypted packet.  Any failure here is considered a
 		 * hard failure, so we return -1 even if bytes_sent > 0.
 		 */
-		major = gss_wrap(&minor, gctx, 1, GSS_C_QOP_DEFAULT,
-						 &input, &conf_state, &output);
+		major = gss_wrap(&minor, gctx, 1, GSS_C_QOP_DEFAULT, &input,
+						 &conf_state, &output);
 		if (major != GSS_S_COMPLETE)
 		{
-			pg_GSS_error(libpq_gettext("GSSAPI wrap error"), conn, major, minor);
-			errno = EIO;		/* for lack of a better idea */
+			pg_GSS_error(libpq_gettext("GSSAPI wrap error"), conn, major,
+						 minor);
+			errno = EIO; /* for lack of a better idea */
 			goto cleanup;
 		}
 
 		if (conf_state == 0)
 		{
-			libpq_append_conn_error(conn, "outgoing GSSAPI message would not use confidentiality");
-			errno = EIO;		/* for lack of a better idea */
+			libpq_append_conn_error(
+				conn, "outgoing GSSAPI message would not use confidentiality");
+			errno = EIO; /* for lack of a better idea */
 			goto cleanup;
 		}
 
 		if (output.length > PQ_GSS_SEND_BUFFER_SIZE - sizeof(uint32))
 		{
-			libpq_append_conn_error(conn, "client tried to send oversize GSSAPI packet (%zu > %zu)",
-									(size_t) output.length,
-									PQ_GSS_SEND_BUFFER_SIZE - sizeof(uint32));
-			errno = EIO;		/* for lack of a better idea */
+			libpq_append_conn_error(
+				conn,
+				"client tried to send oversize GSSAPI packet (%zu > %zu)",
+				(size_t) output.length,
+				PQ_GSS_SEND_BUFFER_SIZE - sizeof(uint32));
+			errno = EIO; /* for lack of a better idea */
 			goto cleanup;
 		}
 
@@ -262,13 +266,11 @@ cleanup:
 ssize_t
 pg_GSS_read(PGconn *conn, void *ptr, size_t len)
 {
-	OM_uint32	major,
-				minor;
-	gss_buffer_desc input = GSS_C_EMPTY_BUFFER,
-				output = GSS_C_EMPTY_BUFFER;
-	ssize_t		ret;
-	size_t		bytes_returned = 0;
-	gss_ctx_id_t gctx = conn->gctx;
+	OM_uint32		major, minor;
+	gss_buffer_desc input = GSS_C_EMPTY_BUFFER, output = GSS_C_EMPTY_BUFFER;
+	ssize_t			ret;
+	size_t			bytes_returned = 0;
+	gss_ctx_id_t	gctx = conn->gctx;
 
 	/*
 	 * The plan here is to read one incoming encrypted packet into
@@ -278,19 +280,21 @@ pg_GSS_read(PGconn *conn, void *ptr, size_t len)
 	 */
 	while (bytes_returned < len)
 	{
-		int			conf_state = 0;
+		int conf_state = 0;
 
-		/* Check if we have data in our buffer that we can return immediately */
+		/* Check if we have data in our buffer that we can return immediately
+		 */
 		if (PqGSSResultNext < PqGSSResultLength)
 		{
-			size_t		bytes_in_buffer = PqGSSResultLength - PqGSSResultNext;
-			size_t		bytes_to_copy = Min(bytes_in_buffer, len - bytes_returned);
+			size_t bytes_in_buffer = PqGSSResultLength - PqGSSResultNext;
+			size_t bytes_to_copy = Min(bytes_in_buffer, len - bytes_returned);
 
 			/*
 			 * Copy the data from our result buffer into the caller's buffer,
 			 * at the point where we last left off filling their buffer.
 			 */
-			memcpy((char *) ptr + bytes_returned, PqGSSResultBuffer + PqGSSResultNext, bytes_to_copy);
+			memcpy((char *) ptr + bytes_returned,
+				   PqGSSResultBuffer + PqGSSResultNext, bytes_to_copy);
 			PqGSSResultNext += bytes_to_copy;
 			bytes_returned += bytes_to_copy;
 
@@ -348,10 +352,11 @@ pg_GSS_read(PGconn *conn, void *ptr, size_t len)
 
 		if (input.length > PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32))
 		{
-			libpq_append_conn_error(conn, "oversize GSSAPI packet sent by the server (%zu > %zu)",
-									(size_t) input.length,
-									PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32));
-			errno = EIO;		/* for lack of a better idea */
+			libpq_append_conn_error(
+				conn, "oversize GSSAPI packet sent by the server (%zu > %zu)",
+				(size_t) input.length,
+				PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32));
+			errno = EIO; /* for lack of a better idea */
 			return -1;
 		}
 
@@ -360,7 +365,8 @@ pg_GSS_read(PGconn *conn, void *ptr, size_t len)
 		 * wherever we left off from the last time we were called.
 		 */
 		ret = pqsecure_raw_read(conn, PqGSSRecvBuffer + PqGSSRecvLength,
-								input.length - (PqGSSRecvLength - sizeof(uint32)));
+								input.length -
+									(PqGSSRecvLength - sizeof(uint32)));
 		/* If ret <= 0, pqsecure_raw_read already set the correct errno */
 		if (ret <= 0)
 			return ret;
@@ -387,18 +393,19 @@ pg_GSS_read(PGconn *conn, void *ptr, size_t len)
 		major = gss_unwrap(&minor, gctx, &input, &output, &conf_state, NULL);
 		if (major != GSS_S_COMPLETE)
 		{
-			pg_GSS_error(libpq_gettext("GSSAPI unwrap error"), conn,
-						 major, minor);
+			pg_GSS_error(libpq_gettext("GSSAPI unwrap error"), conn, major,
+						 minor);
 			ret = -1;
-			errno = EIO;		/* for lack of a better idea */
+			errno = EIO; /* for lack of a better idea */
 			goto cleanup;
 		}
 
 		if (conf_state == 0)
 		{
-			libpq_append_conn_error(conn, "incoming GSSAPI message did not use confidentiality");
+			libpq_append_conn_error(
+				conn, "incoming GSSAPI message did not use confidentiality");
 			ret = -1;
-			errno = EIO;		/* for lack of a better idea */
+			errno = EIO; /* for lack of a better idea */
 			goto cleanup;
 		}
 
@@ -425,8 +432,8 @@ cleanup:
  * Simple wrapper for reading from pqsecure_raw_read.
  *
  * This takes the same arguments as pqsecure_raw_read, plus an output parameter
- * to return the number of bytes read.  This handles if blocking would occur and
- * if we detect EOF on the connection.
+ * to return the number of bytes read.  This handles if blocking would occur
+ * and if we detect EOF on the connection.
  */
 static PostgresPollingStatusType
 gss_read(PGconn *conn, void *recv_buffer, size_t length, ssize_t *ret)
@@ -443,7 +450,7 @@ gss_read(PGconn *conn, void *recv_buffer, size_t length, ssize_t *ret)
 	/* Check for EOF */
 	if (*ret == 0)
 	{
-		int			result = pqReadReady(conn);
+		int result = pqReadReady(conn);
 
 		if (result < 0)
 			return PGRES_POLLING_FAILED;
@@ -475,13 +482,11 @@ gss_read(PGconn *conn, void *recv_buffer, size_t length, ssize_t *ret)
 PostgresPollingStatusType
 pqsecure_open_gss(PGconn *conn)
 {
-	ssize_t		ret;
-	OM_uint32	major,
-				minor;
-	uint32		netlen;
+	ssize_t					  ret;
+	OM_uint32				  major, minor;
+	uint32					  netlen;
 	PostgresPollingStatusType result;
-	gss_buffer_desc input = GSS_C_EMPTY_BUFFER,
-				output = GSS_C_EMPTY_BUFFER;
+	gss_buffer_desc input = GSS_C_EMPTY_BUFFER, output = GSS_C_EMPTY_BUFFER;
 
 	/*
 	 * If first time through for this connection, allocate buffers and
@@ -508,9 +513,10 @@ pqsecure_open_gss(PGconn *conn)
 	 */
 	if (PqGSSSendLength)
 	{
-		ssize_t		amount = PqGSSSendLength - PqGSSSendNext;
+		ssize_t amount = PqGSSSendLength - PqGSSSendNext;
 
-		ret = pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext, amount);
+		ret =
+			pqsecure_raw_write(conn, PqGSSSendBuffer + PqGSSSendNext, amount);
 		if (ret < 0)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
@@ -541,7 +547,8 @@ pqsecure_open_gss(PGconn *conn)
 		if (PqGSSRecvLength < sizeof(uint32))
 		{
 			/* Attempt to get the length first */
-			result = gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength, sizeof(uint32) - PqGSSRecvLength, &ret);
+			result = gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength,
+							  sizeof(uint32) - PqGSSRecvLength, &ret);
 			if (result != PGRES_POLLING_OK)
 				return result;
 
@@ -567,13 +574,16 @@ pqsecure_open_gss(PGconn *conn)
 			 * so leave a spot at the end for a NULL byte too) and report that
 			 * back to the caller.
 			 */
-			result = gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength, PQ_GSS_RECV_BUFFER_SIZE - PqGSSRecvLength - 1, &ret);
+			result =
+				gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength,
+						 PQ_GSS_RECV_BUFFER_SIZE - PqGSSRecvLength - 1, &ret);
 			if (result != PGRES_POLLING_OK)
 				return result;
 
 			PqGSSRecvLength += ret;
 
-			appendPQExpBuffer(&conn->errorMessage, "%s\n", PqGSSRecvBuffer + 1);
+			appendPQExpBuffer(&conn->errorMessage, "%s\n",
+							  PqGSSRecvBuffer + 1);
 
 			return PGRES_POLLING_FAILED;
 		}
@@ -587,9 +597,10 @@ pqsecure_open_gss(PGconn *conn)
 		input.length = pg_ntoh32(*(uint32 *) PqGSSRecvBuffer);
 		if (input.length > PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32))
 		{
-			libpq_append_conn_error(conn, "oversize GSSAPI packet sent by the server (%zu > %zu)",
-									(size_t) input.length,
-									PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32));
+			libpq_append_conn_error(
+				conn, "oversize GSSAPI packet sent by the server (%zu > %zu)",
+				(size_t) input.length,
+				PQ_GSS_RECV_BUFFER_SIZE - sizeof(uint32));
 			return PGRES_POLLING_FAILED;
 		}
 
@@ -597,8 +608,9 @@ pqsecure_open_gss(PGconn *conn)
 		 * Read as much of the packet as we are able to on this call into
 		 * wherever we left off from the last time we were called.
 		 */
-		result = gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength,
-						  input.length - (PqGSSRecvLength - sizeof(uint32)), &ret);
+		result =
+			gss_read(conn, PqGSSRecvBuffer + PqGSSRecvLength,
+					 input.length - (PqGSSRecvLength - sizeof(uint32)), &ret);
 		if (result != PGRES_POLLING_OK)
 			return result;
 
@@ -623,18 +635,18 @@ pqsecure_open_gss(PGconn *conn)
 	 * Call GSS init context, either with an empty input, or with a complete
 	 * packet from the server.
 	 */
-	major = gss_init_sec_context(&minor, conn->gcred, &conn->gctx,
-								 conn->gtarg_nam, GSS_C_NO_OID,
-								 GSS_REQUIRED_FLAGS, 0, 0, &input, NULL,
-								 &output, NULL, NULL);
+	major = gss_init_sec_context(
+		&minor, conn->gcred, &conn->gctx, conn->gtarg_nam, GSS_C_NO_OID,
+		GSS_REQUIRED_FLAGS, 0, 0, &input, NULL, &output, NULL, NULL);
 
 	/* GSS Init Sec Context uses the whole packet, so clear it */
 	PqGSSRecvLength = 0;
 
 	if (GSS_ERROR(major))
 	{
-		pg_GSS_error(libpq_gettext("could not initiate GSSAPI security context"),
-					 conn, major, minor);
+		pg_GSS_error(
+			libpq_gettext("could not initiate GSSAPI security context"), conn,
+			major, minor);
 		return PGRES_POLLING_FAILED;
 	}
 
@@ -661,8 +673,8 @@ pqsecure_open_gss(PGconn *conn)
 
 		if (GSS_ERROR(major))
 		{
-			pg_GSS_error(libpq_gettext("GSSAPI size check error"), conn,
-						 major, minor);
+			pg_GSS_error(libpq_gettext("GSSAPI size check error"), conn, major,
+						 minor);
 			return PGRES_POLLING_FAILED;
 		}
 
@@ -672,8 +684,8 @@ pqsecure_open_gss(PGconn *conn)
 	/* Must have output.length > 0 */
 	if (output.length > PQ_GSS_SEND_BUFFER_SIZE - sizeof(uint32))
 	{
-		pg_GSS_error(libpq_gettext("GSSAPI context establishment error"),
-					 conn, major, minor);
+		pg_GSS_error(libpq_gettext("GSSAPI context establishment error"), conn,
+					 major, minor);
 		gss_release_buffer(&minor, &output);
 		return PGRES_POLLING_FAILED;
 	}

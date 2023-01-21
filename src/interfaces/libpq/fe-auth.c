@@ -27,13 +27,13 @@
 #else
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/param.h>			/* for MAXHOSTNAMELEN on most */
+#include <sys/param.h> /* for MAXHOSTNAMELEN on most */
 #include <sys/socket.h>
 #ifdef HAVE_SYS_UCRED_H
 #include <sys/ucred.h>
 #endif
-#ifndef  MAXHOSTNAMELEN
-#include <netdb.h>				/* for MAXHOSTNAMELEN on some */
+#ifndef MAXHOSTNAMELEN
+#include <netdb.h> /* for MAXHOSTNAMELEN on some */
 #endif
 #endif
 
@@ -56,9 +56,7 @@
 static int
 pg_GSS_continue(PGconn *conn, int payloadlen)
 {
-	OM_uint32	maj_stat,
-				min_stat,
-				lmin_s;
+	OM_uint32		maj_stat, min_stat, lmin_s;
 	gss_buffer_desc ginbuf;
 	gss_buffer_desc goutbuf;
 
@@ -72,8 +70,9 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 		ginbuf.value = malloc(payloadlen);
 		if (!ginbuf.value)
 		{
-			libpq_append_conn_error(conn, "out of memory allocating GSSAPI buffer (%d)",
-									payloadlen);
+			libpq_append_conn_error(
+				conn, "out of memory allocating GSSAPI buffer (%d)",
+				payloadlen);
 			return STATUS_ERROR;
 		}
 		if (pqGetnchar(ginbuf.value, payloadlen, conn))
@@ -92,19 +91,11 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 		ginbuf.value = NULL;
 	}
 
-	maj_stat = gss_init_sec_context(&min_stat,
-									GSS_C_NO_CREDENTIAL,
-									&conn->gctx,
-									conn->gtarg_nam,
-									GSS_C_NO_OID,
-									GSS_C_MUTUAL_FLAG,
-									0,
-									GSS_C_NO_CHANNEL_BINDINGS,
-									(ginbuf.value == NULL) ? GSS_C_NO_BUFFER : &ginbuf,
-									NULL,
-									&goutbuf,
-									NULL,
-									NULL);
+	maj_stat = gss_init_sec_context(
+		&min_stat, GSS_C_NO_CREDENTIAL, &conn->gctx, conn->gtarg_nam,
+		GSS_C_NO_OID, GSS_C_MUTUAL_FLAG, 0, GSS_C_NO_CHANNEL_BINDINGS,
+		(ginbuf.value == NULL) ? GSS_C_NO_BUFFER : &ginbuf, NULL, &goutbuf,
+		NULL, NULL);
 
 	free(ginbuf.value);
 
@@ -115,8 +106,8 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 		 * first or subsequent packet, just send the same kind of password
 		 * packet.
 		 */
-		if (pqPacketSend(conn, 'p',
-						 goutbuf.value, goutbuf.length) != STATUS_OK)
+		if (pqPacketSend(conn, 'p', goutbuf.value, goutbuf.length) !=
+			STATUS_OK)
 		{
 			gss_release_buffer(&lmin_s, &goutbuf);
 			return STATUS_ERROR;
@@ -126,8 +117,7 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 
 	if (maj_stat != GSS_S_COMPLETE && maj_stat != GSS_S_CONTINUE_NEEDED)
 	{
-		pg_GSS_error(libpq_gettext("GSSAPI continuation error"),
-					 conn,
+		pg_GSS_error(libpq_gettext("GSSAPI continuation error"), conn,
 					 maj_stat, min_stat);
 		gss_release_name(&lmin_s, &conn->gtarg_nam);
 		if (conn->gctx)
@@ -147,8 +137,8 @@ pg_GSS_continue(PGconn *conn, int payloadlen)
 static int
 pg_GSS_startup(PGconn *conn, int payloadlen)
 {
-	int			ret;
-	char	   *host = conn->connhost[conn->whichhost].host;
+	int	  ret;
+	char *host = conn->connhost[conn->whichhost].host;
 
 	if (!(host && host[0] != '\0'))
 	{
@@ -174,8 +164,7 @@ pg_GSS_startup(PGconn *conn, int payloadlen)
 
 	return pg_GSS_continue(conn, payloadlen);
 }
-#endif							/* ENABLE_GSS */
-
+#endif /* ENABLE_GSS */
 
 #ifdef ENABLE_SSPI
 /*
@@ -185,17 +174,16 @@ pg_GSS_startup(PGconn *conn, int payloadlen)
 static void
 pg_SSPI_error(PGconn *conn, const char *mprefix, SECURITY_STATUS r)
 {
-	char		sysmsg[256];
+	char sysmsg[256];
 
 	if (FormatMessage(FORMAT_MESSAGE_IGNORE_INSERTS |
-					  FORMAT_MESSAGE_FROM_SYSTEM,
-					  NULL, r, 0,
-					  sysmsg, sizeof(sysmsg), NULL) == 0)
-		appendPQExpBuffer(&conn->errorMessage, "%s: SSPI error %x\n",
-						  mprefix, (unsigned int) r);
+						  FORMAT_MESSAGE_FROM_SYSTEM,
+					  NULL, r, 0, sysmsg, sizeof(sysmsg), NULL) == 0)
+		appendPQExpBuffer(&conn->errorMessage, "%s: SSPI error %x\n", mprefix,
+						  (unsigned int) r);
 	else
-		appendPQExpBuffer(&conn->errorMessage, "%s: %s (%x)\n",
-						  mprefix, sysmsg, (unsigned int) r);
+		appendPQExpBuffer(&conn->errorMessage, "%s: %s (%x)\n", mprefix,
+						  sysmsg, (unsigned int) r);
 }
 
 /*
@@ -205,13 +193,13 @@ static int
 pg_SSPI_continue(PGconn *conn, int payloadlen)
 {
 	SECURITY_STATUS r;
-	CtxtHandle	newContext;
-	ULONG		contextAttr;
-	SecBufferDesc inbuf;
-	SecBufferDesc outbuf;
-	SecBuffer	OutBuffers[1];
-	SecBuffer	InBuffers[1];
-	char	   *inputbuf = NULL;
+	CtxtHandle		newContext;
+	ULONG			contextAttr;
+	SecBufferDesc	inbuf;
+	SecBufferDesc	outbuf;
+	SecBuffer		OutBuffers[1];
+	SecBuffer		InBuffers[1];
+	char		   *inputbuf = NULL;
 
 	if (conn->sspictx != NULL)
 	{
@@ -222,8 +210,8 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 		inputbuf = malloc(payloadlen);
 		if (!inputbuf)
 		{
-			libpq_append_conn_error(conn, "out of memory allocating SSPI buffer (%d)",
-									payloadlen);
+			libpq_append_conn_error(
+				conn, "out of memory allocating SSPI buffer (%d)", payloadlen);
 			return STATUS_ERROR;
 		}
 		if (pqGetnchar(inputbuf, payloadlen, conn))
@@ -251,18 +239,11 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 	outbuf.pBuffers = OutBuffers;
 	outbuf.ulVersion = SECBUFFER_VERSION;
 
-	r = InitializeSecurityContext(conn->sspicred,
-								  conn->sspictx,
-								  conn->sspitarget,
-								  ISC_REQ_ALLOCATE_MEMORY,
-								  0,
+	r = InitializeSecurityContext(conn->sspicred, conn->sspictx,
+								  conn->sspitarget, ISC_REQ_ALLOCATE_MEMORY, 0,
 								  SECURITY_NETWORK_DREP,
-								  (conn->sspictx == NULL) ? NULL : &inbuf,
-								  0,
-								  &newContext,
-								  &outbuf,
-								  &contextAttr,
-								  NULL);
+								  (conn->sspictx == NULL) ? NULL : &inbuf, 0,
+								  &newContext, &outbuf, &contextAttr, NULL);
 
 	/* we don't need the input anymore */
 	free(inputbuf);
@@ -299,8 +280,9 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 			 * authentication. Keep check in case it shows up with other
 			 * authentication methods later.
 			 */
-			appendPQExpBufferStr(&conn->errorMessage,
-								 "SSPI returned invalid number of output buffers\n");
+			appendPQExpBufferStr(
+				&conn->errorMessage,
+				"SSPI returned invalid number of output buffers\n");
 			return STATUS_ERROR;
 		}
 
@@ -311,8 +293,8 @@ pg_SSPI_continue(PGconn *conn, int payloadlen)
 		 */
 		if (outbuf.pBuffers[0].cbBuffer > 0)
 		{
-			if (pqPacketSend(conn, 'p',
-							 outbuf.pBuffers[0].pvBuffer, outbuf.pBuffers[0].cbBuffer))
+			if (pqPacketSend(conn, 'p', outbuf.pBuffers[0].pvBuffer,
+							 outbuf.pBuffers[0].cbBuffer))
 			{
 				FreeContextBuffer(outbuf.pBuffers[0].pvBuffer);
 				return STATUS_ERROR;
@@ -335,8 +317,8 @@ static int
 pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 {
 	SECURITY_STATUS r;
-	TimeStamp	expire;
-	char	   *host = conn->connhost[conn->whichhost].host;
+	TimeStamp		expire;
+	char		   *host = conn->connhost[conn->whichhost].host;
 
 	if (conn->sspictx)
 	{
@@ -354,18 +336,13 @@ pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 		return STATUS_ERROR;
 	}
 
-	r = AcquireCredentialsHandle(NULL,
-								 use_negotiate ? "negotiate" : "kerberos",
-								 SECPKG_CRED_OUTBOUND,
-								 NULL,
-								 NULL,
-								 NULL,
-								 NULL,
-								 conn->sspicred,
-								 &expire);
+	r = AcquireCredentialsHandle(
+		NULL, use_negotiate ? "negotiate" : "kerberos", SECPKG_CRED_OUTBOUND,
+		NULL, NULL, NULL, NULL, conn->sspicred, &expire);
 	if (r != SEC_E_OK)
 	{
-		pg_SSPI_error(conn, libpq_gettext("could not acquire SSPI credentials"), r);
+		pg_SSPI_error(conn,
+					  libpq_gettext("could not acquire SSPI credentials"), r);
 		free(conn->sspicred);
 		conn->sspicred = NULL;
 		return STATUS_ERROR;
@@ -397,7 +374,7 @@ pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 
 	return pg_SSPI_continue(conn, payloadlen);
 }
-#endif							/* ENABLE_SSPI */
+#endif /* ENABLE_SSPI */
 
 /*
  * Initialize SASL authentication exchange.
@@ -405,20 +382,21 @@ pg_SSPI_startup(PGconn *conn, int use_negotiate, int payloadlen)
 static int
 pg_SASL_init(PGconn *conn, int payloadlen)
 {
-	char	   *initialresponse = NULL;
-	int			initialresponselen;
-	bool		done;
-	bool		success;
-	const char *selected_mechanism;
+	char		   *initialresponse = NULL;
+	int				initialresponselen;
+	bool			done;
+	bool			success;
+	const char	   *selected_mechanism;
 	PQExpBufferData mechanism_buf;
-	char	   *password;
+	char		   *password;
 
 	initPQExpBuffer(&mechanism_buf);
 
-	if (conn->channel_binding[0] == 'r' &&	/* require */
+	if (conn->channel_binding[0] == 'r' && /* require */
 		!conn->ssl_in_use)
 	{
-		libpq_append_conn_error(conn, "channel binding required, but SSL not in use");
+		libpq_append_conn_error(
+			conn, "channel binding required, but SSL not in use");
 		goto error;
 	}
 
@@ -439,8 +417,10 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 	{
 		if (pqGets(&mechanism_buf, conn))
 		{
-			appendPQExpBufferStr(&conn->errorMessage,
-								 "fe_sendauth: invalid authentication request from server: invalid list of authentication mechanisms\n");
+			appendPQExpBufferStr(
+				&conn->errorMessage,
+				"fe_sendauth: invalid authentication request from server: "
+				"invalid list of authentication mechanisms\n");
 			goto error;
 		}
 		if (PQExpBufferDataBroken(mechanism_buf))
@@ -468,7 +448,7 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 				 * The client supports channel binding, which is chosen if
 				 * channel_binding is not disabled.
 				 */
-				if (conn->channel_binding[0] != 'd')	/* disable */
+				if (conn->channel_binding[0] != 'd') /* disable */
 				{
 					selected_mechanism = SCRAM_SHA_256_PLUS_NAME;
 					conn->sasl = &pg_scram_mech;
@@ -480,9 +460,11 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 				 * which would be confusing as the server is publishing
 				 * SCRAM-SHA-256-PLUS.
 				 */
-				if (conn->channel_binding[0] == 'r')	/* require */
+				if (conn->channel_binding[0] == 'r') /* require */
 				{
-					libpq_append_conn_error(conn, "channel binding is required, but client does not support it");
+					libpq_append_conn_error(conn,
+											"channel binding is required, but "
+											"client does not support it");
 					goto error;
 				}
 #endif
@@ -498,7 +480,9 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 				 * the client and server supported it. The SCRAM exchange
 				 * checks for that, to prevent downgrade attacks.
 				 */
-				libpq_append_conn_error(conn, "server offered SCRAM-SHA-256-PLUS authentication over a non-SSL connection");
+				libpq_append_conn_error(
+					conn, "server offered SCRAM-SHA-256-PLUS authentication "
+						  "over a non-SSL connection");
 				goto error;
 			}
 		}
@@ -512,14 +496,18 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 
 	if (!selected_mechanism)
 	{
-		libpq_append_conn_error(conn, "none of the server's SASL authentication mechanisms are supported");
+		libpq_append_conn_error(conn,
+								"none of the server's SASL authentication "
+								"mechanisms are supported");
 		goto error;
 	}
 
-	if (conn->channel_binding[0] == 'r' &&	/* require */
+	if (conn->channel_binding[0] == 'r' && /* require */
 		strcmp(selected_mechanism, SCRAM_SHA_256_PLUS_NAME) != 0)
 	{
-		libpq_append_conn_error(conn, "channel binding is required, but server did not offer an authentication method that supports channel binding");
+		libpq_append_conn_error(
+			conn, "channel binding is required, but server did not offer an "
+				  "authentication method that supports channel binding");
 		goto error;
 	}
 
@@ -539,8 +527,7 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 		password = conn->pgpass;
 	if (password == NULL || password[0] == '\0')
 	{
-		appendPQExpBufferStr(&conn->errorMessage,
-							 PQnoPasswordSupplied);
+		appendPQExpBufferStr(&conn->errorMessage, PQnoPasswordSupplied);
 		goto error;
 	}
 
@@ -552,17 +539,13 @@ pg_SASL_init(PGconn *conn, int payloadlen)
 	 *
 	 * Note: Only tls-unique is supported for the moment.
 	 */
-	conn->sasl_state = conn->sasl->init(conn,
-										password,
-										selected_mechanism);
+	conn->sasl_state = conn->sasl->init(conn, password, selected_mechanism);
 	if (!conn->sasl_state)
 		goto oom_error;
 
 	/* Get the mechanism-specific Initial Client Response, if any */
-	conn->sasl->exchange(conn->sasl_state,
-						 NULL, -1,
-						 &initialresponse, &initialresponselen,
-						 &done, &success);
+	conn->sasl->exchange(conn->sasl_state, NULL, -1, &initialresponse,
+						 &initialresponselen, &done, &success);
 
 	if (done && !success)
 		goto error;
@@ -611,19 +594,19 @@ oom_error:
 static int
 pg_SASL_continue(PGconn *conn, int payloadlen, bool final)
 {
-	char	   *output;
-	int			outputlen;
-	bool		done;
-	bool		success;
-	int			res;
-	char	   *challenge;
+	char *output;
+	int	  outputlen;
+	bool  done;
+	bool  success;
+	int	  res;
+	char *challenge;
 
 	/* Read the SASL challenge from the AuthenticationSASLContinue message. */
 	challenge = malloc(payloadlen + 1);
 	if (!challenge)
 	{
-		libpq_append_conn_error(conn, "out of memory allocating SASL buffer (%d)",
-								payloadlen);
+		libpq_append_conn_error(
+			conn, "out of memory allocating SASL buffer (%d)", payloadlen);
 		return STATUS_ERROR;
 	}
 
@@ -635,18 +618,18 @@ pg_SASL_continue(PGconn *conn, int payloadlen, bool final)
 	/* For safety and convenience, ensure the buffer is NULL-terminated. */
 	challenge[payloadlen] = '\0';
 
-	conn->sasl->exchange(conn->sasl_state,
-						 challenge, payloadlen,
-						 &output, &outputlen,
-						 &done, &success);
-	free(challenge);			/* don't need the input anymore */
+	conn->sasl->exchange(conn->sasl_state, challenge, payloadlen, &output,
+						 &outputlen, &done, &success);
+	free(challenge); /* don't need the input anymore */
 
 	if (final && !done)
 	{
 		if (outputlen != 0)
 			free(output);
 
-		libpq_append_conn_error(conn, "AuthenticationSASLFinal received from server, but SASL authentication was not completed");
+		libpq_append_conn_error(
+			conn, "AuthenticationSASLFinal received from server, but SASL "
+				  "authentication was not completed");
 		return STATUS_ERROR;
 	}
 
@@ -656,7 +639,8 @@ pg_SASL_continue(PGconn *conn, int payloadlen, bool final)
 	 */
 	if (output == NULL && !done)
 	{
-		libpq_append_conn_error(conn, "no client response found after SASL exchange success");
+		libpq_append_conn_error(
+			conn, "no client response found after SASL exchange success");
 		return STATUS_ERROR;
 	}
 
@@ -695,15 +679,15 @@ static int
 pg_local_sendauth(PGconn *conn)
 {
 #ifdef HAVE_STRUCT_CMSGCRED
-	char		buf;
-	struct iovec iov;
-	struct msghdr msg;
+	char			buf;
+	struct iovec	iov;
+	struct msghdr	msg;
 	struct cmsghdr *cmsg;
 	union
 	{
 		struct cmsghdr hdr;
-		unsigned char buf[CMSG_SPACE(sizeof(struct cmsgcred))];
-	}			cmsgbuf;
+		unsigned char  buf[CMSG_SPACE(sizeof(struct cmsgcred))];
+	} cmsgbuf;
 
 	/*
 	 * The backend doesn't care what we send here, but it wants exactly one
@@ -728,7 +712,7 @@ pg_local_sendauth(PGconn *conn)
 
 	if (sendmsg(conn->sock, &msg, 0) == -1)
 	{
-		char		sebuf[PG_STRERROR_R_BUFLEN];
+		char sebuf[PG_STRERROR_R_BUFLEN];
 
 		appendPQExpBuffer(&conn->errorMessage,
 						  "pg_local_sendauth: sendmsg: %s\n",
@@ -737,7 +721,8 @@ pg_local_sendauth(PGconn *conn)
 	}
 	return STATUS_OK;
 #else
-	libpq_append_conn_error(conn, "SCM_CRED authentication method not supported");
+	libpq_append_conn_error(conn,
+							"SCM_CRED authentication method not supported");
 	return STATUS_ERROR;
 #endif
 }
@@ -754,7 +739,7 @@ pg_password_sendauth(PGconn *conn, const char *password, AuthRequest areq)
 	if (areq == AUTH_REQ_MD5)
 	{
 		if (pqGetnchar(md5Salt, 4, conn))
-			return STATUS_ERROR;	/* shouldn't happen */
+			return STATUS_ERROR; /* shouldn't happen */
 	}
 
 	/* Encrypt the password if needed. */
@@ -776,17 +761,18 @@ pg_password_sendauth(PGconn *conn, const char *password, AuthRequest areq)
 
 				crypt_pwd2 = crypt_pwd + MD5_PASSWD_LEN + 1;
 				if (!pg_md5_encrypt(password, conn->pguser,
-									strlen(conn->pguser), crypt_pwd2,
-									&errstr))
+									strlen(conn->pguser), crypt_pwd2, &errstr))
 				{
-					libpq_append_conn_error(conn, "could not encrypt password: %s", errstr);
+					libpq_append_conn_error(
+						conn, "could not encrypt password: %s", errstr);
 					free(crypt_pwd);
 					return STATUS_ERROR;
 				}
-				if (!pg_md5_encrypt(crypt_pwd2 + strlen("md5"), md5Salt,
-									4, crypt_pwd, &errstr))
+				if (!pg_md5_encrypt(crypt_pwd2 + strlen("md5"), md5Salt, 4,
+									crypt_pwd, &errstr))
 				{
-					libpq_append_conn_error(conn, "could not encrypt password: %s", errstr);
+					libpq_append_conn_error(
+						conn, "could not encrypt password: %s", errstr);
 					free(crypt_pwd);
 					return STATUS_ERROR;
 				}
@@ -813,7 +799,7 @@ pg_password_sendauth(PGconn *conn, const char *password, AuthRequest areq)
 static bool
 check_expected_areq(AuthRequest areq, PGconn *conn)
 {
-	bool		result = true;
+	bool result = true;
 
 	/*
 	 * When channel_binding=require, we must protect against two cases: (1) we
@@ -822,7 +808,7 @@ check_expected_areq(AuthRequest areq, PGconn *conn)
 	 * AUTH_REQ_OK, we still must ensure that channel binding has happened in
 	 * order to authenticate the server.
 	 */
-	if (conn->channel_binding[0] == 'r' /* require */ )
+	if (conn->channel_binding[0] == 'r' /* require */)
 	{
 		switch (areq)
 		{
@@ -831,14 +817,19 @@ check_expected_areq(AuthRequest areq, PGconn *conn)
 			case AUTH_REQ_SASL_FIN:
 				break;
 			case AUTH_REQ_OK:
-				if (!conn->sasl || !conn->sasl->channel_bound(conn->sasl_state))
+				if (!conn->sasl ||
+					!conn->sasl->channel_bound(conn->sasl_state))
 				{
-					libpq_append_conn_error(conn, "channel binding required, but server authenticated client without channel binding");
+					libpq_append_conn_error(
+						conn, "channel binding required, but server "
+							  "authenticated client without channel binding");
 					result = false;
 				}
 				break;
 			default:
-				libpq_append_conn_error(conn, "channel binding required but not supported by server's authentication request");
+				libpq_append_conn_error(
+					conn, "channel binding required but not supported by "
+						  "server's authentication request");
 				result = false;
 				break;
 		}
@@ -861,7 +852,7 @@ check_expected_areq(AuthRequest areq, PGconn *conn)
 int
 pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 {
-	int			oldmsglen;
+	int oldmsglen;
 
 	if (!check_expected_areq(areq, conn))
 		return STATUS_ERROR;
@@ -872,11 +863,13 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 			break;
 
 		case AUTH_REQ_KRB4:
-			libpq_append_conn_error(conn, "Kerberos 4 authentication not supported");
+			libpq_append_conn_error(conn,
+									"Kerberos 4 authentication not supported");
 			return STATUS_ERROR;
 
 		case AUTH_REQ_KRB5:
-			libpq_append_conn_error(conn, "Kerberos 5 authentication not supported");
+			libpq_append_conn_error(conn,
+									"Kerberos 5 authentication not supported");
 			return STATUS_ERROR;
 
 #if defined(ENABLE_GSS) || defined(ENABLE_SSPI)
@@ -886,7 +879,7 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 		case AUTH_REQ_SSPI:
 #endif
 			{
-				int			r;
+				int r;
 
 				pglock_thread();
 
@@ -899,7 +892,8 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 				 * protocol, we use AUTH_REQ_SSPI.
 				 */
 #if defined(ENABLE_GSS) && defined(ENABLE_SSPI)
-				if (conn->gsslib && (pg_strcasecmp(conn->gsslib, "gssapi") == 0))
+				if (conn->gsslib &&
+					(pg_strcasecmp(conn->gsslib, "gssapi") == 0))
 					r = pg_GSS_startup(conn, payloadlen);
 				else
 					r = pg_SSPI_startup(conn, 0, payloadlen);
@@ -920,7 +914,7 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 
 		case AUTH_REQ_GSS_CONT:
 			{
-				int			r;
+				int r;
 
 				pglock_thread();
 #if defined(ENABLE_GSS) && defined(ENABLE_SSPI)
@@ -942,13 +936,14 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 				pgunlock_thread();
 			}
 			break;
-#else							/* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
+#else  /* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
 			/* No GSSAPI *or* SSPI support */
 		case AUTH_REQ_GSS:
 		case AUTH_REQ_GSS_CONT:
-			libpq_append_conn_error(conn, "GSSAPI authentication not supported");
+			libpq_append_conn_error(conn,
+									"GSSAPI authentication not supported");
 			return STATUS_ERROR;
-#endif							/* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
+#endif /* defined(ENABLE_GSS) || defined(ENABLE_SSPI) */
 
 #ifdef ENABLE_SSPI
 		case AUTH_REQ_SSPI:
@@ -979,18 +974,18 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 		case AUTH_REQ_SSPI:
 			libpq_append_conn_error(conn, "SSPI authentication not supported");
 			return STATUS_ERROR;
-#endif							/* !define(ENABLE_GSS) */
-#endif							/* ENABLE_SSPI */
-
+#endif /* !define(ENABLE_GSS) */
+#endif /* ENABLE_SSPI */
 
 		case AUTH_REQ_CRYPT:
-			libpq_append_conn_error(conn, "Crypt authentication not supported");
+			libpq_append_conn_error(conn,
+									"Crypt authentication not supported");
 			return STATUS_ERROR;
 
 		case AUTH_REQ_MD5:
 		case AUTH_REQ_PASSWORD:
 			{
-				char	   *password;
+				char *password;
 
 				conn->password_needed = true;
 				password = conn->connhost[conn->whichhost].password;
@@ -1005,7 +1000,8 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 				if (pg_password_sendauth(conn, password, areq) != STATUS_OK)
 				{
 					appendPQExpBufferStr(&conn->errorMessage,
-										 "fe_sendauth: error sending password authentication\n");
+										 "fe_sendauth: error sending password "
+										 "authentication\n");
 					return STATUS_ERROR;
 				}
 				break;
@@ -1028,8 +1024,10 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 		case AUTH_REQ_SASL_FIN:
 			if (conn->sasl_state == NULL)
 			{
-				appendPQExpBufferStr(&conn->errorMessage,
-									 "fe_sendauth: invalid authentication request from server: AUTH_REQ_SASL_CONT without AUTH_REQ_SASL\n");
+				appendPQExpBufferStr(
+					&conn->errorMessage,
+					"fe_sendauth: invalid authentication request from server: "
+					"AUTH_REQ_SASL_CONT without AUTH_REQ_SASL\n");
 				return STATUS_ERROR;
 			}
 			oldmsglen = conn->errorMessage.len;
@@ -1038,8 +1036,9 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 			{
 				/* Use this message if pg_SASL_continue didn't supply one */
 				if (conn->errorMessage.len == oldmsglen)
-					appendPQExpBufferStr(&conn->errorMessage,
-										 "fe_sendauth: error in SASL authentication\n");
+					appendPQExpBufferStr(
+						&conn->errorMessage,
+						"fe_sendauth: error in SASL authentication\n");
 				return STATUS_ERROR;
 			}
 			break;
@@ -1050,13 +1049,13 @@ pg_fe_sendauth(AuthRequest areq, int payloadlen, PGconn *conn)
 			break;
 
 		default:
-			libpq_append_conn_error(conn, "authentication method %u not supported", areq);
+			libpq_append_conn_error(
+				conn, "authentication method %u not supported", areq);
 			return STATUS_ERROR;
 	}
 
 	return STATUS_OK;
 }
-
 
 /*
  * pg_fe_getusername
@@ -1076,10 +1075,10 @@ pg_fe_getusername(uid_t user_id, PQExpBuffer errorMessage)
 
 #ifdef WIN32
 	/* Microsoft recommends buffer size of UNLEN+1, where UNLEN = 256 */
-	char		username[256 + 1];
-	DWORD		namesize = sizeof(username);
+	char  username[256 + 1];
+	DWORD namesize = sizeof(username);
 #else
-	char		pwdbuf[BUFSIZ];
+	char pwdbuf[BUFSIZ];
 #endif
 
 	/*
@@ -1133,7 +1132,6 @@ pg_fe_getauthname(PQExpBuffer errorMessage)
 	return pg_fe_getusername(geteuid(), errorMessage);
 #endif
 }
-
 
 /*
  * PQencryptPassword -- exported routine to encrypt a password with MD5
@@ -1191,8 +1189,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 					  const char *algorithm)
 {
 #define MAX_ALGORITHM_NAME_LEN 50
-	char		algobuf[MAX_ALGORITHM_NAME_LEN + 1];
-	char	   *crypt_pwd = NULL;
+	char  algobuf[MAX_ALGORITHM_NAME_LEN + 1];
+	char *crypt_pwd = NULL;
 
 	if (!conn)
 		return NULL;
@@ -1202,8 +1200,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 	/* If no algorithm was given, ask the server. */
 	if (algorithm == NULL)
 	{
-		PGresult   *res;
-		char	   *val;
+		PGresult *res;
+		char	 *val;
 
 		res = PQexec(conn, "show password_encryption");
 		if (res == NULL)
@@ -1220,7 +1218,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 		if (PQntuples(res) != 1 || PQnfields(res) != 1)
 		{
 			PQclear(res);
-			libpq_append_conn_error(conn, "unexpected shape of result set returned for SHOW");
+			libpq_append_conn_error(
+				conn, "unexpected shape of result set returned for SHOW");
 			return NULL;
 		}
 		val = PQgetvalue(res, 0, 0);
@@ -1228,7 +1227,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 		if (strlen(val) > MAX_ALGORITHM_NAME_LEN)
 		{
 			PQclear(res);
-			libpq_append_conn_error(conn, "password_encryption value too long");
+			libpq_append_conn_error(conn,
+									"password_encryption value too long");
 			return NULL;
 		}
 		strcpy(algobuf, val);
@@ -1242,8 +1242,7 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 	 * password_encryption was a boolean before PostgreSQL 10.  We refuse to
 	 * send the password in plaintext even if it was "off".
 	 */
-	if (strcmp(algorithm, "on") == 0 ||
-		strcmp(algorithm, "off") == 0)
+	if (strcmp(algorithm, "on") == 0 || strcmp(algorithm, "off") == 0)
 		algorithm = "md5";
 
 	/*
@@ -1255,7 +1254,8 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 
 		crypt_pwd = pg_fe_scram_build_secret(passwd, &errstr);
 		if (!crypt_pwd)
-			libpq_append_conn_error(conn, "could not encrypt password: %s", errstr);
+			libpq_append_conn_error(conn, "could not encrypt password: %s",
+									errstr);
 	}
 	else if (strcmp(algorithm, "md5") == 0)
 	{
@@ -1264,9 +1264,11 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 		{
 			const char *errstr = NULL;
 
-			if (!pg_md5_encrypt(passwd, user, strlen(user), crypt_pwd, &errstr))
+			if (!pg_md5_encrypt(passwd, user, strlen(user), crypt_pwd,
+								&errstr))
 			{
-				libpq_append_conn_error(conn, "could not encrypt password: %s", errstr);
+				libpq_append_conn_error(conn, "could not encrypt password: %s",
+										errstr);
 				free(crypt_pwd);
 				crypt_pwd = NULL;
 			}
@@ -1276,8 +1278,9 @@ PQencryptPasswordConn(PGconn *conn, const char *passwd, const char *user,
 	}
 	else
 	{
-		libpq_append_conn_error(conn, "unrecognized password encryption algorithm \"%s\"",
-								algorithm);
+		libpq_append_conn_error(
+			conn, "unrecognized password encryption algorithm \"%s\"",
+			algorithm);
 		return NULL;
 	}
 

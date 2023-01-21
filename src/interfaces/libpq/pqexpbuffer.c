@@ -33,13 +33,11 @@
 #include "win32.h"
 #endif
 
-
 /* All "broken" PQExpBuffers point to this string. */
 static const char oom_buffer[1] = "";
 
 /* Need a char * for unconstify() compatibility */
 static const char *oom_buffer_ptr = oom_buffer;
-
 
 /*
  * markPQExpBufferBroken
@@ -171,11 +169,11 @@ resetPQExpBuffer(PQExpBuffer str)
 int
 enlargePQExpBuffer(PQExpBuffer str, size_t needed)
 {
-	size_t		newlen;
-	char	   *newdata;
+	size_t newlen;
+	char  *newdata;
 
 	if (PQExpBufferBroken(str))
-		return 0;				/* already failed */
+		return 0; /* already failed */
 
 	/*
 	 * Guard against ridiculous "needed" values, which can occur if we're fed
@@ -188,12 +186,12 @@ enlargePQExpBuffer(PQExpBuffer str, size_t needed)
 		return 0;
 	}
 
-	needed += str->len + 1;		/* total space required now */
+	needed += str->len + 1; /* total space required now */
 
 	/* Because of the above test, we now have needed <= INT_MAX */
 
 	if (needed <= str->maxlen)
-		return 1;				/* got enough space already */
+		return 1; /* got enough space already */
 
 	/*
 	 * We don't want to allocate just a little more space with each append;
@@ -232,16 +230,16 @@ enlargePQExpBuffer(PQExpBuffer str, size_t needed)
  * resetPQExpBuffer() followed by appendPQExpBuffer().
  */
 void
-printfPQExpBuffer(PQExpBuffer str, const char *fmt,...)
+printfPQExpBuffer(PQExpBuffer str, const char *fmt, ...)
 {
-	int			save_errno = errno;
-	va_list		args;
-	bool		done;
+	int		save_errno = errno;
+	va_list args;
+	bool	done;
 
 	resetPQExpBuffer(str);
 
 	if (PQExpBufferBroken(str))
-		return;					/* already failed */
+		return; /* already failed */
 
 	/* Loop in case we have to retry after enlarging the buffer. */
 	do
@@ -262,14 +260,14 @@ printfPQExpBuffer(PQExpBuffer str, const char *fmt,...)
  * strcat.
  */
 void
-appendPQExpBuffer(PQExpBuffer str, const char *fmt,...)
+appendPQExpBuffer(PQExpBuffer str, const char *fmt, ...)
 {
-	int			save_errno = errno;
-	va_list		args;
-	bool		done;
+	int		save_errno = errno;
+	va_list args;
+	bool	done;
 
 	if (PQExpBufferBroken(str))
-		return;					/* already failed */
+		return; /* already failed */
 
 	/* Loop in case we have to retry after enlarging the buffer. */
 	do
@@ -293,9 +291,9 @@ appendPQExpBuffer(PQExpBuffer str, const char *fmt,...)
 bool
 appendPQExpBufferVA(PQExpBuffer str, const char *fmt, va_list args)
 {
-	size_t		avail;
-	size_t		needed;
-	int			nprinted;
+	size_t avail;
+	size_t needed;
+	int	   nprinted;
 
 	/*
 	 * Try to format the given string into the available space; but if there's
@@ -353,7 +351,7 @@ appendPQExpBufferVA(PQExpBuffer str, const char *fmt, va_list args)
 
 	/* Increase the buffer size and try again. */
 	if (!enlargePQExpBuffer(str, needed))
-		return true;			/* oops, out of memory */
+		return true; /* oops, out of memory */
 
 	return false;
 }

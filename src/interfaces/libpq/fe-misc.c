@@ -51,11 +51,11 @@
 #include "pg_config_paths.h"
 #include "port/pg_bswap.h"
 
-static int	pqPutMsgBytes(const void *buf, size_t len, PGconn *conn);
-static int	pqSendSome(PGconn *conn, int len);
-static int	pqSocketCheck(PGconn *conn, int forRead, int forWrite,
-						  time_t end_time);
-static int	pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time);
+static int pqPutMsgBytes(const void *buf, size_t len, PGconn *conn);
+static int pqSendSome(PGconn *conn, int len);
+static int pqSocketCheck(PGconn *conn, int forRead, int forWrite,
+						 time_t end_time);
+static int pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time);
 
 /*
  * PQlibVersion: return the libpq version number
@@ -65,7 +65,6 @@ PQlibVersion(void)
 {
 	return PG_VERSION_NUM;
 }
-
 
 /*
  * pqGetc: get 1 character from the connection
@@ -85,7 +84,6 @@ pqGetc(char *result, PGconn *conn)
 	return 0;
 }
 
-
 /*
  * pqPutc: write 1 char to the current message
  */
@@ -98,7 +96,6 @@ pqPutc(char c, PGconn *conn)
 	return 0;
 }
 
-
 /*
  * pqGets[_append]:
  * get a null-terminated string from the connection,
@@ -110,10 +107,10 @@ static int
 pqGets_internal(PQExpBuffer buf, PGconn *conn, bool resetbuffer)
 {
 	/* Copy conn data to locals for faster search loop */
-	char	   *inBuffer = conn->inBuffer;
-	int			inCursor = conn->inCursor;
-	int			inEnd = conn->inEnd;
-	int			slen;
+	char *inBuffer = conn->inBuffer;
+	int	  inCursor = conn->inCursor;
+	int	  inEnd = conn->inEnd;
+	int	  slen;
 
 	while (inCursor < inEnd && inBuffer[inCursor])
 		inCursor++;
@@ -144,7 +141,6 @@ pqGets_append(PQExpBuffer buf, PGconn *conn)
 {
 	return pqGets_internal(buf, conn, false);
 }
-
 
 /*
  * pqPuts: write a null-terminated string to the current message
@@ -216,8 +212,8 @@ pqPutnchar(const char *s, size_t len, PGconn *conn)
 int
 pqGetInt(int *result, size_t bytes, PGconn *conn)
 {
-	uint16		tmp2;
-	uint32		tmp4;
+	uint16 tmp2;
+	uint32 tmp4;
 
 	switch (bytes)
 	{
@@ -253,8 +249,8 @@ pqGetInt(int *result, size_t bytes, PGconn *conn)
 int
 pqPutInt(int value, size_t bytes, PGconn *conn)
 {
-	uint16		tmp2;
-	uint32		tmp4;
+	uint16 tmp2;
+	uint32 tmp4;
 
 	switch (bytes)
 	{
@@ -287,8 +283,8 @@ pqPutInt(int value, size_t bytes, PGconn *conn)
 int
 pqCheckOutBufferSpace(size_t bytes_needed, PGconn *conn)
 {
-	int			newsize = conn->outBufSize;
-	char	   *newbuf;
+	int	  newsize = conn->outBufSize;
+	char *newbuf;
 
 	/* Quick exit if we have enough space */
 	if (bytes_needed <= (size_t) newsize)
@@ -351,8 +347,8 @@ pqCheckOutBufferSpace(size_t bytes_needed, PGconn *conn)
 int
 pqCheckInBufferSpace(size_t bytes_needed, PGconn *conn)
 {
-	int			newsize = conn->inBufSize;
-	char	   *newbuf;
+	int	  newsize = conn->inBufSize;
+	char *newbuf;
 
 	/* Quick exit if we have enough space */
 	if (bytes_needed <= (size_t) newsize)
@@ -458,8 +454,8 @@ pqCheckInBufferSpace(size_t bytes_needed, PGconn *conn)
 int
 pqPutMsgStart(char msg_type, PGconn *conn)
 {
-	int			lenPos;
-	int			endPos;
+	int lenPos;
+	int endPos;
 
 	/* allow room for message type byte */
 	if (msg_type)
@@ -520,7 +516,7 @@ pqPutMsgEnd(PGconn *conn)
 	/* Fill in length word if needed */
 	if (conn->outMsgStart >= 0)
 	{
-		uint32		msgLen = conn->outMsgEnd - conn->outMsgStart;
+		uint32 msgLen = conn->outMsgEnd - conn->outMsgStart;
 
 		msgLen = pg_hton32(msgLen);
 		memcpy(conn->outBuffer + conn->outMsgStart, &msgLen, 4);
@@ -532,8 +528,8 @@ pqPutMsgEnd(PGconn *conn)
 		if (conn->outCount < conn->outMsgStart)
 			pqTraceOutputMessage(conn, conn->outBuffer + conn->outCount, true);
 		else
-			pqTraceOutputNoTypeByteMessage(conn,
-										   conn->outBuffer + conn->outMsgStart);
+			pqTraceOutputNoTypeByteMessage(conn, conn->outBuffer +
+													 conn->outMsgStart);
 	}
 
 	/* Make message eligible to send */
@@ -541,7 +537,7 @@ pqPutMsgEnd(PGconn *conn)
 
 	if (conn->outCount >= 8192)
 	{
-		int			toSend = conn->outCount - (conn->outCount % 8192);
+		int toSend = conn->outCount - (conn->outCount % 8192);
 
 		if (pqSendSome(conn, toSend) < 0)
 			return EOF;
@@ -565,8 +561,8 @@ pqPutMsgEnd(PGconn *conn)
 int
 pqReadData(PGconn *conn)
 {
-	int			someread = 0;
-	int			nread;
+	int someread = 0;
+	int nread;
 
 	if (conn->sock == PGINVALID_SOCKET)
 	{
@@ -608,7 +604,7 @@ pqReadData(PGconn *conn)
 			 * We don't insist that the enlarge worked, but we need some room
 			 */
 			if (conn->inBufSize - conn->inEnd < 100)
-				return -1;		/* errorMessage already set */
+				return -1; /* errorMessage already set */
 		}
 	}
 
@@ -658,8 +654,7 @@ retry3:
 		 * amount of data already read in the current message.  We consider
 		 * the message "long" once we have acquired 32k ...
 		 */
-		if (conn->inEnd > 32768 &&
-			(conn->inBufSize - conn->inEnd) >= 8192)
+		if (conn->inEnd > 32768 && (conn->inBufSize - conn->inEnd) >= 8192)
 		{
 			someread = 1;
 			goto retry3;
@@ -668,23 +663,24 @@ retry3:
 	}
 
 	if (someread)
-		return 1;				/* got a zero read after successful tries */
+		return 1; /* got a zero read after successful tries */
 
-	/*
-	 * A return value of 0 could mean just that no data is now available, or
-	 * it could mean EOF --- that is, the server has closed the connection.
-	 * Since we have the socket in nonblock mode, the only way to tell the
-	 * difference is to see if select() is saying that the file is ready.
-	 * Grumble.  Fortunately, we don't expect this path to be taken much,
-	 * since in normal practice we should not be trying to read data unless
-	 * the file selected for reading already.
-	 *
-	 * In SSL mode it's even worse: SSL_read() could say WANT_READ and then
-	 * data could arrive before we make the pqReadReady() test, but the second
-	 * SSL_read() could still say WANT_READ because the data received was not
-	 * a complete SSL record.  So we must play dumb and assume there is more
-	 * data, relying on the SSL layer to detect true EOF.
-	 */
+		/*
+		 * A return value of 0 could mean just that no data is now available,
+		 * or it could mean EOF --- that is, the server has closed the
+		 * connection. Since we have the socket in nonblock mode, the only way
+		 * to tell the difference is to see if select() is saying that the file
+		 * is ready. Grumble.  Fortunately, we don't expect this path to be
+		 * taken much, since in normal practice we should not be trying to read
+		 * data unless the file selected for reading already.
+		 *
+		 * In SSL mode it's even worse: SSL_read() could say WANT_READ and then
+		 * data could arrive before we make the pqReadReady() test, but the
+		 * second SSL_read() could still say WANT_READ because the data
+		 * received was not a complete SSL record.  So we must play dumb and
+		 * assume there is more data, relying on the SSL layer to detect true
+		 * EOF.
+		 */
 
 #ifdef USE_SSL
 	if (conn->ssl_in_use)
@@ -748,15 +744,16 @@ retry4:
 	 * means the connection has been closed.  Cope.
 	 */
 definitelyEOF:
-	libpq_append_conn_error(conn, "server closed the connection unexpectedly\n"
-							"\tThis probably means the server terminated abnormally\n"
-							"\tbefore or while processing the request.");
+	libpq_append_conn_error(
+		conn, "server closed the connection unexpectedly\n"
+			  "\tThis probably means the server terminated abnormally\n"
+			  "\tbefore or while processing the request.");
 
 	/* Come here if lower-level code already set a suitable errorMessage */
 definitelyFailed:
 	/* Do *not* drop any already-read data; caller still wants it */
 	pqDropConnection(conn, false);
-	conn->status = CONNECTION_BAD;	/* No more connection to backend */
+	conn->status = CONNECTION_BAD; /* No more connection to backend */
 	return -1;
 }
 
@@ -784,9 +781,9 @@ definitelyFailed:
 static int
 pqSendSome(PGconn *conn, int len)
 {
-	char	   *ptr = conn->outBuffer;
-	int			remaining = conn->outCount;
-	int			result = 0;
+	char *ptr = conn->outBuffer;
+	int	  remaining = conn->outCount;
+	int	  result = 0;
 
 	/*
 	 * If we already had a write failure, we will never again try to send data
@@ -824,7 +821,7 @@ pqSendSome(PGconn *conn, int len)
 	/* while there's still data to send */
 	while (len > 0)
 	{
-		int			sent;
+		int sent;
 
 #ifndef WIN32
 		sent = pqsecure_write(conn, ptr, len);
@@ -916,7 +913,7 @@ pqSendSome(PGconn *conn, int len)
 			 */
 			if (pqReadData(conn) < 0)
 			{
-				result = -1;	/* error message already set up */
+				result = -1; /* error message already set up */
 				break;
 			}
 
@@ -942,7 +939,6 @@ pqSendSome(PGconn *conn, int len)
 	return result;
 }
 
-
 /*
  * pqFlush: send any data waiting in the output buffer
  *
@@ -963,7 +959,6 @@ pqFlush(PGconn *conn)
 
 	return 0;
 }
-
 
 /*
  * pqWait: wait until we can read or write the connection socket
@@ -986,17 +981,18 @@ pqWait(int forRead, int forWrite, PGconn *conn)
  *
  * finish_time = ((time_t) -1) disables the wait limit.
  *
- * Returns -1 on failure, 0 if the socket is readable/writable, 1 if it timed out.
+ * Returns -1 on failure, 0 if the socket is readable/writable, 1 if it timed
+ * out.
  */
 int
 pqWaitTimed(int forRead, int forWrite, PGconn *conn, time_t finish_time)
 {
-	int			result;
+	int result;
 
 	result = pqSocketCheck(conn, forRead, forWrite, finish_time);
 
 	if (result < 0)
-		return -1;				/* errorMessage is already set */
+		return -1; /* errorMessage is already set */
 
 	if (result == 0)
 	{
@@ -1038,7 +1034,7 @@ pqWriteReady(PGconn *conn)
 static int
 pqSocketCheck(PGconn *conn, int forRead, int forWrite, time_t end_time)
 {
-	int			result;
+	int result;
 
 	if (!conn)
 		return -1;
@@ -1064,15 +1060,15 @@ pqSocketCheck(PGconn *conn, int forRead, int forWrite, time_t end_time)
 
 	if (result < 0)
 	{
-		char		sebuf[PG_STRERROR_R_BUFLEN];
+		char sebuf[PG_STRERROR_R_BUFLEN];
 
-		libpq_append_conn_error(conn, "%s() failed: %s", "select",
-								SOCK_STRERROR(SOCK_ERRNO, sebuf, sizeof(sebuf)));
+		libpq_append_conn_error(
+			conn, "%s() failed: %s", "select",
+			SOCK_STRERROR(SOCK_ERRNO, sebuf, sizeof(sebuf)));
 	}
 
 	return result;
 }
-
 
 /*
  * Check a file descriptor for read and/or write data, possibly waiting.
@@ -1089,7 +1085,7 @@ pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 	/* We use poll(2) if available, otherwise select(2) */
 #ifdef HAVE_POLL
 	struct pollfd input_fd;
-	int			timeout_ms;
+	int			  timeout_ms;
 
 	if (!forRead && !forWrite)
 		return 0;
@@ -1108,7 +1104,7 @@ pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 		timeout_ms = -1;
 	else
 	{
-		time_t		now = time(NULL);
+		time_t now = time(NULL);
 
 		if (end_time > now)
 			timeout_ms = (end_time - now) * 1000;
@@ -1117,11 +1113,11 @@ pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 	}
 
 	return poll(&input_fd, 1, timeout_ms);
-#else							/* !HAVE_POLL */
+#else  /* !HAVE_POLL */
 
-	fd_set		input_mask;
-	fd_set		output_mask;
-	fd_set		except_mask;
+	fd_set input_mask;
+	fd_set output_mask;
+	fd_set except_mask;
 	struct timeval timeout;
 	struct timeval *ptr_timeout;
 
@@ -1143,7 +1139,7 @@ pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 		ptr_timeout = NULL;
 	else
 	{
-		time_t		now = time(NULL);
+		time_t now = time(NULL);
 
 		if (end_time > now)
 			timeout.tv_sec = end_time - now;
@@ -1153,11 +1149,10 @@ pqSocketPoll(int sock, int forRead, int forWrite, time_t end_time)
 		ptr_timeout = &timeout;
 	}
 
-	return select(sock + 1, &input_mask, &output_mask,
-				  &except_mask, ptr_timeout);
-#endif							/* HAVE_POLL */
+	return select(sock + 1, &input_mask, &output_mask, &except_mask,
+				  ptr_timeout);
+#endif /* HAVE_POLL */
 }
-
 
 /*
  * A couple of "miscellaneous" multibyte related functions. They used
@@ -1205,8 +1200,8 @@ PQdsplen(const char *s, int encoding)
 int
 PQenv2encoding(void)
 {
-	char	   *str;
-	int			encoding = PG_SQL_ASCII;
+	char *str;
+	int	  encoding = PG_SQL_ASCII;
 
 	str = getenv("PGCLIENTENCODING");
 	if (str && *str != '\0')
@@ -1217,7 +1212,6 @@ PQenv2encoding(void)
 	}
 	return encoding;
 }
-
 
 #ifdef ENABLE_NLS
 
@@ -1237,9 +1231,9 @@ libpq_binddomain(void)
 	{
 		/* bindtextdomain() does not preserve errno */
 #ifdef WIN32
-		int			save_errno = GetLastError();
+		int save_errno = GetLastError();
 #else
-		int			save_errno = errno;
+		int save_errno = errno;
 #endif
 		const char *ldir;
 
@@ -1271,8 +1265,7 @@ libpq_ngettext(const char *msgid, const char *msgid_plural, unsigned long n)
 	return dngettext(PG_TEXTDOMAIN("libpq"), msgid, msgid_plural, n);
 }
 
-#endif							/* ENABLE_NLS */
-
+#endif /* ENABLE_NLS */
 
 /*
  * Append a formatted string to the given buffer, after translating it.  A
@@ -1280,16 +1273,16 @@ libpq_ngettext(const char *msgid, const char *msgid_plural, unsigned long n)
  * newline.
  */
 void
-libpq_append_error(PQExpBuffer errorMessage, const char *fmt,...)
+libpq_append_error(PQExpBuffer errorMessage, const char *fmt, ...)
 {
-	int			save_errno = errno;
-	bool		done;
-	va_list		args;
+	int		save_errno = errno;
+	bool	done;
+	va_list args;
 
 	Assert(fmt[strlen(fmt) - 1] != '\n');
 
 	if (PQExpBufferBroken(errorMessage))
-		return;					/* already failed */
+		return; /* already failed */
 
 	/* Loop in case we have to retry after enlarging the buffer. */
 	do
@@ -1309,23 +1302,24 @@ libpq_append_error(PQExpBuffer errorMessage, const char *fmt,...)
  * format should not end with a newline.
  */
 void
-libpq_append_conn_error(PGconn *conn, const char *fmt,...)
+libpq_append_conn_error(PGconn *conn, const char *fmt, ...)
 {
-	int			save_errno = errno;
-	bool		done;
-	va_list		args;
+	int		save_errno = errno;
+	bool	done;
+	va_list args;
 
 	Assert(fmt[strlen(fmt) - 1] != '\n');
 
 	if (PQExpBufferBroken(&conn->errorMessage))
-		return;					/* already failed */
+		return; /* already failed */
 
 	/* Loop in case we have to retry after enlarging the buffer. */
 	do
 	{
 		errno = save_errno;
 		va_start(args, fmt);
-		done = appendPQExpBufferVA(&conn->errorMessage, libpq_gettext(fmt), args);
+		done =
+			appendPQExpBufferVA(&conn->errorMessage, libpq_gettext(fmt), args);
 		va_end(args);
 	} while (!done);
 

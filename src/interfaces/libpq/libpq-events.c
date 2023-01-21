@@ -17,7 +17,6 @@
 #include "libpq-fe.h"
 #include "libpq-int.h"
 
-
 /*
  * Registers an event proc with the given PGconn.
  *
@@ -37,25 +36,25 @@
  * zero is returned.
  */
 int
-PQregisterEventProc(PGconn *conn, PGEventProc proc,
-					const char *name, void *passThrough)
+PQregisterEventProc(PGconn *conn, PGEventProc proc, const char *name,
+					void *passThrough)
 {
-	int			i;
+	int				i;
 	PGEventRegister regevt;
 
 	if (!proc || !conn || !name || !*name)
-		return false;			/* bad arguments */
+		return false; /* bad arguments */
 
 	for (i = 0; i < conn->nEvents; i++)
 	{
 		if (conn->events[i].proc == proc)
-			return false;		/* already registered */
+			return false; /* already registered */
 	}
 
 	if (conn->nEvents >= conn->eventArraySize)
 	{
-		PGEvent    *e;
-		int			newSize;
+		PGEvent *e;
+		int		 newSize;
 
 		newSize = conn->eventArraySize ? conn->eventArraySize * 2 : 8;
 		if (conn->events)
@@ -97,7 +96,7 @@ PQregisterEventProc(PGconn *conn, PGEventProc proc,
 int
 PQsetInstanceData(PGconn *conn, PGEventProc proc, void *data)
 {
-	int			i;
+	int i;
 
 	if (!conn || !proc)
 		return false;
@@ -120,7 +119,7 @@ PQsetInstanceData(PGconn *conn, PGEventProc proc, void *data)
 void *
 PQinstanceData(const PGconn *conn, PGEventProc proc)
 {
-	int			i;
+	int i;
 
 	if (!conn || !proc)
 		return NULL;
@@ -141,7 +140,7 @@ PQinstanceData(const PGconn *conn, PGEventProc proc)
 int
 PQresultSetInstanceData(PGresult *result, PGEventProc proc, void *data)
 {
-	int			i;
+	int i;
 
 	if (!result || !proc)
 		return false;
@@ -164,7 +163,7 @@ PQresultSetInstanceData(PGresult *result, PGEventProc proc, void *data)
 void *
 PQresultInstanceData(const PGresult *result, PGEventProc proc)
 {
-	int			i;
+	int i;
 
 	if (!result || !proc)
 		return NULL;
@@ -184,8 +183,8 @@ PQresultInstanceData(const PGresult *result, PGEventProc proc)
 int
 PQfireResultCreateEvents(PGconn *conn, PGresult *res)
 {
-	int			result = true;
-	int			i;
+	int result = true;
+	int i;
 
 	if (!res)
 		return false;

@@ -36,20 +36,19 @@
 #include "libpq-fe.h"
 #include "libpq-int.h"
 
-
-static bool do_field(const PQprintOpt *po, const PGresult *res,
-					 const int i, const int j, const int fs_len,
-					 char **fields,
-					 const int nFields, const char **fieldNames,
-					 unsigned char *fieldNotNum, int *fieldMax,
-					 const int fieldMaxLen, FILE *fout);
+static bool	 do_field(const PQprintOpt *po, const PGresult *res, const int i,
+					  const int j, const int fs_len, char **fields,
+					  const int nFields, const char **fieldNames,
+					  unsigned char *fieldNotNum, int *fieldMax,
+					  const int fieldMaxLen, FILE *fout);
 static char *do_header(FILE *fout, const PQprintOpt *po, const int nFields,
-					   int *fieldMax, const char **fieldNames, unsigned char *fieldNotNum,
-					   const int fs_len, const PGresult *res);
-static void output_row(FILE *fout, const PQprintOpt *po, const int nFields, char **fields,
-					   unsigned char *fieldNotNum, int *fieldMax, char *border,
-					   const int row_index);
-static void fill(int length, int max, char filler, FILE *fp);
+					   int *fieldMax, const char **fieldNames,
+					   unsigned char *fieldNotNum, const int fs_len,
+					   const PGresult *res);
+static void	 output_row(FILE *fout, const PQprintOpt *po, const int nFields,
+						char **fields, unsigned char *fieldNotNum,
+						int *fieldMax, char *border, const int row_index);
+static void	 fill(int length, int max, char filler, FILE *fp);
 
 /*
  * PQprint()
@@ -67,34 +66,33 @@ static void fill(int length, int max, char filler, FILE *fp);
 void
 PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 {
-	int			nFields;
+	int nFields;
 
 	nFields = PQnfields(res);
 
 	if (nFields > 0)
-	{							/* only print rows with at least 1 field.  */
-		int			i,
-					j;
-		int			nTups;
-		int		   *fieldMax = NULL;	/* in case we don't use them */
+	{ /* only print rows with at least 1 field.  */
+		int			   i, j;
+		int			   nTups;
+		int			  *fieldMax = NULL; /* in case we don't use them */
 		unsigned char *fieldNotNum = NULL;
-		char	   *border = NULL;
-		char	  **fields = NULL;
-		const char **fieldNames = NULL;
-		int			fieldMaxLen = 0;
-		int			numFieldName;
-		int			fs_len = strlen(po->fieldSep);
-		int			total_line_length = 0;
-		bool		usePipe = false;
-		char	   *pagerenv;
+		char		  *border = NULL;
+		char		 **fields = NULL;
+		const char	 **fieldNames = NULL;
+		int			   fieldMaxLen = 0;
+		int			   numFieldName;
+		int			   fs_len = strlen(po->fieldSep);
+		int			   total_line_length = 0;
+		bool		   usePipe = false;
+		char		  *pagerenv;
 
 #if defined(ENABLE_THREAD_SAFETY) && !defined(WIN32)
-		sigset_t	osigset;
-		bool		sigpipe_masked = false;
-		bool		sigpipe_pending;
+		sigset_t osigset;
+		bool	 sigpipe_masked = false;
+		bool	 sigpipe_pending;
 #endif
 #if !defined(ENABLE_THREAD_SAFETY) && !defined(WIN32)
-		pqsigfunc	oldsigpipehandler = NULL;
+		pqsigfunc oldsigpipehandler = NULL;
 #endif
 
 #ifdef TIOCGWINSZ
@@ -102,9 +100,9 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 #else
 		struct winsize
 		{
-			int			ws_row;
-			int			ws_col;
-		}			screen_size;
+			int ws_row;
+			int ws_col;
+		} screen_size;
 #endif
 
 		nTups = PQntuples(res);
@@ -116,15 +114,15 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 			fprintf(stderr, libpq_gettext("out of memory\n"));
 			goto exit;
 		}
-		for (numFieldName = 0;
-			 po->fieldName && po->fieldName[numFieldName];
+		for (numFieldName = 0; po->fieldName && po->fieldName[numFieldName];
 			 numFieldName++)
 			;
 		for (j = 0; j < nFields; j++)
 		{
 			int			len;
-			const char *s = (j < numFieldName && po->fieldName[j][0]) ?
-			po->fieldName[j] : PQfname(res, j);
+			const char *s = (j < numFieldName && po->fieldName[j][0])
+								? po->fieldName[j]
+								: PQfname(res, j);
 
 			fieldNames[j] = s;
 			len = s ? strlen(s) : 0;
@@ -148,8 +146,7 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 			 */
 #ifdef TIOCGWINSZ
 			if (ioctl(fileno(stdout), TIOCGWINSZ, &screen_size) == -1 ||
-				screen_size.ws_col == 0 ||
-				screen_size.ws_row == 0)
+				screen_size.ws_col == 0 || screen_size.ws_row == 0)
 			{
 				screen_size.ws_row = 24;
 				screen_size.ws_col = 80;
@@ -174,10 +171,12 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 				  nTups * (nFields + 1) >= screen_size.ws_row) ||
 				 (!po->expanded &&
 				  nTups * (total_line_length / screen_size.ws_col + 1) *
-				  (1 + (po->standard != 0)) >= screen_size.ws_row -
-				  (po->header != 0) *
-				  (total_line_length / screen_size.ws_col + 1) * 2
-				  - (po->header != 0) * 2	/* row count and newline */
+						  (1 + (po->standard != 0)) >=
+					  screen_size.ws_row -
+						  (po->header != 0) *
+							  (total_line_length / screen_size.ws_col + 1) *
+							  2 -
+						  (po->header != 0) * 2 /* row count and newline */
 				  )))
 			{
 				fflush(NULL);
@@ -191,8 +190,8 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 						sigpipe_masked = true;
 #else
 					oldsigpipehandler = pqsignal(SIGPIPE, SIG_IGN);
-#endif							/* ENABLE_THREAD_SAFETY */
-#endif							/* WIN32 */
+#endif /* ENABLE_THREAD_SAFETY */
+#endif /* WIN32 */
 				}
 				else
 					fout = stdout;
@@ -201,8 +200,8 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 
 		if (!po->expanded && (po->align || po->html3))
 		{
-			fields = (char **) calloc((size_t) nTups + 1,
-									  nFields * sizeof(char *));
+			fields =
+				(char **) calloc((size_t) nTups + 1, nFields * sizeof(char *));
 			if (!fields)
 			{
 				fprintf(stderr, libpq_gettext("out of memory\n"));
@@ -215,13 +214,15 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 			{
 				if (po->align)
 					fprintf(fout, libpq_gettext("%-*s%s Value\n"),
-							fieldMaxLen - fs_len, libpq_gettext("Field"), po->fieldSep);
+							fieldMaxLen - fs_len, libpq_gettext("Field"),
+							po->fieldSep);
 				else
-					fprintf(fout, libpq_gettext("%s%sValue\n"), libpq_gettext("Field"), po->fieldSep);
+					fprintf(fout, libpq_gettext("%s%sValue\n"),
+							libpq_gettext("Field"), po->fieldSep);
 			}
 			else
 			{
-				int			len = 0;
+				int len = 0;
 
 				for (j = 0; j < nFields; j++)
 				{
@@ -233,7 +234,8 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 						fputs(po->fieldSep, fout);
 				}
 				fputc('\n', fout);
-				for (len -= fs_len; len--; fputc('-', fout));
+				for (len -= fs_len; len--; fputc('-', fout))
+					;
 				fputc('\n', fout);
 			}
 		}
@@ -262,8 +264,8 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 			for (j = 0; j < nFields; j++)
 			{
 				if (!do_field(po, res, i, j, fs_len, fields, nFields,
-							  fieldNames, fieldNotNum,
-							  fieldMax, fieldMaxLen, fout))
+							  fieldNames, fieldNotNum, fieldMax, fieldMaxLen,
+							  fout))
 					goto exit;
 			}
 			if (po->html3 && po->expanded)
@@ -276,26 +278,28 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 				if (po->header)
 				{
 					if (po->caption)
-						fprintf(fout,
-								"<table %s><caption align=\"top\">%s</caption>\n",
-								po->tableOpt ? po->tableOpt : "",
-								po->caption);
+						fprintf(
+							fout,
+							"<table %s><caption align=\"top\">%s</caption>\n",
+							po->tableOpt ? po->tableOpt : "", po->caption);
 					else
 						fprintf(fout,
 								"<table %s><caption align=\"top\">"
 								"Retrieved %d rows * %d fields"
 								"</caption>\n",
-								po->tableOpt ? po->tableOpt : "", nTups, nFields);
+								po->tableOpt ? po->tableOpt : "", nTups,
+								nFields);
 				}
 				else
-					fprintf(fout, "<table %s>", po->tableOpt ? po->tableOpt : "");
+					fprintf(fout, "<table %s>",
+							po->tableOpt ? po->tableOpt : "");
 			}
 			if (po->header)
 				border = do_header(fout, po, nFields, fieldMax, fieldNames,
 								   fieldNotNum, fs_len, res);
 			for (i = 0; i < nTups; i++)
-				output_row(fout, po, nFields, fields,
-						   fieldNotNum, fieldMax, border, i);
+				output_row(fout, po, nFields, fields, fieldNotNum, fieldMax,
+						   border, i);
 		}
 		if (po->header && !po->html3)
 			fprintf(fout, "(%d row%s)\n\n", PQntuples(res),
@@ -303,14 +307,14 @@ PQprint(FILE *fout, const PGresult *res, const PQprintOpt *po)
 		if (po->html3 && !po->expanded)
 			fputs("</table>\n", fout);
 
-exit:
+	exit:
 		free(fieldMax);
 		free(fieldNotNum);
 		free(border);
 		if (fields)
 		{
 			/* if calloc succeeded, this shouldn't overflow size_t */
-			size_t		numfields = ((size_t) nTups + 1) * (size_t) nFields;
+			size_t numfields = ((size_t) nTups + 1) * (size_t) nFields;
 
 			while (numfields-- > 0)
 				free(fields[numfields]);
@@ -330,23 +334,19 @@ exit:
 				pq_reset_sigpipe(&osigset, sigpipe_pending, true);
 #else
 			pqsignal(SIGPIPE, oldsigpipehandler);
-#endif							/* ENABLE_THREAD_SAFETY */
-#endif							/* WIN32 */
+#endif /* ENABLE_THREAD_SAFETY */
+#endif /* WIN32 */
 		}
 	}
 }
 
-
 static bool
-do_field(const PQprintOpt *po, const PGresult *res,
-		 const int i, const int j, const int fs_len,
-		 char **fields,
-		 const int nFields, char const **fieldNames,
-		 unsigned char *fieldNotNum, int *fieldMax,
+do_field(const PQprintOpt *po, const PGresult *res, const int i, const int j,
+		 const int fs_len, char **fields, const int nFields,
+		 char const **fieldNames, unsigned char *fieldNotNum, int *fieldMax,
 		 const int fieldMaxLen, FILE *fout)
 {
-	const char *pval,
-			   *p;
+	const char *pval, *p;
 	int			plen;
 	bool		skipit;
 
@@ -371,17 +371,13 @@ do_field(const PQprintOpt *po, const PGresult *res,
 		if (po->align && !fieldNotNum[j])
 		{
 			/* Detect whether field contains non-numeric data */
-			char		ch = '0';
+			char ch = '0';
 
 			for (p = pval; *p; p += PQmblenBounded(p, res->client_encoding))
 			{
 				ch = *p;
-				if (!((ch >= '0' && ch <= '9') ||
-					  ch == '.' ||
-					  ch == 'E' ||
-					  ch == 'e' ||
-					  ch == ' ' ||
-					  ch == '-'))
+				if (!((ch >= '0' && ch <= '9') || ch == '.' || ch == 'E' ||
+					  ch == 'e' || ch == ' ' || ch == '-'))
 				{
 					fieldNotNum[j] = 1;
 					break;
@@ -393,8 +389,7 @@ do_field(const PQprintOpt *po, const PGresult *res,
 			 * insist on a digit in the last column for a numeric. This test
 			 * is still not bulletproof but it handles most cases.
 			 */
-			if (*pval == 'E' || *pval == 'e' ||
-				!(ch >= '0' && ch <= '9'))
+			if (*pval == 'E' || *pval == 'e' || !(ch >= '0' && ch <= '9'))
 				fieldNotNum[j] = 1;
 		}
 
@@ -417,21 +412,16 @@ do_field(const PQprintOpt *po, const PGresult *res,
 					fprintf(fout,
 							"<tr><td align=\"left\"><b>%s</b></td>"
 							"<td align=\"%s\">%s</td></tr>\n",
-							fieldNames[j],
-							fieldNotNum[j] ? "left" : "right",
+							fieldNames[j], fieldNotNum[j] ? "left" : "right",
 							pval);
 				else
 				{
 					if (po->align)
-						fprintf(fout,
-								"%-*s%s %s\n",
-								fieldMaxLen - fs_len, fieldNames[j],
-								po->fieldSep,
-								pval);
-					else
-						fprintf(fout,
-								"%s%s%s\n",
+						fprintf(fout, "%-*s%s %s\n", fieldMaxLen - fs_len,
 								fieldNames[j], po->fieldSep, pval);
+					else
+						fprintf(fout, "%s%s%s\n", fieldNames[j], po->fieldSep,
+								pval);
 				}
 			}
 			else
@@ -439,7 +429,7 @@ do_field(const PQprintOpt *po, const PGresult *res,
 				if (!po->html3)
 				{
 					fputs(pval, fout);
-			efield:
+				efield:
 					if ((j + 1) < nFields)
 						fputs(po->fieldSep, fout);
 					else
@@ -451,22 +441,21 @@ do_field(const PQprintOpt *po, const PGresult *res,
 	return true;
 }
 
-
 static char *
 do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 		  const char **fieldNames, unsigned char *fieldNotNum,
 		  const int fs_len, const PGresult *res)
 {
-	int			j;				/* for loop index */
-	char	   *border = NULL;
+	int	  j; /* for loop index */
+	char *border = NULL;
 
 	if (po->html3)
 		fputs("<tr>", fout);
 	else
 	{
-		int			tot = 0;
-		int			n = 0;
-		char	   *p = NULL;
+		int	  tot = 0;
+		int	  n = 0;
+		char *p = NULL;
 
 		for (; n < nFields; n++)
 			tot += fieldMax[n] + fs_len + (po->standard ? 2 : 0);
@@ -481,19 +470,20 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 		p = border;
 		if (po->standard)
 		{
-			char	   *fs = po->fieldSep;
+			char *fs = po->fieldSep;
 
 			while (*fs++)
 				*p++ = '+';
 		}
 		for (j = 0; j < nFields; j++)
 		{
-			int			len;
+			int len;
 
-			for (len = fieldMax[j] + (po->standard ? 2 : 0); len--; *p++ = '-');
+			for (len = fieldMax[j] + (po->standard ? 2 : 0); len--; *p++ = '-')
+				;
 			if (po->standard || (j + 1) < nFields)
 			{
-				char	   *fs = po->fieldSep;
+				char *fs = po->fieldSep;
 
 				while (*fs++)
 					*p++ = '+';
@@ -516,14 +506,13 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 		}
 		else
 		{
-			int			n = strlen(s);
+			int n = strlen(s);
 
 			if (n > fieldMax[j])
 				fieldMax[j] = n;
 			if (po->standard)
-				fprintf(fout,
-						fieldNotNum[j] ? " %-*s " : " %*s ",
-						fieldMax[j], s);
+				fprintf(fout, fieldNotNum[j] ? " %-*s " : " %*s ", fieldMax[j],
+						s);
 			else
 				fprintf(fout, fieldNotNum[j] ? "%-*s" : "%*s", fieldMax[j], s);
 			if (po->standard || (j + 1) < nFields)
@@ -537,13 +526,12 @@ do_header(FILE *fout, const PQprintOpt *po, const int nFields, int *fieldMax,
 	return border;
 }
 
-
 static void
 output_row(FILE *fout, const PQprintOpt *po, const int nFields, char **fields,
 		   unsigned char *fieldNotNum, int *fieldMax, char *border,
 		   const int row_index)
 {
-	int			field_index;	/* for loop index */
+	int field_index; /* for loop index */
 
 	if (po->html3)
 		fputs("<tr>", fout);
@@ -551,7 +539,7 @@ output_row(FILE *fout, const PQprintOpt *po, const int nFields, char **fields,
 		fputs(po->fieldSep, fout);
 	for (field_index = 0; field_index < nFields; field_index++)
 	{
-		char	   *p = fields[row_index * nFields + field_index];
+		char *p = fields[row_index * nFields + field_index];
 
 		if (po->html3)
 			fprintf(fout, "<td align=\"%s\">%s</td>",
@@ -559,11 +547,10 @@ output_row(FILE *fout, const PQprintOpt *po, const int nFields, char **fields,
 		else
 		{
 			fprintf(fout,
-					fieldNotNum[field_index] ?
-					(po->standard ? " %-*s " : "%-*s") :
-					(po->standard ? " %*s " : "%*s"),
-					fieldMax[field_index],
-					p ? p : "");
+					fieldNotNum[field_index]
+						? (po->standard ? " %-*s " : "%-*s")
+						: (po->standard ? " %*s " : "%*s"),
+					fieldMax[field_index], p ? p : "");
 			if (po->standard || field_index + 1 < nFields)
 				fputs(po->fieldSep, fout);
 		}
@@ -575,28 +562,23 @@ output_row(FILE *fout, const PQprintOpt *po, const int nFields, char **fields,
 	fputc('\n', fout);
 }
 
-
-
 /*
  * really old printing routines
  */
 
 void
-PQdisplayTuples(const PGresult *res,
-				FILE *fp,		/* where to send the output */
-				int fillAlign,	/* pad the fields with spaces */
-				const char *fieldSep,	/* field separator */
-				int printHeader,	/* display headers? */
-				int quiet
-)
+PQdisplayTuples(const PGresult *res, FILE *fp, /* where to send the output */
+				int			fillAlign,		   /* pad the fields with spaces */
+				const char *fieldSep,		   /* field separator */
+				int			printHeader,	   /* display headers? */
+				int			quiet)
 {
 #define DEFAULT_FIELD_SEP " "
 
-	int			i,
-				j;
-	int			nFields;
-	int			nTuples;
-	int		   *fLength = NULL;
+	int	 i, j;
+	int	 nFields;
+	int	 nTuples;
+	int *fLength = NULL;
 
 	if (fieldSep == NULL)
 		fieldSep = DEFAULT_FIELD_SEP;
@@ -624,7 +606,7 @@ PQdisplayTuples(const PGresult *res,
 			fLength[j] = strlen(PQfname(res, j));
 			for (i = 0; i < nTuples; i++)
 			{
-				int			flen = PQgetlength(res, i, j);
+				int flen = PQgetlength(res, i, j);
 
 				if (flen > fLength[j])
 					fLength[j] = flen;
@@ -676,22 +658,18 @@ PQdisplayTuples(const PGresult *res,
 	free(fLength);
 }
 
-
-
 void
-PQprintTuples(const PGresult *res,
-			  FILE *fout,		/* output stream */
-			  int PrintAttNames,	/* print attribute names or not */
-			  int TerseOutput,	/* delimiter bars or not? */
-			  int colWidth		/* width of column, if 0, use variable width */
+PQprintTuples(const PGresult *res, FILE *fout, /* output stream */
+			  int PrintAttNames, /* print attribute names or not */
+			  int TerseOutput,	 /* delimiter bars or not? */
+			  int colWidth /* width of column, if 0, use variable width */
 )
 {
-	int			nFields;
-	int			nTups;
-	int			i,
-				j;
-	char		formatString[80];
-	char	   *tborder = NULL;
+	int	  nFields;
+	int	  nTups;
+	int	  i, j;
+	char  formatString[80];
+	char *tborder = NULL;
 
 	nFields = PQnfields(res);
 	nTups = PQntuples(res);
@@ -702,11 +680,11 @@ PQprintTuples(const PGresult *res,
 		sprintf(formatString, "%%s %%s");
 
 	if (nFields > 0)
-	{							/* only print rows with at least 1 field.  */
+	{ /* only print rows with at least 1 field.  */
 
 		if (!TerseOutput)
 		{
-			int			width;
+			int width;
 
 			width = nFields * 14;
 			tborder = (char *) malloc(width + 1);
@@ -725,8 +703,7 @@ PQprintTuples(const PGresult *res,
 		{
 			if (PrintAttNames)
 			{
-				fprintf(fout, formatString,
-						TerseOutput ? "" : "|",
+				fprintf(fout, formatString, TerseOutput ? "" : "|",
 						PQfname(res, i));
 			}
 		}
@@ -745,8 +722,7 @@ PQprintTuples(const PGresult *res,
 			{
 				const char *pval = PQgetvalue(res, i, j);
 
-				fprintf(fout, formatString,
-						TerseOutput ? "" : "|",
+				fprintf(fout, formatString, TerseOutput ? "" : "|",
 						pval ? pval : "");
 			}
 			if (TerseOutput)
@@ -759,13 +735,12 @@ PQprintTuples(const PGresult *res,
 	free(tborder);
 }
 
-
 /* simply send out max-length number of filler characters to fp */
 
 static void
 fill(int length, int max, char filler, FILE *fp)
 {
-	int			count;
+	int count;
 
 	count = max - length;
 	while (count-- >= 0)

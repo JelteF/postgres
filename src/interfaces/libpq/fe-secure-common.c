@@ -44,13 +44,11 @@
 static bool
 wildcard_certificate_match(const char *pattern, const char *string)
 {
-	int			lenpat = strlen(pattern);
-	int			lenstr = strlen(string);
+	int lenpat = strlen(pattern);
+	int lenstr = strlen(string);
 
 	/* If we don't start with a wildcard, it's not a match (rule 1 & 2) */
-	if (lenpat < 3 ||
-		pattern[0] != '*' ||
-		pattern[1] != '.')
+	if (lenpat < 3 || pattern[0] != '*' || pattern[1] != '.')
 		return false;
 
 	/* If pattern is longer than the string, we can never match */
@@ -84,13 +82,13 @@ wildcard_certificate_match(const char *pattern, const char *string)
  * caller is responsible for freeing it.
  */
 int
-pq_verify_peer_name_matches_certificate_name(PGconn *conn,
-											 const char *namedata, size_t namelen,
-											 char **store_name)
+pq_verify_peer_name_matches_certificate_name(PGconn		*conn,
+											 const char *namedata,
+											 size_t namelen, char **store_name)
 {
-	char	   *name;
-	int			result;
-	char	   *host = conn->connhost[conn->whichhost].host;
+	char *name;
+	int	  result;
+	char *host = conn->connhost[conn->whichhost].host;
 
 	*store_name = NULL;
 
@@ -120,7 +118,8 @@ pq_verify_peer_name_matches_certificate_name(PGconn *conn,
 	if (namelen != strlen(name))
 	{
 		free(name);
-		libpq_append_conn_error(conn, "SSL certificate's name contains embedded null");
+		libpq_append_conn_error(
+			conn, "SSL certificate's name contains embedded null");
 		return -1;
 	}
 
@@ -154,17 +153,16 @@ pq_verify_peer_name_matches_certificate_name(PGconn *conn,
  * *store_name. The caller is responsible for freeing it.
  */
 int
-pq_verify_peer_name_matches_certificate_ip(PGconn *conn,
+pq_verify_peer_name_matches_certificate_ip(PGconn			   *conn,
 										   const unsigned char *ipdata,
-										   size_t iplen,
-										   char **store_name)
+										   size_t iplen, char **store_name)
 {
-	char	   *addrstr;
-	int			match = 0;
-	char	   *host = conn->connhost[conn->whichhost].host;
-	int			family;
-	char		tmp[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
-	char		sebuf[PG_STRERROR_R_BUFLEN];
+	char *addrstr;
+	int	  match = 0;
+	char *host = conn->connhost[conn->whichhost].host;
+	int	  family;
+	char  tmp[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
+	char  sebuf[PG_STRERROR_R_BUFLEN];
 
 	*store_name = NULL;
 
@@ -225,8 +223,9 @@ pq_verify_peer_name_matches_certificate_ip(PGconn *conn,
 		 * Not IPv4 or IPv6. We could ignore the field, but leniency seems
 		 * wrong given the subject matter.
 		 */
-		libpq_append_conn_error(conn, "certificate contains IP address with invalid length %zu",
-								iplen);
+		libpq_append_conn_error(
+			conn, "certificate contains IP address with invalid length %zu",
+			iplen);
 		return -1;
 	}
 
@@ -234,8 +233,9 @@ pq_verify_peer_name_matches_certificate_ip(PGconn *conn,
 	addrstr = pg_inet_net_ntop(family, ipdata, 8 * iplen, tmp, sizeof(tmp));
 	if (!addrstr)
 	{
-		libpq_append_conn_error(conn, "could not convert certificate's IP address to string: %s",
-								strerror_r(errno, sebuf, sizeof(sebuf)));
+		libpq_append_conn_error(
+			conn, "could not convert certificate's IP address to string: %s",
+			strerror_r(errno, sebuf, sizeof(sebuf)));
 		return -1;
 	}
 
@@ -251,10 +251,10 @@ pq_verify_peer_name_matches_certificate_ip(PGconn *conn,
 bool
 pq_verify_peer_name_matches_certificate(PGconn *conn)
 {
-	char	   *host = conn->connhost[conn->whichhost].host;
-	int			rc;
-	int			names_examined = 0;
-	char	   *first_name = NULL;
+	char *host = conn->connhost[conn->whichhost].host;
+	int	  rc;
+	int	  names_examined = 0;
+	char *first_name = NULL;
 
 	/*
 	 * If told not to verify the peer name, don't do it. Return true
@@ -266,11 +266,13 @@ pq_verify_peer_name_matches_certificate(PGconn *conn)
 	/* Check that we have a hostname to compare with. */
 	if (!(host && host[0] != '\0'))
 	{
-		libpq_append_conn_error(conn, "host name must be specified for a verified SSL connection");
+		libpq_append_conn_error(
+			conn, "host name must be specified for a verified SSL connection");
 		return false;
 	}
 
-	rc = pgtls_verify_peer_name_matches_certificate_guts(conn, &names_examined, &first_name);
+	rc = pgtls_verify_peer_name_matches_certificate_guts(conn, &names_examined,
+														 &first_name);
 
 	if (rc == 0)
 	{
@@ -282,21 +284,28 @@ pq_verify_peer_name_matches_certificate(PGconn *conn)
 		 */
 		if (names_examined > 1)
 		{
-			appendPQExpBuffer(&conn->errorMessage,
-							  libpq_ngettext("server certificate for \"%s\" (and %d other name) does not match host name \"%s\"",
-											 "server certificate for \"%s\" (and %d other names) does not match host name \"%s\"",
-											 names_examined - 1),
-							  first_name, names_examined - 1, host);
+			appendPQExpBuffer(
+				&conn->errorMessage,
+				libpq_ngettext("server certificate for \"%s\" (and %d other "
+							   "name) does not match host name \"%s\"",
+							   "server certificate for \"%s\" (and %d other "
+							   "names) does not match host name \"%s\"",
+							   names_examined - 1),
+				first_name, names_examined - 1, host);
 			appendPQExpBufferChar(&conn->errorMessage, '\n');
 		}
 		else if (names_examined == 1)
 		{
-			libpq_append_conn_error(conn, "server certificate for \"%s\" does not match host name \"%s\"",
+			libpq_append_conn_error(conn,
+									"server certificate for \"%s\" does not "
+									"match host name \"%s\"",
 									first_name, host);
 		}
 		else
 		{
-			libpq_append_conn_error(conn, "could not get server's host name from server certificate");
+			libpq_append_conn_error(
+				conn,
+				"could not get server's host name from server certificate");
 		}
 	}
 

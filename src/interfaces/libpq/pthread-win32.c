@@ -1,29 +1,25 @@
 /*-------------------------------------------------------------------------
-*
-* pthread-win32.c
-*	 partial pthread implementation for win32
-*
-* Copyright (c) 2004-2023, PostgreSQL Global Development Group
-* IDENTIFICATION
-*	src/interfaces/libpq/pthread-win32.c
-*
-*-------------------------------------------------------------------------
-*/
+ *
+ * pthread-win32.c
+ *	 partial pthread implementation for win32
+ *
+ * Copyright (c) 2004-2023, PostgreSQL Global Development Group
+ * IDENTIFICATION
+ *	src/interfaces/libpq/pthread-win32.c
+ *
+ *-------------------------------------------------------------------------
+ */
 
 #include "postgres_fe.h"
 
 #include "pthread-win32.h"
 
 DWORD
-pthread_self(void)
-{
-	return GetCurrentThreadId();
-}
+pthread_self(void) { return GetCurrentThreadId(); }
 
 void
 pthread_setspecific(pthread_key_t key, void *val)
-{
-}
+{}
 
 void *
 pthread_getspecific(pthread_key_t key)
