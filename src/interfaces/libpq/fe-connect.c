@@ -4877,27 +4877,11 @@ PQcancelPoll(PGcancelConn * cancelConn)
 	if (n == 0)
 		return PGRES_POLLING_READING;
 
-#ifndef WIN32
-
-	/*
-	 * Windows is a bit special in its EOF behaviour for TCP. Sometimes it
-	 * will error with an ECONNRESET when there is a clean connection closure.
-	 * See these threads for details:
-	 * https://www.postgresql.org/message-id/flat/90b34057-4176-7bb0-0dbb-9822a5f6425b%40greiz-reinsdorf.de
-	 *
-	 * https://www.postgresql.org/message-id/flat/CA%2BhUKG%2BOeoETZQ%3DQw5Ub5h3tmwQhBmDA%3DnuNO3KG%3DzWfUypFAw%40mail.gmail.com
-	 *
-	 * PQcancel ignores such errors and reports success for the cancellation
-	 * anyway, so even if this is not always correct we do the same here. For
-	 * all other OSes we consider any other error than EOF and report it as
-	 * such.
-	 */
 	if (n < 0 && n != -2)
 	{
 		conn->status = CONNECTION_BAD;
 		return PGRES_POLLING_FAILED;
 	}
-#endif
 
 	/*
 	 * We don't expect any data, only connection closure. So if we strangly do
