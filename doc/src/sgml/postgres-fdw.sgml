@@ -847,6 +847,83 @@ postgres=# SELECT postgres_fdw_disconnect_all();
      </para>
     </listitem>
    </varlistentry>
+
+   <varlistentry>
+    <term><function>postgres_fdw_verify_connection(server_name text <optional>, user_name text </optional>) returns boolean</function></term>
+    <listitem>
+     <para>
+      This function checks the status of remote connections established by
+      <filename>postgres_fdw</filename> from the local session to the foreign
+      server with the given name. If the user name is given, This function
+      checks only remote connections which is associated with the given user by
+      user mapping. Otherwise all the connections with given server name are
+      checked. This check is performed by polling the socket and allows
+      long-running transactions to be aborted sooner if the kernel reports that
+      the connection is closed. This function is currently available only on
+      systems that support the non-standard <symbol>POLLRDHUP</symbol>
+      extension to the <symbol>poll</symbol> system call, including Linux. This
+      returns <literal>true</literal> if existing connection is not closed by
+      the remote peer. <literal>false</literal> is returned if either of
+      checked connections has been closed. <literal>NULL</literal> is returned
+      if a valid connection to the specified foreign server is not established
+      or this function is not available on this platform. If no foreign server
+      with the given name is found, an error is reported.
+      Example usage of the function:
+<screen>
+postgres=# SELECT postgres_fdw_verify_connection('loopback1');
+ postgres_fdw_verify_connection
+--------------------------------
+ t
+</screen>
+     </para>
+    </listitem>
+   </varlistentry>
+   <varlistentry>
+    <term><function>postgres_fdw_verify_connection_all() returns boolean</function></term>
+    <listitem>
+     <para>
+      This function checks the status of all the remote connections established
+      by <filename>postgres_fdw</filename> from the local session to the
+      foreign servers. This check is performed by polling the socket and allows
+      long-running transactions to be aborted sooner if the kernel reports
+      that the connection is closed. This function is currently available only
+      on systems that support the non-standard <symbol>POLLRDHUP</symbol>
+      extension to the <symbol>poll</symbol> system call, including Linux. This
+      returns <literal>true</literal> if all connections are not closed by the
+      remote peer. <literal>false</literal> is returned if the local session
+      seems to be disconnected from at least one remote server. <literal>NULL</literal>
+      is returned if no valid connections are established or this function is
+      not available on this platform. Example usage of the function:
+<screen>
+postgres=# SELECT postgres_fdw_verify_connection_all();
+ postgres_fdw_verify_connection_all
+------------------------------------
+ t
+</screen>
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><function>postgres_fdw_can_verify_connection_states() returns boolean</function></term>
+    <listitem>
+     <para>
+      This function checks whether <function>postgres_fdw_verify_connection</function>
+      and <function>postgres_fdw_verify_connection_all</function> work
+      well or not. This returns <literal>true</literal> if it can be used,
+      otherwise returns <literal>false</literal>. Example usage of the
+      function:
+
+<screen>
+postgres=# SELECT postgres_fdw_can_verify_connection_states();
+ postgres_fdw_can_verify_connection_states
+-------------------------------------------
+ t
+</screen>
+     </para>
+    </listitem>
+   </varlistentry>
+
    </variablelist>
 
 </sect2>
