@@ -51,9 +51,7 @@ init_tour(PlannerInfo *root, Gene *tour, int num_gene)
 	for (i = 1; i < num_gene; i++)
 	{
 		j = geqo_randint(root, i, 0);
-		/* i != j check avoids fetching uninitialized array element */
-		if (i != j)
-			tour[i] = tour[j];
+		tour[i] = tour[j];
 		tour[j] = (Gene) (i + 1);
 	}
 }
