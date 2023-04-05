@@ -2009,7 +2009,7 @@ pgfdw_finish_abort_cleanup(List *pending_entries, List *cancel_requested,
 Datum
 postgres_fdw_get_connections(PG_FUNCTION_ARGS)
 {
-#define POSTGRES_FDW_GET_CONNECTIONS_COLS	2
+#define POSTGRES_FDW_GET_CONNECTIONS_COLS	3
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	HASH_SEQ_STATUS scan;
 	ConnCacheEntry *entry;
@@ -2071,11 +2071,17 @@ postgres_fdw_get_connections(PG_FUNCTION_ARGS)
 
 			/* Show null, if no server name was found */
 			nulls[0] = true;
+			nulls[1] = true;
 		}
 		else
-			values[0] = CStringGetTextDatum(server->servername);
+		{
+			UserMapping *user = GetUserMappingFromOid(entry->key);
 
-		values[1] = BoolGetDatum(!entry->invalidated);
+			values[0] = CStringGetTextDatum(server->servername);
+			values[1] = CStringGetTextDatum(MappingUserName(user->userid));
+		}
+
+		values[2] = BoolGetDatum(!entry->invalidated);
 
 		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
 	}
