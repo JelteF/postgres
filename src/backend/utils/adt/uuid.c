@@ -13,13 +13,18 @@
 
 #include "postgres.h"
 
+#include <sys/time.h>
+
+#include "access/xlog.h"
 #include "common/hashfn.h"
 #include "lib/hyperloglog.h"
 #include "libpq/pqformat.h"
 #include "port/pg_bswap.h"
-#include "utils/fmgrprotos.h"
+#include "utils/builtins.h"
+#include "utils/datetime.h"
 #include "utils/guc.h"
 #include "utils/sortsupport.h"
+#include "utils/timestamp.h"
 #include "utils/uuid.h"
 
 /* sortsupport for uuid */
@@ -406,6 +411,11 @@ uuid_hash_extended(PG_FUNCTION_ARGS)
 	return hash_any_extended(key->data, UUID_LEN, PG_GETARG_INT64(1));
 }
 
+/*
+ * Routine to generate UUID version 4.
+ * All UUID bytes are filled with strong random numbers except version and
+ * variant 0b10 bits.
+ */
 Datum
 gen_random_uuid(PG_FUNCTION_ARGS)
 {
@@ -424,4 +434,272 @@ gen_random_uuid(PG_FUNCTION_ARGS)
 	uuid->data[8] = (uuid->data[8] & 0x3f) | 0x80;	/* clock_seq_hi_and_reserved */
 
 	PG_RETURN_UUID_P(uuid);
+}
+
+static uint32_t sequence_counter;
+static uint64_t previous_timestamp = 0;
+
+/*
+ * Routine to generate UUID version 7.
+ * Following description is taken from RFC draft and slightly extended to
+ * reflect implementation specific choices.
+ *
+ * UUIDv7 Field and Bit Layout:
+ * ----------
+ *  0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                           unix_ts_ms                          |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |          unix_ts_ms           |  ver  |       rand_a          |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |var|                        rand_b                             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ * |                            rand_b                             |
+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+ *
+ * unix_ts_ms:
+ *  48 bit big-endian unsigned number of Unix epoch timestamp in milliseconds
+ *  as per Section 6.1. Occupies bits 0 through 47 (octets 0-5).
+ *
+ * ver:
+ *  The 4 bit version field as defined by Section 4.2, set to 0b0111 (7).
+ *  Occupies bits 48 through 51 of octet 6.
+ *
+ * rand_a:
+ *  Most significant 12 bits of 18-bit counter. This counter is designed to
+ *  guarantee additional monotonicity as per Section 6.2 (Method 2). rand_a
+ *  occupies bits 52 through 63 (octets 6-7).
+ *
+ * var:
+ *  The 2 bit variant field as defined by Section 4.1, set to 0b10. Occupies
+ *  bits 64 and 65 of octet 8.
+ *
+ * rand_b:
+ *  Starting 6 bits are least significant 6 bits of a counter. The final 56
+ *  bits filled with pseudo-random data to provide uniqueness as per
+ *  Section 6.9. rand_b Occupies bits 66 through 127 (octets 8-15).
+ * ----------
+ * 
+ * Monotonic Random (Method 2) can be implemented with arbitrary size of a
+ * counter. We choose size 18 to reuse all space of bytes that are touched by
+ * ver and var fields + rand_a bytes between them.
+ * Whenever timestamp unix_ts_ms is moving forward, this counter bits are
+ * reinitialized. Rinilialization always sets most significant bit to 0, other
+ * bits are initialized with random numbers. This gives as approximately 192K
+ * UUIDs within one millisecond without overflow. Outh to be enough.
+ * Whenever counter overflow happens, this overflow is translated to increment
+ * of unix_ts_ms. So generation of UUIDs ate rate higher than 128MHz might lead
+ * to using timestamps ahead of time.
+ *
+ * All UUID generator state is backend-local. For UUIDs generated in one
+ * backend we guarantee monotonicity. UUIDs generated on different backends
+ * will be mostly monotonic if they are generated at frequences less than 1KHz,
+ * but this monotonicity is not strictly guaranteed. UUIDs generated on
+ * different nodes are mostly monotonic with regards to possible clock drift.
+ */
+Datum
+uuidv7(PG_FUNCTION_ARGS)
+{
+	pg_uuid_t  *uuid = palloc(UUID_LEN);
+	uint64_t tms;
+	struct timeval tp;
+	bool increment_counter;
+
+	gettimeofday(&tp, NULL);
+	tms = ((uint64_t)tp.tv_sec) * 1000 + (tp.tv_usec) / 1000;
+	/* time from clock is protected from backward leaps */
+	increment_counter = (tms <= previous_timestamp);
+
+	if (increment_counter)
+	{
+		/* Time did not advance from the previous generation, we must increment counter */
+		++sequence_counter;
+		if (sequence_counter > 0x3ffff)
+		{
+			/* We only have 18-bit counter */
+			sequence_counter = 0;
+			previous_timestamp++;
+		}
+
+		/* protection from leap backward */
+		tms = previous_timestamp;
+
+		/* fill everything after the timestamp and counter with random bytes */
+		if (!pg_strong_random(&uuid->data[8], UUID_LEN - 8))
+			ereport(ERROR,
+					(errcode(ERRCODE_INTERNAL_ERROR),
+					errmsg("could not generate random values")));
+
+		/* most significant 4 bits of 18-bit counter */
+		uuid->data[6] = (unsigned char)(sequence_counter >> 14);
+		/* next 8 bits */
+		uuid->data[7] = (unsigned char)(sequence_counter >> 6);
+		/* least significant 6 bits */
+		uuid->data[8] = (unsigned char)(sequence_counter);
+	}
+	else
+	{
+		/* fill everything after the timestamp with random bytes */
+		if (!pg_strong_random(&uuid->data[6], UUID_LEN - 6))
+			ereport(ERROR,
+					(errcode(ERRCODE_INTERNAL_ERROR),
+					errmsg("could not generate random values")));
+
+		/*
+		 * Left-most counter bits are initialized as zero for the sole purpose
+		 * of guarding against counter rollovers.
+		 * See section "Fixed-Length Dedicated Counter Seeding"
+		 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis-09#monotonicity_counters
+		 */
+		uuid->data[6] = (uuid->data[6] & 0xf7);
+
+		/* read randomly initialized bits of counter */
+		sequence_counter = ((uint32_t)uuid->data[8] & 0x3f) +
+							(((uint32_t)uuid->data[7]) << 6) +
+							(((uint32_t)uuid->data[6] & 0x0f) << 14);
+
+		previous_timestamp = tms;
+	}
+
+	/* Fill in time part */
+	uuid->data[0] = (unsigned char)(tms >> 40);
+	uuid->data[1] = (unsigned char)(tms >> 32);
+	uuid->data[2] = (unsigned char)(tms >> 24);
+	uuid->data[3] = (unsigned char)(tms >> 16);
+	uuid->data[4] = (unsigned char)(tms >> 8);
+	uuid->data[5] = (unsigned char)tms;
+
+	/*
+	 * Set magic numbers for a "version 7" (pseudorandom) UUID, see
+	 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis
+	 */
+	/* set version field, top four bits are 0, 1, 1, 1 */
+	uuid->data[6] = (uuid->data[6] & 0x0f) | 0x70;
+	/* set variant field, top two bits are 1, 0 */
+	uuid->data[8] = (uuid->data[8] & 0x3f) | 0x80;
+
+	PG_RETURN_UUID_P(uuid);
+}
+
+/*
+ * Routine to extract UUID version from variant 0b10
+ * Returns NULL if UUID is not 0b10 or version is not 1,6 or7.
+ */
+Datum
+uuid_extract_timestamp(PG_FUNCTION_ARGS)
+{
+	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
+	TimestampTz ts;
+	uint64_t tms;
+
+	if ((uuid->data[8] & 0xc0) != 0x80)
+		PG_RETURN_NULL();
+
+	if ((uuid->data[6] & 0xf0) == 0x70)
+	{
+		tms =			  uuid->data[5];
+		tms += ((uint64_t)uuid->data[4]) << 8;
+		tms += ((uint64_t)uuid->data[3]) << 16;
+		tms += ((uint64_t)uuid->data[2]) << 24;
+		tms += ((uint64_t)uuid->data[1]) << 32;
+		tms += ((uint64_t)uuid->data[0]) << 40;
+
+		ts = (TimestampTz) (tms * 1000) - /* convert ms to us, than adjust */
+			(POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
+
+		PG_RETURN_TIMESTAMPTZ(ts);
+	}
+
+	if ((uuid->data[6] & 0xf0) == 0x10)
+	{
+		tms =  ((uint64_t)uuid->data[0]) << 24;
+		tms += ((uint64_t)uuid->data[1]) << 16;
+		tms += ((uint64_t)uuid->data[2]) << 8;
+		tms += ((uint64_t)uuid->data[3]);
+		tms += ((uint64_t)uuid->data[4]) << 40;
+		tms += ((uint64_t)uuid->data[5]) << 32;
+		tms += (((uint64_t)uuid->data[6])&0xf) << 56;
+		tms += ((uint64_t)uuid->data[7]) << 48;
+
+		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us, than adjust */
+			((uint64_t)POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
+
+		PG_RETURN_TIMESTAMPTZ(ts);
+	}
+
+	if ((uuid->data[6] & 0xf0) == 0x60)
+	{
+		tms =  ((uint64_t)uuid->data[0]) << 52;
+		tms += ((uint64_t)uuid->data[1]) << 44;
+		tms += ((uint64_t)uuid->data[2]) << 36;
+		tms += ((uint64_t)uuid->data[3]) << 28;
+		tms += ((uint64_t)uuid->data[4]) << 20;
+		tms += ((uint64_t)uuid->data[5]) << 12;
+		tms += (((uint64_t)uuid->data[6])&0xf) << 8;
+		tms += ((uint64_t)uuid->data[7]);
+
+		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us, than adjust */
+			((uint64_t)POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
+
+		PG_RETURN_TIMESTAMPTZ(ts);
+	}
+
+	PG_RETURN_NULL();
+}
+
+/*
+ * Routine to extract UUID version from variant 0b10
+ * Returns NULL if UUID is not 0b10
+ */
+Datum
+uuid_extract_version(PG_FUNCTION_ARGS)
+{
+	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
+	uint16_t result;
+
+	if ((uuid->data[8] & 0xc0) != 0x80)
+		PG_RETURN_NULL();
+	result = uuid->data[6] >> 4;
+
+	PG_RETURN_UINT16(result);
+}
+
+/*
+ * Routine to extract UUID variant. Can return only 0, 0b10, 0b110 and 0b111.
+ */
+Datum
+uuid_extract_variant(PG_FUNCTION_ARGS)
+{
+	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
+	uint16_t result;
+
+	/*
+	 * The contents of the variant field, where the letter "x" indicates a
+	 * "don't-care" value.
+	 * ----------
+	 * Msb0		Msb1	Msb2	Msb3	Variant	Description
+	 * 0		x		x		x		1-7		Reserved, NCS backward
+	 * 											compatibility and includes Nil
+	 * 											UUID as per Section 5.9.
+	 * 1		0		x		x		8-9,A-B	The variant specified in RFC.
+	 * 1		1		0		x		C-D		Reserved, Microsoft Corporation
+	 * 											backward compatibility.
+	 * 1		1		1		x		E-F		Reserved for future definition
+	 * 											and includes Max UUID as per
+	 * 											Section 5.10 of RFC.
+	 * ----------
+	 */
+
+	uint8_t nibble = uuid->data[8] >> 4;
+	if (nibble < 8)
+		result = 0;
+	else if (nibble < 0xC)
+		result = 0b10;
+	else if (nibble < 0xE)
+		result = 0b110;
+	else
+		result = 0b111;
+
+	PG_RETURN_UINT16(result);
 }
