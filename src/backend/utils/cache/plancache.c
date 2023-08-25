@@ -717,11 +717,6 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 	else if (resultDesc == NULL || plansource->resultDesc == NULL ||
 			 !equalTupleDescs(resultDesc, plansource->resultDesc))
 	{
-		/* can we give a better error message? */
-		if (plansource->fixed_result)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("cached plan must not change result type")));
 		oldcxt = MemoryContextSwitchTo(plansource->context);
 		if (resultDesc)
 			resultDesc = CreateTupleDescCopy(resultDesc);
