@@ -127,8 +127,7 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 					   nargs,
 					   NULL,
 					   NULL,
-					   CURSOR_OPT_PARALLEL_OK,	/* allow parallel mode */
-					   true);	/* fixed result */
+					   CURSOR_OPT_PARALLEL_OK); /* allow parallel mode */
 
 	/*
 	 * Save the results.
@@ -164,10 +163,6 @@ ExecuteQuery(ParseState *pstate,
 
 	/* Look it up in the hash table */
 	entry = FetchPreparedStatement(stmt->name, true);
-
-	/* Shouldn't find a non-fixed-result cached plan */
-	if (!entry->plansource->fixed_result)
-		elog(ERROR, "EXECUTE does not support variable-result cached plans");
 
 	/* Evaluate parameters, if any */
 	if (entry->plansource->num_params > 0)
@@ -469,7 +464,6 @@ FetchPreparedStatementResultDesc(PreparedStatement *stmt)
 	 * Since we don't allow prepared statements' result tupdescs to change,
 	 * there's no need to worry about revalidating the cached plan here.
 	 */
-	Assert(stmt->plansource->fixed_result);
 	if (stmt->plansource->resultDesc)
 		return CreateTupleDescCopy(stmt->plansource->resultDesc);
 	else
@@ -590,10 +584,6 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 
 	/* Look it up in the hash table */
 	entry = FetchPreparedStatement(execstmt->name, true);
-
-	/* Shouldn't find a non-fixed-result cached plan */
-	if (!entry->plansource->fixed_result)
-		elog(ERROR, "EXPLAIN EXECUTE does not support variable-result cached plans");
 
 	query_string = entry->plansource->query_string;
 

@@ -2285,8 +2285,7 @@ _SPI_prepare_plan(const char *src, SPIPlanPtr plan)
 						   plan->nargs,
 						   plan->parserSetup,
 						   plan->parserSetupArg,
-						   plan->cursor_options,
-						   false);	/* not fixed result */
+						   plan->cursor_options);	/* not fixed result */
 
 		plancache_list = lappend(plancache_list, plansource);
 	}
@@ -2522,8 +2521,7 @@ _SPI_execute_plan(SPIPlanPtr plan, const SPIExecuteOptions *options,
 							   plan->nargs,
 							   plan->parserSetup,
 							   plan->parserSetupArg,
-							   plan->cursor_options,
-							   false);	/* not fixed result */
+							   plan->cursor_options);
 		}
 
 		/*
