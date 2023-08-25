@@ -1585,8 +1585,7 @@ exec_parse_message(const char *query_string,	/* string to execute */
 					   numParams,
 					   NULL,
 					   NULL,
-					   CURSOR_OPT_PARALLEL_OK,	/* allow parallel mode */
-					   true);	/* fixed result */
+					   CURSOR_OPT_PARALLEL_OK); /* allow parallel mode */
 
 	/* If we got a cancel signal during analysis, quit */
 	CHECK_FOR_INTERRUPTS();
@@ -2655,9 +2654,6 @@ exec_describe_statement_message(const char *stmt_name)
 					(errcode(ERRCODE_UNDEFINED_PSTATEMENT),
 					 errmsg("unnamed prepared statement does not exist")));
 	}
-
-	/* Prepared statements shouldn't have changeable result descs */
-	Assert(psrc->fixed_result);
 
 	/*
 	 * If we are in aborted transaction state, we can't run
