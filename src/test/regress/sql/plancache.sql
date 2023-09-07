@@ -10,7 +10,7 @@ PREPARE prepstmt AS SELECT * FROM pcachetest;
 EXECUTE prepstmt;
 
 -- and one with parameters
-PREPARE prepstmt2(bigint) AS SELECT * FROM pcachetest WHERE q1 = $1;
+PREPARE prepstmt2(unknown) AS SELECT * FROM pcachetest WHERE q1 = $1;
 
 EXECUTE prepstmt2(123);
 
@@ -52,6 +52,17 @@ CREATE OR REPLACE TEMP VIEW pcacheview AS
   SELECT q1, q2/2 AS q2 FROM pcachetest;
 
 EXECUTE vprep;
+
+DROP VIEW pcacheview;
+-- If the new plan requires new argument types that should also work resolved
+-- argument types of the prepared statement (because we use unknown as the
+-- type)
+ALTER TABLE pcachetest ALTER COLUMN q1 TYPE text;
+EXECUTE prepstmt2('123');
+
+EXPLAIN (ANALYZE, COSTS OFF, SUMMARY OFF, TIMING OFF) EXECUTE prepstmt2('123');
+ALTER TABLE pcachetest ALTER COLUMN q1 TYPE bigint USING q1::bigint;
+EXPLAIN (ANALYZE, COSTS OFF, SUMMARY OFF, TIMING OFF) EXECUTE prepstmt2(123);
 
 -- Check basic SPI plan invalidation
 

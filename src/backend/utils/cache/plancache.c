@@ -101,8 +101,6 @@ static dlist_head saved_plan_list = DLIST_STATIC_INIT(saved_plan_list);
 static dlist_head cached_expression_list = DLIST_STATIC_INIT(cached_expression_list);
 
 static void ReleaseGenericPlan(CachedPlanSource *plansource);
-static List *RevalidateCachedQuery(CachedPlanSource *plansource,
-								   QueryEnvironment *queryEnv);
 static bool CheckCachedPlan(CachedPlanSource *plansource);
 static CachedPlan *BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 								   ParamListInfo boundParams, QueryEnvironment *queryEnv);
@@ -551,7 +549,7 @@ ReleaseGenericPlan(CachedPlanSource *plansource)
  * had to do re-analysis, and NIL otherwise.  (This is returned just to save
  * a tree copying step in a subsequent BuildCachedPlan call.)
  */
-static List *
+List *
 RevalidateCachedQuery(CachedPlanSource *plansource,
 					  QueryEnvironment *queryEnv)
 {
@@ -688,11 +686,26 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 											  plansource->parserSetupArg,
 											  queryEnv);
 	else
-		tlist = pg_analyze_and_rewrite_fixedparams(rawtree,
-												   plansource->query_string,
-												   plansource->param_types,
-												   plansource->num_params,
-												   queryEnv);
+	{
+		int			num_params = plansource->orig_num_params;
+		Oid		   *param_types = palloc_array(Oid, num_params);
+
+		memcpy(param_types, plansource->orig_param_types, sizeof(Oid) * num_params);
+
+		/*
+		 * Analyze and rewrite the query.  Note that the originally specified
+		 * parameter set is not required to be complete, so we have to use
+		 * pg_analyze_and_rewrite_varparams(). We cannot reuse the previously
+		 * filled in param_types, because the filled in argument types might
+		 * need to change due to the invalidation.
+		 */
+		tlist = pg_analyze_and_rewrite_varparams(rawtree,
+												 plansource->query_string,
+												 &param_types,
+												 &num_params,
+												 queryEnv);
+		memcpy(plansource->param_types, param_types, sizeof(Oid) * num_params);
+	}
 
 	/* Release snapshot if we got one */
 	if (snapshot_set)
@@ -1136,9 +1149,7 @@ CachedPlan *
 GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 			  ResourceOwner owner, QueryEnvironment *queryEnv)
 {
-	CachedPlan *plan = NULL;
 	List	   *qlist;
-	bool		customplan;
 
 	/* Assert caller is doing things in a sane order */
 	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
@@ -1149,6 +1160,32 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 
 	/* Make sure the querytree list is valid and we have parse-time locks */
 	qlist = RevalidateCachedQuery(plansource, queryEnv);
+
+	return GetCachedPlanFromRevalidated(plansource, boundParams, owner, queryEnv, qlist);
+}
+
+/*
+ * GetCachedPlanFromRevalidated: is the same as get GetCachedPlan, but requires
+ * te caller to first revalidate the query. This is needed for callers that
+ * need to use the revalidated plan to generate boundParams.
+ */
+CachedPlan *
+GetCachedPlanFromRevalidated(CachedPlanSource *plansource,
+							 ParamListInfo boundParams,
+							 ResourceOwner owner,
+							 QueryEnvironment *queryEnv,
+							 List *revalidationResult)
+{
+	CachedPlan *plan = NULL;
+	bool		customplan;
+	List	   *qlist = revalidationResult;
+
+	/* Assert caller is doing things in a sane order */
+	Assert(plansource->magic == CACHEDPLANSOURCE_MAGIC);
+	Assert(plansource->is_complete);
+	/* This seems worth a real test, though */
+	if (owner && !plansource->is_saved)
+		elog(ERROR, "cannot apply ResourceOwner to non-saved cached plan");
 
 	/* Decide whether to use a custom plan */
 	customplan = choose_custom_plan(plansource, boundParams);

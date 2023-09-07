@@ -101,6 +101,9 @@ typedef struct CachedPlanSource
 	CommandTag	commandTag;		/* 'nuff said */
 	Oid		   *param_types;	/* array of parameter type OIDs, or NULL */
 	int			num_params;		/* length of param_types array */
+	Oid		   *orig_param_types;	/* array of original parameter type OIDs,
+									 * or NULL */
+	int			orig_num_params;	/* length of orig_param_types array */
 	ParserSetupHook parserSetup;	/* alternative parameter spec method */
 	void	   *parserSetupArg;
 	int			cursor_options; /* cursor options used for planning */
@@ -219,6 +222,13 @@ extern CachedPlan *GetCachedPlan(CachedPlanSource *plansource,
 								 ParamListInfo boundParams,
 								 ResourceOwner owner,
 								 QueryEnvironment *queryEnv);
+extern CachedPlan *GetCachedPlanFromRevalidated(CachedPlanSource *plansource,
+												ParamListInfo boundParams,
+												ResourceOwner owner,
+												QueryEnvironment *queryEnv,
+												List *revalidationResult);
+extern List *RevalidateCachedQuery(CachedPlanSource *plansource,
+								   QueryEnvironment *queryEnv);
 extern void ReleaseCachedPlan(CachedPlan *plan, ResourceOwner owner);
 
 extern bool CachedPlanAllowsSimpleValidityCheck(CachedPlanSource *plansource,

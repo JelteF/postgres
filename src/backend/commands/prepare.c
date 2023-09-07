@@ -108,6 +108,10 @@ PrepareQuery(ParseState *pstate, PrepareStmt *stmt,
 
 			argtypes[i++] = toid;
 		}
+
+		plansource->orig_num_params = nargs;
+		plansource->orig_param_types = MemoryContextAlloc(plansource->context, nargs * sizeof(Oid));
+		memcpy(plansource->orig_param_types, argtypes, nargs * sizeof(Oid));
 	}
 
 	/*
@@ -160,9 +164,12 @@ ExecuteQuery(ParseState *pstate,
 	char	   *query_string;
 	int			eflags;
 	long		count;
+	List	   *revalidationResult;
 
 	/* Look it up in the hash table */
 	entry = FetchPreparedStatement(stmt->name, true);
+
+	revalidationResult = RevalidateCachedQuery(entry->plansource, NULL);
 
 	/* Evaluate parameters, if any */
 	if (entry->plansource->num_params > 0)
@@ -188,7 +195,7 @@ ExecuteQuery(ParseState *pstate,
 									   entry->plansource->query_string);
 
 	/* Replan if needed, and increment plan refcount for portal */
-	cplan = GetCachedPlan(entry->plansource, paramLI, NULL, NULL);
+	cplan = GetCachedPlanFromRevalidated(entry->plansource, paramLI, NULL, NULL, revalidationResult);
 	plan_list = cplan->stmt_list;
 
 	/*
@@ -577,6 +584,7 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 	instr_time	planduration;
 	BufferUsage bufusage_start,
 				bufusage;
+	List	   *revalidationResult;
 
 	if (es->buffers)
 		bufusage_start = pgBufferUsage;
@@ -584,6 +592,8 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 
 	/* Look it up in the hash table */
 	entry = FetchPreparedStatement(execstmt->name, true);
+
+	revalidationResult = RevalidateCachedQuery(entry->plansource, NULL);
 
 	query_string = entry->plansource->query_string;
 
@@ -608,8 +618,8 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 	}
 
 	/* Replan if needed, and acquire a transient refcount */
-	cplan = GetCachedPlan(entry->plansource, paramLI,
-						  CurrentResourceOwner, queryEnv);
+	cplan = GetCachedPlanFromRevalidated(entry->plansource, paramLI,
+										 CurrentResourceOwner, queryEnv, revalidationResult);
 
 	INSTR_TIME_SET_CURRENT(planduration);
 	INSTR_TIME_SUBTRACT(planduration, planstart);

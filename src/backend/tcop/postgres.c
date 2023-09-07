@@ -1535,6 +1535,9 @@ exec_parse_message(const char *query_string,	/* string to execute */
 			snapshot_set = true;
 		}
 
+		psrc->orig_num_params = numParams;
+		psrc->orig_param_types = MemoryContextAlloc(psrc->context, numParams * sizeof(Oid));
+
 		/*
 		 * Analyze and rewrite the query.  Note that the originally specified
 		 * parameter set is not required to be complete, so we have to use
