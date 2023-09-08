@@ -4563,6 +4563,15 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	 */
 	name = altersysstmt->setstmt->name;
 
+	if (!AllowAlterSystem)
+	{
+
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("ALTER SYSTEM is not allowed in this environment"),
+				 errhint("Global configuration changes should be made through a configuration system outside of PostgreSQL, not by using ALTER SYSTEM.")));
+	}
+
 	switch (altersysstmt->setstmt->kind)
 	{
 		case VAR_SET_VALUE:

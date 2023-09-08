@@ -320,4 +320,7 @@ extern char *config_enum_get_options(struct config_enum *record,
 									 const char *suffix,
 									 const char *separator);
 
+/* GUC reference to enable/disable alter system */
+extern PGDLLIMPORT bool AllowAlterSystem;
+
 #endif							/* GUC_TABLES_H */
