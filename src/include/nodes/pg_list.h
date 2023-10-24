@@ -383,13 +383,14 @@ lnext(const List *l, const ListCell *c)
  *	  delete the current list element from the List associated with a
  *	  surrounding foreach() loop, returning the new List pointer.
  *
- * This is equivalent to list_delete_cell(), but it also adjusts the foreach
- * loop's state so that no list elements will be missed.  Do not delete
- * elements from an active foreach loop's list in any other way!
+ * This is similar to list_delete_cell(), but it also works when using
+ * for_each_xyz macros that don't require passing in a "ListCell *".
+ * Furthermore it adjusts the foreach loop's state so that no list elements
+ * will be missed. Do not delete elements from an active foreach loop's list in
+ * any other way!
  */
-#define foreach_delete_current(lst, cell)	\
-	(cell##__state.i--, \
-	 (List *) (cell##__state.l = list_delete_cell(lst, cell)))
+#define foreach_delete_current(lst, var)	\
+	((List *) (var##__state.l = list_delete_cell(lst, &var##__state.l->elements[var##__state.i--])))
 
 /*
  * foreach_current_index -
@@ -451,6 +452,44 @@ for_each_cell_setup(const List *lst, const ListCell *initcell)
 
 	return r;
 }
+
+/*
+ * Convenience macros that loop through a list of pointers/ints/oids/xids
+ * without needing a "ListCell *", just a declared variable to store of the
+ * respective type to store the current value in.
+ *
+ * Unlike with foreach() it's not possible to detect if an early "break"
+ * occured by checking the value of the loop variable at the end of the loop.
+ * If you need this, it's recommended to use foreach() instead or manually
+ * track if a break occured by using a boolean flag variable called e.g.
+ * "found".
+ *
+ * The caveats for foreach() apply equally here.
+ */
+#define foreach_ptr(var, lst)   foreach_internal(var, lst, lfirst)
+#define foreach_int(var, lst)   foreach_internal(var, lst, lfirst_int)
+#define foreach_oid(var, lst)   foreach_internal(var, lst, lfirst_oid)
+#define foreach_xid(var, lst)   foreach_internal(var, lst, lfirst_xid)
+
+#define foreach_internal(var, lst, func) \
+	for (ForEachState var##__state = {(lst), 0}; \
+		 (var##__state.l != NIL && \
+		  var##__state.i < var##__state.l->length && \
+		 (var = func(&var##__state.l->elements[var##__state.i]), true)); \
+		 var##__state.i++)
+
+
+/*
+ * foreach_node -
+ *	  The same as foreach_ptr, but when assertions are enabled it verifies that
+ *	  the element is of the specified node type (using its nodeTag()).
+ */
+#define foreach_node(type, var, lst) \
+	for (ForEachState var##__state = {(lst), 0}; \
+		 (var##__state.l != NIL && \
+		  var##__state.i < var##__state.l->length && \
+		 (var = lfirst_node(type, &var##__state.l->elements[var##__state.i]), true));\
+		 var##__state.i++)
 
 /*
  * forboth -
