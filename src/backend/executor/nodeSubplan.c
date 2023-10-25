@@ -307,7 +307,6 @@ ExecScanSubPlan(SubPlanState *node,
 		Datum		rowresult;
 		bool		rownull;
 		int			col;
-		int			paramid;
 
 		if (subLinkType == EXISTS_SUBLINK)
 		{
@@ -478,8 +477,6 @@ ExecScanSubPlan(SubPlanState *node,
 		}
 		else if (subLinkType == MULTIEXPR_SUBLINK)
 		{
-			int			paramid;
-
 			/* We don't care about function result, but set the setParams */
 			foreach_int(paramid, subplan->setParam)
 			{
@@ -604,7 +601,6 @@ buildSubPlanHash(SubPlanState *node, ExprContext *econtext)
 	{
 		int			col = 1;
 		bool		isnew;
-		int			paramid;
 
 		/*
 		 * Load up the Params representing the raw sub-select outputs, then
@@ -878,8 +874,6 @@ ExecInitSubPlan(SubPlan *subplan, PlanState *parent)
 	if (subplan->setParam != NIL && subplan->parParam == NIL &&
 		subplan->subLinkType != CTE_SUBLINK)
 	{
-		int			paramid;
-
 		foreach_int(paramid, subplan->setParam)
 		{
 			ParamExecData *prm = &(estate->es_param_exec_vals[paramid]);
@@ -903,7 +897,6 @@ ExecInitSubPlan(SubPlan *subplan, PlanState *parent)
 		List	   *oplist,
 				   *lefttlist,
 				   *righttlist;
-		OpExpr	   *opexpr;
 
 		/* We need a memory context to hold the hash table(s) */
 		sstate->hashtablecxt =

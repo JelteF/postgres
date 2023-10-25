@@ -216,8 +216,6 @@ ExecInitQual(List *qual, PlanState *parent)
 	ExprState  *state;
 	ExprEvalStep scratch = {0};
 	List	   *adjust_jumps = NIL;
-	Expr	   *node;
-	int			jump;
 
 	/* short-circuit (here and in ExecQual) for empty restriction list */
 	if (qual == NIL)
@@ -251,7 +249,7 @@ ExecInitQual(List *qual, PlanState *parent)
 	scratch.resvalue = &state->resvalue;
 	scratch.resnull = &state->resnull;
 
-	foreach_ptr(node, qual)
+	foreach_ptr(Expr, node, qual)
 	{
 		/* first evaluate expression */
 		ExecInitExprRec(node, state, &state->resvalue, &state->resnull);

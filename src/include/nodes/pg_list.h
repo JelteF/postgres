@@ -455,29 +455,45 @@ for_each_cell_setup(const List *lst, const ListCell *initcell)
 
 /*
  * Convenience macros that loop through a list of pointers/ints/oids/xids
- * without needing a "ListCell *", just a declared variable to store of the
- * respective type to store the current value in.
+ * without needing a "ListCell *". Instead it only needs a name for the loop
+ * variable (and for foreach_ptr the underlying type of the pointer). This
+ * loop variable is declared automatically within the scope of the loop.
  *
  * Unlike with foreach() it's not possible to detect if an early "break"
- * occured by checking the value of the loop variable at the end of the loop.
- * If you need this, it's recommended to use foreach() instead or manually
- * track if a break occured by using a boolean flag variable called e.g.
- * "found".
+ * occured by checking the value of the loop variable at the end of the loop,
+ * because it isn't declared outside the loop. If you need this, it's
+ * recommended to use foreach() instead or manually track if a break occured by
+ * using a boolean flag variable called e.g. "found".
  *
  * The caveats for foreach() apply equally here.
  */
-#define foreach_ptr(var, lst)   foreach_internal(var, lst, lfirst)
-#define foreach_int(var, lst)   foreach_internal(var, lst, lfirst_int)
-#define foreach_oid(var, lst)   foreach_internal(var, lst, lfirst_oid)
-#define foreach_xid(var, lst)   foreach_internal(var, lst, lfirst_xid)
+#define foreach_ptr(type, var, lst)   foreach_internal(type, *, var, lst, lfirst)
+#define foreach_int(var, lst)   foreach_internal(int, , var, lst, lfirst_int)
+#define foreach_oid(var, lst)   foreach_internal(Oid, , var, lst, lfirst_oid)
+#define foreach_xid(var, lst)   foreach_internal(TransactionId, , var, lst, lfirst_xid)
 
-#define foreach_internal(var, lst, func) \
-	for (ForEachState var##__state = {(lst), 0}; \
-		 (var##__state.l != NIL && \
-		  var##__state.i < var##__state.l->length && \
-		 (var = func(&var##__state.l->elements[var##__state.i]), true)); \
-		 var##__state.i++)
-
+/*
+ * The internal implementation of the above macros. Do not use directly.
+ *
+ * This macro actually generates two for loops instead of one. The outer loop
+ * is very much a hack. We really only want a single loop. The only reason the
+ * outer loop is created is because we want to declare two loop variables of
+ * different types and the C standard doesn't allow that. So instead we create
+ * two loops that both declare a variable of a different type. Then we make
+ * sure the actual loop body is still executed the intended number of times, by
+ * making sure it only does a single iteration. Any optimizing compiler should
+ * be able to optimize away the outer loop, since it's trivial to unroll the
+ * loop body since it's statically known that it only iterates once.
+ */
+#define foreach_internal(type, pointer, var, lst, func) \
+	for (type pointer var = 0, pointer var##__iterate_only_once_outer = (type pointer) 1; \
+		 var##__iterate_only_once_outer; \
+		 var##__iterate_only_once_outer = 0) \
+		for (ForEachState var##__state = {(lst), 0}; \
+			 (var##__state.l != NIL && \
+			  var##__state.i < var##__state.l->length && \
+			 (var = func(&var##__state.l->elements[var##__state.i]), true)); \
+			 var##__state.i++)
 
 /*
  * foreach_node -
@@ -485,11 +501,14 @@ for_each_cell_setup(const List *lst, const ListCell *initcell)
  *	  the element is of the specified node type (using its nodeTag()).
  */
 #define foreach_node(type, var, lst) \
-	for (ForEachState var##__state = {(lst), 0}; \
-		 (var##__state.l != NIL && \
-		  var##__state.i < var##__state.l->length && \
-		 (var = lfirst_node(type, &var##__state.l->elements[var##__state.i]), true));\
-		 var##__state.i++)
+	for (type * var = 0, *var##__outerloop = (type *) 1; \
+		 var##__outerloop; \
+		 var##__outerloop = 0) \
+		for (ForEachState var##__state = {(lst), 0}; \
+			 (var##__state.l != NIL && \
+			  var##__state.i < var##__state.l->length && \
+			 (var = lfirst_node(type, &var##__state.l->elements[var##__state.i]), true));\
+			 var##__state.i++)
 
 /*
  * forboth -

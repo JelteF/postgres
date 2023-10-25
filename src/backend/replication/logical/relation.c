@@ -746,7 +746,6 @@ static Oid
 FindUsableIndexForReplicaIdentityFull(Relation localrel, AttrMap *attrmap)
 {
 	List	   *idxlist = RelationGetIndexList(localrel);
-	Oid			idxoid;
 
 	foreach_oid(idxoid, idxlist)
 	{

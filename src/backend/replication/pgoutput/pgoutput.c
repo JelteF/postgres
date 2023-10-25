@@ -2229,7 +2229,6 @@ cleanup_rel_sync_cache(TransactionId xid, bool is_commit)
 {
 	HASH_SEQ_STATUS hash_seq;
 	RelationSyncEntry *entry;
-	TransactionId streamed_txn;
 
 	Assert(RelationSyncCache != NULL);
 
