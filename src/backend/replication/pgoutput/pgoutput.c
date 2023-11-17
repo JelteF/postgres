@@ -12,8 +12,6 @@
  */
 #include "postgres.h"
 
-#include "access/genam.h"
-#include "access/table.h"
 #include "access/tupconvert.h"
 #include "catalog/partition.h"
 #include "catalog/pg_publication.h"
@@ -30,7 +28,6 @@
 #include "replication/origin.h"
 #include "replication/pgoutput.h"
 #include "utils/builtins.h"
-#include "utils/fmgroids.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -1965,51 +1962,6 @@ set_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 	MemoryContextSwitchTo(oldctx);
 }
 
-static List*
-GetRelationPublicationsRaw(Oid relid)
-{
-	List *result = NIL;
-	SysScanDesc scandesc;
-	Relation relation;
-	ScanKeyData key[1];
-	HeapTuple	tup;
-
-	elog(LOG, "GetRelationPublicationsRaw relid %d / start", relid);
-
-	relation = table_open(PublicationRelRelationId, AccessShareLock);
-
-	ScanKeyInit(&key[0],
-				Anum_pg_publication_rel_prrelid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(relid));
-
-	scandesc = systable_beginscan(relation,
-								  PublicationRelPrrelidPrpubidIndexId,
-								  true,
-								  NULL,
-								  1,
-								  key);
-
-	while (HeapTupleIsValid(tup = systable_getnext(scandesc)))
-	{
-		Form_pg_publication_rel form;
-
-		form = (Form_pg_publication_rel) GETSTRUCT(tup);
-
-		elog(LOG, "GetRelationPublicationsRaw relid %d / tuple pub %d", relid, form->prpubid);
-
-		result = lappend_oid(result, form->prpubid);
-	}
-
-	systable_endscan(scandesc);
-
-	table_close(relation, AccessShareLock);
-
-	elog(LOG, "GetRelationPublicationsRaw relid %d / end", relid);
-
-	return result;
-}
-
 /*
  * Find or create entry in the relation schema cache.
  *
@@ -2055,15 +2007,11 @@ get_rel_sync_entry(PGOutputData *data, Relation relation)
 
 	elog(LOG, "get_rel_sync_entry relation %d replicate_valid %d", RelationGetRelid(relation), entry->replicate_valid);
 
-	/* force refresh of the entry for each change */
-	entry->replicate_valid = false;
-
 	/* Validate the entry */
 	if (!entry->replicate_valid)
 	{
 		Oid			schemaId = get_rel_namespace(relid);
-		List	   *pubids = GetRelationPublicationsRaw(relid);
-		// List	   *pubids = GetRelationPublications(relid);
+		List	   *pubids = GetRelationPublications(relid);
 
 		/*
 		 * We don't acquire a lock on the namespace system table as we build
