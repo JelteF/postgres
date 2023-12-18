@@ -372,6 +372,7 @@ warn "No files to process" unless @files;
 process_exclude();
 
 my %processed;
+my $status = 0;
 
 foreach my $source_filename (@files)
 {
@@ -427,10 +428,10 @@ foreach my $source_filename (@files)
 
 			if ($check)
 			{
-				exit 2;
+				$status = 2;
 			}
 		}
 	}
 }
 
-exit 0;
+exit $status;
