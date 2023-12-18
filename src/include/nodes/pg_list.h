@@ -383,24 +383,25 @@ lnext(const List *l, const ListCell *c)
  *	  delete the current list element from the List associated with a
  *	  surrounding foreach() loop, returning the new List pointer.
  *
- * This is equivalent to list_delete_cell(), but it also adjusts the foreach
- * loop's state so that no list elements will be missed.  Do not delete
- * elements from an active foreach loop's list in any other way!
+ * This is similar to list_delete_cell(), but it also works when using
+ * foreach_xyz macros that don't require passing in a "ListCell *".
+ * Furthermore it adjusts the foreach loop's state so that no list elements
+ * will be missed. Do not delete elements from an active foreach loop's list in
+ * any other way!
  */
-#define foreach_delete_current(lst, cell)	\
-	(cell##__state.i--, \
-	 (List *) (cell##__state.l = list_delete_cell(lst, cell)))
+#define foreach_delete_current(lst, var_or_cell)	\
+	((List *) (var_or_cell##__state.l = list_delete_nth_cell(lst, var_or_cell##__state.i--)))
 
 /*
  * foreach_current_index -
  *	  get the zero-based list index of a surrounding foreach() loop's
- *	  current element; pass the name of the "ListCell *" iterator variable.
+ *	  current element; pass the name of the iterator variable.
  *
  * Beware of using this after foreach_delete_current(); the value will be
  * out of sync for the rest of the current loop iteration.  Anyway, since
  * you just deleted the current element, the value is pretty meaningless.
  */
-#define foreach_current_index(cell)  (cell##__state.i)
+#define foreach_current_index(var_or_cell)  (var_or_cell##__state.i)
 
 /*
  * for_each_from -
