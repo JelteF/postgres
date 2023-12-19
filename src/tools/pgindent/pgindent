@@ -23,7 +23,7 @@ my $devnull = File::Spec->devnull;
 
 my ($typedefs_file, $typedef_str, @excludes,
 	$indent, $build, $diff,
-	$check, $help, @commits,);
+	$check, $write, $help, @commits,);
 
 $help = 0;
 
@@ -35,8 +35,14 @@ my %options = (
 	"excludes=s" => \@excludes,
 	"indent=s" => \$indent,
 	"diff" => \$diff,
+	"write" => \$write,
 	"check" => \$check,);
 GetOptions(%options) || usage("bad command line argument");
+
+if (!$check && !$diff)
+{
+	$write = 1;
+}
 
 usage() if $help;
 
@@ -320,8 +326,9 @@ Options:
 	--list-of-typedefs=STR  string containing typedefs, space separated
 	--excludes=PATH         file containing list of filename patterns to ignore
 	--indent=PATH           path to pg_bsd_indent program
-	--diff                  show the changes that would be made
-	--check                 exit with status 2 if any changes would be made
+	--diff                  show the changes that need to be made
+	--check                 exit with status 2 if any changes need to be made
+	--write                 write needed changes to files (default if neither --check/--diff/--write are provided)
 The --excludes and --commit options can be given more than once.
 EOF
 	if ($help)
@@ -415,21 +422,17 @@ foreach my $source_filename (@files)
 
 	if ($source ne $orig_source)
 	{
-		if (!$diff && !$check)
+		if ($write)
 		{
 			write_source($source, $source_filename);
 		}
-		else
+		if ($diff)
 		{
-			if ($diff)
-			{
-				print diff($source, $source_filename);
-			}
-
-			if ($check)
-			{
-				$status = 2;
-			}
+			print diff($source, $source_filename);
+		}
+		if ($check)
+		{
+			$status = 2;
 		}
 	}
 }
