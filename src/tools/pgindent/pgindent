@@ -432,7 +432,17 @@ foreach my $source_filename (@files)
 		}
 		if ($check)
 		{
-			$status = 2;
+			if ($write || $diff)
+			{
+				# We don't want to exit immediately, because we
+				# want to write and/or diff all the files
+				$status = 2;
+			}
+			else
+			{
+				# We're just checking, so we can exit immediately
+				exit 2;
+			}
 		}
 	}
 }
