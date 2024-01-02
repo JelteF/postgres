@@ -639,6 +639,24 @@ struct pg_conn
 	PQExpBufferData workBuffer; /* expansible string */
 };
 
+typedef struct pg_protocol_parameter
+{
+	const char *name;
+	const char *default_value;
+
+	/*
+	 * Offset of the "connection string value" string in the connection
+	 * structure
+	 */
+	off_t		conn_connection_string_value_offset;
+	/* Offset of the "server value" in the connection structure */
+	off_t		conn_server_value_offset;
+	/* Offset of the "server support string" in the connection structure */
+	off_t		conn_server_support_offset;
+} pg_protocol_parameter;
+
+extern const struct pg_protocol_parameter KnownProtocolParameters[];
+
 
 /* String descriptions of the ExecStatusTypes.
  * direct use of this array is deprecated; call PQresStatus() instead.

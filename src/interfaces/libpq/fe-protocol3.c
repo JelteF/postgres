@@ -56,6 +56,9 @@ static void reportErrorPosition(PQExpBuffer msg, const char *query,
 static int	build_startup_packet(const PGconn *conn, char *packet,
 								 const PQEnvironmentOption *options);
 
+const struct pg_protocol_parameter KnownProtocolParameters[] = {
+	{NULL, NULL, 0, 0}
+};
 
 /*
  * parseInput: if appropriate, parse input data from backend
@@ -1411,49 +1414,70 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 int
 pqGetNegotiateProtocolVersion3(PGconn *conn)
 {
-	int			tmp;
-	ProtocolVersion their_version;
+	int			their_version;
 	int			num;
-	PQExpBufferData buf;
 
-	if (pqGetInt(&tmp, 4, conn) != 0)
+	if (pqGetInt(&their_version, 4, conn) != 0)
 		return EOF;
-	their_version = tmp;
 
 	if (pqGetInt(&num, 4, conn) != 0)
 		return EOF;
 
-	initPQExpBuffer(&buf);
+	/* these should never happen */
+	if (their_version > conn->pversion)
+	{
+		libpq_append_conn_error(conn, "invalid NegotiateProtocolVersion message, server version is newer than client version");
+		goto failure;
+	}
+
+	if (num < 0)
+	{
+		libpq_append_conn_error(conn, "invalid NegotiateProtocolVersion message, negative protocol parameter count");
+		goto failure;
+	}
+
+
+
+	/* it's reporting "all good", so server shouldn't have sent it */
+	if (their_version == conn->pversion && num == 0)
+	{
+		libpq_append_conn_error(conn, "unexpected NegotiateProtocolVersion message, server supports requested features");
+		goto failure;
+	}
+
+	conn->pversion = their_version;
 	for (int i = 0; i < num; i++)
 	{
+		bool		found = false;
+
 		if (pqGets(&conn->workBuffer, conn))
 		{
-			termPQExpBuffer(&buf);
 			return EOF;
 		}
-		if (buf.len > 0)
-			appendPQExpBufferChar(&buf, ' ');
-		appendPQExpBufferStr(&buf, conn->workBuffer.data);
+
+		for (const pg_protocol_parameter *param = KnownProtocolParameters; param->name; param++)
+		{
+			if (strcmp(param->name, conn->workBuffer.data) == 0)
+			{
+				char	  **server_value = (char **) ((char *) conn + param->conn_server_value_offset);
+
+				*server_value = NULL;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found)
+		{
+			libpq_append_conn_error(conn, "invalid NegotiateProtocolVersion message, server reported unknown unsupported parameter %s", conn->workBuffer.data);
+			goto failure;
+		}
 	}
 
-	if (their_version < conn->pversion)
-		libpq_append_conn_error(conn, "protocol version not supported by server: client uses %u.%u, server supports up to %u.%u",
-								PG_PROTOCOL_MAJOR(conn->pversion), PG_PROTOCOL_MINOR(conn->pversion),
-								PG_PROTOCOL_MAJOR(their_version), PG_PROTOCOL_MINOR(their_version));
-	if (num > 0)
-	{
-		appendPQExpBuffer(&conn->errorMessage,
-						  libpq_ngettext("protocol extension not supported by server: %s",
-										 "protocol extensions not supported by server: %s", num),
-						  buf.data);
-		appendPQExpBufferChar(&conn->errorMessage, '\n');
-	}
-
-	/* neither -- server shouldn't have sent it */
-	if (!(their_version < conn->pversion) && !(num > 0))
-		libpq_append_conn_error(conn, "invalid %s message", "NegotiateProtocolVersion");
-
-	termPQExpBuffer(&buf);
+	return 0;
+failure:
+	conn->asyncStatus = PGASYNC_READY;
+	pqSaveErrorResult(conn);
 	return 0;
 }
 
@@ -2311,6 +2335,34 @@ build_startup_packet(const PGconn *conn, char *packet,
 		{
 			if (pg_strcasecmp(val, "default") != 0)
 				ADD_STARTUP_OPTION(next_eo->pgName, val);
+		}
+	}
+
+	/*
+	 * If we are requesting protocol version 3.1 or higher, also request all
+	 * known protocol parameters. That way, we can know which parameters are
+	 * supported by the server. We don't request any parameters for older
+	 * protocol versions, because not all old servers support the negotiation
+	 * mechanism that newer servers support.
+	 */
+	if (conn->max_pversion > PG_PROTOCOL(3, 0))
+	{
+		for (const pg_protocol_parameter *param = KnownProtocolParameters; param->name; param++)
+		{
+			const char *value = *(char **) ((char *) conn + param->conn_connection_string_value_offset);
+
+			if (!value || !value[0])
+				value = param->default_value;
+
+			/*
+			 * Add the _pq_. prefix to the parameter name. This is needed for
+			 * all protocol parameters.
+			 */
+			if (packet)
+				strcpy(packet + packet_len, "_pq_.");
+			packet_len += 5;
+
+			ADD_STARTUP_OPTION(param->name, value);
 		}
 	}
 
