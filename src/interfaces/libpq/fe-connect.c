@@ -3836,9 +3836,25 @@ keep_going:						/* We will come back to here until there is
 						libpq_append_conn_error(conn, "received invalid protocol negotiation message");
 						goto error_return;
 					}
+
+					if (conn->pversion < PG_PROTOCOL_EARLIEST)
+					{
+						libpq_append_conn_error(conn, "protocol version not supported by server: client supports down to %u.%u, server supports up to %u.%u",
+												PG_PROTOCOL_MAJOR(PG_PROTOCOL_EARLIEST), PG_PROTOCOL_MINOR(PG_PROTOCOL_EARLIEST),
+												PG_PROTOCOL_MAJOR(conn->pversion), PG_PROTOCOL_MINOR(conn->pversion));
+						goto error_return;
+					}
+
+					/* neither -- server shouldn't have sent it */
+					if (!(conn->pversion < PG_PROTOCOL_LATEST) && !conn->unsupported_pextension_params)
+					{
+						libpq_append_conn_error(conn, "invalid %s message", "NegotiateProtocolVersion");
+						goto error_return;
+					}
+
 					/* OK, we read the message; mark data consumed */
 					conn->inStart = conn->inCursor;
-					goto error_return;
+					goto keep_going;
 				}
 
 				/* It is an authentication request. */
@@ -4658,6 +4674,20 @@ freePGconn(PGconn *conn)
 
 	release_conn_addrinfo(conn);
 	pqReleaseConnHosts(conn);
+
+	if (conn->unsupported_pextension_params)
+	{
+		/* clean up unsupported_pextension_params entries */
+		int			i = 0;
+
+		while (conn->unsupported_pextension_params[i])
+		{
+			free(conn->unsupported_pextension_params[i]);
+			i++;
+		}
+		free(conn->unsupported_pextension_params);
+	}
+
 
 	free(conn->client_encoding_initial);
 	free(conn->events);
