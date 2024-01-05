@@ -328,7 +328,8 @@ typedef enum
 	PGQUERY_PREPARE,			/* Parse only (PQprepare) */
 	PGQUERY_DESCRIBE,			/* Describe Statement or Portal */
 	PGQUERY_SYNC,				/* Sync (at end of a pipeline) */
-	PGQUERY_CLOSE				/* Close Statement or Portal */
+	PGQUERY_CLOSE,				/* Close Statement or Portal */
+	PGQUERY_SET_PROTOCOL_PARAMETER, /* Set a protocol parameter */
 } PGQueryClass;
 
 /*
@@ -741,6 +742,7 @@ extern int	pqGetErrorNotice3(PGconn *conn, bool isError);
 extern void pqBuildErrorMessage3(PQExpBuffer msg, const PGresult *res,
 								 PGVerbosity verbosity, PGContextVisibility show_context);
 extern int	pqGetNegotiateProtocolVersion3(PGconn *conn);
+extern int	pqGetNegotiateProtocolParameter(PGconn *conn);
 extern int	pqGetCopyData3(PGconn *conn, char **buffer, int async);
 extern int	pqGetline3(PGconn *conn, char *s, int maxlen);
 extern int	pqGetlineAsync3(PGconn *conn, char *buffer, int bufsize);

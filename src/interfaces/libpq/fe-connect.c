@@ -3787,7 +3787,8 @@ keep_going:						/* We will come back to here until there is
 				 */
 				if (beresp != PqMsg_AuthenticationRequest &&
 					beresp != PqMsg_ErrorResponse &&
-					beresp != PqMsg_NegotiateProtocolVersion)
+					beresp != PqMsg_NegotiateProtocolVersion &&
+					beresp != PqMsg_NegotiateProtocolParameter)
 				{
 					libpq_append_conn_error(conn, "expected authentication request from server, but received %c",
 											beresp);
@@ -3928,6 +3929,24 @@ keep_going:						/* We will come back to here until there is
 						libpq_append_conn_error(conn, "received invalid protocol negotiation message");
 						goto error_return;
 					}
+					/* OK, we read the message; mark data consumed */
+					conn->inStart = conn->inCursor;
+					goto keep_going;
+				}
+				else if (beresp == PqMsg_NegotiateProtocolParameter)
+				{
+					if (pqGetNegotiateProtocolParameter(conn))
+					{
+						libpq_append_conn_error(conn, "received invalid NegotiateProtocolParameter message");
+						goto error_return;
+					}
+
+					if (conn->error_result)
+						goto error_return;
+
+					if (conn->Pfdebug)
+						pqTraceOutputMessage(conn, conn->inBuffer + conn->inStart, false);
+
 					/* OK, we read the message; mark data consumed */
 					conn->inStart = conn->inCursor;
 					goto keep_going;
