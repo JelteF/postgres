@@ -3580,6 +3580,33 @@ PGresult *PQclosePortal(PGconn *conn, const char *portalName);
        </para>
       </listitem>
      </varlistentry>
+
+     <varlistentry id="libpq-PQparameterSet">
+      <term><function>PQparameterSet</function><indexterm><primary>PQparameterSet</primary></indexterm></term>
+
+      <listitem>
+       <para>
+        Submits a request to change a protocol parameter, and waits for completion.
+<synopsis>
+PGresult *PQparameterSet(PGconn *conn, const char *parameter, const char *value);
+</synopsis>
+       </para>
+
+       <para>
+        <xref linkend="libpq-PQparameterSet"/> allows a client to change
+        backend parameters on the current connection. This is identical to
+        sending a SET command, except that it is at the protocol level.
+       </para>
+
+       <para>
+        <parameter>parameter</parameter> is the name of the parameter to
+        change, and <parameter>value</parameter> is the value to which to
+        change it. On success, a <structname>PGresult</structname> with status
+        <literal>PGRES_COMMAND_OK</literal> is returned.
+       </para>
+      </listitem>
+     </varlistentry>
+
     </variablelist>
    </para>
 
@@ -5289,6 +5316,27 @@ int PQsendClosePortal(PGconn *conn, const char *portalName);
       </para>
      </listitem>
     </varlistentry>
+
+    <varlistentry id="libpq-PQsendParameterSet">
+     <term><function>PQsendParameterSet</function><indexterm><primary>PQsendParameterSet</primary></indexterm></term>
+
+     <listitem>
+      <para>
+        Submits a request to change a protocol parameter, without waiting for
+        completion.
+<synopsis>
+int PQsendParameterSet(PGconn *conn, const char *portalName);
+</synopsis>
+
+       This is an asynchronous version of <xref linkend="libpq-PQparameterSet"/>:
+       it returns 1 if it was able to dispatch the request, and 0 if not.
+       After a successful call, call <xref linkend="libpq-PQgetResult"/> to
+       obtain the results.  The function's parameters are handled
+       identically to <xref linkend="libpq-PQparameterSet"/>.
+      </para>
+     </listitem>
+    </varlistentry>
+
 
     <varlistentry id="libpq-PQgetResult">
      <term><function>PQgetResult</function><indexterm><primary>PQgetResult</primary></indexterm></term>

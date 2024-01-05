@@ -297,6 +297,28 @@ pqParseInput3(PGconn *conn)
 						conn->asyncStatus = PGASYNC_READY;
 					}
 					break;
+				case PqMsg_ParameterSetComplete:
+
+					/*
+					 * If we're doing PQsendParameterSet, we're done; else
+					 * ignore
+					 */
+					if (conn->cmd_queue_head &&
+						conn->cmd_queue_head->queryclass == PGQUERY_PARAMETER_SET)
+					{
+						if (!pgHavePendingResult(conn))
+						{
+							conn->result = PQmakeEmptyPGresult(conn,
+															   PGRES_COMMAND_OK);
+							if (!conn->result)
+							{
+								libpq_append_conn_error(conn, "out of memory");
+								pqSaveErrorResult(conn);
+							}
+						}
+						conn->asyncStatus = PGASYNC_READY;
+					}
+					break;
 				case PqMsg_ParameterStatus:
 					if (getParameterStatus(conn))
 						return;
