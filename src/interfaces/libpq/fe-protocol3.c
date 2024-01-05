@@ -2320,6 +2320,9 @@ build_startup_packet(const PGconn *conn, char *packet,
 		}
 	}
 
+	if (conn->pq_protocol_managed_params && conn->pq_protocol_managed_params[0])
+		ADD_STARTUP_OPTION("_pq_.protocol_managed_params", conn->pq_protocol_managed_params);
+
 	/* Add trailing terminator */
 	if (packet)
 		packet[packet_len] = '\0';

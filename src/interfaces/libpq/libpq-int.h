@@ -419,6 +419,7 @@ struct pg_conn
 	char	   *require_auth;	/* name of the expected auth method */
 	char	   *load_balance_hosts; /* load balance over hosts */
 	char	   *max_protocol_version;	/* maximum used protocol version */
+	char	   *pq_protocol_managed_params; /* _pq_.protocol_managed_params */
 
 	bool		cancelRequest;	/* true if this connection is used to send a
 								 * cancel request, instead of being a normal

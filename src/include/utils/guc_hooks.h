@@ -25,6 +25,8 @@
  * Please keep the declarations in order by GUC variable name.
  */
 
+extern bool check_protocol_managed_params(char **newval, void **extra, GucSource source);
+extern void assign_protocol_managed_params(const char *newval, void *extra);
 extern bool check_application_name(char **newval, void **extra,
 								   GucSource source);
 extern void assign_application_name(const char *newval, void *extra);

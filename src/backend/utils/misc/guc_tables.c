@@ -496,6 +496,8 @@ extern const struct config_enum_entry dynamic_shared_memory_options[];
  * GUC option variables that are exported from this module
  */
 bool		AllowAlterSystem = true;
+char	   *protocol_managed_params = "";
+
 bool		log_duration = false;
 bool		Debug_print_plan = false;
 bool		Debug_print_parse = false;
@@ -3949,6 +3951,16 @@ struct config_real ConfigureNamesReal[] =
 
 struct config_string ConfigureNamesString[] =
 {
+	{
+		{"_pq_.protocol_managed_params", PGC_PROTOCOL, PROTOCOL_EXTENSION,
+			gettext_noop("List of additional parameters to be only managed at the protocol level."),
+			NULL,
+			GUC_LIST_INPUT | GUC_NO_SHOW_ALL | GUC_NOT_IN_SAMPLE
+		},
+		&protocol_managed_params,
+		"",
+		check_protocol_managed_params, assign_protocol_managed_params, NULL
+	},
 	{
 		{"archive_command", PGC_SIGHUP, WAL_ARCHIVING,
 			gettext_noop("Sets the shell command that will be called to archive a WAL file."),

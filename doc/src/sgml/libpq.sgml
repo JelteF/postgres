@@ -2345,6 +2345,16 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
        </para>
       </listitem>
      </varlistentry>
+
+     <varlistentry id="libpq-pq-protocol-managed-params" xreflabel="load_balance_hosts">
+      <term><literal>_pq_.protocol_managed_params</literal></term>
+      <listitem>
+       <para>
+        Specifies a value for the <xref linkend="guc-pq-protocol-managed-params"/>
+        configuration parameter.
+       </para>
+      </listitem>
+     </varlistentry>
     </variablelist>
    </para>
   </sect2>

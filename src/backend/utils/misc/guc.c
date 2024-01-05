@@ -47,9 +47,11 @@
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/conffiles.h"
+#include "utils/guc_hooks.h"
 #include "utils/guc_tables.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
+#include "utils/varlena.h"
 
 
 #define CONFIG_FILENAME "postgresql.conf"
@@ -6984,4 +6986,101 @@ call_enum_check_hook(struct config_enum *conf, int *newval, void **extra,
 	}
 
 	return true;
+}
+
+/*
+ * GUC check_hook for protocol_managed_params
+ */
+bool
+check_protocol_managed_params(char **newval, void **extra, GucSource source)
+{
+	List	   *namelist;
+	char	   *protocol_params_str = pstrdup(*newval);
+
+	if (!SplitIdentifierString(protocol_params_str, ',', &namelist))
+	{
+		/* syntax error in name list */
+		GUC_check_errdetail("List syntax is invalid.");
+		pfree(protocol_params_str);
+		list_free(namelist);
+		return false;
+	}
+
+	foreach_ptr(char, pname, namelist)
+	{
+		/*
+		 * We explicitly allow unknown parameters here (but we still warn for
+		 * them). So that it is possible to add version specific parameters to
+		 * the protocol_managed_parameters list in the StartupMessage without
+		 * knowing the current server version yet.
+		 */
+		struct config_generic *config = find_option(pname, false, false, WARNING);
+
+		if (strncmp(pname, "_pq_.", 5) == 0)
+		{
+			GUC_check_errdetail("Parameter \"%s\" is a protocol extension.", pname);
+			pfree(protocol_params_str);
+			list_free(namelist);
+			return false;
+		}
+
+		if (!config)
+			continue;
+
+		if (config->context != PGC_PROTOCOL && config->context != PGC_USERSET && config->context != PGC_SUSET)
+		{
+			GUC_check_errdetail("Parameter \"%s\" is not a user-settable parameter.", pname);
+			pfree(protocol_params_str);
+			list_free(namelist);
+			return false;
+		}
+	}
+
+
+	pfree(protocol_params_str);
+	list_free(namelist);
+	return true;
+}
+
+/*
+ * GUC check_hook for protocol_managed_params
+ */
+void
+assign_protocol_managed_params(const char *newval, void *extra)
+{
+	List	   *namelist;
+	char	   *old_protocol_params_str = pstrdup(protocol_managed_params);
+	char	   *protocol_params_str = pstrdup(newval);
+
+	if (!SplitIdentifierString(old_protocol_params_str, ',', &namelist))
+	{
+		elog(ERROR, "List syntax is invalid and check hook should have checked.");
+	}
+
+	foreach_ptr(char, pname, namelist)
+	{
+		struct config_generic *config = find_option(pname, false, false, ERROR);
+
+		if (config)
+			config->context = config->context == PGC_PROTOCOL ? PGC_USERSET : PGC_SUSET;
+	}
+
+	list_free(namelist);
+
+	if (!SplitIdentifierString(protocol_params_str, ',', &namelist))
+	{
+		elog(ERROR, "List syntax is invalid and check hook should have checked.");
+	}
+
+	foreach_ptr(char, pname, namelist)
+	{
+		struct config_generic *config = find_option(pname, false, true, ERROR);
+
+		if (config)
+			config->context = config->context == PGC_USERSET ? PGC_PROTOCOL : PGC_SU_PROTOCOL;
+	}
+
+	pfree(old_protocol_params_str);
+	pfree(protocol_params_str);
+	list_free(namelist);
 }

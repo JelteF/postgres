@@ -11272,6 +11272,55 @@ dynamic_library_path = 'C:\tools\postgresql;H:\my_project\lib;$libdir'
     </variablelist>
    </sect1>
 
+   <sect1 id="runtime-config-protocol">
+    <title>Protocol extension parameters</title>
+    <para>
+     Some parameters control the behaviour of the protocol, these are called
+     protocol extension parameters. These types of parameters are different
+     from all other runtime parameters in a few important ways. First, they all
+     start with a <literal>_pq_.</literal> prefix. Secondly, they can only be
+     set at the protocol level using the StartupMessage and ParameterSet
+     messages.
+     It's not possible to set them in any other way (not through command line
+     arguments, configuration files, SET, etc). Finally, if you configure one
+     of them in the StartupMessage, but the server doesn't support the
+     parameter the connection attempt does not fail like with other options.
+     Instead the connection attempt continues as normal as these protocol
+     parameters are considered optional to implement by the server. To check if
+     the parameter was set you need to check the return value of
+     <xref linkend="libpq-PQunsupportedProtocolExtensionParameters"/>. If one of the
+     requested parameters was not supported by the server it will be listed
+     there.
+    </para>
+
+     <variablelist>
+
+     <varlistentry id="guc-pq-protocol-managed-params" xreflabel="_pq_.protocol_managed_params">
+      <term><varname>_pq_.protocol_managed_params</varname> (<type>string</type>)
+      <indexterm>
+       <primary><varname>_pq_.protocol_managed_params</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        This parameter can be used to "upgrade" regular runtime parameters to a
+        protocol extension parameter. Thus disallowing it to be set in any
+        other way than through the StartupMessage and ParameterSet protocol
+        messages.
+        This can be useful to limit the power of an attacker with arbitrary SQL
+        execution. For example, if you set
+        <literal>_pq_.protocol_managed_params</literal> to
+        <literal>role</literal> then you can connect as a
+        highly privileged user to <productname>PostgreSQL</productname> but
+        change role to a user with fewer privileges. And then the attacker with
+        only SQL access is unable to change back the session authorization.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     </variablelist>
+   </sect1>
+
    <sect1 id="runtime-config-custom">
     <title>Customized Options</title>
 

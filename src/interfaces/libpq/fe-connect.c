@@ -369,6 +369,10 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"Load-Balance-Hosts", "", 8,	/* sizeof("30001") = 8 */
 	offsetof(struct pg_conn, max_protocol_version)},
 
+	{"_pq_.protocol_managed_params", NULL, NULL, NULL,
+		"Pq-Protocol-Managed-Params", "", 40,
+	offsetof(struct pg_conn, pq_protocol_managed_params)},
+
 	/* Terminating entry --- MUST BE LAST */
 	{NULL, NULL, NULL, NULL,
 	NULL, NULL, 0}
