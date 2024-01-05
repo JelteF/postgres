@@ -2230,6 +2230,7 @@ ProjectSetState
 ProjectionInfo
 ProjectionPath
 PromptInterruptContext
+ProtocolParameter
 ProtocolVersion
 PrsStorage
 PruneFreezeResult
