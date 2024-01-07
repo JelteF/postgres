@@ -37,7 +37,7 @@ for my $testname (@tests)
 {
 	my @extraargs = ('-r', $numrows);
 	my $cmptrace = grep(/^$testname$/,
-		qw(simple_pipeline nosync multi_pipelines prepared singlerow
+		qw(simple_pipeline nosync multi_pipelines parameter_set prepared singlerow
 		  pipeline_abort pipeline_idle transaction
 		  disallowed_in_pipeline)) > 0;
 
