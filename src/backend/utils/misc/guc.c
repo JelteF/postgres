@@ -3576,8 +3576,53 @@ set_config_with_handle(const char *name, config_handle *handle,
 				return 0;
 			}
 			break;
+		case PGC_SU_PROTOCOL:
+			if (context == PGC_BACKEND || context == PGC_PROTOCOL)
+			{
+				/*
+				 * Check whether the requesting user has been granted
+				 * privilege to set this GUC.
+				 */
+				AclResult	aclresult;
+
+				aclresult = pg_parameter_aclcheck(name, srole, ACL_SET);
+				if (aclresult != ACLCHECK_OK)
+				{
+					/* No granted privilege */
+					ereport(elevel,
+							(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+							 errmsg("permission denied to set parameter \"%s\"",
+									name)));
+					return 0;
+				}
+			}
+			/* fall through to process the same as PGC_PROTOCOL */
+			/* FALLTHROUGH */
+		case PGC_PROTOCOL:
+			if (context == PGC_SIGHUP)
+			{
+				/*
+				 * Same SIGHUP treatment as for PGC_BACKEND vars. See comment
+				 * above for details.
+				 */
+				if (IsUnderPostmaster && changeVal && !is_reload)
+					return -1;
+			}
+			else if (context != PGC_POSTMASTER &&
+					 context != PGC_BACKEND &&
+					 context != PGC_SU_BACKEND &&
+					 context != PGC_PROTOCOL &&
+					 context != PGC_SU_PROTOCOL)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_CANT_CHANGE_RUNTIME_PARAM),
+						 errmsg("parameter \"%s\" cannot be set using SQL",
+								name)));
+				return 0;
+			}
+			break;
 		case PGC_SUSET:
-			if (context == PGC_USERSET || context == PGC_BACKEND)
+			if (context == PGC_USERSET || context == PGC_PROTOCOL || context == PGC_BACKEND)
 			{
 				/*
 				 * Check whether the requesting user has been granted
@@ -4639,6 +4684,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 			 * to be set in PG_AUTOCONF_FILENAME file.
 			 */
 			if ((record->context == PGC_INTERNAL) ||
+				(record->context == PGC_PROTOCOL) ||
 				(record->flags & GUC_DISALLOW_IN_FILE) ||
 				(record->flags & GUC_DISALLOW_IN_AUTO_FILE))
 				ereport(ERROR,

@@ -4884,18 +4884,33 @@ PostgresMain(const char *dbname, const char *username)
 				{
 					const char *parameter_name;
 					const char *parameter_value;
+					struct config_generic *config;
 
 					forbidden_in_wal_sender(firstchar);
 
 					parameter_name = pq_getmsgstring(&input_message);
 					parameter_value = pq_getmsgstring(&input_message);
+					pq_getmsgend(&input_message);
 
-					start_xact_command();
+					config = find_option(parameter_name, false, false, ERROR);
+					if (config->context == PGC_PROTOCOL || config->context == PGC_SU_PROTOCOL)
+					{
+						if (IsTransactionOrTransactionBlock())
+						{
+							ereport(ERROR,
+									(errcode(ERRCODE_ACTIVE_SQL_TRANSACTION),
+									 errmsg("parameter \"%s\" cannot be changed within a transaction", parameter_name)));
+						}
+					}
+					else
+					{
+						start_xact_command();
+					}
 
 					SetConfigOption(
 									parameter_name,
 									parameter_value,
-									(superuser() ? PGC_SUSET : PGC_USERSET),
+									(superuser() ? PGC_SU_PROTOCOL : PGC_PROTOCOL),
 									PGC_S_SESSION);
 					if (whereToSendOutput == DestRemote)
 						pq_putemptymessage(PqMsg_ParameterSetComplete);

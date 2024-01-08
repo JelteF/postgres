@@ -634,6 +634,8 @@ const char *const GucContext_Names[] =
 	[PGC_SIGHUP] = "sighup",
 	[PGC_SU_BACKEND] = "superuser-backend",
 	[PGC_BACKEND] = "backend",
+	[PGC_SU_PROTOCOL] = "superuser-protocol",
+	[PGC_PROTOCOL] = "protocol",
 	[PGC_SUSET] = "superuser",
 	[PGC_USERSET] = "user",
 };
