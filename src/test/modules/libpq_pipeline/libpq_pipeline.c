@@ -1894,6 +1894,76 @@ test_pipeline_idle(PGconn *conn)
 }
 
 static void
+test_report_parameters(PGconn *conn)
+{
+	PGresult   *res = NULL;
+	const char *val = NULL;
+
+	res = PQexec(conn, "SET application_name = 'test1'");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	val = PQparameterStatus(conn, "application_name");
+	if (strcmp(val, "test1") != 0)
+		pg_fatal("expected application_name to tracked as 'test1', but was '%s'", val);
+
+	res = PQparameterSet(conn, "application_name", "test2");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	val = PQparameterStatus(conn, "application_name");
+	if (strcmp(val, "test2") != 0)
+		pg_fatal("expected application_name to tracked as 'test2', but was '%s'", val);
+
+	res = PQparameterSet(conn, "_pq_.report_parameters", "lock_timeout");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	/* Should have automatically received initial value */
+	val = PQparameterStatus(conn, "lock_timeout");
+	if (strcmp(val, "0") != 0)
+		pg_fatal("expected application_name to tracked as '123000', but was '%s'", val);
+
+	/*
+	 * Add some more parameters to track, including _pq_.report_parameters
+	 * itself.
+	 */
+	res = PQparameterSet(conn, "_pq_.report_parameters", "lock_timeout,_pq_.report_parameters,work_mem");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	val = PQparameterStatus(conn, "lock_timeout");
+	if (strcmp(val, "0") != 0)
+		pg_fatal("expected application_name to tracked as '123000', but was '%s'", val);
+
+	val = PQparameterStatus(conn, "_pq_.report_parameters");
+	if (strcmp(val, "lock_timeout,_pq_.report_parameters,work_mem") != 0)
+		pg_fatal("_pq_.report_parameters was an unexpected value '%s'", val);
+
+	val = PQparameterStatus(conn, "work_mem");
+	if (strcmp(val, "4096") != 0)
+		pg_fatal("expected work_mem to be tracked as '4096', but was '%s'", val);
+
+	/* changes to application_name should not be tracked anymore */
+	res = PQparameterSet(conn, "application_name", "test3333");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	val = PQparameterStatus(conn, "application_name");
+	if (strcmp(val, "test2") != 0)
+		pg_fatal("expected application_name to tracked as 'test2', but was '%s'", val);
+
+	/* changes to and work_mem lock_timeout should be tracked */
+	res = PQparameterSet(conn, "lock_timeout", "123s");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to set parameter: %s", PQerrorMessage(conn));
+
+	val = PQparameterStatus(conn, "lock_timeout");
+	if (strcmp(val, "123000") != 0)
+		pg_fatal("expected application_name to tracked as '123000', but was '%s'", val);
+}
+
+static void
 test_simple_pipeline(PGconn *conn)
 {
 	PGresult   *res = NULL;
@@ -2564,6 +2634,7 @@ print_test_list(void)
 	printf("pipeline_idle\n");
 	printf("pipelined_insert\n");
 	printf("prepared\n");
+	printf("report_parameters\n");
 	printf("simple_pipeline\n");
 	printf("singlerow\n");
 	printf("transaction\n");
@@ -2676,6 +2747,8 @@ main(int argc, char **argv)
 		test_pipelined_insert(conn, numrows);
 	else if (strcmp(testname, "prepared") == 0)
 		test_prepared(conn);
+	else if (strcmp(testname, "report_parameters") == 0)
+		test_report_parameters(conn);
 	else if (strcmp(testname, "simple_pipeline") == 0)
 		test_simple_pipeline(conn);
 	else if (strcmp(testname, "singlerow") == 0)

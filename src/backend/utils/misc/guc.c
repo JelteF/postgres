@@ -2621,8 +2621,16 @@ ReportChangedGUCOptions(void)
 		struct config_generic *conf = slist_container(struct config_generic,
 													  report_link, iter.cur);
 
-		Assert((conf->flags & GUC_REPORT) && (conf->status & GUC_NEEDS_REPORT));
-		ReportGUCOption(conf);
+		Assert(conf->status & GUC_NEEDS_REPORT);
+
+		/*
+		 * The GUC_REPORT is usually set if we reach here, but it's possible
+		 * that it was cleared just before due to a change in the value of
+		 * _pq_.report_parameter.
+		 */
+		if (conf->flags & GUC_REPORT)
+			ReportGUCOption(conf);
+
 		conf->status &= ~GUC_NEEDS_REPORT;
 		slist_delete_current(&iter);
 	}
@@ -7078,6 +7086,96 @@ assign_protocol_managed_params(const char *newval, void *extra)
 
 		if (config)
 			config->context = config->context == PGC_USERSET ? PGC_PROTOCOL : PGC_SU_PROTOCOL;
+	}
+
+	pfree(old_protocol_params_str);
+	pfree(protocol_params_str);
+	list_free(namelist);
+}
+
+
+/*
+ * GUC check_hook for report_parameters
+ */
+bool
+check_report_parameters(char **newval, void **extra, GucSource source)
+{
+	List	   *namelist;
+	char	   *protocol_params_str = pstrdup(*newval);
+
+	if (!SplitIdentifierString(protocol_params_str, ',', &namelist))
+	{
+		/* syntax error in name list */
+		GUC_check_errdetail("List syntax is invalid.");
+		pfree(protocol_params_str);
+		list_free(namelist);
+		return false;
+	}
+
+	/*
+	 * We explicitly allow unknown parameters here (but we still warn for
+	 * them). So that it is possible to add version specific parameters to the
+	 * report_parameters list in the StartupMessage without knowing the
+	 * current server version yet.
+	 */
+	foreach_ptr(char, pname, namelist)
+	{
+		find_option(pname, false, false, WARNING);
+	}
+
+	pfree(protocol_params_str);
+	list_free(namelist);
+	return true;
+}
+
+/*
+ * GUC check_hook for report_parameters
+ */
+void
+assign_report_parameters(const char *newval, void *extra)
+{
+	List	   *namelist;
+	char	   *old_protocol_params_str = pstrdup(report_parameters);
+	char	   *protocol_params_str = pstrdup(newval);
+
+	if (!SplitIdentifierString(old_protocol_params_str, ',', &namelist))
+	{
+		elog(ERROR, "List syntax is invalid and check hook should have checked.");
+	}
+
+	foreach_ptr(char, pname, namelist)
+	{
+		struct config_generic *config = find_option(pname, false, true, ERROR);
+
+		if (config)
+			config->flags &= ~GUC_REPORT;
+	}
+
+	list_free(namelist);
+
+	if (!SplitIdentifierString(protocol_params_str, ',', &namelist))
+	{
+		elog(ERROR, "List syntax is invalid and check hook should have checked.");
+	}
+
+	foreach_ptr(char, pname, namelist)
+	{
+		struct config_generic *config = find_option(pname, false, true, ERROR);
+
+		if (!config)
+			continue;
+
+		config->flags |= GUC_REPORT;
+
+		/* force a report of this GUC */
+		guc_free(config->last_reported);
+		config->last_reported = NULL;
+		if (!(config->status & GUC_NEEDS_REPORT) && IsNormalProcessingMode())
+		{
+			config->status |= GUC_NEEDS_REPORT;
+			slist_push_head(&guc_report_list, &config->report_link);
+		}
+
 	}
 
 	pfree(old_protocol_params_str);

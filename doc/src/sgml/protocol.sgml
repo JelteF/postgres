@@ -1336,8 +1336,9 @@ SELCT 1/0;<!-- this typo is intentional -->
    </para>
 
    <para>
-    At present there is a hard-wired set of parameters for which
-    ParameterStatus will be generated.  They are:
+    It's possible to choose for which parameter values are reported to the
+    client using <xref linkend="guc-pq-report-parameters"/>. The default
+    parameters for which ParameterStatus will be generated are:
     <simplelist type="vert" columns="2">
      <member><varname>application_name</varname></member>
      <member><varname>client_encoding</varname></member>
@@ -1363,7 +1364,8 @@ SELCT 1/0;<!-- this typo is intentional -->
     <varname>server_encoding</varname> and
     <varname>integer_datetimes</varname>
     are pseudo-parameters that cannot change after startup.
-    This set might change in the future, or even become configurable.
+    Since this set is configurable, a frontend can not assume that it only
+    gets these specific defaults.
     Accordingly, a frontend should simply ignore ParameterStatus for
     parameters that it does not understand or care about.
    </para>

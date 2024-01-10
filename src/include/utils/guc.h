@@ -243,6 +243,7 @@ typedef enum
 
 /* GUC vars that are actually defined in guc_tables.c, rather than elsewhere */
 extern PGDLLIMPORT char *protocol_managed_params;
+extern PGDLLIMPORT char *report_parameters;
 
 extern PGDLLIMPORT bool Debug_print_plan;
 extern PGDLLIMPORT bool Debug_print_parse;

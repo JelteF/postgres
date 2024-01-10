@@ -373,6 +373,10 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"Pq-Protocol-Managed-Params", "", 40,
 	offsetof(struct pg_conn, pq_protocol_managed_params)},
 
+	{"_pq_.report_parameters", NULL, NULL, NULL,
+		"Pq-Report-Parameters", "", 40,
+	offsetof(struct pg_conn, pq_report_parameters)},
+
 	/* Terminating entry --- MUST BE LAST */
 	{NULL, NULL, NULL, NULL,
 	NULL, NULL, 0}

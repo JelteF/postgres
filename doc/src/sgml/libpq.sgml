@@ -2652,7 +2652,9 @@ const char *PQparameterStatus(const PGconn *conn, const char *paramName);
       </para>
 
       <para>
-       Parameters reported as of the current release include:
+       It's possible to choose for which parameter values are reported to the client
+       using <xref linkend="guc-pq-report-parameters"/>.
+       The parameters that are reported by default as of the current release include:
        <simplelist type="vert" columns="2">
         <member><varname>application_name</varname></member>
         <member><varname>client_encoding</varname></member>

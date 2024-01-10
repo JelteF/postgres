@@ -420,6 +420,7 @@ struct pg_conn
 	char	   *load_balance_hosts; /* load balance over hosts */
 	char	   *max_protocol_version;	/* maximum used protocol version */
 	char	   *pq_protocol_managed_params; /* _pq_.protocol_managed_params */
+	char	   *pq_report_parameters;	/* _pq_.report_parameters */
 
 	bool		cancelRequest;	/* true if this connection is used to send a
 								 * cancel request, instead of being a normal
