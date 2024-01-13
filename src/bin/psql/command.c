@@ -3870,6 +3870,7 @@ connection_warnings(bool in_startup)
 		int			client_ver = PG_VERSION_NUM;
 		char		cverbuf[32];
 		char		sverbuf[32];
+		int			server_protocol_version;
 
 		if (pset.sversion != client_ver)
 		{
@@ -3905,6 +3906,42 @@ connection_warnings(bool in_startup)
 										 cverbuf, sizeof(cverbuf)),
 				   formatPGVersionNumber(pset.sversion, false,
 										 sverbuf, sizeof(sverbuf)));
+
+		server_protocol_version = PQprotocolVersion(pset.db);
+		if (server_protocol_version < PG_PROTOCOL_FULL(PG_PROTOCOL_LATEST))
+		{
+			int			client_major = PG_PROTOCOL_MAJOR(PG_PROTOCOL_LATEST);
+			int			client_minor = PG_PROTOCOL_MINOR(PG_PROTOCOL_LATEST);
+			int			server_major;
+			int			server_minor;
+
+			if (server_protocol_version == 3)
+			{
+				server_major = 3;
+				server_minor = 0;
+			}
+			else
+			{
+				server_major = server_protocol_version / 10000;
+				server_minor = server_protocol_version / 10000;
+			}
+			printf(_("WARNING: psql protocol version %d.%d, server protocol version %d.%d.\n"
+					 "         \\parameterset will not work.\n"),
+				   client_major, client_minor, server_major, server_minor);
+		}
+
+		if (PQunsupportedProtocolExtensionParameters(pset.db)[0] != NULL)
+		{
+			const char **unsupported_parameters = PQunsupportedProtocolExtensionParameters(pset.db);
+			int			i = 0;
+
+			printf(_("WARNING: Server does not support the following requested protocol extension parameters:\n"));
+			while (unsupported_parameters[i] != NULL)
+			{
+				printf("         %s\n", unsupported_parameters[i]);
+				i++;
+			}
+		}
 
 #ifdef WIN32
 		if (in_startup)
