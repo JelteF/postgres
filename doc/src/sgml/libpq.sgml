@@ -2682,6 +2682,25 @@ int PQprotocolVersion(const PGconn *conn);
      </listitem>
     </varlistentry>
 
+    <varlistentry id="libpq-PQunsupportedProtocolExtensionParameters">
+     <term><function>PQunsupportedProtocolExtensionParameters</function><indexterm><primary>PQunsupportedProtocolExtensionParameters</primary></indexterm></term>
+
+     <listitem>
+      <para>
+       Returns a null-terminated array of protocol extensions that were
+       requested by the client but are not supported by the server.
+<synopsis>
+int PQunsupportedProtocolExtensionParameters(const PGconn *conn);
+</synopsis>
+       Applications might wish to use this function to determine whether certain
+       protocol extensions they intended to use are supported. Even when some
+       extension is not supported the connection can still be used, only the
+       unsupported extensions cannot be used. Returns NULL if the connection is
+       bad.
+      </para>
+     </listitem>
+    </varlistentry>
+
     <varlistentry id="libpq-PQserverVersion">
      <term><function>PQserverVersion</function><indexterm><primary>PQserverVersion</primary></indexterm></term>
 

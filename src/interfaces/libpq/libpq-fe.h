@@ -374,6 +374,7 @@ extern PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
 extern const char *PQparameterStatus(const PGconn *conn,
 									 const char *paramName);
 extern int	PQprotocolVersion(const PGconn *conn);
+extern const char **PQunsupportedProtocolExtensionParameters(const PGconn *conn);
 extern int	PQserverVersion(const PGconn *conn);
 extern char *PQerrorMessage(const PGconn *conn);
 extern int	PQsocket(const PGconn *conn);

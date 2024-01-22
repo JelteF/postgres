@@ -387,6 +387,8 @@ static const PQEnvironmentOption EnvironmentOptions[] =
 	}
 };
 
+static const char *no_unsupported_protocol_extensions[1] = {NULL};
+
 /* The connection URI must start with either of the following designators: */
 static const char uri_designator[] = "postgresql://";
 static const char short_uri_designator[] = "postgres://";
@@ -7183,6 +7185,18 @@ PQprotocolVersion(const PGconn *conn)
 	if (conn->status == CONNECTION_BAD)
 		return 0;
 	return PG_PROTOCOL_MAJOR(conn->pversion);
+}
+
+const char **
+PQunsupportedProtocolExtensionParameters(const PGconn *conn)
+{
+	if (!conn)
+		return NULL;
+	if (conn->status == CONNECTION_BAD)
+		return NULL;
+	if (!conn->unsupported_pextension_params)
+		return no_unsupported_protocol_extensions;
+	return (const char **) conn->unsupported_pextension_params;
 }
 
 int
