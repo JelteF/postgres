@@ -1,3 +1,4 @@
+# IMPORTANT: When updating this file, also update .gitattributes to match.
 root = true
 
 [*]
