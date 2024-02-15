@@ -24,6 +24,11 @@ indent_size = 1
 indent_style = space
 indent_size = 2
 
+[.gitattributes]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+
 # Certain data files that contain special whitespace, and other special cases
 [*.data]
 trim_trailing_whitespace = false
