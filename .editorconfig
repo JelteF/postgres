@@ -27,3 +27,12 @@ trim_trailing_whitespace = false
 
 [src/backend/catalog/sql_features.txt]
 trim_trailing_whitespace = false
+
+# Test output files that contain extra whitespace
+[*.out]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/interfaces/ecpg/test/expected/*]
+trim_trailing_whitespace = false
+insert_final_newline = unset
