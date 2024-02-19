@@ -9,6 +9,12 @@ indent_style = tab
 indent_size = tab
 tab_width = 4
 
+[*.po]
+# This does not provide indent_size since .po files don't have indentation.
+# Setting indent_style is only done to prevent accidental insertion of tabs.
+indent_style = space
+insert_final_newline = unset
+
 [*.{sgml,xml}]
 indent_style = space
 indent_size = 1
@@ -34,5 +40,42 @@ trim_trailing_whitespace = false
 insert_final_newline = unset
 
 [src/interfaces/ecpg/test/expected/*]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+# These files are maintained or generated elsewhere.  We take them as is.
+[configure]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[ppport.h]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/backend/regex/COPYRIGHT]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/backend/snowball/libstemmer/*.c]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/backend/utils/mb/Unicode/*-std.txt]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/include/snowball/libstemmer/*]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/timezone/data/*]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/tools/pg_bsd_indent/*]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+
+[src/tools/pg_bsd_indent/tests/*]
 trim_trailing_whitespace = false
 insert_final_newline = unset
