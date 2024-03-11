@@ -481,16 +481,17 @@ static uint64_t previous_timestamp = 0;
  *  Section 6.9. rand_b Occupies bits 66 through 127 (octets 8-15).
  * ----------
  *
- * Monotonic Random (Method 2) can be implemented with arbitrary size of a
- * counter. We choose size 18 to reuse all space of bytes that are touched by
- * ver and var fields + rand_a bytes between them.
+ * Fixed-Length Dedicated Counter Bits (Method 1) MAY use the left-most bits of
+ * rand_b as additional counter bits. We choose size 18 to reuse all space of
+ * bytes that are touched by ver and var fields + rand_a bytes between them.
  * Whenever timestamp unix_ts_ms is moving forward, this counter bits are
  * reinitialized. Reinilialization always sets most significant bit to 0, other
- * bits are initialized with random numbers. This gives as approximately 192K
+ * bits are initialized with random numbers. This gives as approximately 262K
  * UUIDs within one millisecond without overflow. This ougth to be enough for
  * most practical purposes. Whenever counter overflow happens, this overflow is
- * translated to increment of unix_ts_ms. So generation of UUIDs ate rate
- * higher than 128MHz might lead to using timestamps ahead of time.
+ * translated to increment of unix_ts_ms. So generation of UUIDs at a rate
+ * higher than 262MHz in the same backend might lead to using timestamps ahead
+ * of time.
  *
  * We're not using the "Replace Left-Most Random Bits with Increased Clock
  * Precision" method Section 6.2 (Method 3), because of portability concerns.
@@ -503,7 +504,9 @@ static uint64_t previous_timestamp = 0;
  * but this monotonicity is not strictly guaranteed. UUIDs generated on
  * different nodes are mostly monotonic with regards to possible clock drift.
  * Uniqueness of UUIDs generated at the same timestamp across different
- * backends and/or nodes is guaranteed by using random bits.
+ * backends and/or nodes is guaranteed by using random bits. Since we're still
+ * using 56 bits of random data in rand_b, so we're not expecting any
+ * collisions within the same millisecond.
  */
 Datum
 uuidv7(PG_FUNCTION_ARGS)
@@ -535,39 +538,11 @@ uuidv7(PG_FUNCTION_ARGS)
 		/* protection from leap backward */
 		tms = previous_timestamp;
 
-		/* fill everything after the timestamp and counter with random bytes */
-		if (!pg_strong_random(&uuid->data[8], UUID_LEN - 8))
-			ereport(ERROR,
-					(errcode(ERRCODE_INTERNAL_ERROR),
-					 errmsg("could not generate random values")));
-
-		/* most significant 4 bits of 18-bit counter */
-		uuid->data[6] = (unsigned char) (sequence_counter >> 14);
-		/* next 8 bits */
-		uuid->data[7] = (unsigned char) (sequence_counter >> 6);
-		/* least significant 6 bits */
-		uuid->data[8] = (unsigned char) (sequence_counter);
 	}
 	else
 	{
-		/* fill everything after the timestamp with random bytes */
-		if (!pg_strong_random(&uuid->data[6], UUID_LEN - 6))
-			ereport(ERROR,
-					(errcode(ERRCODE_INTERNAL_ERROR),
-					 errmsg("could not generate random values")));
-
-		/*
-		 * Left-most counter bits are initialized as zero for the sole purpose
-		 * of guarding against counter rollovers. See section "Fixed-Length
-		 * Dedicated Counter Seeding"
-		 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis#monotonicity_counters
-		 */
-		uuid->data[6] = (uuid->data[6] & 0xf7);
-
 		/* read randomly initialized bits of counter */
-		sequence_counter = ((uint32_t) uuid->data[8] & 0x3f) +
-			(((uint32_t) uuid->data[7]) << 6) +
-			(((uint32_t) uuid->data[6] & 0x0f) << 14);
+		sequence_counter = 0;
 
 		previous_timestamp = tms;
 	}
@@ -579,6 +554,18 @@ uuidv7(PG_FUNCTION_ARGS)
 	uuid->data[3] = (unsigned char) (tms >> 16);
 	uuid->data[4] = (unsigned char) (tms >> 8);
 	uuid->data[5] = (unsigned char) tms;
+	/* most significant 4 bits of 18-bit counter */
+	uuid->data[6] = (unsigned char) (sequence_counter >> 14);
+	/* next 8 bits */
+	uuid->data[7] = (unsigned char) (sequence_counter >> 6);
+	/* least significant 6 bits */
+	uuid->data[8] = (unsigned char) (sequence_counter);
+
+	/* fill everything after the timestamp and counter with random bytes */
+	if (!pg_strong_random(&uuid->data[8], UUID_LEN - 8))
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("could not generate random values")));
 
 	/*
 	 * Set magic numbers for a "version 7" (pseudorandom) UUID, see
