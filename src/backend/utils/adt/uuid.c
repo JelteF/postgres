@@ -509,18 +509,21 @@ Datum
 uuidv7(PG_FUNCTION_ARGS)
 {
 	pg_uuid_t  *uuid = palloc(UUID_LEN);
-	uint64_t tms;
+	uint64_t	tms;
 	struct timeval tp;
-	bool increment_counter;
+	bool		increment_counter;
 
 	gettimeofday(&tp, NULL);
-	tms = ((uint64_t)tp.tv_sec) * 1000 + (tp.tv_usec) / 1000;
+	tms = ((uint64_t) tp.tv_sec) * 1000 + (tp.tv_usec) / 1000;
 	/* time from clock is protected from backward leaps */
 	increment_counter = (tms <= previous_timestamp);
 
 	if (increment_counter)
 	{
-		/* Time did not advance from the previous generation, we must increment counter */
+		/*
+		 * Time did not advance from the previous generation, we must
+		 * increment counter
+		 */
 		++sequence_counter;
 		if (sequence_counter > 0x3ffff)
 		{
@@ -536,14 +539,14 @@ uuidv7(PG_FUNCTION_ARGS)
 		if (!pg_strong_random(&uuid->data[8], UUID_LEN - 8))
 			ereport(ERROR,
 					(errcode(ERRCODE_INTERNAL_ERROR),
-					errmsg("could not generate random values")));
+					 errmsg("could not generate random values")));
 
 		/* most significant 4 bits of 18-bit counter */
-		uuid->data[6] = (unsigned char)(sequence_counter >> 14);
+		uuid->data[6] = (unsigned char) (sequence_counter >> 14);
 		/* next 8 bits */
-		uuid->data[7] = (unsigned char)(sequence_counter >> 6);
+		uuid->data[7] = (unsigned char) (sequence_counter >> 6);
 		/* least significant 6 bits */
-		uuid->data[8] = (unsigned char)(sequence_counter);
+		uuid->data[8] = (unsigned char) (sequence_counter);
 	}
 	else
 	{
@@ -551,31 +554,31 @@ uuidv7(PG_FUNCTION_ARGS)
 		if (!pg_strong_random(&uuid->data[6], UUID_LEN - 6))
 			ereport(ERROR,
 					(errcode(ERRCODE_INTERNAL_ERROR),
-					errmsg("could not generate random values")));
+					 errmsg("could not generate random values")));
 
 		/*
 		 * Left-most counter bits are initialized as zero for the sole purpose
-		 * of guarding against counter rollovers.
-		 * See section "Fixed-Length Dedicated Counter Seeding"
+		 * of guarding against counter rollovers. See section "Fixed-Length
+		 * Dedicated Counter Seeding"
 		 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis#monotonicity_counters
 		 */
 		uuid->data[6] = (uuid->data[6] & 0xf7);
 
 		/* read randomly initialized bits of counter */
-		sequence_counter = ((uint32_t)uuid->data[8] & 0x3f) +
-							(((uint32_t)uuid->data[7]) << 6) +
-							(((uint32_t)uuid->data[6] & 0x0f) << 14);
+		sequence_counter = ((uint32_t) uuid->data[8] & 0x3f) +
+			(((uint32_t) uuid->data[7]) << 6) +
+			(((uint32_t) uuid->data[6] & 0x0f) << 14);
 
 		previous_timestamp = tms;
 	}
 
 	/* Fill in time part */
-	uuid->data[0] = (unsigned char)(tms >> 40);
-	uuid->data[1] = (unsigned char)(tms >> 32);
-	uuid->data[2] = (unsigned char)(tms >> 24);
-	uuid->data[3] = (unsigned char)(tms >> 16);
-	uuid->data[4] = (unsigned char)(tms >> 8);
-	uuid->data[5] = (unsigned char)tms;
+	uuid->data[0] = (unsigned char) (tms >> 40);
+	uuid->data[1] = (unsigned char) (tms >> 32);
+	uuid->data[2] = (unsigned char) (tms >> 24);
+	uuid->data[3] = (unsigned char) (tms >> 16);
+	uuid->data[4] = (unsigned char) (tms >> 8);
+	uuid->data[5] = (unsigned char) tms;
 
 	/*
 	 * Set magic numbers for a "version 7" (pseudorandom) UUID, see
@@ -598,21 +601,21 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 {
 	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
 	TimestampTz ts;
-	uint64_t tms;
+	uint64_t	tms;
 
 	if ((uuid->data[8] & 0xc0) != 0x80)
 		PG_RETURN_NULL();
 
 	if ((uuid->data[6] & 0xf0) == 0x70)
 	{
-		tms =			  uuid->data[5];
-		tms += ((uint64_t)uuid->data[4]) << 8;
-		tms += ((uint64_t)uuid->data[3]) << 16;
-		tms += ((uint64_t)uuid->data[2]) << 24;
-		tms += ((uint64_t)uuid->data[1]) << 32;
-		tms += ((uint64_t)uuid->data[0]) << 40;
+		tms = uuid->data[5];
+		tms += ((uint64_t) uuid->data[4]) << 8;
+		tms += ((uint64_t) uuid->data[3]) << 16;
+		tms += ((uint64_t) uuid->data[2]) << 24;
+		tms += ((uint64_t) uuid->data[1]) << 32;
+		tms += ((uint64_t) uuid->data[0]) << 40;
 
-		ts = (TimestampTz) (tms * 1000) - /* convert ms to us, than adjust */
+		ts = (TimestampTz) (tms * 1000) -	/* convert ms to us, than adjust */
 			(POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
@@ -620,34 +623,36 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 
 	if ((uuid->data[6] & 0xf0) == 0x10)
 	{
-		tms =  ((uint64_t)uuid->data[0]) << 24;
-		tms += ((uint64_t)uuid->data[1]) << 16;
-		tms += ((uint64_t)uuid->data[2]) << 8;
-		tms += ((uint64_t)uuid->data[3]);
-		tms += ((uint64_t)uuid->data[4]) << 40;
-		tms += ((uint64_t)uuid->data[5]) << 32;
-		tms += (((uint64_t)uuid->data[6])&0xf) << 56;
-		tms += ((uint64_t)uuid->data[7]) << 48;
+		tms = ((uint64_t) uuid->data[0]) << 24;
+		tms += ((uint64_t) uuid->data[1]) << 16;
+		tms += ((uint64_t) uuid->data[2]) << 8;
+		tms += ((uint64_t) uuid->data[3]);
+		tms += ((uint64_t) uuid->data[4]) << 40;
+		tms += ((uint64_t) uuid->data[5]) << 32;
+		tms += (((uint64_t) uuid->data[6]) & 0xf) << 56;
+		tms += ((uint64_t) uuid->data[7]) << 48;
 
-		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us, than adjust */
-			((uint64_t)POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
+		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us,
+										 * than adjust */
+			((uint64_t) POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
 	}
 
 	if ((uuid->data[6] & 0xf0) == 0x60)
 	{
-		tms =  ((uint64_t)uuid->data[0]) << 52;
-		tms += ((uint64_t)uuid->data[1]) << 44;
-		tms += ((uint64_t)uuid->data[2]) << 36;
-		tms += ((uint64_t)uuid->data[3]) << 28;
-		tms += ((uint64_t)uuid->data[4]) << 20;
-		tms += ((uint64_t)uuid->data[5]) << 12;
-		tms += (((uint64_t)uuid->data[6])&0xf) << 8;
-		tms += ((uint64_t)uuid->data[7]);
+		tms = ((uint64_t) uuid->data[0]) << 52;
+		tms += ((uint64_t) uuid->data[1]) << 44;
+		tms += ((uint64_t) uuid->data[2]) << 36;
+		tms += ((uint64_t) uuid->data[3]) << 28;
+		tms += ((uint64_t) uuid->data[4]) << 20;
+		tms += ((uint64_t) uuid->data[5]) << 12;
+		tms += (((uint64_t) uuid->data[6]) & 0xf) << 8;
+		tms += ((uint64_t) uuid->data[7]);
 
-		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us, than adjust */
-			((uint64_t)POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
+		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us,
+										 * than adjust */
+			((uint64_t) POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
 	}
@@ -663,7 +668,7 @@ Datum
 uuid_extract_version(PG_FUNCTION_ARGS)
 {
 	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
-	uint16_t result;
+	uint16_t	result;
 
 	if ((uuid->data[8] & 0xc0) != 0x80)
 		PG_RETURN_NULL();
@@ -679,12 +684,11 @@ Datum
 uuid_extract_variant(PG_FUNCTION_ARGS)
 {
 	pg_uuid_t  *uuid = PG_GETARG_UUID_P(0);
-	uint16_t result;
+	uint16_t	result;
 
-	/*
+	/*-----------
 	 * The contents of the variant field, where the letter "x" indicates a
 	 * "don't-care" value.
-	 * ----------
 	 * Msb0		Msb1	Msb2	Msb3	Variant	Description
 	 * 0		x		x		x		1-7		Reserved, NCS backward
 	 * 											compatibility and includes Nil
@@ -695,10 +699,11 @@ uuid_extract_variant(PG_FUNCTION_ARGS)
 	 * 1		1		1		x		E-F		Reserved for future definition
 	 * 											and includes Max UUID as per
 	 * 											Section 5.10 of RFC.
-	 * ----------
+	 *-----------
 	 */
 
-	uint8_t nibble = uuid->data[8] >> 4;
+	uint8_t		nibble = uuid->data[8] >> 4;
+
 	if (nibble < 8)
 		result = 0;
 	else if (nibble < 0xC)
