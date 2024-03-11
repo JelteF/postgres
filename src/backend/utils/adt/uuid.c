@@ -615,7 +615,8 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 		tms += ((uint64_t) uuid->data[1]) << 32;
 		tms += ((uint64_t) uuid->data[0]) << 40;
 
-		ts = (TimestampTz) (tms * 1000) -	/* convert ms to us, than adjust */
+		/* convert ms to us, then adjust */
+		ts = (TimestampTz) (tms * 1000) -
 			(POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
@@ -632,8 +633,8 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 		tms += (((uint64_t) uuid->data[6]) & 0xf) << 56;
 		tms += ((uint64_t) uuid->data[7]) << 48;
 
-		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us,
-										 * than adjust */
+		/* convert 100-ns intervals to us, then adjust */
+		ts = (TimestampTz) (tms / 10) -
 			((uint64_t) POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
@@ -650,8 +651,8 @@ uuid_extract_timestamp(PG_FUNCTION_ARGS)
 		tms += (((uint64_t) uuid->data[6]) & 0xf) << 8;
 		tms += ((uint64_t) uuid->data[7]);
 
-		ts = (TimestampTz) (tms / 10) - /* convert 100-ns intervals to us,
-										 * than adjust */
+		/* convert 100-ns intervals to us, then adjust */
+		ts = (TimestampTz) (tms / 10) -
 			((uint64_t) POSTGRES_EPOCH_JDATE - GREGORIAN_EPOCH_JDATE) * SECS_PER_DAY * USECS_PER_SEC;
 
 		PG_RETURN_TIMESTAMPTZ(ts);
