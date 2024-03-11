@@ -447,7 +447,7 @@ static uint64_t previous_timestamp = 0;
  * UUIDv7 Field and Bit Layout:
  * ----------
  *  0                   1                   2                   3
- 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+ *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * |                           unix_ts_ms                          |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -480,23 +480,30 @@ static uint64_t previous_timestamp = 0;
  *  bits filled with pseudo-random data to provide uniqueness as per
  *  Section 6.9. rand_b Occupies bits 66 through 127 (octets 8-15).
  * ----------
- * 
+ *
  * Monotonic Random (Method 2) can be implemented with arbitrary size of a
  * counter. We choose size 18 to reuse all space of bytes that are touched by
  * ver and var fields + rand_a bytes between them.
  * Whenever timestamp unix_ts_ms is moving forward, this counter bits are
- * reinitialized. Rinilialization always sets most significant bit to 0, other
+ * reinitialized. Reinilialization always sets most significant bit to 0, other
  * bits are initialized with random numbers. This gives as approximately 192K
- * UUIDs within one millisecond without overflow. Outh to be enough.
- * Whenever counter overflow happens, this overflow is translated to increment
- * of unix_ts_ms. So generation of UUIDs ate rate higher than 128MHz might lead
- * to using timestamps ahead of time.
+ * UUIDs within one millisecond without overflow. This ougth to be enough for
+ * most practical purposes. Whenever counter overflow happens, this overflow is
+ * translated to increment of unix_ts_ms. So generation of UUIDs ate rate
+ * higher than 128MHz might lead to using timestamps ahead of time.
+ *
+ * We're not using the "Replace Left-Most Random Bits with Increased Clock
+ * Precision" method Section 6.2 (Method 3), because of portability concerns.
+ * It's unclear if all supported platforms can provide reliable microsocond
+ * precision time.
  *
  * All UUID generator state is backend-local. For UUIDs generated in one
  * backend we guarantee monotonicity. UUIDs generated on different backends
  * will be mostly monotonic if they are generated at frequences less than 1KHz,
  * but this monotonicity is not strictly guaranteed. UUIDs generated on
  * different nodes are mostly monotonic with regards to possible clock drift.
+ * Uniqueness of UUIDs generated at the same timestamp across different
+ * backends and/or nodes is guaranteed by using random bits.
  */
 Datum
 uuidv7(PG_FUNCTION_ARGS)
@@ -550,7 +557,7 @@ uuidv7(PG_FUNCTION_ARGS)
 		 * Left-most counter bits are initialized as zero for the sole purpose
 		 * of guarding against counter rollovers.
 		 * See section "Fixed-Length Dedicated Counter Seeding"
-		 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis-09#monotonicity_counters
+		 * https://datatracker.ietf.org/doc/html/draft-ietf-uuidrev-rfc4122bis#monotonicity_counters
 		 */
 		uuid->data[6] = (uuid->data[6] & 0xf7);
 
