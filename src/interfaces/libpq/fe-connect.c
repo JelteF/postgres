@@ -364,6 +364,11 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"Load-Balance-Hosts", "", 8,	/* sizeof("disable") = 8 */
 	offsetof(struct pg_conn, load_balance_hosts)},
 
+	{"max_protocol_version", "PGMAXPROTOCOLVERSION",
+		NULL, NULL,
+		"Load-Balance-Hosts", "", 8,	/* sizeof("30001") = 8 */
+	offsetof(struct pg_conn, max_protocol_version)},
+
 	/* Terminating entry --- MUST BE LAST */
 	{NULL, NULL, NULL, NULL,
 	NULL, NULL, 0}
@@ -1818,6 +1823,34 @@ pqConnectOptions2(PGconn *conn)
 		}
 	}
 
+	if (conn->max_protocol_version)
+	{
+		char	   *end;
+		int			val;
+
+		val = strtol(conn->max_protocol_version, &end, 10);
+		if (*end)
+		{
+			conn->status = CONNECTION_BAD;
+			libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+									"max_protocol_version",
+									conn->max_protocol_version);
+			return false;
+		}
+		conn->max_pversion = PG_PROTOCOL(val / 10000, val % 10000);
+		if (conn->max_pversion > PG_PROTOCOL_LATEST ||
+			conn->max_pversion < PG_PROTOCOL_EARLIEST)
+		{
+			conn->status = CONNECTION_BAD;
+			libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+									"max_protocol_version",
+									conn->max_protocol_version);
+			return false;
+		}
+	}
+	else
+		conn->max_pversion = PG_PROTOCOL_LATEST;
+
 	/*
 	 * Resolve special "auto" client_encoding from the locale
 	 */
@@ -2833,7 +2866,7 @@ keep_going:						/* We will come back to here until there is
 		 * must persist across individual connection attempts, but we must
 		 * reset them when we start to consider a new server.
 		 */
-		conn->pversion = PG_PROTOCOL_LATEST;
+		conn->pversion = conn->max_pversion;
 		conn->send_appname = true;
 		conn->failed_enc_methods = 0;
 		conn->current_enc_method = 0;
@@ -3848,7 +3881,7 @@ keep_going:						/* We will come back to here until there is
 					}
 
 					/* neither -- server shouldn't have sent it */
-					if (!(conn->pversion < PG_PROTOCOL_LATEST) && !conn->unsupported_pextension_params)
+					if (!(conn->pversion < conn->max_pversion) && !conn->unsupported_pextension_params)
 					{
 						libpq_append_conn_error(conn, "invalid %s message", "NegotiateProtocolVersion");
 						goto error_return;

@@ -2321,6 +2321,30 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
        </para>
       </listitem>
      </varlistentry>
+
+     <varlistentry id="libpq-max-protocol-version" xreflabel="load_balance_hosts">
+      <term><literal>max_protocol_version</literal></term>
+      <listitem>
+       <para>
+        Specifies the protocol version to request from the server. The argument
+        to this connection option is a single number: the result of multiplying
+        the major version number by 10000 and adding the minor version. For
+        example to request version 3.1 the provided argument should be 30001.
+        The default is to use the latest protocol version supported by libpq.
+        Normally there's no need to provide this argument, even when connecting
+        to PostgreSQL servers that don't support the latest protocol. The
+        reason for that is that all supported PostgreSQL server versions
+        automatically negotiate the highest minor protocol version supported by
+        both the client and server. But some servers might simply close
+        the connection when an unsupported protocol version is requested. This
+        problem only applies to unsupported <productname>PostgreSQL</productname>
+        versions, certain connection poolers and some other databases speaking
+        the <productname>PostgreSQL</productname> protocol. So this connection
+        option can be used as an escape hatch when connecting to such servers
+        with libpq.
+       </para>
+      </listitem>
+     </varlistentry>
     </variablelist>
    </para>
   </sect2>
