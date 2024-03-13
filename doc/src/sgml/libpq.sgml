@@ -2307,6 +2307,31 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
        </para>
       </listitem>
      </varlistentry>
+
+     <varlistentry id="libpq-connect-max-protocol-version" xreflabel="max_protocol_version">
+      <term><literal>max_protocol_version</literal></term>
+      <listitem>
+       <para>
+        Specifies the protocol version to request from the server.
+        The default is to use version <literal>3.0</literal> of the
+        <productname>PostgreSQL</productname> protocol, unless the connection
+        string specifies a feature that relies on a higher protocol version, in
+        that case the latest version supported by libpq is used. If the server
+        does not support the requested protocol version of the client the
+        connection will be automatically downgraded to a lower minor protocol
+        version, which the server does support. After the connection attempt has
+        completed you can use <xref linkend="libpq-PQprotocolVersion"/> to find
+        out which exact protocol version was negotiated.
+       </para>
+
+       <para>
+        The current supported values are <literal>3.0</literal> and
+        <literal>latest</literal>. Curretnly literal latest is equivalent to
+        <literal>3.0</literal>, but this will change in future postgres
+        releases.
+       </para>
+      </listitem>
+     </varlistentry>
     </variablelist>
    </para>
   </sect2>
