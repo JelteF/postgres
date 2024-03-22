@@ -173,7 +173,6 @@ AutoVacOpts
 AutoVacuumShmemStruct
 AutoVacuumWorkItem
 AutoVacuumWorkItemType
-AuxProcType
 BF_ctx
 BF_key
 BF_word
@@ -232,6 +231,7 @@ BY_HANDLE_FILE_INFORMATION
 Backend
 BackendId
 BackendParameters
+BackendStartupData
 BackendState
 BackendType
 BackgroundWorker
@@ -333,6 +333,8 @@ BuildAccumulator
 BuiltinScript
 BulkInsertState
 BulkInsertStateData
+BulkWriteBuffer
+BulkWriteState
 CACHESIGN
 CAC_state
 CCFastEqualFN
@@ -387,6 +389,7 @@ ClientCertMode
 ClientCertName
 ClientConnectionInfo
 ClientData
+ClientSocket
 ClonePtrType
 ClosePortalStmt
 ClosePtrType
@@ -848,6 +851,7 @@ FormData_pg_ts_parser
 FormData_pg_ts_template
 FormData_pg_type
 FormData_pg_user_mapping
+FormExtraData_pg_attribute
 Form_pg_aggregate
 Form_pg_am
 Form_pg_amop
@@ -1208,6 +1212,7 @@ InitializeDSMForeignScan_function
 InitializeWorkerForeignScan_function
 InjectionPointCacheEntry
 InjectionPointEntry
+InjectionPointSharedState
 InlineCodeBlock
 InsertStmt
 Instrumentation
@@ -1257,6 +1262,7 @@ Join
 JoinCostWorkspace
 JoinDomain
 JoinExpr
+JsonFuncExpr
 JoinHashEntry
 JoinPath
 JoinPathExtraData
@@ -1267,14 +1273,20 @@ JsObject
 JsValue
 JsonAggConstructor
 JsonAggState
+JsonArgument
 JsonArrayAgg
 JsonArrayConstructor
 JsonArrayQueryConstructor
 JsonBaseObjectInfo
+JsonBehavior
+JsonBehaviorType
 JsonConstructorExpr
 JsonConstructorExprState
 JsonConstructorType
 JsonEncoding
+JsonExpr
+JsonExprOp
+JsonExprState
 JsonFormat
 JsonFormatType
 JsonHashEntry
@@ -1296,6 +1308,7 @@ JsonParseContext
 JsonParseErrorType
 JsonPath
 JsonPathBool
+JsonPathDatatypeStatus
 JsonPathExecContext
 JsonPathExecResult
 JsonPathGinAddPathItemFunc
@@ -1308,10 +1321,13 @@ JsonPathGinPathItem
 JsonPathItem
 JsonPathItemType
 JsonPathKeyword
+JsonPathMutableContext
 JsonPathParseItem
 JsonPathParseResult
 JsonPathPredicateCallback
 JsonPathString
+JsonPathVariable
+JsonQuotes
 JsonReturning
 JsonScalarExpr
 JsonSemAction
@@ -1328,6 +1344,7 @@ JsonValueExpr
 JsonValueList
 JsonValueListIterator
 JsonValueType
+JsonWrapper
 Jsonb
 JsonbAggState
 JsonbContainer
@@ -1574,6 +1591,7 @@ MergeJoinState
 MergePath
 MergeScanSelCache
 MergeStmt
+MergeSupportFunc
 MergeWhenClause
 MetaCommand
 MinMaxAggInfo
@@ -1760,6 +1778,7 @@ PG_Locale_Strategy
 PG_Lock_Status
 PG_init_t
 PGcancel
+PGcancelConn
 PGcmdQueueEntry
 PGconn
 PGdataValue
@@ -1956,6 +1975,7 @@ ParamsErrorCbData
 ParentMapEntry
 ParseCallbackState
 ParseExprKind
+ParseLoc
 ParseNamespaceColumn
 ParseNamespaceItem
 ParseParamRefHook
@@ -2018,6 +2038,7 @@ PendingFsyncEntry
 PendingRelDelete
 PendingRelSync
 PendingUnlinkEntry
+PendingWrite
 PendingWriteback
 PerLockTagEntry
 PerlInterpreter
@@ -2129,6 +2150,7 @@ PortalStrategy
 PostParseColumnRefHook
 PostgresPollingStatusType
 PostingItem
+PostmasterChildType
 PreParseColumnRefHook
 PredClass
 PredIterInfo
@@ -2325,6 +2347,7 @@ RelocationBufferInfo
 RelptrFreePageBtree
 RelptrFreePageManager
 RelptrFreePageSpanLeader
+RemoteSlot
 RenameStmt
 ReopenPtrType
 ReorderBuffer
@@ -2419,6 +2442,7 @@ RuleLock
 RuleStmt
 RunningTransactions
 RunningTransactionsData
+SASLStatus
 SC_HANDLE
 SECURITY_ATTRIBUTES
 SECURITY_STATUS
@@ -2584,6 +2608,7 @@ SlabBlock
 SlabContext
 SlabSlot
 SlotNumber
+SlotSyncCtxStruct
 SlruCtl
 SlruCtlData
 SlruErrorCause
@@ -2645,6 +2670,7 @@ SplitPoint
 SplitTextOutputData
 SplitVar
 StackElem
+StandbySlotNamesConfigData
 StartDataPtrType
 StartLOPtrType
 StartLOsPtrType
@@ -2758,6 +2784,7 @@ TSQuerySign
 TSReadPointer
 TSTemplateInfo
 TSTernaryValue
+TSTokenTypeItem
 TSTokenTypeStorage
 TSVector
 TSVectorBuildState
@@ -3248,6 +3275,7 @@ check_network_data
 check_object_relabel_type
 check_password_hook_type
 check_ungrouped_columns_context
+child_process_kind
 chr
 cmpEntriesArg
 codes_t
@@ -3568,7 +3596,6 @@ pg_cryptohash_errno
 pg_cryptohash_type
 pg_ctype_cache
 pg_enc
-pg_enc2gettext
 pg_enc2name
 pg_encname
 pg_fe_sasl_mech
@@ -3731,6 +3758,7 @@ rewind_source
 rewrite_event
 rf_context
 rm_detail_t
+rt_node_class_test_elem
 role_auth_extra
 rolename_hash
 row_security_policy_hook_type
@@ -4031,6 +4059,7 @@ BlockRefTableReader
 BlockRefTableSerializedEntry
 BlockRefTableWriter
 SummarizerReadLocalXLogPrivate
+SysloggerStartupData
 WalSummarizerData
 WalSummaryFile
 WalSummaryIO
@@ -4049,3 +4078,8 @@ rfile
 ws_options
 ws_file_info
 PathKeyInfo
+TidStore
+TidStoreIter
+TidStoreIterResult
+BlocktableEntry
+ItemArray

@@ -13,6 +13,7 @@
  */
 #include "postgres.h"
 
+#include "access/heapam.h"
 #include "access/htup_details.h"
 #include "access/table.h"
 #include "access/xact.h"
@@ -29,7 +30,6 @@
 #include "catalog/pg_trigger.h"
 #include "catalog/pg_ts_config.h"
 #include "catalog/pg_type.h"
-#include "commands/dbcommands.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/trigger.h"
@@ -45,7 +45,7 @@
 #include "utils/builtins.h"
 #include "utils/evtcache.h"
 #include "utils/fmgroids.h"
-#include "utils/inval.h"
+#include "utils/fmgrprotos.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
@@ -174,7 +174,7 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 	else if (strcmp(stmt->eventname, "login") == 0 && tags != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("tag filtering is not supported for login event trigger")));
+				 errmsg("tag filtering is not supported for login event triggers")));
 
 	/*
 	 * Give user a nice error message if an event trigger of the same name
@@ -307,7 +307,7 @@ insert_event_trigger_tuple(const char *trigname, const char *eventname, Oid evtO
 	heap_freetuple(tuple);
 
 	/*
-	 * Login event triggers have an additional flag in pg_database to avoid
+	 * Login event triggers have an additional flag in pg_database to enable
 	 * faster lookups in hot codepaths. Set the flag unless already True.
 	 */
 	if (strcmp(eventname, "login") == 0)
@@ -376,7 +376,7 @@ filter_list_to_array(List *filterlist)
 
 /*
  * Set pg_database.dathasloginevt flag for current database indicating that
- * current database has on login triggers.
+ * current database has on login event triggers.
  */
 void
 SetDatatabaseHasLoginEventTriggers(void)
@@ -444,7 +444,7 @@ AlterEventTrigger(AlterEventTrigStmt *stmt)
 	CatalogTupleUpdate(tgrel, &tup->t_self, tup);
 
 	/*
-	 * Login event triggers have an additional flag in pg_database to avoid
+	 * Login event triggers have an additional flag in pg_database to enable
 	 * faster lookups in hot codepaths. Set the flag unless already True.
 	 */
 	if (namestrcmp(&evtForm->evtevent, "login") == 0 &&
@@ -695,7 +695,7 @@ EventTriggerCommonSetup(Node *parsetree,
 		}
 	}
 
-	/* don't spend any more time on this if no functions to run */
+	/* Don't spend any more time on this if no functions to run */
 	if (runlist == NIL)
 		return NIL;
 
@@ -878,7 +878,7 @@ EventTriggerSQLDrop(Node *parsetree)
 
 /*
  * Fire login event triggers if any are present.  The dathasloginevt
- * pg_database flag is left when an event trigger is dropped, to avoid
+ * pg_database flag is left unchanged when an event trigger is dropped to avoid
  * complicating the codepath in the case of multiple event triggers.  This
  * function will instead unset the flag if no trigger is defined.
  */
@@ -891,7 +891,7 @@ EventTriggerOnLogin(void)
 	/*
 	 * See EventTriggerDDLCommandStart for a discussion about why event
 	 * triggers are disabled in single user mode or via a GUC.  We also need a
-	 * database connection (some background workers doesn't have it).
+	 * database connection (some background workers don't have it).
 	 */
 	if (!IsUnderPostmaster || !event_triggers ||
 		!OidIsValid(MyDatabaseId) || !MyDatabaseHasLoginEventTriggers)
@@ -920,7 +920,7 @@ EventTriggerOnLogin(void)
 
 	/*
 	 * There is no active login event trigger, but our
-	 * pg_database.dathasloginevt was set. Try to unset this flag.  We use the
+	 * pg_database.dathasloginevt is set. Try to unset this flag.  We use the
 	 * lock to prevent concurrent SetDatatabaseHasLoginEventTriggers(), but we
 	 * don't want to hang the connection waiting on the lock.  Thus, we are
 	 * just trying to acquire the lock conditionally.
@@ -931,7 +931,7 @@ EventTriggerOnLogin(void)
 		/*
 		 * The lock is held.  Now we need to recheck that login event triggers
 		 * list is still empty.  Once the list is empty, we know that even if
-		 * there is a backend, which concurrently inserts/enables login
+		 * there is a backend which concurrently inserts/enables a login event
 		 * trigger, it will update pg_database.dathasloginevt *afterwards*.
 		 */
 		runlist = EventTriggerCommonSetup(NULL,
@@ -943,18 +943,45 @@ EventTriggerOnLogin(void)
 			Relation	pg_db = table_open(DatabaseRelationId, RowExclusiveLock);
 			HeapTuple	tuple;
 			Form_pg_database db;
+			ScanKeyData key[1];
+			SysScanDesc scan;
 
-			tuple = SearchSysCacheCopy1(DATABASEOID,
-										ObjectIdGetDatum(MyDatabaseId));
+			/*
+			 * Get the pg_database tuple to scribble on.  Note that this does
+			 * not directly rely on the syscache to avoid issues with
+			 * flattened toast values for the in-place update.
+			 */
+			ScanKeyInit(&key[0],
+						Anum_pg_database_oid,
+						BTEqualStrategyNumber, F_OIDEQ,
+						ObjectIdGetDatum(MyDatabaseId));
+
+			scan = systable_beginscan(pg_db, DatabaseOidIndexId, true,
+									  NULL, 1, key);
+			tuple = systable_getnext(scan);
+			tuple = heap_copytuple(tuple);
+			systable_endscan(scan);
 
 			if (!HeapTupleIsValid(tuple))
-				elog(ERROR, "cache lookup failed for database %u", MyDatabaseId);
+				elog(ERROR, "could not find tuple for database %u", MyDatabaseId);
 
 			db = (Form_pg_database) GETSTRUCT(tuple);
 			if (db->dathasloginevt)
 			{
 				db->dathasloginevt = false;
-				CatalogTupleUpdate(pg_db, &tuple->t_self, tuple);
+
+				/*
+				 * Do an "in place" update of the pg_database tuple.  Doing
+				 * this instead of regular updates serves two purposes. First,
+				 * that avoids possible waiting on the row-level lock. Second,
+				 * that avoids dealing with TOAST.
+				 *
+				 * It's known that changes made by heap_inplace_update() may
+				 * be lost due to concurrent normal updates.  However, we are
+				 * OK with that.  The subsequent connections will still have a
+				 * chance to set "dathasloginevt" to false.
+				 */
+				heap_inplace_update(pg_db, tuple);
 			}
 			table_close(pg_db, RowExclusiveLock);
 			heap_freetuple(tuple);

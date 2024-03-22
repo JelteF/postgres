@@ -48,6 +48,7 @@
 #include "libpq/pqsignal.h"
 #include "miscadmin.h"
 #include "pgstat.h"
+#include "postmaster/auxprocess.h"
 #include "postmaster/interrupt.h"
 #include "postmaster/walwriter.h"
 #include "storage/bufmgr.h"
@@ -85,12 +86,17 @@ int			WalWriterFlushAfter = DEFAULT_WAL_WRITER_FLUSH_AFTER;
  * basic execution environment, but not enabled signals yet.
  */
 void
-WalWriterMain(void)
+WalWriterMain(char *startup_data, size_t startup_data_len)
 {
 	sigjmp_buf	local_sigjmp_buf;
 	MemoryContext walwriter_context;
 	int			left_till_hibernate;
 	bool		hibernating;
+
+	Assert(startup_data_len == 0);
+
+	MyBackendType = B_WAL_WRITER;
+	AuxiliaryProcessMainCommon();
 
 	/*
 	 * Properly accept or ignore signals the postmaster might send us
@@ -186,13 +192,6 @@ WalWriterMain(void)
 		 * fast as we can.
 		 */
 		pg_usleep(1000000L);
-
-		/*
-		 * Close all open files after any error.  This is helpful on Windows,
-		 * where holding deleted files open causes various strange errors.
-		 * It's not clear we need it elsewhere, but shouldn't hurt.
-		 */
-		smgrcloseall();
 	}
 
 	/* We can now handle ereport(ERROR) */

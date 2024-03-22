@@ -48,10 +48,8 @@
 #include "parser/parse_target.h"
 #include "parser/parse_type.h"
 #include "parser/parsetree.h"
-#include "rewrite/rewriteManip.h"
 #include "utils/backend_status.h"
 #include "utils/builtins.h"
-#include "utils/guc.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
@@ -74,7 +72,6 @@ static void determineRecursiveColTypes(ParseState *pstate,
 									   Node *larg, List *nrtargetlist);
 static Query *transformReturnStmt(ParseState *pstate, ReturnStmt *stmt);
 static Query *transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt);
-static List *transformReturningList(ParseState *pstate, List *returningList);
 static Query *transformPLAssignStmt(ParseState *pstate,
 									PLAssignStmt *stmt);
 static Query *transformDeclareCursorStmt(ParseState *pstate,
@@ -553,7 +550,8 @@ transformDeleteStmt(ParseState *pstate, DeleteStmt *stmt)
 	qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
-	qry->returningList = transformReturningList(pstate, stmt->returningList);
+	qry->returningList = transformReturningList(pstate, stmt->returningList,
+												EXPR_KIND_RETURNING);
 
 	/* done building the range table and jointree */
 	qry->rtable = pstate->p_rtable;
@@ -980,7 +978,8 @@ transformInsertStmt(ParseState *pstate, InsertStmt *stmt)
 	/* Process RETURNING, if any. */
 	if (stmt->returningList)
 		qry->returningList = transformReturningList(pstate,
-													stmt->returningList);
+													stmt->returningList,
+													EXPR_KIND_RETURNING);
 
 	/* done building the range table and jointree */
 	qry->rtable = pstate->p_rtable;
@@ -1072,17 +1071,28 @@ transformInsertRow(ParseState *pstate, List *exprlist,
 
 		if (strip_indirection)
 		{
+			/*
+			 * We need to remove top-level FieldStores and SubscriptingRefs,
+			 * as well as any CoerceToDomain appearing above one of those ---
+			 * but not a CoerceToDomain that isn't above one of those.
+			 */
 			while (expr)
 			{
-				if (IsA(expr, FieldStore))
+				Expr	   *subexpr = expr;
+
+				while (IsA(subexpr, CoerceToDomain))
 				{
-					FieldStore *fstore = (FieldStore *) expr;
+					subexpr = ((CoerceToDomain *) subexpr)->arg;
+				}
+				if (IsA(subexpr, FieldStore))
+				{
+					FieldStore *fstore = (FieldStore *) subexpr;
 
 					expr = (Expr *) linitial(fstore->newvals);
 				}
-				else if (IsA(expr, SubscriptingRef))
+				else if (IsA(subexpr, SubscriptingRef))
 				{
-					SubscriptingRef *sbsref = (SubscriptingRef *) expr;
+					SubscriptingRef *sbsref = (SubscriptingRef *) subexpr;
 
 					if (sbsref->refassgnexpr == NULL)
 						break;
@@ -2445,7 +2455,8 @@ transformUpdateStmt(ParseState *pstate, UpdateStmt *stmt)
 	qual = transformWhereClause(pstate, stmt->whereClause,
 								EXPR_KIND_WHERE, "WHERE");
 
-	qry->returningList = transformReturningList(pstate, stmt->returningList);
+	qry->returningList = transformReturningList(pstate, stmt->returningList,
+												EXPR_KIND_RETURNING);
 
 	/*
 	 * Now we are done with SELECT-like processing, and can get on with
@@ -2542,10 +2553,11 @@ transformUpdateTargetList(ParseState *pstate, List *origTlist)
 
 /*
  * transformReturningList -
- *	handle a RETURNING clause in INSERT/UPDATE/DELETE
+ *	handle a RETURNING clause in INSERT/UPDATE/DELETE/MERGE
  */
-static List *
-transformReturningList(ParseState *pstate, List *returningList)
+List *
+transformReturningList(ParseState *pstate, List *returningList,
+					   ParseExprKind exprKind)
 {
 	List	   *rlist;
 	int			save_next_resno;
@@ -2562,7 +2574,7 @@ transformReturningList(ParseState *pstate, List *returningList)
 	pstate->p_next_resno = 1;
 
 	/* transform RETURNING identically to a SELECT targetlist */
-	rlist = transformTargetList(pstate, returningList, EXPR_KIND_RETURNING);
+	rlist = transformTargetList(pstate, returningList, exprKind);
 
 	/*
 	 * Complain if the nonempty tlist expanded to nothing (which is possible

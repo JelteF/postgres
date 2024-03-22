@@ -17,6 +17,7 @@
 
 #include "access/xlog_internal.h"
 #include "backup/walsummary.h"
+#include "common/int.h"
 #include "utils/wait_event.h"
 
 static bool IsWalSummaryFilename(char *filename);
@@ -251,15 +252,8 @@ RemoveWalSummaryIfOlderThan(WalSummaryFile *ws, time_t cutoff_time)
 		ereport(ERROR,
 				(errcode_for_file_access(),
 				 errmsg("could not stat file \"%s\": %m", path)));
-	/* XXX temporarily changed to debug buildfarm failures */
-#if 0
 	ereport(DEBUG2,
 			(errmsg_internal("removing file \"%s\"", path)));
-#else
-	ereport(LOG,
-			(errmsg_internal("removing file \"%s\" cutoff_time=%llu", path,
-			 (unsigned long long) cutoff_time)));
-#endif
 }
 
 /*
@@ -355,9 +349,5 @@ ListComparatorForWalSummaryFiles(const ListCell *a, const ListCell *b)
 	WalSummaryFile *ws1 = lfirst(a);
 	WalSummaryFile *ws2 = lfirst(b);
 
-	if (ws1->start_lsn < ws2->start_lsn)
-		return -1;
-	if (ws1->start_lsn > ws2->start_lsn)
-		return 1;
-	return 0;
+	return pg_cmp_u64(ws1->start_lsn, ws2->start_lsn);
 }

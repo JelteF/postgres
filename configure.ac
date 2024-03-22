@@ -62,7 +62,6 @@ PGAC_ARG_REQ(with, template, [NAME], [override operating system template],
 # --with-template not given
 
 case $host_os in
-     aix*) template=aix ;;
   cygwin*|msys*) template=cygwin ;;
   darwin*) template=darwin ;;
 dragonfly*) template=netbsd ;;
@@ -369,15 +368,10 @@ AC_DEFINE_UNQUOTED([XLOG_BLCKSZ], ${XLOG_BLCKSZ}, [
 # C compiler
 #
 
-# For historical reasons you can also use --with-CC to specify the C compiler
-# to use, although the standard way to do this is to set the CC environment
-# variable.
-PGAC_ARG_REQ(with, CC, [CMD], [set compiler (deprecated)], [CC=$with_CC])
-
-case $template in
-  aix) pgac_cc_list="gcc xlc"; pgac_cxx_list="g++ xlC";;
-    *) pgac_cc_list="gcc cc"; pgac_cxx_list="g++ c++";;
-esac
+# If you don't specify a list of compilers to test, the AC_PROG_CC and
+# AC_PROG_CXX macros test for a long list of unsupported compilers.
+pgac_cc_list="gcc cc"
+pgac_cxx_list="g++ c++"
 
 AC_PROG_CC([$pgac_cc_list])
 AC_PROG_CC_C99()
@@ -594,12 +588,6 @@ elif test "$ICC" = yes; then
   # Make sure strict aliasing is off (though this is said to be the default)
   PGAC_PROG_CC_CFLAGS_OPT([-fno-strict-aliasing])
   PGAC_PROG_CXX_CFLAGS_OPT([-fno-strict-aliasing])
-elif test "$PORTNAME" = "aix"; then
-  # AIX's xlc has to have strict aliasing turned off too
-  PGAC_PROG_CC_CFLAGS_OPT([-qnoansialias])
-  PGAC_PROG_CXX_CFLAGS_OPT([-qnoansialias])
-  PGAC_PROG_CC_CFLAGS_OPT([-qlonglong])
-  PGAC_PROG_CXX_CFLAGS_OPT([-qlonglong])
 fi
 
 # If the compiler knows how to hide symbols, add the switch needed for that to
@@ -618,16 +606,6 @@ if test "$GCC" = yes -o "$SUN_STUDIO_CC" = yes ; then
   PGAC_PROG_VARCXX_VARFLAGS_OPT(CXX, CXXFLAGS_SL_MODULE, [-fvisibility=hidden])
   PGAC_PROG_VARCXX_VARFLAGS_OPT(CXX, CXXFLAGS_SL_MODULE, [-fvisibility-inlines-hidden])
   have_visibility_attribute=$pgac_cv_prog_CC_cflags__fvisibility_hidden
-elif test "$PORTNAME" = "aix"; then
-  # Note that xlc accepts -fvisibility=hidden as a file.
-  PGAC_PROG_CC_VAR_OPT(CFLAGS_SL_MODULE, [-qvisibility=hidden])
-  PGAC_PROG_VARCXX_VARFLAGS_OPT(CXX, CXXFLAGS_SL_MODULE, [-qvisibility=hidden])
-  have_visibility_attribute=$pgac_cv_prog_CC_cflags__qvisibility_hidden
-  # Old xlc versions (<13.1) don't have support for -qvisibility. Use expfull to force
-  # all extension module symbols to be exported.
-  if test "$pgac_cv_prog_CC_cflags__qvisibility_hidden" != "yes"; then
-    CFLAGS_SL_MODULE="$CFLAGS_SL_MODULE -Wl,-b,expfull"
-  fi
 fi
 
 if test "$have_visibility_attribute" = "yes"; then
@@ -1407,8 +1385,7 @@ if test "$with_zstd" = yes ; then
   AC_CHECK_LIB(zstd, ZSTD_compress, [], [AC_MSG_ERROR([library 'zstd' is required for ZSTD support])])
 fi
 
-# Note: We can test for libldap_r only after we know PTHREAD_LIBS;
-# also, on AIX, we may need to have openssl in LIBS for this step.
+# Note: We can test for libldap_r only after we know PTHREAD_LIBS
 if test "$with_ldap" = yes ; then
   _LIBS="$LIBS"
   if test "$PORTNAME" != "win32"; then
@@ -1666,12 +1643,8 @@ PGAC_TYPE_LOCALE_T
 # spelling it understands, because it conflicts with
 # __declspec(restrict). Therefore we define pg_restrict to the
 # appropriate definition, which presumably won't conflict.
-#
-# Allow platforms with buggy compilers to force restrict to not be
-# used by setting $FORCE_DISABLE_RESTRICT=yes in the relevant
-# template.
 AC_C_RESTRICT
-if test "$ac_cv_c_restrict" = "no" -o "x$FORCE_DISABLE_RESTRICT" = "xyes"; then
+if test "$ac_cv_c_restrict" = "no"; then
   pg_restrict=""
 else
   pg_restrict="$ac_cv_c_restrict"
@@ -1776,6 +1749,7 @@ LIBS=`echo "$LIBS" | sed -e 's/-ledit//g' -e 's/-lreadline//g'`
 AC_CHECK_FUNCS(m4_normalize([
 	backtrace_symbols
 	copyfile
+	copy_file_range
 	getifaddrs
 	getpeerucred
 	inet_pton
@@ -1885,6 +1859,7 @@ if test "$PORTNAME" = "win32"; then
   AC_LIBOBJ(win32env)
   AC_LIBOBJ(win32error)
   AC_LIBOBJ(win32fdatasync)
+  AC_LIBOBJ(win32gai_strerror)
   AC_LIBOBJ(win32getrusage)
   AC_LIBOBJ(win32link)
   AC_LIBOBJ(win32ntdll)
@@ -2021,18 +1996,28 @@ fi
 AC_CHECK_ALIGNOF(double)
 
 # Compute maximum alignment of any basic type.
-# We assume long's alignment is at least as strong as char, short, or int;
-# but we must check long long (if it is being used for int64) and double.
-# Note that we intentionally do not consider any types wider than 64 bits,
-# as allowing MAXIMUM_ALIGNOF to exceed 8 would be too much of a penalty
-# for disk and memory space.
+#
+# We require 'double' to have the strictest alignment among the basic types,
+# because otherwise the C ABI might impose 8-byte alignment on some of the
+# other C types that correspond to TYPALIGN_DOUBLE SQL types.  That could
+# cause a mismatch between the tuple layout and the C struct layout of a
+# catalog tuple.  We used to carefully order catalog columns such that any
+# fixed-width, attalign=4 columns were at offsets divisible by 8 regardless
+# of MAXIMUM_ALIGNOF to avoid that, but we no longer support any platforms
+# where TYPALIGN_DOUBLE != MAXIMUM_ALIGNOF.
+#
+# We assume without checking that long's alignment is at least as strong as
+# char, short, or int.  Note that we intentionally do not consider any types
+# wider than 64 bits, as allowing MAXIMUM_ALIGNOF to exceed 8 would be too
+# much of a penalty for disk and memory space.
 
-MAX_ALIGNOF=$ac_cv_alignof_long
-if test $MAX_ALIGNOF -lt $ac_cv_alignof_double ; then
-  MAX_ALIGNOF=$ac_cv_alignof_double
+MAX_ALIGNOF=$ac_cv_alignof_double
+
+if test $ac_cv_alignof_long -gt $MAX_ALIGNOF ; then
+  AC_MSG_ERROR([alignment of 'long' is greater than the alignment of 'double'])
 fi
-if test x"$HAVE_LONG_LONG_INT_64" = xyes && test $MAX_ALIGNOF -lt $ac_cv_alignof_long_long_int ; then
-  MAX_ALIGNOF="$ac_cv_alignof_long_long_int"
+if test x"$HAVE_LONG_LONG_INT_64" = xyes && test $ac_cv_alignof_long_long_int -gt $MAX_ALIGNOF ; then
+  AC_MSG_ERROR([alignment of 'long long int' is greater than the alignment of 'double'])
 fi
 AC_DEFINE_UNQUOTED(MAXIMUM_ALIGNOF, $MAX_ALIGNOF, [Define as the maximum alignment requirement of any C data type.])
 

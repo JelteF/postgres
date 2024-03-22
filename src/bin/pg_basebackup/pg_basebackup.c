@@ -700,14 +700,12 @@ StartLogStreamer(char *startpos, uint32 timeline, char *sysidentifier,
 		/*
 		 * For newer server versions, likewise create pg_wal/summaries
 		 */
-		if (PQserverVersion(conn) < MINIMUM_VERSION_FOR_WAL_SUMMARIES)
+		if (PQserverVersion(conn) >= MINIMUM_VERSION_FOR_WAL_SUMMARIES)
 		{
 			char		summarydir[MAXPGPATH];
 
 			snprintf(summarydir, sizeof(summarydir), "%s/%s/summaries",
-					 basedir,
-					 PQserverVersion(conn) < MINIMUM_VERSION_FOR_PG_WAL ?
-					 "pg_xlog" : "pg_wal");
+					 basedir, "pg_wal");
 
 			if (pg_mkdir_p(summarydir, pg_dir_create_mode) != 0 &&
 				errno != EEXIST)
@@ -1809,10 +1807,18 @@ BaseBackup(char *compression_algorithm, char *compression_detail,
 	}
 
 	/*
-	 * Build contents of configuration file if requested
+	 * Build contents of configuration file if requested.
+	 *
+	 * Note that we don't use the dbname from key-value pair in conn as that
+	 * would have been filled by the default dbname (dbname=replication) in
+	 * case the user didn't specify the one. The dbname written in the config
+	 * file as part of primary_conninfo would be used by slotsync worker which
+	 * doesn't use a replication connection so the default won't work for it.
 	 */
 	if (writerecoveryconf)
-		recoveryconfcontents = GenerateRecoveryConfig(conn, replication_slot);
+		recoveryconfcontents = GenerateRecoveryConfig(conn,
+													  replication_slot,
+													  GetDbnameFromConnectionOptions());
 
 	/*
 	 * Run IDENTIFY_SYSTEM so we can get the timeline

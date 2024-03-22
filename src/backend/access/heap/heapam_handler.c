@@ -237,7 +237,7 @@ heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
  * ----------------------------------------------------------------------------
  */
 
-static void
+static TupleTableSlot *
 heapam_tuple_insert(Relation relation, TupleTableSlot *slot, CommandId cid,
 					int options, BulkInsertState bistate)
 {
@@ -254,6 +254,8 @@ heapam_tuple_insert(Relation relation, TupleTableSlot *slot, CommandId cid,
 
 	if (shouldFree)
 		pfree(tuple);
+
+	return slot;
 }
 
 static void
@@ -633,8 +635,6 @@ heapam_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 {
 	SMgrRelation dstrel;
 
-	dstrel = smgropen(*newrlocator, rel->rd_backend);
-
 	/*
 	 * Since we copy the file directly without looking at the shared buffers,
 	 * we'd better first flush out any pages of the source relation that are
@@ -650,7 +650,7 @@ heapam_relation_copy_data(Relation rel, const RelFileLocator *newrlocator)
 	 * NOTE: any conflict in relfilenumber value will be caught in
 	 * RelationCreateStorage().
 	 */
-	RelationCreateStorage(*newrlocator, rel->rd_rel->relpersistence, true);
+	dstrel = RelationCreateStorage(*newrlocator, rel->rd_rel->relpersistence, true);
 
 	/* copy main fork */
 	RelationCopyStorage(RelationGetSmgr(rel), dstrel, MAIN_FORKNUM,
@@ -2584,6 +2584,7 @@ static const TableAmRoutine heapam_methods = {
 	.index_build_range_scan = heapam_index_build_range_scan,
 	.index_validate_scan = heapam_index_validate_scan,
 
+	.free_rd_amcache = NULL,
 	.relation_size = table_block_relation_size,
 	.relation_needs_toast_table = heapam_relation_needs_toast_table,
 	.relation_toast_am = heapam_relation_toast_am,

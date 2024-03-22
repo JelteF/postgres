@@ -494,7 +494,6 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
 {
 	WRITE_NODE_TYPE("RANGETBLENTRY");
 
-	/* put alias + eref first to make dump more legible */
 	WRITE_NODE_FIELD(alias);
 	WRITE_NODE_FIELD(eref);
 	WRITE_ENUM_FIELD(rtekind, RTEKind);
@@ -503,16 +502,18 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
 	{
 		case RTE_RELATION:
 			WRITE_OID_FIELD(relid);
+			WRITE_BOOL_FIELD(inh);
 			WRITE_CHAR_FIELD(relkind);
 			WRITE_INT_FIELD(rellockmode);
-			WRITE_NODE_FIELD(tablesample);
 			WRITE_UINT_FIELD(perminfoindex);
+			WRITE_NODE_FIELD(tablesample);
 			break;
 		case RTE_SUBQUERY:
 			WRITE_NODE_FIELD(subquery);
 			WRITE_BOOL_FIELD(security_barrier);
 			/* we re-use these RELATION fields, too: */
 			WRITE_OID_FIELD(relid);
+			WRITE_BOOL_FIELD(inh);
 			WRITE_CHAR_FIELD(relkind);
 			WRITE_INT_FIELD(rellockmode);
 			WRITE_UINT_FIELD(perminfoindex);
@@ -564,7 +565,6 @@ _outRangeTblEntry(StringInfo str, const RangeTblEntry *node)
 	}
 
 	WRITE_BOOL_FIELD(lateral);
-	WRITE_BOOL_FIELD(inh);
 	WRITE_BOOL_FIELD(inFromCl);
 	WRITE_NODE_FIELD(securityQuals);
 }
@@ -680,8 +680,13 @@ _outString(StringInfo str, const String *node)
 static void
 _outBitString(StringInfo str, const BitString *node)
 {
-	/* internal representation already has leading 'b' */
-	appendStringInfoString(str, node->bsval);
+	/*
+	 * The lexer will always produce a string starting with 'b' or 'x'.  There
+	 * might be characters following that that need escaping, but outToken
+	 * won't escape the 'b' or 'x'.  This is relied on by nodeTokenType.
+	 */
+	Assert(node->bsval[0] == 'b' || node->bsval[0] == 'x');
+	outToken(str, node->bsval);
 }
 
 static void
@@ -697,134 +702,6 @@ _outA_Const(StringInfo str, const A_Const *node)
 		outNode(str, &node->val);
 	}
 	WRITE_LOCATION_FIELD(location);
-}
-
-static void
-_outConstraint(StringInfo str, const Constraint *node)
-{
-	WRITE_NODE_TYPE("CONSTRAINT");
-
-	WRITE_STRING_FIELD(conname);
-	WRITE_BOOL_FIELD(deferrable);
-	WRITE_BOOL_FIELD(initdeferred);
-	WRITE_LOCATION_FIELD(location);
-
-	appendStringInfoString(str, " :contype ");
-	switch (node->contype)
-	{
-		case CONSTR_NULL:
-			appendStringInfoString(str, "NULL");
-			break;
-
-		case CONSTR_NOTNULL:
-			appendStringInfoString(str, "NOT_NULL");
-			WRITE_NODE_FIELD(keys);
-			WRITE_INT_FIELD(inhcount);
-			WRITE_BOOL_FIELD(is_no_inherit);
-			WRITE_BOOL_FIELD(skip_validation);
-			WRITE_BOOL_FIELD(initially_valid);
-			break;
-
-		case CONSTR_DEFAULT:
-			appendStringInfoString(str, "DEFAULT");
-			WRITE_NODE_FIELD(raw_expr);
-			WRITE_STRING_FIELD(cooked_expr);
-			break;
-
-		case CONSTR_IDENTITY:
-			appendStringInfoString(str, "IDENTITY");
-			WRITE_NODE_FIELD(options);
-			WRITE_CHAR_FIELD(generated_when);
-			break;
-
-		case CONSTR_GENERATED:
-			appendStringInfoString(str, "GENERATED");
-			WRITE_NODE_FIELD(raw_expr);
-			WRITE_STRING_FIELD(cooked_expr);
-			WRITE_CHAR_FIELD(generated_when);
-			break;
-
-		case CONSTR_CHECK:
-			appendStringInfoString(str, "CHECK");
-			WRITE_BOOL_FIELD(is_no_inherit);
-			WRITE_NODE_FIELD(raw_expr);
-			WRITE_STRING_FIELD(cooked_expr);
-			WRITE_BOOL_FIELD(skip_validation);
-			WRITE_BOOL_FIELD(initially_valid);
-			break;
-
-		case CONSTR_PRIMARY:
-			appendStringInfoString(str, "PRIMARY_KEY");
-			WRITE_NODE_FIELD(keys);
-			WRITE_BOOL_FIELD(without_overlaps);
-			WRITE_NODE_FIELD(including);
-			WRITE_NODE_FIELD(options);
-			WRITE_STRING_FIELD(indexname);
-			WRITE_STRING_FIELD(indexspace);
-			WRITE_BOOL_FIELD(reset_default_tblspc);
-			/* access_method and where_clause not currently used */
-			break;
-
-		case CONSTR_UNIQUE:
-			appendStringInfoString(str, "UNIQUE");
-			WRITE_BOOL_FIELD(nulls_not_distinct);
-			WRITE_NODE_FIELD(keys);
-			WRITE_BOOL_FIELD(without_overlaps);
-			WRITE_NODE_FIELD(including);
-			WRITE_NODE_FIELD(options);
-			WRITE_STRING_FIELD(indexname);
-			WRITE_STRING_FIELD(indexspace);
-			WRITE_BOOL_FIELD(reset_default_tblspc);
-			/* access_method and where_clause not currently used */
-			break;
-
-		case CONSTR_EXCLUSION:
-			appendStringInfoString(str, "EXCLUSION");
-			WRITE_NODE_FIELD(exclusions);
-			WRITE_NODE_FIELD(including);
-			WRITE_NODE_FIELD(options);
-			WRITE_STRING_FIELD(indexname);
-			WRITE_STRING_FIELD(indexspace);
-			WRITE_BOOL_FIELD(reset_default_tblspc);
-			WRITE_STRING_FIELD(access_method);
-			WRITE_NODE_FIELD(where_clause);
-			break;
-
-		case CONSTR_FOREIGN:
-			appendStringInfoString(str, "FOREIGN_KEY");
-			WRITE_NODE_FIELD(pktable);
-			WRITE_NODE_FIELD(fk_attrs);
-			WRITE_NODE_FIELD(pk_attrs);
-			WRITE_CHAR_FIELD(fk_matchtype);
-			WRITE_CHAR_FIELD(fk_upd_action);
-			WRITE_CHAR_FIELD(fk_del_action);
-			WRITE_NODE_FIELD(fk_del_set_cols);
-			WRITE_NODE_FIELD(old_conpfeqop);
-			WRITE_OID_FIELD(old_pktable_oid);
-			WRITE_BOOL_FIELD(skip_validation);
-			WRITE_BOOL_FIELD(initially_valid);
-			break;
-
-		case CONSTR_ATTR_DEFERRABLE:
-			appendStringInfoString(str, "ATTR_DEFERRABLE");
-			break;
-
-		case CONSTR_ATTR_NOT_DEFERRABLE:
-			appendStringInfoString(str, "ATTR_NOT_DEFERRABLE");
-			break;
-
-		case CONSTR_ATTR_DEFERRED:
-			appendStringInfoString(str, "ATTR_DEFERRED");
-			break;
-
-		case CONSTR_ATTR_IMMEDIATE:
-			appendStringInfoString(str, "ATTR_IMMEDIATE");
-			break;
-
-		default:
-			elog(ERROR, "unrecognized ConstrType: %d", (int) node->contype);
-			break;
-	}
 }
 
 

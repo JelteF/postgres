@@ -60,7 +60,6 @@
 #include "storage/ipc.h"
 #include "storage/latch.h"
 #include "storage/pmsignal.h"
-#include "storage/shmem.h"
 #include "utils/memutils.h"
 #include "utils/resowner.h"
 
@@ -2243,12 +2242,8 @@ GetNumRegisteredWaitEvents(WaitEventSet *set)
 static void
 latch_sigurg_handler(SIGNAL_ARGS)
 {
-	int			save_errno = errno;
-
 	if (waiting)
 		sendSelfPipeByte();
-
-	errno = save_errno;
 }
 
 /* Send one byte to the self-pipe, to wake up WaitLatch */

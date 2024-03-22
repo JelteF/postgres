@@ -695,7 +695,7 @@ include_dir         <replaceable>directory</replaceable>
        format. To see the <literal>DN</literal> of a client certificate
        in this format, do
 <programlisting>
-openssl x509 -in myclient.crt -noout --subject -nameopt RFC2253 | sed "s/^subject=//"
+openssl x509 -in myclient.crt -noout -subject -nameopt RFC2253 | sed "s/^subject=//"
 </programlisting>
         Care needs to be taken when using this option, especially when using
         regular expression matching against the <literal>DN</literal>.
@@ -965,8 +965,8 @@ local   db1,db2,@demodbs  all                                   md5
    external authentication system with the database user name that the
    user has requested to connect as. The value <literal>all</literal>
    can be used as the <replaceable>database-username</replaceable> to specify
-   that if the <replaceable>system-user</replaceable> matches, then this user
-   is allowed to log in as any of the existing database users. Quoting
+   that if the <replaceable>system-username</replaceable> matches, then this
+   user is allowed to log in as any of the existing database users. Quoting
    <literal>all</literal> makes the keyword lose its special meaning.
   </para>
   <para>

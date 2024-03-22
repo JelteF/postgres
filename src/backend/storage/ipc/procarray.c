@@ -47,7 +47,6 @@
 
 #include <signal.h>
 
-#include "access/clog.h"
 #include "access/subtrans.h"
 #include "access/transam.h"
 #include "access/twophase.h"
@@ -468,6 +467,7 @@ CreateSharedProcArray(void)
 void
 ProcArrayAdd(PGPROC *proc)
 {
+	int			pgprocno = GetNumberFromPGProc(proc);
 	ProcArrayStruct *arrayP = procArray;
 	int			index;
 	int			movecount;
@@ -499,13 +499,13 @@ ProcArrayAdd(PGPROC *proc)
 	 */
 	for (index = 0; index < arrayP->numProcs; index++)
 	{
-		int			procno PG_USED_FOR_ASSERTS_ONLY = arrayP->pgprocnos[index];
+		int			this_procno = arrayP->pgprocnos[index];
 
-		Assert(procno >= 0 && procno < (arrayP->maxProcs + NUM_AUXILIARY_PROCS));
-		Assert(allProcs[procno].pgxactoff == index);
+		Assert(this_procno >= 0 && this_procno < (arrayP->maxProcs + NUM_AUXILIARY_PROCS));
+		Assert(allProcs[this_procno].pgxactoff == index);
 
 		/* If we have found our right position in the array, break */
-		if (arrayP->pgprocnos[index] > proc->pgprocno)
+		if (this_procno > pgprocno)
 			break;
 	}
 
@@ -523,7 +523,7 @@ ProcArrayAdd(PGPROC *proc)
 			&ProcGlobal->statusFlags[index],
 			movecount * sizeof(*ProcGlobal->statusFlags));
 
-	arrayP->pgprocnos[index] = proc->pgprocno;
+	arrayP->pgprocnos[index] = GetNumberFromPGProc(proc);
 	proc->pgxactoff = index;
 	ProcGlobal->xids[index] = proc->xid;
 	ProcGlobal->subxidStates[index] = proc->subxidStatus;
@@ -700,7 +700,7 @@ ProcArrayEndTransaction(PGPROC *proc, TransactionId latestXid)
 		Assert(proc->subxidStatus.count == 0);
 		Assert(!proc->subxidStatus.overflowed);
 
-		proc->lxid = InvalidLocalTransactionId;
+		proc->vxid.lxid = InvalidLocalTransactionId;
 		proc->xmin = InvalidTransactionId;
 
 		/* be sure this is cleared in abort */
@@ -742,7 +742,7 @@ ProcArrayEndTransactionInternal(PGPROC *proc, TransactionId latestXid)
 
 	ProcGlobal->xids[pgxactoff] = InvalidTransactionId;
 	proc->xid = InvalidTransactionId;
-	proc->lxid = InvalidLocalTransactionId;
+	proc->vxid.lxid = InvalidLocalTransactionId;
 	proc->xmin = InvalidTransactionId;
 
 	/* be sure this is cleared in abort */
@@ -791,6 +791,7 @@ ProcArrayEndTransactionInternal(PGPROC *proc, TransactionId latestXid)
 static void
 ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 {
+	int			pgprocno = GetNumberFromPGProc(proc);
 	PROC_HDR   *procglobal = ProcGlobal;
 	uint32		nextidx;
 	uint32		wakeidx;
@@ -808,7 +809,7 @@ ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 
 		if (pg_atomic_compare_exchange_u32(&procglobal->procArrayGroupFirst,
 										   &nextidx,
-										   (uint32) proc->pgprocno))
+										   (uint32) pgprocno))
 			break;
 	}
 
@@ -816,9 +817,9 @@ ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 	 * If the list was not empty, the leader will clear our XID.  It is
 	 * impossible to have followers without a leader because the first process
 	 * that has added itself to the list will always have nextidx as
-	 * INVALID_PGPROCNO.
+	 * INVALID_PROC_NUMBER.
 	 */
-	if (nextidx != INVALID_PGPROCNO)
+	if (nextidx != INVALID_PROC_NUMBER)
 	{
 		int			extraWaits = 0;
 
@@ -834,7 +835,7 @@ ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 		}
 		pgstat_report_wait_end();
 
-		Assert(pg_atomic_read_u32(&proc->procArrayGroupNext) == INVALID_PGPROCNO);
+		Assert(pg_atomic_read_u32(&proc->procArrayGroupNext) == INVALID_PROC_NUMBER);
 
 		/* Fix semaphore count for any absorbed wakeups */
 		while (extraWaits-- > 0)
@@ -851,13 +852,13 @@ ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 	 * to pop elements one at a time could lead to an ABA problem.
 	 */
 	nextidx = pg_atomic_exchange_u32(&procglobal->procArrayGroupFirst,
-									 INVALID_PGPROCNO);
+									 INVALID_PROC_NUMBER);
 
 	/* Remember head of list so we can perform wakeups after dropping lock. */
 	wakeidx = nextidx;
 
 	/* Walk the list and clear all XIDs. */
-	while (nextidx != INVALID_PGPROCNO)
+	while (nextidx != INVALID_PROC_NUMBER)
 	{
 		PGPROC	   *nextproc = &allProcs[nextidx];
 
@@ -877,12 +878,12 @@ ProcArrayGroupClearXid(PGPROC *proc, TransactionId latestXid)
 	 * up are probably much slower than the simple memory writes we did while
 	 * holding the lock.
 	 */
-	while (wakeidx != INVALID_PGPROCNO)
+	while (wakeidx != INVALID_PROC_NUMBER)
 	{
 		PGPROC	   *nextproc = &allProcs[wakeidx];
 
 		wakeidx = pg_atomic_read_u32(&nextproc->procArrayGroupNext);
-		pg_atomic_write_u32(&nextproc->procArrayGroupNext, INVALID_PGPROCNO);
+		pg_atomic_write_u32(&nextproc->procArrayGroupNext, INVALID_PROC_NUMBER);
 
 		/* ensure all previous writes are visible before follower continues. */
 		pg_write_barrier();
@@ -928,7 +929,7 @@ ProcArrayClearTransaction(PGPROC *proc)
 	ProcGlobal->xids[pgxactoff] = InvalidTransactionId;
 	proc->xid = InvalidTransactionId;
 
-	proc->lxid = InvalidLocalTransactionId;
+	proc->vxid.lxid = InvalidLocalTransactionId;
 	proc->xmin = InvalidTransactionId;
 	proc->recoveryConflictPending = false;
 
@@ -2534,6 +2535,11 @@ ProcArrayInstallImportedXmin(TransactionId xmin,
 	/* Get lock so source xact can't end while we're doing this */
 	LWLockAcquire(ProcArrayLock, LW_SHARED);
 
+	/*
+	 * Find the PGPROC entry of the source transaction. (This could use
+	 * GetPGProcByNumber(), unless it's a prepared xact.  But this isn't
+	 * performance critical.)
+	 */
 	for (index = 0; index < arrayP->numProcs; index++)
 	{
 		int			pgprocno = arrayP->pgprocnos[index];
@@ -2546,9 +2552,9 @@ ProcArrayInstallImportedXmin(TransactionId xmin,
 			continue;
 
 		/* We are only interested in the specific virtual transaction. */
-		if (proc->backendId != sourcevxid->backendId)
+		if (proc->vxid.procNumber != sourcevxid->procNumber)
 			continue;
-		if (proc->lxid != sourcevxid->localTransactionId)
+		if (proc->vxid.lxid != sourcevxid->localTransactionId)
 			continue;
 
 		/*
@@ -2682,6 +2688,7 @@ GetRunningTransactionData(void)
 	RunningTransactions CurrentRunningXacts = &CurrentRunningXactsData;
 	TransactionId latestCompletedXid;
 	TransactionId oldestRunningXid;
+	TransactionId oldestDatabaseRunningXid;
 	TransactionId *xids;
 	int			index;
 	int			count;
@@ -2726,7 +2733,7 @@ GetRunningTransactionData(void)
 
 	latestCompletedXid =
 		XidFromFullTransactionId(TransamVariables->latestCompletedXid);
-	oldestRunningXid =
+	oldestDatabaseRunningXid = oldestRunningXid =
 		XidFromFullTransactionId(TransamVariables->nextXid);
 
 	/*
@@ -2734,6 +2741,8 @@ GetRunningTransactionData(void)
 	 */
 	for (index = 0; index < arrayP->numProcs; index++)
 	{
+		int			pgprocno = arrayP->pgprocnos[index];
+		PGPROC	   *proc = &allProcs[pgprocno];
 		TransactionId xid;
 
 		/* Fetch xid just once - see GetNewTransactionId */
@@ -2753,6 +2762,13 @@ GetRunningTransactionData(void)
 		 */
 		if (TransactionIdPrecedes(xid, oldestRunningXid))
 			oldestRunningXid = xid;
+
+		/*
+		 * Also, update the oldest running xid within the current database.
+		 */
+		if (proc->databaseId == MyDatabaseId &&
+			TransactionIdPrecedes(xid, oldestRunningXid))
+			oldestDatabaseRunningXid = xid;
 
 		if (ProcGlobal->subxidStates[index].overflowed)
 			suboverflowed = true;
@@ -2820,6 +2836,7 @@ GetRunningTransactionData(void)
 	CurrentRunningXacts->subxid_overflow = suboverflowed;
 	CurrentRunningXacts->nextXid = XidFromFullTransactionId(TransamVariables->nextXid);
 	CurrentRunningXacts->oldestRunningXid = oldestRunningXid;
+	CurrentRunningXacts->oldestDatabaseRunningXid = oldestDatabaseRunningXid;
 	CurrentRunningXacts->latestCompletedXid = latestCompletedXid;
 
 	Assert(TransactionIdIsValid(CurrentRunningXacts->nextXid));
@@ -3095,6 +3112,64 @@ HaveVirtualXIDsDelayingChkpt(VirtualTransactionId *vxids, int nvxids, int type)
 	LWLockRelease(ProcArrayLock);
 
 	return result;
+}
+
+/*
+ * ProcNumberGetProc -- get a backend's PGPROC given its proc number
+ *
+ * The result may be out of date arbitrarily quickly, so the caller
+ * must be careful about how this information is used.  NULL is
+ * returned if the backend is not active.
+ */
+PGPROC *
+ProcNumberGetProc(ProcNumber procNumber)
+{
+	PGPROC	   *result;
+
+	if (procNumber < 0 || procNumber >= ProcGlobal->allProcCount)
+		return NULL;
+	result = GetPGProcByNumber(procNumber);
+
+	if (result->pid == 0)
+		return NULL;
+
+	return result;
+}
+
+/*
+ * ProcNumberGetTransactionIds -- get a backend's transaction status
+ *
+ * Get the xid, xmin, nsubxid and overflow status of the backend.  The
+ * result may be out of date arbitrarily quickly, so the caller must be
+ * careful about how this information is used.
+ */
+void
+ProcNumberGetTransactionIds(ProcNumber procNumber, TransactionId *xid,
+							TransactionId *xmin, int *nsubxid, bool *overflowed)
+{
+	PGPROC	   *proc;
+
+	*xid = InvalidTransactionId;
+	*xmin = InvalidTransactionId;
+	*nsubxid = 0;
+	*overflowed = false;
+
+	if (procNumber < 0 || procNumber >= ProcGlobal->allProcCount)
+		return;
+	proc = GetPGProcByNumber(procNumber);
+
+	/* Need to lock out additions/removals of backends */
+	LWLockAcquire(ProcArrayLock, LW_SHARED);
+
+	if (proc->pid != 0)
+	{
+		*xid = proc->xid;
+		*xmin = proc->xmin;
+		*nsubxid = proc->subxidStatus.count;
+		*overflowed = proc->subxidStatus.overflowed;
+	}
+
+	LWLockRelease(ProcArrayLock);
 }
 
 /*
@@ -3388,7 +3463,7 @@ GetConflictingVirtualXIDs(TransactionId limitXmin, Oid dbOid)
 	LWLockRelease(ProcArrayLock);
 
 	/* add the terminator */
-	vxids[count].backendId = InvalidBackendId;
+	vxids[count].procNumber = INVALID_PROC_NUMBER;
 	vxids[count].localTransactionId = InvalidLocalTransactionId;
 
 	return vxids;
@@ -3423,7 +3498,7 @@ SignalVirtualTransaction(VirtualTransactionId vxid, ProcSignalReason sigmode,
 
 		GET_VXID_FROM_PGPROC(procvxid, *proc);
 
-		if (procvxid.backendId == vxid.backendId &&
+		if (procvxid.procNumber == vxid.procNumber &&
 			procvxid.localTransactionId == vxid.localTransactionId)
 		{
 			proc->recoveryConflictPending = conflictPending;
@@ -3434,7 +3509,7 @@ SignalVirtualTransaction(VirtualTransactionId vxid, ProcSignalReason sigmode,
 				 * Kill the pid if it's still here. If not, that's what we
 				 * wanted so ignore any errors.
 				 */
-				(void) SendProcSignal(pid, sigmode, vxid.backendId);
+				(void) SendProcSignal(pid, sigmode, vxid.procNumber);
 			}
 			break;
 		}
@@ -3597,7 +3672,7 @@ CancelDBBackends(Oid databaseid, ProcSignalReason sigmode, bool conflictPending)
 				 * Kill the pid if it's still here. If not, that's what we
 				 * wanted so ignore any errors.
 				 */
-				(void) SendProcSignal(pid, sigmode, procvxid.backendId);
+				(void) SendProcSignal(pid, sigmode, procvxid.procNumber);
 			}
 		}
 	}

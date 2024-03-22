@@ -22,8 +22,6 @@
 #ifndef PG_WCHAR_H
 #define PG_WCHAR_H
 
-#include "port/simd.h"
-
 /*
  * The pg_wchar type
  */
@@ -226,11 +224,10 @@ typedef unsigned int pg_wchar;
 /*
  * PostgreSQL encoding identifiers
  *
- * WARNING: the order of this enum must be same as order of entries
- *			in the pg_enc2name_tbl[] array (in src/common/encnames.c), and
- *			in the pg_wchar_table[] array (in src/common/wchar.c)!
- *
- *			If you add some encoding don't forget to check
+ * WARNING: If you add some encoding don't forget to update
+ *			the pg_enc2name_tbl[] array (in src/common/encnames.c),
+ *			the pg_enc2gettext_tbl[] array (in src/common/encnames.c) and
+ *			the pg_wchar_table[] array (in src/common/wchar.c) and to check
  *			PG_ENCODING_BE_LAST macro.
  *
  * PG_SQL_ASCII is default encoding and must be = 0.
@@ -369,13 +366,7 @@ extern PGDLLIMPORT const pg_enc2name pg_enc2name_tbl[];
 /*
  * Encoding names for gettext
  */
-typedef struct pg_enc2gettext
-{
-	pg_enc		encoding;
-	const char *name;
-} pg_enc2gettext;
-
-extern PGDLLIMPORT const pg_enc2gettext pg_enc2gettext_tbl[];
+extern PGDLLIMPORT const char *pg_enc2gettext_tbl[];
 
 /*
  * pg_wchar stuff
@@ -564,6 +555,82 @@ surrogate_pair_to_codepoint(pg_wchar first, pg_wchar second)
 	return ((first & 0x3FF) << 10) + 0x10000 + (second & 0x3FF);
 }
 
+/*
+ * Convert a UTF-8 character to a Unicode code point.
+ * This is a one-character version of pg_utf2wchar_with_len.
+ *
+ * No error checks here, c must point to a long-enough string.
+ */
+static inline pg_wchar
+utf8_to_unicode(const unsigned char *c)
+{
+	if ((*c & 0x80) == 0)
+		return (pg_wchar) c[0];
+	else if ((*c & 0xe0) == 0xc0)
+		return (pg_wchar) (((c[0] & 0x1f) << 6) |
+						   (c[1] & 0x3f));
+	else if ((*c & 0xf0) == 0xe0)
+		return (pg_wchar) (((c[0] & 0x0f) << 12) |
+						   ((c[1] & 0x3f) << 6) |
+						   (c[2] & 0x3f));
+	else if ((*c & 0xf8) == 0xf0)
+		return (pg_wchar) (((c[0] & 0x07) << 18) |
+						   ((c[1] & 0x3f) << 12) |
+						   ((c[2] & 0x3f) << 6) |
+						   (c[3] & 0x3f));
+	else
+		/* that is an invalid code on purpose */
+		return 0xffffffff;
+}
+
+/*
+ * Map a Unicode code point to UTF-8.  utf8string must have at least
+ * unicode_utf8len(c) bytes available.
+ */
+static inline unsigned char *
+unicode_to_utf8(pg_wchar c, unsigned char *utf8string)
+{
+	if (c <= 0x7F)
+	{
+		utf8string[0] = c;
+	}
+	else if (c <= 0x7FF)
+	{
+		utf8string[0] = 0xC0 | ((c >> 6) & 0x1F);
+		utf8string[1] = 0x80 | (c & 0x3F);
+	}
+	else if (c <= 0xFFFF)
+	{
+		utf8string[0] = 0xE0 | ((c >> 12) & 0x0F);
+		utf8string[1] = 0x80 | ((c >> 6) & 0x3F);
+		utf8string[2] = 0x80 | (c & 0x3F);
+	}
+	else
+	{
+		utf8string[0] = 0xF0 | ((c >> 18) & 0x07);
+		utf8string[1] = 0x80 | ((c >> 12) & 0x3F);
+		utf8string[2] = 0x80 | ((c >> 6) & 0x3F);
+		utf8string[3] = 0x80 | (c & 0x3F);
+	}
+
+	return utf8string;
+}
+
+/*
+ * Number of bytes needed to represent the given char in UTF8.
+ */
+static inline int
+unicode_utf8len(pg_wchar c)
+{
+	if (c <= 0x7F)
+		return 1;
+	else if (c <= 0x7FF)
+		return 2;
+	else if (c <= 0xFFFF)
+		return 3;
+	else
+		return 4;
+}
 
 /*
  * The functions in this list are exported by libpq, and we need to be sure
@@ -721,72 +788,5 @@ extern int	mic2latin_with_table(const unsigned char *mic, unsigned char *p,
 #ifdef WIN32
 extern WCHAR *pgwin32_message_to_UTF16(const char *str, int len, int *utf16len);
 #endif
-
-
-/*
- * Verify a chunk of bytes for valid ASCII.
- *
- * Returns false if the input contains any zero bytes or bytes with the
- * high-bit set. Input len must be a multiple of the chunk size (8 or 16).
- */
-static inline bool
-is_valid_ascii(const unsigned char *s, int len)
-{
-	const unsigned char *const s_end = s + len;
-	Vector8		chunk;
-	Vector8		highbit_cum = vector8_broadcast(0);
-#ifdef USE_NO_SIMD
-	Vector8		zero_cum = vector8_broadcast(0x80);
-#endif
-
-	Assert(len % sizeof(chunk) == 0);
-
-	while (s < s_end)
-	{
-		vector8_load(&chunk, s);
-
-		/* Capture any zero bytes in this chunk. */
-#ifdef USE_NO_SIMD
-
-		/*
-		 * First, add 0x7f to each byte. This sets the high bit in each byte,
-		 * unless it was a zero. If any resulting high bits are zero, the
-		 * corresponding high bits in the zero accumulator will be cleared.
-		 *
-		 * If none of the bytes in the chunk had the high bit set, the max
-		 * value each byte can have after the addition is 0x7f + 0x7f = 0xfe,
-		 * and we don't need to worry about carrying over to the next byte. If
-		 * any input bytes did have the high bit set, it doesn't matter
-		 * because we check for those separately.
-		 */
-		zero_cum &= (chunk + vector8_broadcast(0x7F));
-#else
-
-		/*
-		 * Set all bits in each lane of the highbit accumulator where input
-		 * bytes are zero.
-		 */
-		highbit_cum = vector8_or(highbit_cum,
-								 vector8_eq(chunk, vector8_broadcast(0)));
-#endif
-
-		/* Capture all set bits in this chunk. */
-		highbit_cum = vector8_or(highbit_cum, chunk);
-
-		s += sizeof(chunk);
-	}
-
-	/* Check if any high bits in the high bit accumulator got set. */
-	if (vector8_is_highbit_set(highbit_cum))
-		return false;
-
-#ifdef USE_NO_SIMD
-	/* Check if any high bits in the zero accumulator got cleared. */
-	if (zero_cum != vector8_broadcast(0x80))
-		return false;
-#endif
-
-	return true;
-}
 
 #endif							/* PG_WCHAR_H */

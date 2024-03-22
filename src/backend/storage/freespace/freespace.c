@@ -29,8 +29,8 @@
 #include "miscadmin.h"
 #include "storage/freespace.h"
 #include "storage/fsm_internals.h"
-#include "storage/lmgr.h"
 #include "storage/smgr.h"
+#include "utils/rel.h"
 
 
 /*
@@ -532,14 +532,7 @@ fsm_readbuf(Relation rel, FSMAddress addr, bool extend)
 {
 	BlockNumber blkno = fsm_logical_to_physical(addr);
 	Buffer		buf;
-	SMgrRelation reln;
-
-	/*
-	 * Caution: re-using this smgr pointer could fail if the relcache entry
-	 * gets closed.  It's safe as long as we only do smgr-level operations
-	 * between here and the last use of the pointer.
-	 */
-	reln = RelationGetSmgr(rel);
+	SMgrRelation reln = RelationGetSmgr(rel);
 
 	/*
 	 * If we haven't cached the size of the FSM yet, check it first.  Also

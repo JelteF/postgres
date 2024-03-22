@@ -54,7 +54,6 @@
 #include "commands/comment.h"
 #include "commands/defrem.h"
 #include "commands/event_trigger.h"
-#include "commands/policy.h"
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
@@ -70,11 +69,9 @@
 #include "nodes/nodeFuncs.h"
 #include "nodes/parsenodes.h"
 #include "optimizer/optimizer.h"
-#include "parser/parse_clause.h"
 #include "parser/parse_coerce.h"
 #include "parser/parse_collate.h"
 #include "parser/parse_expr.h"
-#include "parser/parse_oper.h"
 #include "parser/parse_relation.h"
 #include "parser/parse_type.h"
 #include "parser/parse_utilcmd.h"
@@ -810,10 +807,6 @@ DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
 	}
 	else if (stmt->partbound)
 	{
-		/*
-		 * For partitions, when no other tablespace is specified, we default
-		 * the tablespace to the parent partitioned table's.
-		 */
 		Assert(list_length(inheritOids) == 1);
 		tablespaceId = get_rel_tablespace(linitial_oid(inheritOids));
 	}
@@ -7047,6 +7040,9 @@ ATExecAddColumn(List **wqueue, AlteredTableInfo *tab, Relation rel,
 	ObjectAddress address;
 	TupleDesc	tupdesc;
 
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
 	/* At top level, permission check was done in ATPrepCmd, else do it */
 	if (recursing)
 		ATSimplePermissions((*cmd)->subtype, rel, ATT_TABLE | ATT_FOREIGN_TABLE);
@@ -8711,7 +8707,8 @@ ATExecDropExpression(Relation rel, const char *colName, bool missing_ok, LOCKMOD
 static ObjectAddress
 ATExecSetStatistics(Relation rel, const char *colName, int16 colNum, Node *newValue, LOCKMODE lockmode)
 {
-	int			newtarget;
+	int			newtarget = 0;
+	bool		newtarget_default;
 	Relation	attrelation;
 	HeapTuple	tuple,
 				newtuple;
@@ -8733,35 +8730,35 @@ ATExecSetStatistics(Relation rel, const char *colName, int16 colNum, Node *newVa
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot refer to non-index column by number")));
 
-	if (newValue)
+	/* -1 was used in previous versions for the default setting */
+	if (newValue && intVal(newValue) != -1)
 	{
 		newtarget = intVal(newValue);
+		newtarget_default = false;
 	}
 	else
+		newtarget_default = true;
+
+	if (!newtarget_default)
 	{
 		/*
-		 * -1 was used in previous versions to represent the default setting
+		 * Limit target to a sane range
 		 */
-		newtarget = -1;
-	}
-
-	/*
-	 * Limit target to a sane range
-	 */
-	if (newtarget < -1)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("statistics target %d is too low",
-						newtarget)));
-	}
-	else if (newtarget > MAX_STATISTICS_TARGET)
-	{
-		newtarget = MAX_STATISTICS_TARGET;
-		ereport(WARNING,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("lowering statistics target to %d",
-						newtarget)));
+		if (newtarget < 0)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("statistics target %d is too low",
+							newtarget)));
+		}
+		else if (newtarget > MAX_STATISTICS_TARGET)
+		{
+			newtarget = MAX_STATISTICS_TARGET;
+			ereport(WARNING,
+					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					 errmsg("lowering statistics target to %d",
+							newtarget)));
+		}
 	}
 
 	attrelation = table_open(AttributeRelationId, RowExclusiveLock);
@@ -8815,7 +8812,7 @@ ATExecSetStatistics(Relation rel, const char *colName, int16 colNum, Node *newVa
 	/* Build new tuple. */
 	memset(repl_null, false, sizeof(repl_null));
 	memset(repl_repl, false, sizeof(repl_repl));
-	if (newtarget != -1)
+	if (!newtarget_default)
 		repl_val[Anum_pg_attribute_attstattarget - 1] = newtarget;
 	else
 		repl_null[Anum_pg_attribute_attstattarget - 1] = true;
@@ -9095,6 +9092,10 @@ ATExecDropColumn(List **wqueue, Relation rel, const char *colName,
 
 	/* Initialize addrs on the first invocation */
 	Assert(!recursing || addrs != NULL);
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
 	if (!recursing)
 		addrs = new_object_addresses();
 
@@ -10374,7 +10375,7 @@ addFkRecurseReferenced(List **wqueue, Constraint *fkconstraint, Relation rel,
 									  conislocal,	/* islocal */
 									  coninhcount,	/* inhcount */
 									  connoinherit, /* conNoInherit */
-									  false,	/* conWithoutOverlaps */
+									  false,	/* conPeriod */
 									  false);	/* is_internal */
 
 	ObjectAddressSet(address, ConstraintRelationId, constrOid);
@@ -10673,7 +10674,7 @@ addFkRecurseReferencing(List **wqueue, Constraint *fkconstraint, Relation rel,
 									  false,
 									  1,
 									  false,
-									  false,	/* conWithoutOverlaps */
+									  false,	/* conPeriod */
 									  false);
 
 			/*
@@ -11179,7 +11180,7 @@ CloneFkReferencing(List **wqueue, Relation parentRel, Relation partRel)
 								  false,	/* islocal */
 								  1,	/* inhcount */
 								  false,	/* conNoInherit */
-								  false,	/* conWithoutOverlaps */
+								  false,	/* conPeriod */
 								  true);
 
 		/* Set up partition dependencies for the new constraint */
@@ -11647,6 +11648,9 @@ ATExecAlterConstrRecurse(Constraint *cmdcon, Relation conrel, Relation tgrel,
 	Oid			conoid;
 	Oid			refrelid;
 	bool		changed = false;
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
 
 	currcon = (Form_pg_constraint) GETSTRUCT(contuple);
 	conoid = currcon->oid;
@@ -12117,15 +12121,19 @@ transformFkeyGetPrimaryKey(Relation pkrel, Oid *indexOid,
 /*
  * transformFkeyCheckAttrs -
  *
- *	Make sure that the attributes of a referenced table belong to a unique
- *	(or primary key) constraint.  Return the OID of the index supporting
- *	the constraint, as well as the opclasses associated with the index
- *	columns.
+ *	Validate that the 'attnums' columns in the 'pkrel' relation are valid to
+ *	reference as part of a foreign key constraint.
+ *
+ *	Returns the OID of the unique index supporting the constraint and
+ *	populates the caller-provided 'opclasses' array with the opclasses
+ *	associated with the index columns.
+ *
+ *	Raises an ERROR on validation failure.
  */
 static Oid
 transformFkeyCheckAttrs(Relation pkrel,
 						int numattrs, int16 *attnums,
-						Oid *opclasses) /* output parameter */
+						Oid *opclasses)
 {
 	Oid			indexoid = InvalidOid;
 	bool		found = false;
@@ -15191,6 +15199,7 @@ ATExecDropCluster(Relation rel, LOCKMODE lockmode)
  *
  * Check that access method exists.  If it is the same as the table's current
  * access method, it is a no-op.  Otherwise, a table rewrite is necessary.
+ * If amname is NULL, select default_table_access_method as access method.
  */
 static void
 ATPrepSetAccessMethod(AlteredTableInfo *tab, Relation rel, const char *amname)
@@ -15198,7 +15207,8 @@ ATPrepSetAccessMethod(AlteredTableInfo *tab, Relation rel, const char *amname)
 	Oid			amoid;
 
 	/* Check that the table access method exists */
-	amoid = get_table_am_oid(amname, false);
+	amoid = get_table_am_oid(amname ? amname : default_table_access_method,
+							 false);
 
 	if (rel->rd_rel->relam == amoid)
 		return;
@@ -15743,8 +15753,6 @@ index_copy_data(Relation rel, RelFileLocator newrlocator)
 {
 	SMgrRelation dstrel;
 
-	dstrel = smgropen(newrlocator, rel->rd_backend);
-
 	/*
 	 * Since we copy the file directly without looking at the shared buffers,
 	 * we'd better first flush out any pages of the source relation that are
@@ -15760,7 +15768,7 @@ index_copy_data(Relation rel, RelFileLocator newrlocator)
 	 * NOTE: any conflict in relfilenumber value will be caught in
 	 * RelationCreateStorage().
 	 */
-	RelationCreateStorage(newrlocator, rel->rd_rel->relpersistence, true);
+	dstrel = RelationCreateStorage(newrlocator, rel->rd_rel->relpersistence, true);
 
 	/* copy main fork */
 	RelationCopyStorage(RelationGetSmgr(rel), dstrel, MAIN_FORKNUM,
@@ -18085,15 +18093,16 @@ AtEOSubXact_on_commit_actions(bool isCommit, SubTransactionId mySubid,
  * This is intended as a callback for RangeVarGetRelidExtended().  It allows
  * the relation to be locked only if (1) it's a plain or partitioned table,
  * materialized view, or TOAST table and (2) the current user is the owner (or
- * the superuser).  This meets the permission-checking needs of CLUSTER,
- * REINDEX TABLE, and REFRESH MATERIALIZED VIEW; we expose it here so that it
- * can be used by all.
+ * the superuser) or has been granted MAINTAIN.  This meets the
+ * permission-checking needs of CLUSTER, REINDEX TABLE, and REFRESH
+ * MATERIALIZED VIEW; we expose it here so that it can be used by all.
  */
 void
-RangeVarCallbackOwnsTable(const RangeVar *relation,
-						  Oid relId, Oid oldRelId, void *arg)
+RangeVarCallbackMaintainsTable(const RangeVar *relation,
+							   Oid relId, Oid oldRelId, void *arg)
 {
 	char		relkind;
+	AclResult	aclresult;
 
 	/* Nothing to do if the relation was not found. */
 	if (!OidIsValid(relId))
@@ -18114,8 +18123,11 @@ RangeVarCallbackOwnsTable(const RangeVar *relation,
 				 errmsg("\"%s\" is not a table or materialized view", relation->relname)));
 
 	/* Check permissions */
-	if (!object_ownercheck(RelationRelationId, relId, GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)), relation->relname);
+	aclresult = pg_class_aclcheck(relId, GetUserId(), ACL_MAINTAIN);
+	if (aclresult != ACLCHECK_OK)
+		aclcheck_error(aclresult,
+					   get_relkind_objtype(get_rel_relkind(relId)),
+					   relation->relname);
 }
 
 /*

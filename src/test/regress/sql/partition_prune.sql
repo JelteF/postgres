@@ -178,6 +178,26 @@ select * from boolpart where a is not true and a is not false;
 select * from boolpart where a is unknown;
 select * from boolpart where a is not unknown;
 
+-- try some other permutations with a NULL partition instead of a DEFAULT
+delete from boolpart where a is null;
+create table boolpart_null partition of boolpart for values in (null);
+insert into boolpart values(null);
+
+explain (costs off) select * from boolpart where a is not true;
+explain (costs off) select * from boolpart where a is not true and a is not false;
+explain (costs off) select * from boolpart where a is not false;
+explain (costs off) select * from boolpart where a is not unknown;
+
+select * from boolpart where a is not true;
+select * from boolpart where a is not true and a is not false;
+select * from boolpart where a is not false;
+select * from boolpart where a is not unknown;
+
+-- check that all partitions are pruned when faced with conflicting clauses
+explain (costs off) select * from boolpart where a is not unknown and a is unknown;
+explain (costs off) select * from boolpart where a is false and a is unknown;
+explain (costs off) select * from boolpart where a is true and a is unknown;
+
 -- inverse boolean partitioning - a seemingly unlikely design, but we've got
 -- code for it, so we'd better test it.
 create table iboolpart (a bool) partition by list ((not a));
@@ -204,14 +224,31 @@ select * from iboolpart where a is not true and a is not false;
 select * from iboolpart where a is unknown;
 select * from iboolpart where a is not unknown;
 
+-- Try some other permutations with a NULL partition instead of a DEFAULT
+delete from iboolpart where a is null;
+create table iboolpart_null partition of iboolpart for values in (null);
+insert into iboolpart values(null);
+
+-- Pruning shouldn't take place for these.  Just check the result is correct
+select * from iboolpart where a is not true;
+select * from iboolpart where a is not true and a is not false;
+select * from iboolpart where a is not false;
+
 create table boolrangep (a bool, b bool, c int) partition by range (a,b,c);
 create table boolrangep_tf partition of boolrangep for values from ('true', 'false', 0) to ('true', 'false', 100);
 create table boolrangep_ft partition of boolrangep for values from ('false', 'true', 0) to ('false', 'true', 100);
 create table boolrangep_ff1 partition of boolrangep for values from ('false', 'false', 0) to ('false', 'false', 50);
 create table boolrangep_ff2 partition of boolrangep for values from ('false', 'false', 50) to ('false', 'false', 100);
+create table boolrangep_null partition of boolrangep default;
 
 -- try a more complex case that's been known to trip up pruning in the past
 explain (costs off)  select * from boolrangep where not a and not b and c = 25;
+
+-- ensure we prune boolrangep_tf
+explain (costs off)  select * from boolrangep where a is not true and not b and c = 25;
+
+-- ensure we prune everything apart from boolrangep_tf and boolrangep_null
+explain (costs off)  select * from boolrangep where a is not false and not b and c = 25;
 
 -- test scalar-to-array operators
 create table coercepart (a varchar) partition by list (a);
@@ -570,6 +607,13 @@ set enable_hashjoin = 0;
 set enable_mergejoin = 0;
 set enable_memoize = 0;
 
+-- Temporarily install some debugging to investigate plan instability.
+select c.relname,c.relpages,c.reltuples,i.indisvalid,s.autovacuum_count,s.autoanalyze_count
+from pg_class c
+left join pg_stat_all_tables s on c.oid = s.relid
+left join pg_index i on c.oid = i.indexrelid
+where c.relname like 'ab\_%' order by c.relname;
+
 select explain_parallel_append('select avg(ab.a) from ab inner join lprt_a a on ab.a = a.a where a.a in(0, 0, 1)');
 
 -- Ensure the same partitions are pruned when we make the nested loop
@@ -636,6 +680,13 @@ deallocate ab_q3;
 deallocate ab_q4;
 deallocate ab_q5;
 deallocate ab_q6;
+
+-- Temporarily install some debugging to investigate plan instability.
+select c.relname,c.relpages,c.reltuples,i.indisvalid,s.autovacuum_count,s.autoanalyze_count
+from pg_class c
+left join pg_stat_all_tables s on c.oid = s.relid
+left join pg_index i on c.oid = i.indexrelid
+where c.relname like 'ab\_%' order by c.relname;
 
 -- UPDATE on a partition subtree has been seen to have problems.
 insert into ab values (1,2);

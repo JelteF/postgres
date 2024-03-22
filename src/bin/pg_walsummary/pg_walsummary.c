@@ -3,7 +3,7 @@
  * pg_walsummary.c
  *		Prints the contents of WAL summary files.
  *
- * Copyright (c) 2017-2023, PostgreSQL Global Development Group
+ * Copyright (c) 2017-2024, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/bin/pg_walsummary/pg_walsummary.c
@@ -16,10 +16,11 @@
 #include <limits.h>
 
 #include "common/blkreftable.h"
+#include "common/int.h"
 #include "common/logging.h"
 #include "fe_utils/option_utils.h"
-#include "lib/stringinfo.h"
 #include "getopt_long.h"
+#include "lib/stringinfo.h"
 
 typedef struct ws_options
 {
@@ -219,12 +220,7 @@ compare_block_numbers(const void *a, const void *b)
 	BlockNumber aa = *(BlockNumber *) a;
 	BlockNumber bb = *(BlockNumber *) b;
 
-	if (aa > bb)
-		return 1;
-	else if (aa == bb)
-		return 0;
-	else
-		return -1;
+	return pg_cmp_u32(aa, bb);
 }
 
 /*

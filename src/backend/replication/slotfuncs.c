@@ -21,7 +21,9 @@
 #include "replication/decode.h"
 #include "replication/logical.h"
 #include "replication/slot.h"
+#include "replication/slotsync.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/pg_lsn.h"
 #include "utils/resowner.h"
@@ -43,7 +45,7 @@ create_physical_replication_slot(char *name, bool immediately_reserve,
 	/* acquire replication slot, this will check for conflicting names */
 	ReplicationSlotCreate(name, false,
 						  temporary ? RS_TEMPORARY : RS_PERSISTENT, false,
-						  false);
+						  false, false);
 
 	if (immediately_reserve)
 	{
@@ -136,7 +138,7 @@ create_logical_replication_slot(char *name, char *plugin,
 	 */
 	ReplicationSlotCreate(name, true,
 						  temporary ? RS_TEMPORARY : RS_EPHEMERAL, two_phase,
-						  failover);
+						  failover, false);
 
 	/*
 	 * Create logical decoding context to find start point or, if we don't
@@ -237,7 +239,7 @@ pg_drop_replication_slot(PG_FUNCTION_ARGS)
 Datum
 pg_get_replication_slots(PG_FUNCTION_ARGS)
 {
-#define PG_GET_REPLICATION_SLOTS_COLS 16
+#define PG_GET_REPLICATION_SLOTS_COLS 17
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
 	XLogRecPtr	currlsn;
 	int			slotno;
@@ -411,27 +413,17 @@ pg_get_replication_slots(PG_FUNCTION_ARGS)
 			nulls[i++] = true;
 		else
 		{
-			switch (slot_contents.data.invalidated)
-			{
-				case RS_INVAL_NONE:
-					nulls[i++] = true;
-					break;
+			ReplicationSlotInvalidationCause cause = slot_contents.data.invalidated;
 
-				case RS_INVAL_WAL_REMOVED:
-					values[i++] = CStringGetTextDatum("wal_removed");
-					break;
-
-				case RS_INVAL_HORIZON:
-					values[i++] = CStringGetTextDatum("rows_removed");
-					break;
-
-				case RS_INVAL_WAL_LEVEL:
-					values[i++] = CStringGetTextDatum("wal_level_insufficient");
-					break;
-			}
+			if (cause == RS_INVAL_NONE)
+				nulls[i++] = true;
+			else
+				values[i++] = CStringGetTextDatum(SlotInvalidationCauses[cause]);
 		}
 
 		values[i++] = BoolGetDatum(slot_contents.data.failover);
+
+		values[i++] = BoolGetDatum(slot_contents.data.synced);
 
 		Assert(i == PG_GET_REPLICATION_SLOTS_COLS);
 
@@ -472,6 +464,12 @@ pg_physical_replication_slot_advance(XLogRecPtr moveto)
 		 * crash, but this makes the data consistent after a clean shutdown.
 		 */
 		ReplicationSlotMarkDirty();
+
+		/*
+		 * Wake up logical walsenders holding logical failover slots after
+		 * updating the restart_lsn of the physical slot.
+		 */
+		PhysicalWakeupLogicalWalSnd();
 	}
 
 	return retlsn;
@@ -511,6 +509,12 @@ pg_logical_replication_slot_advance(XLogRecPtr moveto)
 											   .segment_open = wal_segment_open,
 											   .segment_close = wal_segment_close),
 									NULL, NULL, NULL);
+
+		/*
+		 * Wait for specified streaming replication standby servers (if any)
+		 * to confirm receipt of WAL up to moveto lsn.
+		 */
+		WaitForStandbyConfirmation(moveto);
 
 		/*
 		 * Start reading at the slot's restart_lsn, which we know to point to
@@ -700,7 +704,6 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 	XLogRecPtr	src_restart_lsn;
 	bool		src_islogical;
 	bool		temporary;
-	bool		failover;
 	char	   *plugin;
 	Datum		values[2];
 	bool		nulls[2];
@@ -756,7 +759,6 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 	src_islogical = SlotIsLogical(&first_slot_contents);
 	src_restart_lsn = first_slot_contents.data.restart_lsn;
 	temporary = (first_slot_contents.data.persistency == RS_TEMPORARY);
-	failover = first_slot_contents.data.failover;
 	plugin = logical_slot ? NameStr(first_slot_contents.data.plugin) : NULL;
 
 	/* Check type of replication slot */
@@ -791,12 +793,20 @@ copy_replication_slot(FunctionCallInfo fcinfo, bool logical_slot)
 		 * We must not try to read WAL, since we haven't reserved it yet --
 		 * hence pass find_startpoint false.  confirmed_flush will be set
 		 * below, by copying from the source slot.
+		 *
+		 * To avoid potential issues with the slot synchronization where the
+		 * restart_lsn of a replication slot can go backward, we set the
+		 * failover option to false here.  This situation occurs when a slot
+		 * on the primary server is dropped and immediately replaced with a
+		 * new slot of the same name, created by copying from another existing
+		 * slot.  However, the slot synchronization will only observe the
+		 * restart_lsn of the same slot going backward.
 		 */
 		create_logical_replication_slot(NameStr(*dst_name),
 										plugin,
 										temporary,
 										false,
-										failover,
+										false,
 										src_restart_lsn,
 										false);
 	}
@@ -942,4 +952,52 @@ Datum
 pg_copy_physical_replication_slot_b(PG_FUNCTION_ARGS)
 {
 	return copy_replication_slot(fcinfo, false);
+}
+
+/*
+ * Synchronize failover enabled replication slots to a standby server
+ * from the primary server.
+ */
+Datum
+pg_sync_replication_slots(PG_FUNCTION_ARGS)
+{
+	WalReceiverConn *wrconn;
+	char	   *err;
+	StringInfoData app_name;
+
+	CheckSlotPermissions();
+
+	if (!RecoveryInProgress())
+		ereport(ERROR,
+				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				errmsg("replication slots can only be synchronized to a standby server"));
+
+	ValidateSlotSyncParams(ERROR);
+
+	/* Load the libpq-specific functions */
+	load_file("libpqwalreceiver", false);
+
+	(void) CheckAndGetDbnameFromConninfo();
+
+	initStringInfo(&app_name);
+	if (cluster_name[0])
+		appendStringInfo(&app_name, "%s_slotsync", cluster_name);
+	else
+		appendStringInfoString(&app_name, "slotsync");
+
+	/* Connect to the primary server. */
+	wrconn = walrcv_connect(PrimaryConnInfo, false, false, false,
+							app_name.data, &err);
+	pfree(app_name.data);
+
+	if (!wrconn)
+		ereport(ERROR,
+				errcode(ERRCODE_CONNECTION_FAILURE),
+				errmsg("could not connect to the primary server: %s", err));
+
+	SyncReplicationSlots(wrconn);
+
+	walrcv_disconnect(wrconn);
+
+	PG_RETURN_VOID();
 }

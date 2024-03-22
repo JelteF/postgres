@@ -62,9 +62,6 @@ PostgreSQL::Test::Cluster - class representing PostgreSQL server instance
   # Do an online pg_basebackup
   my $ret = $node->backup('testbackup1');
 
-  # Take a backup of a running server
-  my $ret = $node->backup_fs_hot('testbackup2');
-
   # Take a backup of a stopped server
   $node->stop;
   my $ret = $node->backup_fs_cold('testbackup3')
@@ -114,6 +111,7 @@ use Socket;
 use Test::More;
 use PostgreSQL::Test::Utils          ();
 use PostgreSQL::Test::BackgroundPsql ();
+use Text::ParseWords                 qw(shellwords);
 use Time::HiRes                      qw(usleep);
 use Scalar::Util                     qw(blessed);
 
@@ -469,7 +467,7 @@ sub set_replication_conf
 	$self->host eq $test_pghost
 	  or croak "set_replication_conf only works with the default host";
 
-	open my $hba, '>>', "$pgdata/pg_hba.conf";
+	open my $hba, '>>', "$pgdata/pg_hba.conf" or die $!;
 	print $hba
 	  "\n# Allow replication (set up by PostgreSQL::Test::Cluster.pm)\n";
 	if ($PostgreSQL::Test::Utils::windows_os
@@ -502,6 +500,9 @@ parameter allows_streaming => 'logical' or 'physical' (passing 1 will also
 suffice for physical replication) depending on type of replication that
 should be enabled. This is disabled by default.
 
+force_initdb => 1 will force the initialization of the cluster with a new
+initdb rather than copying the data folder from a template.
+
 The new node is set up in a fast but unsafe configuration where fsync is
 disabled.
 
@@ -517,19 +518,29 @@ sub init
 	local %ENV = $self->_get_env();
 
 	$params{allows_streaming} = 0 unless defined $params{allows_streaming};
+	$params{force_initdb} = 0 unless defined $params{force_initdb};
 	$params{has_archiving} = 0 unless defined $params{has_archiving};
+
+	my $initdb_extra_opts_env = $ENV{PG_TEST_INITDB_EXTRA_OPTS};
+	if (defined $initdb_extra_opts_env)
+	{
+		push @{ $params{extra} }, shellwords($initdb_extra_opts_env);
+	}
 
 	mkdir $self->backup_dir;
 	mkdir $self->archive_dir;
 
-	# If available and if there aren't any parameters, use a previously
-	# initdb'd cluster as a template by copying it. For a lot of tests, that's
-	# substantially cheaper. Do so only if there aren't parameters, it doesn't
-	# seem worth figuring out whether they affect compatibility.
+	# If available, if there aren't any parameters and if force_initdb is
+	# disabled, use a previously initdb'd cluster as a template by copying it.
+	# For a lot of tests, that's substantially cheaper. It does not seem
+	# worth figuring out whether extra parameters affect compatibility, so
+	# initdb is forced if any are defined.
 	#
 	# There's very similar code in pg_regress.c, but we can't easily
 	# deduplicate it until we require perl at build time.
-	if (defined $params{extra} or !defined $ENV{INITDB_TEMPLATE})
+	if (   $params{force_initdb}
+		or defined $params{extra}
+		or !defined $ENV{INITDB_TEMPLATE})
 	{
 		note("initializing database system by running initdb");
 		PostgreSQL::Test::Utils::system_or_bail('initdb', '-D', $pgdata, '-A',
@@ -569,7 +580,7 @@ sub init
 	PostgreSQL::Test::Utils::system_or_bail($ENV{PG_REGRESS},
 		'--config-auth', $pgdata, @{ $params{auth_extra} });
 
-	open my $conf, '>>', "$pgdata/postgresql.conf";
+	open my $conf, '>>', "$pgdata/postgresql.conf" or die $!;
 	print $conf "\n# Added by PostgreSQL::Test::Cluster.pm\n";
 	print $conf "fsync = off\n";
 	print $conf "restart_after_crash = off\n";
@@ -745,7 +756,7 @@ Create a backup with a filesystem level copy in subdirectory B<backup_name> of
 B<< $node->backup_dir >>, including WAL. The server must be
 stopped as no attempt to handle concurrent writes is made.
 
-Use B<backup> or B<backup_fs_hot> if you want to back up a running server.
+Use B<backup> if you want to back up a running server.
 
 =cut
 
@@ -851,7 +862,7 @@ sub init_from_backup
 		rmdir($data_path);
 		PostgreSQL::Test::RecursiveCopy::copypath($backup_path, $data_path);
 	}
-	chmod(0700, $data_path);
+	chmod(0700, $data_path) or die $!;
 
 	# Base configuration for this node
 	$self->append_conf(
@@ -1677,16 +1688,16 @@ sub _reserve_port
 		if (kill 0, $pid)
 		{
 			# process exists and is owned by us, so we can't reserve this port
-			flock($portfile, LOCK_UN);
+			flock($portfile, LOCK_UN) || die $!;
 			close($portfile);
 			return 0;
 		}
 	}
 	# All good, go ahead and reserve the port
-	seek($portfile, 0, SEEK_SET);
+	seek($portfile, 0, SEEK_SET) || die $!;
 	# print the pid with a fixed width so we don't leave any trailing junk
 	print $portfile sprintf("%10d\n", $$);
-	flock($portfile, LOCK_UN);
+	flock($portfile, LOCK_UN) || die $!;
 	close($portfile);
 	push(@port_reservation_files, $filename);
 	return 1;
@@ -2728,6 +2739,29 @@ sub lsn
 
 =pod
 
+=item $node->wait_for_event(wait_event_name, backend_type)
+
+Poll pg_stat_activity until backend_type reaches wait_event_name.
+
+=cut
+
+sub wait_for_event
+{
+	my ($self, $backend_type, $wait_event_name) = @_;
+
+	$self->poll_query_until(
+		'postgres', qq[
+		SELECT count(*) > 0 FROM pg_stat_activity
+		WHERE backend_type = '$backend_type' AND wait_event = '$wait_event_name'
+	])
+	  or die
+	  qq(timed out when waiting for $backend_type to reach wait event '$wait_event_name');
+
+	return;
+}
+
+=pod
+
 =item $node->wait_for_catchup(standby_name, mode, target_lsn)
 
 Wait for the replication connection with application_name standby_name until
@@ -3174,6 +3208,36 @@ $SIG{TERM} = $SIG{INT} = sub {
 
 =pod
 
+=item $node->log_standby_snapshot(self, standby, slot_name)
+
+Log a standby snapshot on primary once the slot restart_lsn is determined on
+the standby.
+
+=cut
+
+sub log_standby_snapshot
+{
+	my ($self, $standby, $slot_name) = @_;
+
+	# Once the slot's restart_lsn is determined, the standby looks for
+	# xl_running_xacts WAL record from the restart_lsn onwards. First wait
+	# until the slot restart_lsn is determined.
+
+	$standby->poll_query_until(
+		'postgres', qq[
+		SELECT restart_lsn IS NOT NULL
+		FROM pg_catalog.pg_replication_slots WHERE slot_name = '$slot_name'
+	])
+	  or die
+	  "timed out waiting for logical slot to calculate its restart_lsn";
+
+	# Then arrange for the xl_running_xacts record for which the standby is
+	# waiting.
+	$self->safe_psql('postgres', 'SELECT pg_log_standby_snapshot()');
+}
+
+=pod
+
 =item $node->create_logical_slot_on_standby(self, primary, slot_name, dbname)
 
 Create logical replication slot on given standby
@@ -3199,21 +3263,9 @@ sub create_logical_slot_on_standby
 		'2>',
 		\$stderr);
 
-	# Once the slot's restart_lsn is determined, the standby looks for
-	# xl_running_xacts WAL record from the restart_lsn onwards. First wait
-	# until the slot restart_lsn is determined.
-
-	$self->poll_query_until(
-		'postgres', qq[
-		SELECT restart_lsn IS NOT NULL
-		FROM pg_catalog.pg_replication_slots WHERE slot_name = '$slot_name'
-	])
-	  or die
-	  "timed out waiting for logical slot to calculate its restart_lsn";
-
-	# Then arrange for the xl_running_xacts record for which pg_recvlogical is
+	# Arrange for the xl_running_xacts record for which pg_recvlogical is
 	# waiting.
-	$primary->safe_psql('postgres', 'SELECT pg_log_standby_snapshot()');
+	$primary->log_standby_snapshot($self, $slot_name);
 
 	$handle->finish();
 

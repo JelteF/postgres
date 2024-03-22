@@ -36,7 +36,6 @@
 #include "access/tableam.h"
 #include "access/xloginsert.h"
 #include "access/xlogutils.h"
-#include "catalog/catalog.h"
 #include "catalog/storage.h"
 #include "catalog/storage_xlog.h"
 #include "executor/instrument.h"
@@ -816,7 +815,7 @@ ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
  * permanent = false for a RELPERSISTENCE_UNLOGGED relation. This function
  * cannot be used for temporary relations (and making that work might be
  * difficult, unless we only want to read temporary relations for our own
- * BackendId).
+ * ProcNumber).
  */
 Buffer
 ReadBufferWithoutRelcache(RelFileLocator rlocator, ForkNumber forkNum,
@@ -825,7 +824,7 @@ ReadBufferWithoutRelcache(RelFileLocator rlocator, ForkNumber forkNum,
 {
 	bool		hit;
 
-	SMgrRelation smgr = smgropen(rlocator, InvalidBackendId);
+	SMgrRelation smgr = smgropen(rlocator, INVALID_PROC_NUMBER);
 
 	return ReadBuffer_common(smgr, permanent ? RELPERSISTENCE_PERMANENT :
 							 RELPERSISTENCE_UNLOGGED, forkNum, blockNum,
@@ -933,10 +932,6 @@ ExtendBufferedRelTo(BufferManagerRelation bmr,
 		!smgrexists(bmr.smgr, fork))
 	{
 		LockRelationForExtension(bmr.rel, ExclusiveLock);
-
-		/* could have been closed while waiting for lock */
-		if (bmr.rel)
-			bmr.smgr = RelationGetSmgr(bmr.rel);
 
 		/* recheck, fork might have been created concurrently */
 		if (!smgrexists(bmr.smgr, fork))
@@ -1348,8 +1343,8 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 		UnpinBuffer(victim_buf_hdr);
 
 		/*
-		 * The victim buffer we acquired peviously is clean and unused, let it
-		 * be found again quickly
+		 * The victim buffer we acquired previously is clean and unused, let
+		 * it be found again quickly
 		 */
 		StrategyFreeBuffer(victim_buf_hdr);
 
@@ -1897,11 +1892,7 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
 	 * we get the lock.
 	 */
 	if (!(flags & EB_SKIP_EXTENSION_LOCK))
-	{
 		LockRelationForExtension(bmr.rel, ExclusiveLock);
-		if (bmr.rel)
-			bmr.smgr = RelationGetSmgr(bmr.rel);
-	}
 
 	/*
 	 * If requested, invalidate size cache, so that smgrnblocks asks the
@@ -1932,7 +1923,7 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
 			BufferDesc *buf_hdr = GetBufferDescriptor(buffers[i] - 1);
 
 			/*
-			 * The victim buffer we acquired peviously is clean and unused,
+			 * The victim buffer we acquired previously is clean and unused,
 			 * let it be found again quickly
 			 */
 			StrategyFreeBuffer(buf_hdr);
@@ -2012,7 +2003,7 @@ ExtendBufferedRelShared(BufferManagerRelation bmr,
 			LWLockRelease(partition_lock);
 
 			/*
-			 * The victim buffer we acquired peviously is clean and unused,
+			 * The victim buffer we acquired previously is clean and unused,
 			 * let it be found again quickly
 			 */
 			StrategyFreeBuffer(victim_buf_hdr);
@@ -3330,7 +3321,7 @@ DebugPrintBufferRefcount(Buffer buffer)
 	int32		loccount;
 	char	   *path;
 	char	   *result;
-	BackendId	backend;
+	ProcNumber	backend;
 	uint32		buf_state;
 
 	Assert(BufferIsValid(buffer));
@@ -3338,13 +3329,13 @@ DebugPrintBufferRefcount(Buffer buffer)
 	{
 		buf = GetLocalBufferDescriptor(-buffer - 1);
 		loccount = LocalRefCount[-buffer - 1];
-		backend = MyBackendId;
+		backend = MyProcNumber;
 	}
 	else
 	{
 		buf = GetBufferDescriptor(buffer - 1);
 		loccount = GetPrivateRefCount(buffer);
-		backend = InvalidBackendId;
+		backend = INVALID_PROC_NUMBER;
 	}
 
 	/* theoretically we should lock the bufhdr here */
@@ -3469,7 +3460,7 @@ FlushBuffer(BufferDesc *buf, SMgrRelation reln, IOObject io_object,
 
 	/* Find smgr relation for buffer */
 	if (reln == NULL)
-		reln = smgropen(BufTagGetRelFileLocator(&buf->tag), InvalidBackendId);
+		reln = smgropen(BufTagGetRelFileLocator(&buf->tag), INVALID_PROC_NUMBER);
 
 	TRACE_POSTGRESQL_BUFFER_FLUSH_START(BufTagGetForkNum(&buf->tag),
 										buf->tag.blockNum,
@@ -3704,7 +3695,7 @@ DropRelationBuffers(SMgrRelation smgr_reln, ForkNumber *forkNum,
 	/* If it's a local relation, it's localbuf.c's problem. */
 	if (RelFileLocatorBackendIsTemp(rlocator))
 	{
-		if (rlocator.backend == MyBackendId)
+		if (rlocator.backend == MyProcNumber)
 		{
 			for (j = 0; j < nforks; j++)
 				DropRelationLocalBuffers(rlocator.locator, forkNum[j],
@@ -3834,7 +3825,7 @@ DropRelationsAllBuffers(SMgrRelation *smgr_reln, int nlocators)
 	{
 		if (RelFileLocatorBackendIsTemp(smgr_reln[i]->smgr_rlocator))
 		{
-			if (smgr_reln[i]->smgr_rlocator.backend == MyBackendId)
+			if (smgr_reln[i]->smgr_rlocator.backend == MyProcNumber)
 				DropRelationAllLocalBuffers(smgr_reln[i]->smgr_rlocator.locator);
 		}
 		else
@@ -3923,7 +3914,7 @@ DropRelationsAllBuffers(SMgrRelation *smgr_reln, int nlocators)
 
 	/* sort the list of rlocators if necessary */
 	if (use_bsearch)
-		pg_qsort(locators, n, sizeof(RelFileLocator), rlocator_comparator);
+		qsort(locators, n, sizeof(RelFileLocator), rlocator_comparator);
 
 	for (i = 0; i < NBuffers; i++)
 	{
@@ -4098,7 +4089,7 @@ PrintBufferDescs(void)
 			 "blockNum=%u, flags=0x%x, refcount=%u %d)",
 			 i, buf->freeNext,
 			 relpathbackend(BufTagGetRelFileLocator(&buf->tag),
-							InvalidBackendId, BufTagGetForkNum(&buf->tag)),
+							INVALID_PROC_NUMBER, BufTagGetForkNum(&buf->tag)),
 			 buf->tag.blockNum, buf->flags,
 			 buf->refcount, GetPrivateRefCount(b));
 	}
@@ -4155,6 +4146,7 @@ FlushRelationBuffers(Relation rel)
 {
 	int			i;
 	BufferDesc *bufHdr;
+	SMgrRelation srel = RelationGetSmgr(rel);
 
 	if (RelationUsesLocalBuffers(rel))
 	{
@@ -4183,7 +4175,7 @@ FlushRelationBuffers(Relation rel)
 
 				io_start = pgstat_prepare_io_time(track_io_timing);
 
-				smgrwrite(RelationGetSmgr(rel),
+				smgrwrite(srel,
 						  BufTagGetForkNum(&bufHdr->tag),
 						  bufHdr->tag.blockNum,
 						  localpage,
@@ -4229,7 +4221,7 @@ FlushRelationBuffers(Relation rel)
 		{
 			PinBuffer_Locked(bufHdr);
 			LWLockAcquire(BufferDescriptorGetContentLock(bufHdr), LW_SHARED);
-			FlushBuffer(bufHdr, RelationGetSmgr(rel), IOOBJECT_RELATION, IOCONTEXT_NORMAL);
+			FlushBuffer(bufHdr, srel, IOOBJECT_RELATION, IOCONTEXT_NORMAL);
 			LWLockRelease(BufferDescriptorGetContentLock(bufHdr));
 			UnpinBuffer(bufHdr);
 		}
@@ -4276,7 +4268,7 @@ FlushRelationsAllBuffers(SMgrRelation *smgrs, int nrels)
 
 	/* sort the list of SMgrRelations if necessary */
 	if (use_bsearch)
-		pg_qsort(srels, nrels, sizeof(SMgrSortArray), rlocator_comparator);
+		qsort(srels, nrels, sizeof(SMgrSortArray), rlocator_comparator);
 
 	for (i = 0; i < NBuffers; i++)
 	{
@@ -4371,7 +4363,7 @@ RelationCopyStorageUsingBuffer(RelFileLocator srclocator,
 	use_wal = XLogIsNeeded() && (permanent || forkNum == INIT_FORKNUM);
 
 	/* Get number of blocks in the source relation. */
-	nblocks = smgrnblocks(smgropen(srclocator, InvalidBackendId),
+	nblocks = smgrnblocks(smgropen(srclocator, INVALID_PROC_NUMBER),
 						  forkNum);
 
 	/* Nothing to copy; just return. */
@@ -4383,7 +4375,7 @@ RelationCopyStorageUsingBuffer(RelFileLocator srclocator,
 	 * relation before starting to copy block by block.
 	 */
 	memset(buf.data, 0, BLCKSZ);
-	smgrextend(smgropen(dstlocator, InvalidBackendId), forkNum, nblocks - 1,
+	smgrextend(smgropen(dstlocator, INVALID_PROC_NUMBER), forkNum, nblocks - 1,
 			   buf.data, true);
 
 	/* This is a bulk operation, so use buffer access strategies. */
@@ -4442,12 +4434,16 @@ void
 CreateAndCopyRelationData(RelFileLocator src_rlocator,
 						  RelFileLocator dst_rlocator, bool permanent)
 {
-	RelFileLocatorBackend rlocator;
 	char		relpersistence;
+	SMgrRelation src_rel;
+	SMgrRelation dst_rel;
 
 	/* Set the relpersistence. */
 	relpersistence = permanent ?
 		RELPERSISTENCE_PERMANENT : RELPERSISTENCE_UNLOGGED;
+
+	src_rel = smgropen(src_rlocator, INVALID_PROC_NUMBER);
+	dst_rel = smgropen(dst_rlocator, INVALID_PROC_NUMBER);
 
 	/*
 	 * Create and copy all forks of the relation.  During create database we
@@ -4465,9 +4461,9 @@ CreateAndCopyRelationData(RelFileLocator src_rlocator,
 	for (ForkNumber forkNum = MAIN_FORKNUM + 1;
 		 forkNum <= MAX_FORKNUM; forkNum++)
 	{
-		if (smgrexists(smgropen(src_rlocator, InvalidBackendId), forkNum))
+		if (smgrexists(src_rel, forkNum))
 		{
-			smgrcreate(smgropen(dst_rlocator, InvalidBackendId), forkNum, false);
+			smgrcreate(dst_rel, forkNum, false);
 
 			/*
 			 * WAL log creation if the relation is persistent, or this is the
@@ -4481,15 +4477,6 @@ CreateAndCopyRelationData(RelFileLocator src_rlocator,
 										   permanent);
 		}
 	}
-
-	/* close source and destination smgr if exists. */
-	rlocator.backend = InvalidBackendId;
-
-	rlocator.locator = src_rlocator;
-	smgrcloserellocator(rlocator);
-
-	rlocator.locator = dst_rlocator;
-	smgrcloserellocator(rlocator);
 }
 
 /* ---------------------------------------------------------------------
@@ -4792,7 +4779,7 @@ UnlockBuffers(void)
 		 * got a cancel/die interrupt before getting the signal.
 		 */
 		if ((buf_state & BM_PIN_COUNT_WAITER) != 0 &&
-			buf->wait_backend_pgprocno == MyProc->pgprocno)
+			buf->wait_backend_pgprocno == MyProcNumber)
 			buf_state &= ~BM_PIN_COUNT_WAITER;
 
 		UnlockBufHdr(buf, buf_state);
@@ -4942,7 +4929,7 @@ LockBufferForCleanup(Buffer buffer)
 			LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
 			elog(ERROR, "multiple backends attempting to wait for pincount 1");
 		}
-		bufHdr->wait_backend_pgprocno = MyProc->pgprocno;
+		bufHdr->wait_backend_pgprocno = MyProcNumber;
 		PinCountWaitBuf = bufHdr;
 		buf_state |= BM_PIN_COUNT_WAITER;
 		UnlockBufHdr(bufHdr, buf_state);
@@ -5006,7 +4993,7 @@ LockBufferForCleanup(Buffer buffer)
 		 */
 		buf_state = LockBufHdr(bufHdr);
 		if ((buf_state & BM_PIN_COUNT_WAITER) != 0 &&
-			bufHdr->wait_backend_pgprocno == MyProc->pgprocno)
+			bufHdr->wait_backend_pgprocno == MyProcNumber)
 			buf_state &= ~BM_PIN_COUNT_WAITER;
 		UnlockBufHdr(bufHdr, buf_state);
 
@@ -5360,7 +5347,7 @@ local_buffer_write_error_callback(void *arg)
 	if (bufHdr != NULL)
 	{
 		char	   *path = relpathbackend(BufTagGetRelFileLocator(&bufHdr->tag),
-										  MyBackendId,
+										  MyProcNumber,
 										  BufTagGetForkNum(&bufHdr->tag));
 
 		errcontext("writing block %u of relation %s",
@@ -5665,7 +5652,7 @@ IssuePendingWritebacks(WritebackContext *wb_context, IOContext io_context)
 		i += ahead;
 
 		/* and finally tell the kernel to write the data to storage */
-		reln = smgropen(currlocator, InvalidBackendId);
+		reln = smgropen(currlocator, INVALID_PROC_NUMBER);
 		smgrwriteback(reln, BufTagGetForkNum(&tag), tag.blockNum, nblocks);
 	}
 

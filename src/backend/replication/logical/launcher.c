@@ -26,29 +26,22 @@
 #include "catalog/pg_subscription_rel.h"
 #include "funcapi.h"
 #include "lib/dshash.h"
-#include "libpq/pqsignal.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "postmaster/bgworker.h"
-#include "postmaster/fork_process.h"
 #include "postmaster/interrupt.h"
-#include "postmaster/postmaster.h"
 #include "replication/logicallauncher.h"
-#include "replication/logicalworker.h"
 #include "replication/slot.h"
 #include "replication/walreceiver.h"
 #include "replication/worker_internal.h"
 #include "storage/ipc.h"
 #include "storage/proc.h"
 #include "storage/procarray.h"
-#include "storage/procsignal.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/pg_lsn.h"
-#include "utils/ps_status.h"
 #include "utils/snapmgr.h"
-#include "utils/timeout.h"
 
 /* max sleep time between cycles (3min) */
 #define DEFAULT_NAPTIME_PER_CYCLE 180000L
@@ -88,6 +81,7 @@ static const dshash_parameters dsh_params = {
 	sizeof(LauncherLastStartTimesEntry),
 	dshash_memcmp,
 	dshash_memhash,
+	dshash_memcpy,
 	LWTRANCHE_LAUNCHER_HASH
 };
 
@@ -1013,7 +1007,7 @@ logicalrep_launcher_attach_dshmem(void)
 		last_start_times_dsa = dsa_create(LWTRANCHE_LAUNCHER_DSA);
 		dsa_pin(last_start_times_dsa);
 		dsa_pin_mapping(last_start_times_dsa);
-		last_start_times = dshash_create(last_start_times_dsa, &dsh_params, 0);
+		last_start_times = dshash_create(last_start_times_dsa, &dsh_params, NULL);
 
 		/* Store handles in shared memory for other backends to use. */
 		LogicalRepCtx->last_start_dsa = dsa_get_handle(last_start_times_dsa);

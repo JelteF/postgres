@@ -9166,7 +9166,8 @@ SELECT regexp_match('abc01234xyz', '(?:(.*?)(\d+)(.*)){1,1}');
         </para>
         <para>
          Subtract timestamps (converting 24-hour intervals into days,
-         similarly to <function>justify_hours()</function>)
+         similarly to <link
+         linkend="function-justify-hours"><function>justify_hours()</function></link>)
         </para>
         <para>
          <literal>timestamp '2001-09-29 03:00' - timestamp '2001-07-27 12:00'</literal>
@@ -9579,35 +9580,35 @@ SELECT regexp_match('abc01234xyz', '(?:(.*?)(\d+)(.*)){1,1}');
 
        <row>
         <entry role="func_table_entry"><para role="func_signature">
-         <indexterm>
+         <indexterm id="function-justify-days">
           <primary>justify_days</primary>
          </indexterm>
          <function>justify_days</function> ( <type>interval</type> )
          <returnvalue>interval</returnvalue>
         </para>
         <para>
-         Adjust interval so 30-day time periods are represented as months
+         Adjust interval, converting 30-day time periods to months
         </para>
         <para>
-         <literal>justify_days(interval '35 days')</literal>
-         <returnvalue>1 mon 5 days</returnvalue>
+         <literal>justify_days(interval '1 year 65 days')</literal>
+         <returnvalue>1 year 2 mons 5 days</returnvalue>
         </para></entry>
        </row>
 
        <row>
         <entry role="func_table_entry"><para role="func_signature">
-         <indexterm>
+         <indexterm id="function-justify-hours">
           <primary>justify_hours</primary>
          </indexterm>
          <function>justify_hours</function> ( <type>interval</type> )
          <returnvalue>interval</returnvalue>
         </para>
         <para>
-         Adjust interval so 24-hour time periods are represented as days
+         Adjust interval, converting 24-hour time periods to days
         </para>
         <para>
-         <literal>justify_hours(interval '27 hours')</literal>
-         <returnvalue>1 day 03:00:00</returnvalue>
+         <literal>justify_hours(interval '50 hours 10 minutes')</literal>
+         <returnvalue>2 days 02:10:00</returnvalue>
         </para></entry>
        </row>
 
@@ -10040,13 +10041,19 @@ EXTRACT(<replaceable>field</replaceable> FROM <replaceable>source</replaceable>)
     The <function>extract</function> function retrieves subfields
     such as year or hour from date/time values.
     <replaceable>source</replaceable> must be a value expression of
-    type <type>timestamp</type>, <type>time</type>, or <type>interval</type>.
-    (Expressions of type <type>date</type> are
-    cast to <type>timestamp</type> and can therefore be used as
-    well.)  <replaceable>field</replaceable> is an identifier or
+    type <type>timestamp</type>, <type>date</type>, <type>time</type>,
+    or <type>interval</type>.  (Timestamps and times can be with or
+    without time zone.)
+    <replaceable>field</replaceable> is an identifier or
     string that selects what field to extract from the source value.
+    Not all fields are valid for every input data type; for example, fields
+    smaller than a day cannot be extracted from a <type>date</type>, while
+    fields of a day or more cannot be extracted from a <type>time</type>.
     The <function>extract</function> function returns values of type
     <type>numeric</type>.
+   </para>
+
+   <para>
     The following are valid field names:
 
     <!-- alphabetical -->
@@ -10055,7 +10062,8 @@ EXTRACT(<replaceable>field</replaceable> FROM <replaceable>source</replaceable>)
       <term><literal>century</literal></term>
       <listitem>
        <para>
-        The century
+        The century; for <type>interval</type> values, the year field
+        divided by 100
        </para>
 
 <screen>
@@ -10063,17 +10071,13 @@ SELECT EXTRACT(CENTURY FROM TIMESTAMP '2000-12-16 12:21:13');
 <lineannotation>Result: </lineannotation><computeroutput>20</computeroutput>
 SELECT EXTRACT(CENTURY FROM TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>21</computeroutput>
+SELECT EXTRACT(CENTURY FROM DATE '0001-01-01 AD');
+<lineannotation>Result: </lineannotation><computeroutput>1</computeroutput>
+SELECT EXTRACT(CENTURY FROM DATE '0001-12-31 BC');
+<lineannotation>Result: </lineannotation><computeroutput>-1</computeroutput>
+SELECT EXTRACT(CENTURY FROM INTERVAL '2001 years');
+<lineannotation>Result: </lineannotation><computeroutput>20</computeroutput>
 </screen>
-
-       <para>
-        The first century starts at 0001-01-01 00:00:00 AD, although
-        they did not know it at the time. This definition applies to all
-        Gregorian calendar countries. There is no century number 0,
-        you go from -1 century to 1 century.
-
-        If you disagree with this, please write your complaint to:
-        Pope, Cathedral Saint-Peter of Roma, Vatican.
-       </para>
       </listitem>
      </varlistentry>
 
@@ -10081,14 +10085,13 @@ SELECT EXTRACT(CENTURY FROM TIMESTAMP '2001-02-16 20:38:40');
       <term><literal>day</literal></term>
       <listitem>
        <para>
-        For <type>timestamp</type> values, the day (of the month) field
-        (1&ndash;31) ; for <type>interval</type> values, the number of days
+        The day of the month (1&ndash;31); for <type>interval</type>
+        values, the number of days
        </para>
 
 <screen>
 SELECT EXTRACT(DAY FROM TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>16</computeroutput>
-
 SELECT EXTRACT(DAY FROM INTERVAL '40 days 1 minute');
 <lineannotation>Result: </lineannotation><computeroutput>40</computeroutput>
 </screen>
@@ -10162,10 +10165,8 @@ SELECT EXTRACT(DOY FROM TIMESTAMP '2001-02-16 20:38:40');
 <screen>
 SELECT EXTRACT(EPOCH FROM TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40.12-08');
 <lineannotation>Result: </lineannotation><computeroutput>982384720.120000</computeroutput>
-
 SELECT EXTRACT(EPOCH FROM TIMESTAMP '2001-02-16 20:38:40.12');
 <lineannotation>Result: </lineannotation><computeroutput>982355920.120000</computeroutput>
-
 SELECT EXTRACT(EPOCH FROM INTERVAL '5 days 3 hours');
 <lineannotation>Result: </lineannotation><computeroutput>442800.000000</computeroutput>
 </screen>
@@ -10193,7 +10194,8 @@ SELECT to_timestamp(982384720.12);
       <term><literal>hour</literal></term>
       <listitem>
        <para>
-        The hour field (0&ndash;23)
+        The hour field (0&ndash;23 in timestamps, unrestricted in
+        intervals)
        </para>
 
 <screen>
@@ -10228,7 +10230,7 @@ SELECT EXTRACT(ISODOW FROM TIMESTAMP '2001-02-18 20:38:40');
       <listitem>
        <para>
         The <acronym>ISO</acronym> 8601 week-numbering year that the date
-        falls in (not applicable to intervals)
+        falls in
        </para>
 
 <screen>
@@ -10245,9 +10247,6 @@ SELECT EXTRACT(ISOYEAR FROM DATE '2006-01-02');
         different from the Gregorian year.  See the <literal>week</literal>
         field for more information.
        </para>
-       <para>
-        This field is not available in PostgreSQL releases prior to 8.3.
-       </para>
       </listitem>
      </varlistentry>
 
@@ -10256,7 +10255,7 @@ SELECT EXTRACT(ISOYEAR FROM DATE '2006-01-02');
       <listitem>
        <para>
         The <firstterm>Julian Date</firstterm> corresponding to the
-        date or timestamp (not applicable to intervals).  Timestamps
+        date or timestamp.  Timestamps
         that are not local midnight result in a fractional value.  See
         <xref linkend="datetime-julian-dates"/> for more information.
        </para>
@@ -10289,12 +10288,15 @@ SELECT EXTRACT(MICROSECONDS FROM TIME '17:12:28.5');
       <term><literal>millennium</literal></term>
       <listitem>
        <para>
-        The millennium
+        The millennium; for <type>interval</type> values, the year field
+        divided by 1000
        </para>
 
 <screen>
 SELECT EXTRACT(MILLENNIUM FROM TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>3</computeroutput>
+SELECT EXTRACT(MILLENNIUM FROM INTERVAL '2001 years');
+<lineannotation>Result: </lineannotation><computeroutput>2</computeroutput>
 </screen>
 
        <para>
@@ -10337,18 +10339,16 @@ SELECT EXTRACT(MINUTE FROM TIMESTAMP '2001-02-16 20:38:40');
       <term><literal>month</literal></term>
       <listitem>
        <para>
-        For <type>timestamp</type> values, the number of the month
-        within the year (1&ndash;12) ; for <type>interval</type> values,
-        the number of months, modulo 12 (0&ndash;11)
+        The number of the month within the year (1&ndash;12);
+        for <type>interval</type> values, the number of months modulo 12
+        (0&ndash;11)
        </para>
 
 <screen>
 SELECT EXTRACT(MONTH FROM TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>2</computeroutput>
-
 SELECT EXTRACT(MONTH FROM INTERVAL '2 years 3 months');
 <lineannotation>Result: </lineannotation><computeroutput>3</computeroutput>
-
 SELECT EXTRACT(MONTH FROM INTERVAL '2 years 13 months');
 <lineannotation>Result: </lineannotation><computeroutput>1</computeroutput>
 </screen>
@@ -10379,7 +10379,6 @@ SELECT EXTRACT(QUARTER FROM TIMESTAMP '2001-02-16 20:38:40');
 <screen>
 SELECT EXTRACT(SECOND FROM TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>40.000000</computeroutput>
-
 SELECT EXTRACT(SECOND FROM TIME '17:12:28.5');
 <lineannotation>Result: </lineannotation><computeroutput>28.500000</computeroutput>
 </screen>
@@ -10461,6 +10460,20 @@ SELECT EXTRACT(YEAR FROM TIMESTAMP '2001-02-16 20:38:40');
     </variablelist>
    </para>
 
+   <para>
+    When processing an <type>interval</type> value,
+    the <function>extract</function> function produces field values that
+    match the interpretation used by the interval output function.  This
+    can produce surprising results if one starts with a non-normalized
+    interval representation, for example:
+<screen>
+SELECT INTERVAL '80 minutes';
+<lineannotation>Result: </lineannotation><computeroutput>01:20:00</computeroutput>
+SELECT EXTRACT(MINUTES FROM INTERVAL '80 minutes');
+<lineannotation>Result: </lineannotation><computeroutput>20</computeroutput>
+</screen>
+   </para>
+
    <note>
     <para>
      When the input value is +/-Infinity, <function>extract</function> returns
@@ -10502,7 +10515,6 @@ date_part('<replaceable>field</replaceable>', <replaceable>source</replaceable>)
 <screen>
 SELECT date_part('day', TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>16</computeroutput>
-
 SELECT date_part('hour', INTERVAL '4 hours 3 minutes');
 <lineannotation>Result: </lineannotation><computeroutput>4</computeroutput>
 </screen>
@@ -10580,16 +10592,12 @@ date_trunc(<replaceable>field</replaceable>, <replaceable>source</replaceable> [
 <screen>
 SELECT date_trunc('hour', TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 20:00:00</computeroutput>
-
 SELECT date_trunc('year', TIMESTAMP '2001-02-16 20:38:40');
 <lineannotation>Result: </lineannotation><computeroutput>2001-01-01 00:00:00</computeroutput>
-
 SELECT date_trunc('day', TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40+00');
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 00:00:00-05</computeroutput>
-
 SELECT date_trunc('day', TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40+00', 'Australia/Sydney');
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 08:00:00-05</computeroutput>
-
 SELECT date_trunc('hour', INTERVAL '3 days 02:47:33');
 <lineannotation>Result: </lineannotation><computeroutput>3 days 02:00:00</computeroutput>
 </screen>
@@ -10628,7 +10636,6 @@ date_bin(<replaceable>stride</replaceable>, <replaceable>source</replaceable>, <
 <screen>
 SELECT date_bin('15 minutes', TIMESTAMP '2020-02-11 15:44:17', TIMESTAMP '2001-01-01');
 <lineannotation>Result: </lineannotation><computeroutput>2020-02-11 15:30:00</computeroutput>
-
 SELECT date_bin('15 minutes', TIMESTAMP '2020-02-11 15:44:17', TIMESTAMP '2001-01-01 00:02:30');
 <lineannotation>Result: </lineannotation><computeroutput>2020-02-11 15:32:30</computeroutput>
 </screen>
@@ -10814,16 +10821,12 @@ SELECT date_bin('15 minutes', TIMESTAMP '2020-02-11 15:44:17', TIMESTAMP '2001-0
 <screen>
 SELECT TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE 'America/Denver';
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 19:38:40-08</computeroutput>
-
 SELECT TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40-05' AT TIME ZONE 'America/Denver';
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 18:38:40</computeroutput>
-
 SELECT TIMESTAMP '2001-02-16 20:38:40' AT TIME ZONE 'Asia/Tokyo' AT TIME ZONE 'America/Chicago';
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 05:38:40</computeroutput>
-
 SELECT TIMESTAMP WITH TIME ZONE '2001-02-16 20:38:40-05' AT LOCAL;
 <lineannotation>Result: </lineannotation><computeroutput>2001-02-16 17:38:40</computeroutput>
-
 SELECT TIME WITH TIME ZONE '20:38:40-05' AT LOCAL;
 <lineannotation>Result: </lineannotation><computeroutput>17:38:40</computeroutput>
 </screen>
@@ -10928,16 +10931,12 @@ LOCALTIMESTAMP(<replaceable>precision</replaceable>)
 <screen>
 SELECT CURRENT_TIME;
 <lineannotation>Result: </lineannotation><computeroutput>14:39:53.662522-05</computeroutput>
-
 SELECT CURRENT_DATE;
 <lineannotation>Result: </lineannotation><computeroutput>2019-12-23</computeroutput>
-
 SELECT CURRENT_TIMESTAMP;
 <lineannotation>Result: </lineannotation><computeroutput>2019-12-23 14:39:53.662522-05</computeroutput>
-
 SELECT CURRENT_TIMESTAMP(2);
 <lineannotation>Result: </lineannotation><computeroutput>2019-12-23 14:39:53.66-05</computeroutput>
-
 SELECT LOCALTIMESTAMP;
 <lineannotation>Result: </lineannotation><computeroutput>2019-12-23 14:39:53.662522</computeroutput>
 </screen>
@@ -14128,6 +14127,14 @@ CREATE TYPE rainbow AS ENUM ('red', 'orange', 'yellow', 'green', 'blue', 'purple
    <primary>gen_random_uuid</primary>
   </indexterm>
 
+  <indexterm>
+   <primary>uuid_extract_timestamp</primary>
+  </indexterm>
+
+  <indexterm>
+   <primary>uuid_extract_version</primary>
+  </indexterm>
+
   <para>
    <productname>PostgreSQL</productname> includes one function to generate a UUID:
 <synopsis>
@@ -14140,6 +14147,28 @@ CREATE TYPE rainbow AS ENUM ('red', 'orange', 'yellow', 'green', 'blue', 'purple
   <para>
    The <xref linkend="uuid-ossp"/> module provides additional functions that
    implement other standard algorithms for generating UUIDs.
+  </para>
+
+  <para>
+   There are also functions to extract data from UUIDs:
+<synopsis>
+<function>uuid_extract_timestamp</function> (uuid) <returnvalue>timestamp with time zone</returnvalue>
+</synopsis>
+   This function extracts a <type>timestamp with time zone</type> from UUID
+   version 1.  For other versions, this function returns null.  Note that the
+   extracted timestamp is not necessarily exactly equal to the time the UUID
+   was generated; this depends on the implementation that generated the UUID.
+  </para>
+
+  <para>
+<synopsis>
+<function>uuid_extract_version</function> (uuid) <returnvalue>smallint</returnvalue>
+</synopsis>
+   This function extracts the version from a UUID of the variant described by
+   <ulink url="https://tools.ietf.org/html/rfc4122">RFC 4122</ulink>.  For
+   other variants, this function returns null.  For example, for a UUID
+   generated by <function>gen_random_uuid</function>, this function will
+   return 4.
   </para>
 
   <para>
@@ -15457,6 +15486,11 @@ table2-mapping
     <listitem>
      <para>
       the SQL/JSON path language
+     </para>
+    </listitem>
+    <listitem>
+     <para>
+      the SQL/JSON query functions
      </para>
     </listitem>
    </itemizedlist>
@@ -18240,7 +18274,12 @@ ERROR:  jsonpath member accessor can only be applied to an object
       <type>timestamptz</type>, and <type>time</type> to <type>timetz</type>.
       However, all but the first of these conversions depend on the current
       <xref linkend="guc-timezone"/> setting, and thus can only be performed
-      within timezone-aware <type>jsonpath</type> functions.
+      within timezone-aware <type>jsonpath</type> functions.  Similarly, other
+      date/time-related methods that convert strings to date/time types
+      also do this casting, which may involve the current
+      <xref linkend="guc-timezone"/> setting. Therefore, these conversions can
+      also only be performed within timezone-aware <type>jsonpath</type>
+      functions.
      </para>
     </note>
 
@@ -18581,6 +18620,211 @@ $.* ? (@ like_regex "^\\d+$")
 </programlisting>
     </para>
    </sect3>
+  </sect2>
+
+   <sect2 id="sqljson-query-functions">
+    <title>SQL/JSON Query Functions</title>
+  <para>
+   SQL/JSON functions <literal>JSON_EXISTS()</literal>,
+   <literal>JSON_QUERY()</literal>, and <literal>JSON_VALUE()</literal>
+   described in <xref linkend="functions-sqljson-querying"/> can be used
+   to query JSON documents.  Each of these functions apply a
+   <replaceable>path_expression</replaceable> (the query) to a
+   <replaceable>context_item</replaceable> (the document); see
+   <xref linkend="functions-sqljson-path"/> for more details on what
+   <replaceable>path_expression</replaceable> can contain.
+  </para>
+
+  <table id="functions-sqljson-querying">
+   <title>SQL/JSON Query Functions</title>
+   <tgroup cols="1">
+    <thead>
+     <row>
+      <entry role="func_table_entry"><para role="func_signature">
+        Function signature
+       </para>
+       <para>
+        Description
+       </para>
+       <para>
+        Example(s)
+      </para></entry>
+     </row>
+    </thead>
+    <tbody>
+     <row>
+      <entry role="func_table_entry"><para role="func_signature">
+        <indexterm><primary>json_exists</primary></indexterm>
+        <function>json_exists</function> (
+        <replaceable>context_item</replaceable>, <replaceable>path_expression</replaceable> <optional> <literal>PASSING</literal> { <replaceable>value</replaceable> <literal>AS</literal> <replaceable>varname</replaceable> } <optional>, ...</optional></optional>
+        <optional> { <literal>TRUE</literal> | <literal>FALSE</literal> |<literal> UNKNOWN</literal> | <literal>ERROR</literal> } <literal>ON ERROR</literal> </optional>)
+       </para>
+       <para>
+        Returns true if the SQL/JSON <replaceable>path_expression</replaceable>
+        applied to the <replaceable>context_item</replaceable> using the
+        <literal>PASSING</literal> <replaceable>value</replaceable>s yields any
+        items.
+       </para>
+       <para>
+        The <literal>ON ERROR</literal> clause specifies the behavior if
+        an error occurs; the default is to return the <type>boolean</type>
+        <literal>FALSE</literal> value. Note that if the
+        <replaceable>path_expression</replaceable> is <literal>strict</literal>
+        and <literal>ON ERROR</literal> behavior is <literal>ERROR</literal>,
+        an error is generated if it yields no items.
+       </para>
+       <para>
+        Examples:
+       </para>
+       <para>
+        <literal>select json_exists(jsonb '{"key1": [1,2,3]}', 'strict $.key1[*] ? (@ > 2)')</literal>
+        <returnvalue>t</returnvalue>
+       </para>
+       <para>
+        <literal>select json_exists(jsonb '{"a": [1,2,3]}', 'lax $.a[5]' ERROR ON ERROR)</literal>
+        <returnvalue>f</returnvalue>
+       </para>
+       <para>
+        <literal>select json_exists(jsonb '{"a": [1,2,3]}', 'strict $.a[5]' ERROR ON ERROR)</literal>
+        <returnvalue></returnvalue>
+<programlisting>
+ERROR:  jsonpath array subscript is out of bounds
+</programlisting>
+      </para></entry>
+     </row>
+     <row>
+      <entry role="func_table_entry"><para role="func_signature">
+        <indexterm><primary>json_query</primary></indexterm>
+        <function>json_query</function> (
+        <replaceable>context_item</replaceable>, <replaceable>path_expression</replaceable> <optional> <literal>PASSING</literal> { <replaceable>value</replaceable> <literal>AS</literal> <replaceable>varname</replaceable> } <optional>, ...</optional></optional>
+        <optional> <literal>RETURNING</literal> <replaceable>data_type</replaceable> <optional> <literal>FORMAT JSON</literal> <optional> <literal>ENCODING UTF8</literal> </optional> </optional> </optional>
+        <optional> { <literal>WITHOUT</literal> | <literal>WITH</literal> { <literal>CONDITIONAL</literal> | <optional><literal>UNCONDITIONAL</literal></optional> } } <optional> <literal>ARRAY</literal> </optional> <literal>WRAPPER</literal> </optional>
+        <optional> { <literal>KEEP</literal> | <literal>OMIT</literal> } <literal>QUOTES</literal> <optional> <literal>ON SCALAR STRING</literal> </optional> </optional>
+        <optional> { <literal>ERROR</literal> | <literal>NULL</literal> | <literal>EMPTY</literal> { <optional> <literal>ARRAY</literal> </optional> | <literal>OBJECT</literal> } | <literal>DEFAULT</literal> <replaceable>expression</replaceable> } <literal>ON EMPTY</literal> </optional>
+        <optional> { <literal>ERROR</literal> | <literal>NULL</literal> | <literal>EMPTY</literal> { <optional> <literal>ARRAY</literal> </optional> | <literal>OBJECT</literal> } | <literal>DEFAULT</literal> <replaceable>expression</replaceable> } <literal>ON ERROR</literal> </optional>)
+      </para>
+       <para>
+        Returns the result of applying the SQL/JSON
+        <replaceable>path_expression</replaceable> to the
+        <replaceable>context_item</replaceable> using the
+        <literal>PASSING</literal> <replaceable>value</replaceable>s.
+       </para>
+       <para>
+        If the path expression returns multiple SQL/JSON items, it might be
+        necessary to wrap the result using the <literal>WITH WRAPPER</literal>
+        clause to make it a valid JSON string.  If the wrapper is
+        <literal>UNCONDITIONAL</literal>, an array wrapper will always be
+        applied, even if the returned value is already a single JSON object
+        or an array.  If it is <literal>CONDITIONAL</literal>, it will not be
+        applied to a single JSON object or an array.
+        <literal>UNCONDITIONAL</literal> is the default.
+       </para>
+       <para>
+        If the result is a scalar string, by default, the returned value will
+        be surrounded by quotes, making it a valid JSON value.  It can be made
+        explicit by specifying <literal>KEEP QUOTES</literal>.  Conversely,
+        quotes can be omitted by specifying <literal>OMIT QUOTES</literal>.
+        Note that <literal>OMIT QUOTES</literal> cannot be specified when
+        <literal>WITH WRAPPER</literal> is also specified.
+       </para>
+       <para>
+        The <literal>RETURNING</literal> clause can be used to specify the
+        <replaceable>data_type</replaceable> of the result value.  By default,
+        the returned value will be of type <type>jsonb</type>.
+       </para>
+       <para>
+        The <literal>ON EMPTY</literal> clause specifies the behavior if
+        evaluating <replaceable>path_expression</replaceable> yields no value
+        at all. The default when <literal>ON EMPTY</literal> is not specified
+        is to return a null value.
+       </para>
+       <para>
+        The <literal>ON ERROR</literal> clause specifies the
+        behavior if an error occurs when evaluating
+        <replaceable>path_expression</replaceable>, including the operation to
+        coerce the result value to the output type, or during the execution of
+        <literal>ON EMPTY</literal> behavior (that is caused by empty result
+        of <replaceable>path_expression</replaceable> evaluation).  The default
+        when <literal>ON ERROR</literal> is not specified is to return a null
+        value.
+       </para>
+       <para>
+        Examples:
+       </para>
+       <para>
+        <literal>select json_query(jsonb '[1,[2,3],null]', 'lax $[*][1]' WITH CONDITIONAL WRAPPER)</literal>
+        <returnvalue>[3]</returnvalue>
+       </para>
+       <para>
+        <literal>select json_query(jsonb '{"a": "[1, 2]"}', 'lax $.a' OMIT QUOTES);</literal>
+        <returnvalue>[1, 2]</returnvalue>
+       </para>
+       <para>
+        <literal>select json_query(jsonb '{"a": "[1, 2]"}', 'lax $.a' RETURNING int[] OMIT QUOTES ERROR ON ERROR);</literal>
+        <returnvalue></returnvalue>
+<programlisting>
+ERROR:  malformed array literal: "[1, 2]"
+DETAIL:  Missing "]" after array dimensions.
+</programlisting>
+       </para>
+      </entry>
+     </row>
+     <row>
+      <entry role="func_table_entry"><para role="func_signature">
+        <indexterm><primary>json_value</primary></indexterm>
+        <function>json_value</function> (
+        <replaceable>context_item</replaceable>, <replaceable>path_expression</replaceable>
+        <optional> <literal>PASSING</literal> { <replaceable>value</replaceable> <literal>AS</literal> <replaceable>varname</replaceable> } <optional>, ...</optional></optional>
+        <optional> <literal>RETURNING</literal> <replaceable>data_type</replaceable> </optional>
+        <optional> { <literal>ERROR</literal> | <literal>NULL</literal> | <literal>DEFAULT</literal> <replaceable>expression</replaceable> } <literal>ON EMPTY</literal> </optional>
+        <optional> { <literal>ERROR</literal> | <literal>NULL</literal> | <literal>DEFAULT</literal> <replaceable>expression</replaceable> } <literal>ON ERROR</literal> </optional>)
+       </para>
+       <para>
+        Returns the result of applying the SQL/JSON
+        <replaceable>path_expression</replaceable> to the
+        <replaceable>context_item</replaceable> using the
+        <literal>PASSING</literal> <replaceable>value</replaceable>s.
+       </para>
+       <para>
+        The extracted value must be a single <acronym>SQL/JSON</acronym>
+        scalar item; an error is thrown if that's not the case.  If you expect
+        that extracted value might be an object or an array, use the
+        <function>json_query</function> function instead.
+       </para>
+       <para>
+        The <literal>RETURNING</literal> clause can be used to specify the
+        <replaceable>data_type</replaceable> of the result value. By default,
+        the returned value will be of type <type>text</type>.
+       </para>
+       <para>
+        The <literal>ON ERROR</literal> and <literal>ON EMPTY</literal>
+        clauses have similar semantics as mentioned in the description of
+        <function>json_query</function>.
+       </para>
+       <para>
+        Note that scalar strings returned by <function>json_value</function>
+        always have their quotes removed, equivalent to specifying
+        <literal>OMIT QUOTES</literal> in <function>json_query</function>.
+       </para>
+       <para>
+        Examples:
+       </para>
+       <para>
+        <literal>select json_value(jsonb '"123.45"', '$' RETURNING float)</literal>
+        <returnvalue>123.45</returnvalue>
+       </para>
+       <para>
+        <literal>select json_value(jsonb '"03:04 2015-02-01"', '$.datetime("HH24:MI&nbsp;YYYY-MM-DD")' RETURNING date)</literal>
+        <returnvalue>2015-02-01</returnvalue>
+       </para>
+       <para>
+        <literal>select json_value(jsonb '[1,2]', 'strict $[*]' DEFAULT 9 ON ERROR)</literal>
+        <returnvalue>9</returnvalue>
+      </para></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
   </sect2>
  </sect1>
 
@@ -22417,6 +22661,85 @@ SELECT count(*) FROM sometable;
 
  </sect1>
 
+ <sect1 id="functions-merge-support">
+  <title>Merge Support Functions</title>
+
+  <indexterm>
+   <primary>MERGE</primary>
+   <secondary>RETURNING</secondary>
+  </indexterm>
+
+  <para>
+   <productname>PostgreSQL</productname> includes one merge support function
+   that may be used in the <literal>RETURNING</literal> list of a
+   <xref linkend="sql-merge"/> command to identify the action taken for each
+   row.
+  </para>
+
+  <table id="functions-merge-support-table">
+   <title>Merge Support Functions</title>
+
+   <tgroup cols="1">
+    <thead>
+     <row>
+      <entry role="func_table_entry"><para role="func_signature">
+       Function
+      </para>
+      <para>
+       Description
+      </para></entry>
+     </row>
+    </thead>
+
+    <tbody>
+     <row>
+      <entry id="merge-action" role="func_table_entry"><para role="func_signature">
+       <indexterm>
+        <primary>merge_action</primary>
+       </indexterm>
+       <function>merge_action</function> ( )
+       <returnvalue>text</returnvalue>
+      </para>
+      <para>
+       Returns the merge action command executed for the current row.  This
+       will be <literal>'INSERT'</literal>, <literal>'UPDATE'</literal>, or
+       <literal>'DELETE'</literal>.
+      </para></entry>
+     </row>
+    </tbody>
+   </tgroup>
+  </table>
+
+  <para>
+   Example:
+<screen><![CDATA[
+MERGE INTO products p
+  USING stock s ON p.product_id = s.product_id
+  WHEN MATCHED AND s.quantity > 0 THEN
+    UPDATE SET in_stock = true, quantity = s.quantity
+  WHEN MATCHED THEN
+    UPDATE SET in_stock = false, quantity = 0
+  WHEN NOT MATCHED THEN
+    INSERT (product_id, in_stock, quantity)
+      VALUES (s.product_id, true, s.quantity)
+  RETURNING merge_action(), p.*;
+
+ merge_action | product_id | in_stock | quantity
+--------------+------------+----------+----------
+ UPDATE       |       1001 | t        |       50
+ UPDATE       |       1002 | f        |        0
+ INSERT       |       1003 | t        |       10
+]]></screen>
+  </para>
+
+  <para>
+   Note that this function can only be used in the <literal>RETURNING</literal>
+   list of a <command>MERGE</command> command.  It is an error to use it in any
+   other part of a query.
+  </para>
+
+ </sect1>
+
  <sect1 id="functions-subquery">
   <title>Subquery Expressions</title>
 
@@ -23730,6 +24053,11 @@ SELECT * FROM pg_ls_dir('.') WITH ORDINALITY AS t(ls,n);
         <xref linkend="guc-log-destination"/>.
         The result reflects the contents of
         the <filename>current_logfiles</filename> file.
+       </para>
+       <para>
+        This function is restricted to superusers and roles with privileges of
+        the <literal>pg_monitor</literal> role by default, but other users can
+        be granted EXECUTE to run the function.
        </para></entry>
       </row>
 
@@ -24223,7 +24551,7 @@ SELECT has_function_privilege('joeuser', 'myfunc(int, text)', 'execute');
         are <literal>SELECT</literal>, <literal>INSERT</literal>,
         <literal>UPDATE</literal>, <literal>DELETE</literal>,
         <literal>TRUNCATE</literal>, <literal>REFERENCES</literal>,
-        and <literal>TRIGGER</literal>.
+        <literal>TRIGGER</literal>, and <literal>MAINTAIN</literal>.
        </para></entry>
       </row>
 
@@ -24754,7 +25082,7 @@ SELECT pg_type_is_visible('myschema.widget'::regtype);
 
      <tbody>
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="format-type" xreflabel="format_type" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>format_type</primary>
         </indexterm>
@@ -25269,18 +25597,8 @@ SELECT currval(pg_get_serial_sequence('sometable', 'id'));
         OID for comparison purposes but displays as a type name.
        </para>
        <para>
-        For example:
-<programlisting>
-SELECT pg_typeof(33);
- pg_typeof
------------
- integer
-
-SELECT typlen FROM pg_type WHERE oid = pg_typeof(33);
- typlen
---------
-      4
-</programlisting>
+        <literal>pg_typeof(33)</literal>
+        <returnvalue>integer</returnvalue>
        </para></entry>
       </row>
 
@@ -25300,18 +25618,12 @@ SELECT typlen FROM pg_type WHERE oid = pg_typeof(33);
         collatable data type, then an error is raised.
        </para>
        <para>
-        For example:
-<programlisting>
-SELECT collation for (description) FROM pg_description LIMIT 1;
- pg_collation_for
-------------------
- "default"
-
-SELECT collation for ('foo' COLLATE "de_DE");
- pg_collation_for
-------------------
- "de_DE"
-</programlisting>
+        <literal>collation for ('foo'::text)</literal>
+        <returnvalue>"default"</returnvalue>
+       </para>
+       <para>
+        <literal>collation for ('foo' COLLATE "de_DE")</literal>
+        <returnvalue>"de_DE"</returnvalue>
        </para></entry>
       </row>
 
@@ -25452,7 +25764,7 @@ SELECT collation for ('foo' COLLATE "de_DE");
       </row>
 
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="to-regtype" xreflabel="to_regtype" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>to_regtype</primary>
         </indexterm>
@@ -25460,11 +25772,42 @@ SELECT collation for ('foo' COLLATE "de_DE");
         <returnvalue>regtype</returnvalue>
        </para>
        <para>
-        Translates a textual type name to its OID.  A similar result is
-        obtained by casting the string to type <type>regtype</type> (see
-        <xref linkend="datatype-oid"/>); however, this function will return
-        <literal>NULL</literal> rather than throwing an error if the name is
-        not found.
+        Parses a string of text, extracts a potential type name from it,
+        and translates that name into a type OID.  A syntax error in the
+        string will result in an error; but if the string is a
+        syntactically valid type name that happens not to be found in the
+        catalogs, the result is <literal>NULL</literal>.  A similar result
+        is obtained by casting the string to type <type>regtype</type>
+        (see <xref linkend="datatype-oid"/>), except that that will throw
+        error for name not found.
+       </para></entry>
+      </row>
+
+      <row>
+       <entry role="func_table_entry"><para role="func_signature">
+        <indexterm>
+         <primary>to_regtypemod</primary>
+        </indexterm>
+        <function>to_regtypemod</function> ( <type>text</type> )
+        <returnvalue>integer</returnvalue>
+       </para>
+       <para>
+        Parses a string of text, extracts a potential type name from it,
+        and translates its type modifier, if any.  A syntax error in the
+        string will result in an error; but if the string is a
+        syntactically valid type name that happens not to be found in the
+        catalogs, the result is <literal>NULL</literal>.  The result is
+        <literal>-1</literal> if no type modifier is present.
+       </para>
+       <para>
+        <function>to_regtypemod</function> can be combined with
+        <xref linkend="to-regtype"/> to produce appropriate inputs for
+        <xref linkend="format-type"/>, allowing a string representing a
+        type name to be canonicalized.
+       </para>
+       <para>
+        <literal>format_type(to_regtype('varchar(32)'), to_regtypemod('varchar(32)'))</literal>
+        <returnvalue>character varying(32)</returnvalue>
        </para></entry>
       </row>
      </tbody>
@@ -27202,7 +27545,7 @@ SELECT collation for ('foo' COLLATE "de_DE");
         of its children.) You can use the
         <link linkend="view-pg-file-settings"><structname>pg_file_settings</structname></link>,
         <link linkend="view-pg-hba-file-rules"><structname>pg_hba_file_rules</structname></link> and
-        <link linkend="view-pg-hba-file-rules"><structname>pg_ident_file_mappings</structname></link> views
+        <link linkend="view-pg-ident-file-mappings"><structname>pg_ident_file_mappings</structname></link> views
         to check the configuration files for possible errors, before reloading.
        </para></entry>
       </row>
@@ -28070,7 +28413,7 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
       </row>
 
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="pg-create-logical-replication-slot" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>pg_create_logical_replication_slot</primary>
         </indexterm>
@@ -28141,7 +28484,7 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
       </row>
 
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="pg-logical-slot-get-changes" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>pg_logical_slot_get_changes</primary>
         </indexterm>
@@ -28164,11 +28507,15 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
         the specified value.  Note, however, that the actual number of
         rows returned may be larger, since this limit is only checked after
         adding the rows produced when decoding each new transaction commit.
+        If the specified slot is a logical failover slot then the function will
+        not return until all physical slots specified in
+        <link linkend="guc-standby-slot-names"><varname>standby_slot_names</varname></link>
+        have confirmed WAL receipt.
        </para></entry>
       </row>
 
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="pg-logical-slot-peek-changes" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>pg_logical_slot_peek_changes</primary>
         </indexterm>
@@ -28223,7 +28570,7 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
       </row>
 
       <row>
-       <entry role="func_table_entry"><para role="func_signature">
+       <entry id="pg-replication-slot-advance" role="func_table_entry"><para role="func_signature">
         <indexterm>
          <primary>pg_replication_slot_advance</primary>
         </indexterm>
@@ -28239,7 +28586,11 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
         the name of the slot and the actual position that it was advanced to.
         The updated slot position information is written out at the next
         checkpoint if any advancing is done. So in the event of a crash, the
-        slot may return to an earlier position.
+        slot may return to an earlier position. If the specified slot is a
+        logical failover slot then the function will not return until all
+        physical slots specified in
+        <link linkend="guc-standby-slot-names"><varname>standby_slot_names</varname></link>
+        have confirmed WAL receipt.
        </para></entry>
       </row>
 
@@ -28439,6 +28790,39 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
         record is flushed along with its transaction.
        </para></entry>
       </row>
+
+      <row>
+       <entry id="pg-sync-replication-slots" role="func_table_entry"><para role="func_signature">
+        <indexterm>
+         <primary>pg_sync_replication_slots</primary>
+        </indexterm>
+        <function>pg_sync_replication_slots</function> ()
+        <returnvalue>void</returnvalue>
+       </para>
+       <para>
+        Synchronize the logical failover replication slots from the primary
+        server to the standby server. This function can only be executed on the
+        standby server. Temporary synced slots, if any, cannot be used for
+        logical decoding and must be dropped after promotion. See
+        <xref linkend="logicaldecoding-replication-slots-synchronization"/> for details.
+       </para>
+
+       <caution>
+        <para>
+          If, after executing the function,
+          <link linkend="guc-hot-standby-feedback">
+          <varname>hot_standby_feedback</varname></link> is disabled on
+          the standby or the physical slot configured in
+          <link linkend="guc-primary-slot-name">
+          <varname>primary_slot_name</varname></link> is
+          removed, then it is possible that the necessary rows of the
+          synchronized slot will be removed by the VACUUM process on the primary
+          server, resulting in the synchronized slot becoming invalidated.
+        </para>
+       </caution>
+      </entry>
+      </row>
+
      </tbody>
     </tgroup>
    </table>
@@ -28499,6 +28883,23 @@ postgres=# SELECT '0/0'::pg_lsn + pd.segment_number * ps.setting::int + :offset 
         Shows the compression algorithm that was used to compress
         an individual variable-length value. Returns <literal>NULL</literal>
         if the value is not compressed.
+       </para></entry>
+      </row>
+
+      <row>
+       <entry role="func_table_entry"><para role="func_signature">
+        <indexterm>
+         <primary>pg_column_toast_chunk_id</primary>
+        </indexterm>
+        <function>pg_column_toast_chunk_id</function> ( <type>"any"</type> )
+        <returnvalue>oid</returnvalue>
+       </para>
+       <para>
+        Shows the <structfield>chunk_id</structfield> of an on-disk
+        <acronym>TOAST</acronym>ed value.  Returns <literal>NULL</literal>
+        if the value is un-<acronym>TOAST</acronym>ed or not on-disk.  See
+        <xref linkend="storage-toast"/> for more information about
+        <acronym>TOAST</acronym>.
        </para></entry>
       </row>
 

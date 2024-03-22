@@ -76,7 +76,7 @@
 #endif
 
 /* word break characters */
-#define WORD_BREAKS		"\t\n@><=;|&{() "
+#define WORD_BREAKS		"\t\n@><=;|&() "
 
 /*
  * Since readline doesn't let us pass any state through to the tab completion
@@ -832,6 +832,7 @@ static const SchemaQuery Query_for_list_of_mergetargets = {
 	.catname = "pg_catalog.pg_class c",
 	.selcondition =
 	"c.relkind IN (" CppAsString2(RELKIND_RELATION) ", "
+	CppAsString2(RELKIND_VIEW) ", "
 	CppAsString2(RELKIND_PARTITIONED_TABLE) ") ",
 	.viscondition = "pg_catalog.pg_table_is_visible(c.oid)",
 	.namespace = "c.relnamespace",
@@ -1151,7 +1152,7 @@ Keywords_for_list_of_owner_roles, "PUBLIC"
 #define Privilege_options_of_grant_and_revoke \
 "SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER", \
 "CREATE", "CONNECT", "TEMPORARY", "EXECUTE", "USAGE", "SET", "ALTER SYSTEM", \
-"ALL"
+"MAINTAIN", "ALL"
 
 /* ALTER PROCEDURE options */
 #define Alter_procedure_options \
@@ -1785,6 +1786,8 @@ psql_completion(const char *text, int start, int end)
 			matches = complete_from_variables(text, ":'", "'", true);
 		else if (text[1] == '"')
 			matches = complete_from_variables(text, ":\"", "\"", true);
+		else if (text[1] == '{' && text[2] == '?')
+			matches = complete_from_variables(text, ":{?", "}", true);
 		else
 			matches = complete_from_variables(text, ":", "", true);
 	}
@@ -1943,7 +1946,7 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH("(", "PUBLICATION");
 	/* ALTER SUBSCRIPTION <name> SET ( */
 	else if (HeadMatches("ALTER", "SUBSCRIPTION", MatchAny) && TailMatches("SET", "("))
-		COMPLETE_WITH("binary", "disable_on_error", "origin",
+		COMPLETE_WITH("binary", "disable_on_error", "failover", "origin",
 					  "password_required", "run_as_owner", "slot_name",
 					  "streaming", "synchronous_commit");
 	/* ALTER SUBSCRIPTION <name> SKIP ( */
@@ -2562,7 +2565,8 @@ psql_completion(const char *text, int start, int end)
 	 * AMs.
 	 */
 	else if (Matches("ALTER", "TABLE", MatchAny, "SET", "ACCESS", "METHOD"))
-		COMPLETE_WITH_QUERY(Query_for_list_of_table_access_methods);
+		COMPLETE_WITH_QUERY_PLUS(Query_for_list_of_table_access_methods,
+								 "DEFAULT");
 
 	/*
 	 * If we have ALTER TABLE <sth> SET TABLESPACE provide a list of
@@ -3340,7 +3344,7 @@ psql_completion(const char *text, int start, int end)
 	/* Complete "CREATE SUBSCRIPTION <name> ...  WITH ( <opt>" */
 	else if (HeadMatches("CREATE", "SUBSCRIPTION") && TailMatches("WITH", "("))
 		COMPLETE_WITH("binary", "connect", "copy_data", "create_slot",
-					  "disable_on_error", "enabled", "origin",
+					  "disable_on_error", "enabled", "failover", "origin",
 					  "password_required", "run_as_owner", "slot_name",
 					  "streaming", "synchronous_commit", "two_phase");
 
@@ -3942,7 +3946,7 @@ psql_completion(const char *text, int start, int end)
 		if (HeadMatches("ALTER", "DEFAULT", "PRIVILEGES"))
 			COMPLETE_WITH("SELECT", "INSERT", "UPDATE",
 						  "DELETE", "TRUNCATE", "REFERENCES", "TRIGGER",
-						  "CREATE", "EXECUTE", "USAGE", "ALL");
+						  "CREATE", "EXECUTE", "USAGE", "MAINTAIN", "ALL");
 		else if (TailMatches("GRANT"))
 			COMPLETE_WITH_QUERY_PLUS(Query_for_list_of_roles,
 									 Privilege_options_of_grant_and_revoke);
@@ -3994,7 +3998,7 @@ psql_completion(const char *text, int start, int end)
 	else if (TailMatches("GRANT|REVOKE", MatchAny) ||
 			 TailMatches("REVOKE", "GRANT", "OPTION", "FOR", MatchAny))
 	{
-		if (TailMatches("SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER|CREATE|CONNECT|TEMPORARY|TEMP|EXECUTE|USAGE|ALL"))
+		if (TailMatches("SELECT|INSERT|UPDATE|DELETE|TRUNCATE|REFERENCES|TRIGGER|CREATE|CONNECT|TEMPORARY|TEMP|EXECUTE|USAGE|MAINTAIN|ALL"))
 			COMPLETE_WITH("ON");
 		else if (TailMatches("GRANT", MatchAny))
 			COMPLETE_WITH("TO");

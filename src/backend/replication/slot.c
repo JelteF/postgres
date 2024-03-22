@@ -46,12 +46,17 @@
 #include "common/string.h"
 #include "miscadmin.h"
 #include "pgstat.h"
+#include "postmaster/interrupt.h"
+#include "replication/slotsync.h"
 #include "replication/slot.h"
+#include "replication/walsender_private.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
 #include "storage/proc.h"
 #include "storage/procarray.h"
 #include "utils/builtins.h"
+#include "utils/guc_hooks.h"
+#include "utils/varlena.h"
 
 /*
  * Replication slot on-disk data structure.
@@ -76,6 +81,40 @@ typedef struct ReplicationSlotOnDisk
 	ReplicationSlotPersistentData slotdata;
 } ReplicationSlotOnDisk;
 
+/*
+ * Struct for the configuration of standby_slot_names.
+ *
+ * Note: this must be a flat representation that can be held in a single chunk
+ * of guc_malloc'd memory, so that it can be stored as the "extra" data for the
+ * standby_slot_names GUC.
+ */
+typedef struct
+{
+	/* Number of slot names in the slot_names[] */
+	int			nslotnames;
+
+	/*
+	 * slot_names contains 'nslotnames' consecutive null-terminated C strings.
+	 */
+	char		slot_names[FLEXIBLE_ARRAY_MEMBER];
+} StandbySlotNamesConfigData;
+
+/*
+ * Lookup table for slot invalidation causes.
+ */
+const char *const SlotInvalidationCauses[] = {
+	[RS_INVAL_NONE] = "none",
+	[RS_INVAL_WAL_REMOVED] = "wal_removed",
+	[RS_INVAL_HORIZON] = "rows_removed",
+	[RS_INVAL_WAL_LEVEL] = "wal_level_insufficient",
+};
+
+/* Maximum number of invalidation causes */
+#define	RS_INVAL_MAX_CAUSES RS_INVAL_WAL_LEVEL
+
+StaticAssertDecl(lengthof(SlotInvalidationCauses) == (RS_INVAL_MAX_CAUSES + 1),
+				 "array length mismatch");
+
 /* size of version independent data */
 #define ReplicationSlotOnDiskConstantSize \
 	offsetof(ReplicationSlotOnDisk, slotdata)
@@ -90,7 +129,7 @@ typedef struct ReplicationSlotOnDisk
 	sizeof(ReplicationSlotOnDisk) - ReplicationSlotOnDiskConstantSize
 
 #define SLOT_MAGIC		0x1051CA1	/* format identifier */
-#define SLOT_VERSION	4		/* version for new files */
+#define SLOT_VERSION	5		/* version for new files */
 
 /* Control array for replication slot management */
 ReplicationSlotCtlData *ReplicationSlotCtl = NULL;
@@ -98,12 +137,26 @@ ReplicationSlotCtlData *ReplicationSlotCtl = NULL;
 /* My backend's replication slot in the shared memory array */
 ReplicationSlot *MyReplicationSlot = NULL;
 
-/* GUC variable */
+/* GUC variables */
 int			max_replication_slots = 10; /* the maximum number of replication
 										 * slots */
 
+/*
+ * This GUC lists streaming replication standby server slot names that
+ * logical WAL sender processes will wait for.
+ */
+char	   *standby_slot_names;
+
+/* This is the parsed and cached configuration for standby_slot_names */
+static StandbySlotNamesConfigData *standby_slot_names_config;
+
+/*
+ * Oldest LSN that has been confirmed to be flushed to the standbys
+ * corresponding to the physical slots specified in the standby_slot_names GUC.
+ */
+static XLogRecPtr ss_oldest_flush_lsn = InvalidXLogRecPtr;
+
 static void ReplicationSlotShmemExit(int code, Datum arg);
-static void ReplicationSlotDropAcquired(void);
 static void ReplicationSlotDropPtr(ReplicationSlot *slot);
 
 /* internal persistency functions */
@@ -250,11 +303,12 @@ ReplicationSlotValidateName(const char *name, int elevel)
  *     user will only get commit prepared.
  * failover: If enabled, allows the slot to be synced to standbys so
  *     that logical replication can be resumed after failover.
+ * synced: True if the slot is synchronized from the primary server.
  */
 void
 ReplicationSlotCreate(const char *name, bool db_specific,
 					  ReplicationSlotPersistency persistency,
-					  bool two_phase, bool failover)
+					  bool two_phase, bool failover, bool synced)
 {
 	ReplicationSlot *slot = NULL;
 	int			i;
@@ -262,6 +316,34 @@ ReplicationSlotCreate(const char *name, bool db_specific,
 	Assert(MyReplicationSlot == NULL);
 
 	ReplicationSlotValidateName(name, ERROR);
+
+	if (failover)
+	{
+		/*
+		 * Do not allow users to create the failover enabled slots on the
+		 * standby as we do not support sync to the cascading standby.
+		 *
+		 * However, failover enabled slots can be created during slot
+		 * synchronization because we need to retain the same values as the
+		 * remote slot.
+		 */
+		if (RecoveryInProgress() && !IsSyncingReplicationSlots())
+			ereport(ERROR,
+					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("cannot enable failover for a replication slot created on the standby"));
+
+		/*
+		 * Do not allow users to create failover enabled temporary slots,
+		 * because temporary slots will not be synced to the standby.
+		 *
+		 * However, failover enabled temporary slots can be created during
+		 * slot synchronization. See the comments atop slotsync.c for details.
+		 */
+		if (persistency == RS_TEMPORARY && !IsSyncingReplicationSlots())
+			ereport(ERROR,
+					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("cannot enable failover for a temporary replication slot"));
+	}
 
 	/*
 	 * If some other backend ran this code concurrently with us, we'd likely
@@ -315,6 +397,7 @@ ReplicationSlotCreate(const char *name, bool db_specific,
 	slot->data.two_phase = two_phase;
 	slot->data.two_phase_at = InvalidXLogRecPtr;
 	slot->data.failover = failover;
+	slot->data.synced = synced;
 
 	/* and then data only present in shared memory */
 	slot->just_dirtied = false;
@@ -677,6 +760,16 @@ ReplicationSlotDrop(const char *name, bool nowait)
 
 	ReplicationSlotAcquire(name, nowait);
 
+	/*
+	 * Do not allow users to drop the slots which are currently being synced
+	 * from the primary to the standby.
+	 */
+	if (RecoveryInProgress() && MyReplicationSlot->data.synced)
+		ereport(ERROR,
+				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				errmsg("cannot drop replication slot \"%s\"", name),
+				errdetail("This slot is being synced from the primary server."));
+
 	ReplicationSlotDropAcquired();
 }
 
@@ -696,19 +789,55 @@ ReplicationSlotAlter(const char *name, bool failover)
 				errmsg("cannot use %s with a physical replication slot",
 					   "ALTER_REPLICATION_SLOT"));
 
-	SpinLockAcquire(&MyReplicationSlot->mutex);
-	MyReplicationSlot->data.failover = failover;
-	SpinLockRelease(&MyReplicationSlot->mutex);
+	if (RecoveryInProgress())
+	{
+		/*
+		 * Do not allow users to alter the slots which are currently being
+		 * synced from the primary to the standby.
+		 */
+		if (MyReplicationSlot->data.synced)
+			ereport(ERROR,
+					errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+					errmsg("cannot alter replication slot \"%s\"", name),
+					errdetail("This slot is being synced from the primary server."));
 
-	ReplicationSlotMarkDirty();
-	ReplicationSlotSave();
+		/*
+		 * Do not allow users to enable failover on the standby as we do not
+		 * support sync to the cascading standby.
+		 */
+		if (failover)
+			ereport(ERROR,
+					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					errmsg("cannot enable failover for a replication slot"
+						   " on the standby"));
+	}
+
+	/*
+	 * Do not allow users to enable failover for temporary slots as we do not
+	 * support syncing temporary slots to the standby.
+	 */
+	if (failover && MyReplicationSlot->data.persistency == RS_TEMPORARY)
+		ereport(ERROR,
+				errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				errmsg("cannot enable failover for a temporary replication slot"));
+
+	if (MyReplicationSlot->data.failover != failover)
+	{
+		SpinLockAcquire(&MyReplicationSlot->mutex);
+		MyReplicationSlot->data.failover = failover;
+		SpinLockRelease(&MyReplicationSlot->mutex);
+
+		ReplicationSlotMarkDirty();
+		ReplicationSlotSave();
+	}
+
 	ReplicationSlotRelease();
 }
 
 /*
  * Permanently drop the currently acquired replication slot.
  */
-static void
+void
 ReplicationSlotDropAcquired(void)
 {
 	ReplicationSlot *slot = MyReplicationSlot;
@@ -864,8 +993,8 @@ ReplicationSlotMarkDirty(void)
 }
 
 /*
- * Convert a slot that's marked as RS_EPHEMERAL to a RS_PERSISTENT slot,
- * guaranteeing it will be there after an eventual crash.
+ * Convert a slot that's marked as RS_EPHEMERAL or RS_TEMPORARY to a
+ * RS_PERSISTENT slot, guaranteeing it will be there after an eventual crash.
  */
 void
 ReplicationSlotPersist(void)
@@ -1160,6 +1289,20 @@ restart:
 		 * concurrently being dropped by a backend connected to another DB.
 		 *
 		 * That's fairly unlikely in practice, so we'll just bail out.
+		 *
+		 * The slot sync worker holds a shared lock on the database before
+		 * operating on synced logical slots to avoid conflict with the drop
+		 * happening here. The persistent synced slots are thus safe but there
+		 * is a possibility that the slot sync worker has created a temporary
+		 * slot (which stays active even on release) and we are trying to drop
+		 * that here. In practice, the chances of hitting this scenario are
+		 * less as during slot synchronization, the temporary slot is
+		 * immediately converted to persistent and thus is safe due to the
+		 * shared lock taken on the database. So, we'll just bail out in such
+		 * a case.
+		 *
+		 * XXX: We can consider shutting down the slot sync worker before
+		 * trying to drop synced temporary slots here.
 		 */
 		if (active_pid)
 			ereport(ERROR,
@@ -1378,6 +1521,11 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 {
 	int			last_signaled_pid = 0;
 	bool		released_lock = false;
+	bool		terminated = false;
+	XLogRecPtr	initial_effective_xmin = InvalidXLogRecPtr;
+	XLogRecPtr	initial_catalog_effective_xmin = InvalidXLogRecPtr;
+	XLogRecPtr	initial_restart_lsn = InvalidXLogRecPtr;
+	ReplicationSlotInvalidationCause conflict_prev PG_USED_FOR_ASSERTS_ONLY = RS_INVAL_NONE;
 
 	for (;;)
 	{
@@ -1412,11 +1560,24 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 		 */
 		if (s->data.invalidated == RS_INVAL_NONE)
 		{
+			/*
+			 * The slot's mutex will be released soon, and it is possible that
+			 * those values change since the process holding the slot has been
+			 * terminated (if any), so record them here to ensure that we
+			 * would report the correct conflict cause.
+			 */
+			if (!terminated)
+			{
+				initial_restart_lsn = s->data.restart_lsn;
+				initial_effective_xmin = s->effective_xmin;
+				initial_catalog_effective_xmin = s->effective_catalog_xmin;
+			}
+
 			switch (cause)
 			{
 				case RS_INVAL_WAL_REMOVED:
-					if (s->data.restart_lsn != InvalidXLogRecPtr &&
-						s->data.restart_lsn < oldestLSN)
+					if (initial_restart_lsn != InvalidXLogRecPtr &&
+						initial_restart_lsn < oldestLSN)
 						conflict = cause;
 					break;
 				case RS_INVAL_HORIZON:
@@ -1425,12 +1586,12 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 					/* invalid DB oid signals a shared relation */
 					if (dboid != InvalidOid && dboid != s->data.database)
 						break;
-					if (TransactionIdIsValid(s->effective_xmin) &&
-						TransactionIdPrecedesOrEquals(s->effective_xmin,
+					if (TransactionIdIsValid(initial_effective_xmin) &&
+						TransactionIdPrecedesOrEquals(initial_effective_xmin,
 													  snapshotConflictHorizon))
 						conflict = cause;
-					else if (TransactionIdIsValid(s->effective_catalog_xmin) &&
-							 TransactionIdPrecedesOrEquals(s->effective_catalog_xmin,
+					else if (TransactionIdIsValid(initial_catalog_effective_xmin) &&
+							 TransactionIdPrecedesOrEquals(initial_catalog_effective_xmin,
 														   snapshotConflictHorizon))
 						conflict = cause;
 					break;
@@ -1442,6 +1603,13 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 					pg_unreachable();
 			}
 		}
+
+		/*
+		 * The conflict cause recorded previously should not change while the
+		 * process owning the slot (if any) has been terminated.
+		 */
+		Assert(!(conflict_prev != RS_INVAL_NONE && terminated &&
+				 conflict_prev != conflict));
 
 		/* if there's no conflict, we're done */
 		if (conflict == RS_INVAL_NONE)
@@ -1520,11 +1688,13 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 				if (MyBackendType == B_STARTUP)
 					(void) SendProcSignal(active_pid,
 										  PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT,
-										  InvalidBackendId);
+										  INVALID_PROC_NUMBER);
 				else
 					(void) kill(active_pid, SIGTERM);
 
 				last_signaled_pid = active_pid;
+				terminated = true;
+				conflict_prev = conflict;
 			}
 
 			/* Wait until the slot is released. */
@@ -1556,7 +1726,6 @@ InvalidatePossiblyObsoleteSlot(ReplicationSlotInvalidationCause cause,
 			ReplicationSlotMarkDirty();
 			ReplicationSlotSave();
 			ReplicationSlotRelease();
-			pgstat_drop_replslot(s);
 
 			ReportSlotInvalidation(conflict, false, active_pid,
 								   slotname, restart_lsn,
@@ -2184,4 +2353,395 @@ RestoreSlotFromDisk(const char *name)
 		ereport(FATAL,
 				(errmsg("too many replication slots active before shutdown"),
 				 errhint("Increase max_replication_slots and try again.")));
+}
+
+/*
+ * Maps a conflict reason for a replication slot to
+ * ReplicationSlotInvalidationCause.
+ */
+ReplicationSlotInvalidationCause
+GetSlotInvalidationCause(const char *conflict_reason)
+{
+	ReplicationSlotInvalidationCause cause;
+	ReplicationSlotInvalidationCause result = RS_INVAL_NONE;
+	bool		found PG_USED_FOR_ASSERTS_ONLY = false;
+
+	Assert(conflict_reason);
+
+	for (cause = RS_INVAL_NONE; cause <= RS_INVAL_MAX_CAUSES; cause++)
+	{
+		if (strcmp(SlotInvalidationCauses[cause], conflict_reason) == 0)
+		{
+			found = true;
+			result = cause;
+			break;
+		}
+	}
+
+	Assert(found);
+	return result;
+}
+
+/*
+ * A helper function to validate slots specified in GUC standby_slot_names.
+ *
+ * The rawname will be parsed, and the result will be saved into *elemlist.
+ */
+static bool
+validate_standby_slots(char *rawname, List **elemlist)
+{
+	bool		ok;
+
+	/* Verify syntax and parse string into a list of identifiers */
+	ok = SplitIdentifierString(rawname, ',', elemlist);
+
+	if (!ok)
+	{
+		GUC_check_errdetail("List syntax is invalid.");
+	}
+	else if (!ReplicationSlotCtl)
+	{
+		/*
+		 * We cannot validate the replication slot if the replication slots'
+		 * data has not been initialized. This is ok as we will anyway
+		 * validate the specified slot when waiting for them to catch up. See
+		 * StandbySlotsHaveCaughtup() for details.
+		 */
+	}
+	else
+	{
+		/* Check that the specified slots exist and are logical slots */
+		LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
+
+		foreach_ptr(char, name, *elemlist)
+		{
+			ReplicationSlot *slot;
+
+			slot = SearchNamedReplicationSlot(name, false);
+
+			if (!slot)
+			{
+				GUC_check_errdetail("replication slot \"%s\" does not exist",
+									name);
+				ok = false;
+				break;
+			}
+
+			if (!SlotIsPhysical(slot))
+			{
+				GUC_check_errdetail("\"%s\" is not a physical replication slot",
+									name);
+				ok = false;
+				break;
+			}
+		}
+
+		LWLockRelease(ReplicationSlotControlLock);
+	}
+
+	return ok;
+}
+
+/*
+ * GUC check_hook for standby_slot_names
+ */
+bool
+check_standby_slot_names(char **newval, void **extra, GucSource source)
+{
+	char	   *rawname;
+	char	   *ptr;
+	List	   *elemlist;
+	int			size;
+	bool		ok;
+	StandbySlotNamesConfigData *config;
+
+	if ((*newval)[0] == '\0')
+		return true;
+
+	/* Need a modifiable copy of the GUC string */
+	rawname = pstrdup(*newval);
+
+	/* Now verify if the specified slots exist and have correct type */
+	ok = validate_standby_slots(rawname, &elemlist);
+
+	if (!ok || elemlist == NIL)
+	{
+		pfree(rawname);
+		list_free(elemlist);
+		return ok;
+	}
+
+	/* Compute the size required for the StandbySlotNamesConfigData struct */
+	size = offsetof(StandbySlotNamesConfigData, slot_names);
+	foreach_ptr(char, slot_name, elemlist)
+		size += strlen(slot_name) + 1;
+
+	/* GUC extra value must be guc_malloc'd, not palloc'd */
+	config = (StandbySlotNamesConfigData *) guc_malloc(LOG, size);
+
+	/* Transform the data into StandbySlotNamesConfigData */
+	config->nslotnames = list_length(elemlist);
+
+	ptr = config->slot_names;
+	foreach_ptr(char, slot_name, elemlist)
+	{
+		strcpy(ptr, slot_name);
+		ptr += strlen(slot_name) + 1;
+	}
+
+	*extra = (void *) config;
+
+	pfree(rawname);
+	list_free(elemlist);
+	return true;
+}
+
+/*
+ * GUC assign_hook for standby_slot_names
+ */
+void
+assign_standby_slot_names(const char *newval, void *extra)
+{
+	/*
+	 * The standby slots may have changed, so we must recompute the oldest
+	 * LSN.
+	 */
+	ss_oldest_flush_lsn = InvalidXLogRecPtr;
+
+	standby_slot_names_config = (StandbySlotNamesConfigData *) extra;
+}
+
+/*
+ * Check if the passed slot_name is specified in the standby_slot_names GUC.
+ */
+bool
+SlotExistsInStandbySlotNames(const char *slot_name)
+{
+	const char *standby_slot_name;
+
+	/* Return false if there is no value in standby_slot_names */
+	if (standby_slot_names_config == NULL)
+		return false;
+
+	/*
+	 * XXX: We are not expecting this list to be long so a linear search
+	 * shouldn't hurt but if that turns out not to be true then we can cache
+	 * this information for each WalSender as well.
+	 */
+	standby_slot_name = standby_slot_names_config->slot_names;
+	for (int i = 0; i < standby_slot_names_config->nslotnames; i++)
+	{
+		if (strcmp(standby_slot_name, slot_name) == 0)
+			return true;
+
+		standby_slot_name += strlen(standby_slot_name) + 1;
+	}
+
+	return false;
+}
+
+/*
+ * Return true if the slots specified in standby_slot_names have caught up to
+ * the given WAL location, false otherwise.
+ *
+ * The elevel parameter specifies the error level used for logging messages
+ * related to slots that do not exist, are invalidated, or are inactive.
+ */
+bool
+StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel)
+{
+	const char *name;
+	int			caught_up_slot_num = 0;
+	XLogRecPtr	min_restart_lsn = InvalidXLogRecPtr;
+
+	/*
+	 * Don't need to wait for the standbys to catch up if there is no value in
+	 * standby_slot_names.
+	 */
+	if (standby_slot_names_config == NULL)
+		return true;
+
+	/*
+	 * Don't need to wait for the standbys to catch up if we are on a standby
+	 * server, since we do not support syncing slots to cascading standbys.
+	 */
+	if (RecoveryInProgress())
+		return true;
+
+	/*
+	 * Don't need to wait for the standbys to catch up if they are already
+	 * beyond the specified WAL location.
+	 */
+	if (!XLogRecPtrIsInvalid(ss_oldest_flush_lsn) &&
+		ss_oldest_flush_lsn >= wait_for_lsn)
+		return true;
+
+	/*
+	 * To prevent concurrent slot dropping and creation while filtering the
+	 * slots, take the ReplicationSlotControlLock outside of the loop.
+	 */
+	LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
+
+	name = standby_slot_names_config->slot_names;
+	for (int i = 0; i < standby_slot_names_config->nslotnames; i++)
+	{
+		XLogRecPtr	restart_lsn;
+		bool		invalidated;
+		bool		inactive;
+		ReplicationSlot *slot;
+
+		slot = SearchNamedReplicationSlot(name, false);
+
+		if (!slot)
+		{
+			/*
+			 * If a slot name provided in standby_slot_names does not exist,
+			 * report a message and exit the loop. A user can specify a slot
+			 * name that does not exist just before the server startup. The
+			 * GUC check_hook(validate_standby_slots) cannot validate such a
+			 * slot during startup as the ReplicationSlotCtl shared memory is
+			 * not initialized at that time. It is also possible for a user to
+			 * drop the slot in standby_slot_names afterwards.
+			 */
+			ereport(elevel,
+					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					errmsg("replication slot \"%s\" specified in parameter %s does not exist",
+						   name, "standby_slot_names"),
+					errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+							  name),
+					errhint("Consider creating the slot \"%s\" or amend parameter %s.",
+							name, "standby_slot_names"));
+			break;
+		}
+
+		if (SlotIsLogical(slot))
+		{
+			/*
+			 * If a logical slot name is provided in standby_slot_names,
+			 * report a message and exit the loop. Similar to the non-existent
+			 * case, a user can specify a logical slot name in
+			 * standby_slot_names before the server startup, or drop an
+			 * existing physical slot and recreate a logical slot with the
+			 * same name.
+			 */
+			ereport(elevel,
+					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+					errmsg("cannot have logical replication slot \"%s\" in parameter %s",
+						   name, "standby_slot_names"),
+					errdetail("Logical replication is waiting for correction on \"%s\".",
+							  name),
+					errhint("Consider removing logical slot \"%s\" from parameter %s.",
+							name, "standby_slot_names"));
+			break;
+		}
+
+		SpinLockAcquire(&slot->mutex);
+		restart_lsn = slot->data.restart_lsn;
+		invalidated = slot->data.invalidated != RS_INVAL_NONE;
+		inactive = slot->active_pid == 0;
+		SpinLockRelease(&slot->mutex);
+
+		if (invalidated)
+		{
+			/* Specified physical slot has been invalidated */
+			ereport(elevel,
+					errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+					errmsg("physical slot \"%s\" specified in parameter %s has been invalidated",
+						   name, "standby_slot_names"),
+					errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+							  name),
+					errhint("Consider dropping and recreating the slot \"%s\" or amend parameter %s.",
+							name, "standby_slot_names"));
+			break;
+		}
+
+		if (XLogRecPtrIsInvalid(restart_lsn) || restart_lsn < wait_for_lsn)
+		{
+			/* Log a message if no active_pid for this physical slot */
+			if (inactive)
+				ereport(elevel,
+						errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+						errmsg("replication slot \"%s\" specified in parameter %s does not have active_pid",
+							   name, "standby_slot_names"),
+						errdetail("Logical replication is waiting on the standby associated with \"%s\".",
+								  name),
+						errhint("Consider starting standby associated with \"%s\" or amend parameter %s.",
+								name, "standby_slot_names"));
+
+			/* Continue if the current slot hasn't caught up. */
+			break;
+		}
+
+		Assert(restart_lsn >= wait_for_lsn);
+
+		if (XLogRecPtrIsInvalid(min_restart_lsn) ||
+			min_restart_lsn > restart_lsn)
+			min_restart_lsn = restart_lsn;
+
+		caught_up_slot_num++;
+
+		name += strlen(name) + 1;
+	}
+
+	LWLockRelease(ReplicationSlotControlLock);
+
+	/*
+	 * Return false if not all the standbys have caught up to the specified
+	 * WAL location.
+	 */
+	if (caught_up_slot_num != standby_slot_names_config->nslotnames)
+		return false;
+
+	/* The ss_oldest_flush_lsn must not retreat. */
+	Assert(XLogRecPtrIsInvalid(ss_oldest_flush_lsn) ||
+		   min_restart_lsn >= ss_oldest_flush_lsn);
+
+	ss_oldest_flush_lsn = min_restart_lsn;
+
+	return true;
+}
+
+/*
+ * Wait for physical standbys to confirm receiving the given lsn.
+ *
+ * Used by logical decoding SQL functions. It waits for physical standbys
+ * corresponding to the physical slots specified in the standby_slot_names GUC.
+ */
+void
+WaitForStandbyConfirmation(XLogRecPtr wait_for_lsn)
+{
+	/*
+	 * Don't need to wait for the standby to catch up if the current acquired
+	 * slot is not a logical failover slot, or there is no value in
+	 * standby_slot_names.
+	 */
+	if (!MyReplicationSlot->data.failover || !standby_slot_names_config)
+		return;
+
+	ConditionVariablePrepareToSleep(&WalSndCtl->wal_confirm_rcv_cv);
+
+	for (;;)
+	{
+		CHECK_FOR_INTERRUPTS();
+
+		if (ConfigReloadPending)
+		{
+			ConfigReloadPending = false;
+			ProcessConfigFile(PGC_SIGHUP);
+		}
+
+		/* Exit if done waiting for every slot. */
+		if (StandbySlotsHaveCaughtup(wait_for_lsn, WARNING))
+			break;
+
+		/*
+		 * Wait for the slots in the standby_slot_names to catch up, but use a
+		 * timeout (1s) so we can also check if the standby_slot_names has
+		 * been changed.
+		 */
+		ConditionVariableTimedSleep(&WalSndCtl->wal_confirm_rcv_cv, 1000,
+									WAIT_EVENT_WAIT_FOR_STANDBY_CONFIRMATION);
+	}
+
+	ConditionVariableCancelSleep();
 }

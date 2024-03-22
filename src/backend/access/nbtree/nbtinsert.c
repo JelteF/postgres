@@ -19,12 +19,12 @@
 #include "access/nbtxlog.h"
 #include "access/transam.h"
 #include "access/xloginsert.h"
+#include "common/int.h"
 #include "common/pg_prng.h"
 #include "lib/qunique.h"
 #include "miscadmin.h"
 #include "storage/lmgr.h"
 #include "storage/predicate.h"
-#include "storage/smgr.h"
 
 /* Minimum tree height for application of fastpath optimization */
 #define BTREE_FASTPATH_MIN_LEVEL	2
@@ -3013,10 +3013,5 @@ _bt_blk_cmp(const void *arg1, const void *arg2)
 	BlockNumber b1 = *((BlockNumber *) arg1);
 	BlockNumber b2 = *((BlockNumber *) arg2);
 
-	if (b1 < b2)
-		return -1;
-	else if (b1 > b2)
-		return 1;
-
-	return 0;
+	return pg_cmp_u32(b1, b2);
 }

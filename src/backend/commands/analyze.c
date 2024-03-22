@@ -20,20 +20,15 @@
 #include "access/genam.h"
 #include "access/multixact.h"
 #include "access/relation.h"
-#include "access/sysattr.h"
 #include "access/table.h"
 #include "access/tableam.h"
 #include "access/transam.h"
 #include "access/tupconvert.h"
 #include "access/visibilitymap.h"
 #include "access/xact.h"
-#include "catalog/catalog.h"
 #include "catalog/index.h"
 #include "catalog/indexing.h"
-#include "catalog/pg_collation.h"
 #include "catalog/pg_inherits.h"
-#include "catalog/pg_namespace.h"
-#include "catalog/pg_statistic_ext.h"
 #include "commands/dbcommands.h"
 #include "commands/progress.h"
 #include "commands/tablecmds.h"
@@ -50,14 +45,9 @@
 #include "statistics/extended_stats_internal.h"
 #include "statistics/statistics.h"
 #include "storage/bufmgr.h"
-#include "storage/lmgr.h"
-#include "storage/proc.h"
 #include "storage/procarray.h"
-#include "utils/acl.h"
 #include "utils/attoptcache.h"
-#include "utils/builtins.h"
 #include "utils/datum.h"
-#include "utils/fmgroids.h"
 #include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -159,16 +149,15 @@ analyze_rel(Oid relid, RangeVar *relation,
 		return;
 
 	/*
-	 * Check if relation needs to be skipped based on ownership.  This check
+	 * Check if relation needs to be skipped based on privileges.  This check
 	 * happens also when building the relation list to analyze for a manual
 	 * operation, and needs to be done additionally here as ANALYZE could
-	 * happen across multiple transactions where relation ownership could have
-	 * changed in-between.  Make sure to generate only logs for ANALYZE in
-	 * this case.
+	 * happen across multiple transactions where privileges could have changed
+	 * in-between.  Make sure to generate only logs for ANALYZE in this case.
 	 */
-	if (!vacuum_is_relation_owner(RelationGetRelid(onerel),
-								  onerel->rd_rel,
-								  params->options & VACOPT_ANALYZE))
+	if (!vacuum_is_permitted_for_relation(RelationGetRelid(onerel),
+										  onerel->rd_rel,
+										  params->options & ~VACOPT_VACUUM))
 	{
 		relation_close(onerel, ShareUpdateExclusiveLock);
 		return;
@@ -349,9 +338,10 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
 	SetUserIdAndSecContext(onerel->rd_rel->relowner,
 						   save_sec_context | SECURITY_RESTRICTED_OPERATION);
 	save_nestlevel = NewGUCNestLevel();
+	RestrictSearchPath();
 
 	/* measure elapsed time iff autovacuum logging requires it */
-	if (IsAutoVacuumWorkerProcess() && params->log_min_duration >= 0)
+	if (AmAutoVacuumWorkerProcess() && params->log_min_duration >= 0)
 	{
 		if (track_io_timing)
 		{
@@ -729,7 +719,7 @@ do_analyze_rel(Relation onerel, VacuumParams *params,
 	vac_close_indexes(nindexes, Irel, NoLock);
 
 	/* Log the action if appropriate */
-	if (IsAutoVacuumWorkerProcess() && params->log_min_duration >= 0)
+	if (AmAutoVacuumWorkerProcess() && params->log_min_duration >= 0)
 	{
 		TimestampTz endtime = GetCurrentTimestamp();
 
@@ -1591,8 +1581,8 @@ acquire_inherited_sample_rows(Relation onerel, int elevel,
 
 				/* We may need to convert from child's rowtype to parent's */
 				if (childrows > 0 &&
-					!equalTupleDescs(RelationGetDescr(childrel),
-									 RelationGetDescr(onerel)))
+					!equalRowTypes(RelationGetDescr(childrel),
+								   RelationGetDescr(onerel)))
 				{
 					TupleConversionMap *map;
 

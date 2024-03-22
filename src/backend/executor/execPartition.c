@@ -16,15 +16,12 @@
 #include "access/table.h"
 #include "access/tableam.h"
 #include "catalog/partition.h"
-#include "catalog/pg_inherits.h"
-#include "catalog/pg_type.h"
 #include "executor/execPartition.h"
 #include "executor/executor.h"
 #include "executor/nodeModifyTable.h"
 #include "foreign/fdwapi.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
-#include "nodes/makefuncs.h"
 #include "partitioning/partbounds.h"
 #include "partitioning/partdesc.h"
 #include "partitioning/partprune.h"
@@ -361,7 +358,7 @@ ExecFindPartition(ModifyTableState *mtstate,
 				if (rri)
 				{
 					/* Verify this ResultRelInfo allows INSERTs */
-					CheckValidResultRel(rri, CMD_INSERT);
+					CheckValidResultRel(rri, CMD_INSERT, NIL);
 
 					/*
 					 * Initialize information needed to insert this and
@@ -527,7 +524,7 @@ ExecInitPartitionInfo(ModifyTableState *mtstate, EState *estate,
 	 * partition-key becomes a DELETE+INSERT operation, so this check is still
 	 * required when the operation is CMD_UPDATE.
 	 */
-	CheckValidResultRel(leaf_part_rri, CMD_INSERT);
+	CheckValidResultRel(leaf_part_rri, CMD_INSERT, NIL);
 
 	/*
 	 * Open partition indices.  The user may have asked to check for conflicts
@@ -612,8 +609,8 @@ ExecInitPartitionInfo(ModifyTableState *mtstate, EState *estate,
 	 * Build the RETURNING projection for the partition.  Note that we didn't
 	 * build the returningList for partitions within the planner, but simple
 	 * translation of varattnos will suffice.  This only occurs for the INSERT
-	 * case or in the case of UPDATE tuple routing where we didn't find a
-	 * result rel to reuse.
+	 * case or in the case of UPDATE/MERGE tuple routing where we didn't find
+	 * a result rel to reuse.
 	 */
 	if (node && node->returningLists != NIL)
 	{
@@ -622,11 +619,13 @@ ExecInitPartitionInfo(ModifyTableState *mtstate, EState *estate,
 		List	   *returningList;
 
 		/* See the comment above for WCO lists. */
-		/* (except no RETURNING support for MERGE yet) */
 		Assert((node->operation == CMD_INSERT &&
 				list_length(node->returningLists) == 1 &&
 				list_length(node->resultRelations) == 1) ||
 			   (node->operation == CMD_UPDATE &&
+				list_length(node->returningLists) ==
+				list_length(node->resultRelations)) ||
+			   (node->operation == CMD_MERGE &&
 				list_length(node->returningLists) ==
 				list_length(node->resultRelations)));
 

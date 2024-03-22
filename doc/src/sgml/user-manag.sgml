@@ -409,10 +409,10 @@ REVOKE <replaceable>group_role</replaceable> FROM <replaceable>role1</replaceabl
    than the original login role, and any database objects created are
    considered owned by the group role not the login role.  Second, member
    roles that have been granted membership with the
-   <literal>INHERIT</literal> option automatically have use
-   of the privileges of those roles, including any
-   privileges inherited by those roles.
-   As an example, suppose we have done:
+   <literal>INHERIT</literal> option automatically have use of the
+   privileges of those directly or indirectly a member of, though the
+   chain stops at memberships lacking the inherit option.  As an example,
+   suppose we have done:
 <programlisting>
 CREATE ROLE joe LOGIN;
 CREATE ROLE admin;
@@ -681,6 +681,18 @@ DROP ROLE doomed_role;
        <entry>Allow executing
        the <link linkend="sql-checkpoint"><command>CHECKPOINT</command></link>
        command.</entry>
+      </row>
+      <row>
+       <entry>pg_maintain</entry>
+       <entry>Allow executing
+       <link linkend="sql-vacuum"><command>VACUUM</command></link>,
+       <link linkend="sql-analyze"><command>ANALYZE</command></link>,
+       <link linkend="sql-cluster"><command>CLUSTER</command></link>,
+       <link linkend="sql-refreshmaterializedview"><command>REFRESH MATERIALIZED VIEW</command></link>,
+       <link linkend="sql-reindex"><command>REINDEX</command></link>,
+       and <link linkend="sql-lock"><command>LOCK TABLE</command></link> on all
+       relations, as if having <literal>MAINTAIN</literal> rights on those
+       objects, even without having it explicitly.</entry>
       </row>
       <row>
        <entry>pg_use_reserved_connections</entry>

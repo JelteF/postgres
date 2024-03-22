@@ -500,9 +500,9 @@ typedef struct TableAmRoutine
 	 */
 
 	/* see table_tuple_insert() for reference about parameters */
-	void		(*tuple_insert) (Relation rel, TupleTableSlot *slot,
-								 CommandId cid, int options,
-								 struct BulkInsertStateData *bistate);
+	TupleTableSlot *(*tuple_insert) (Relation rel, TupleTableSlot *slot,
+									 CommandId cid, int options,
+									 struct BulkInsertStateData *bistate);
 
 	/* see table_tuple_insert_speculative() for reference about parameters */
 	void		(*tuple_insert_speculative) (Relation rel,
@@ -707,6 +707,14 @@ typedef struct TableAmRoutine
 	 * Miscellaneous functions.
 	 * ------------------------------------------------------------------------
 	 */
+
+	/*
+	 * This callback frees relation private cache data stored in rd_amcache.
+	 * After the call all memory related to rd_amcache must be freed,
+	 * rd_amcache must be set to NULL. If this callback is not provided,
+	 * rd_amcache is assumed to point to a single memory chunk.
+	 */
+	void		(*free_rd_amcache) (Relation rel);
 
 	/*
 	 * See table_relation_size().
@@ -1037,11 +1045,6 @@ table_rescan_set_params(TableScanDesc scan, struct ScanKeyData *key,
 										 allow_strat, allow_sync,
 										 allow_pagemode);
 }
-
-/*
- * Update snapshot used by the scan.
- */
-extern void table_scan_update_snapshot(TableScanDesc scan, Snapshot snapshot);
 
 /*
  * Return next tuple from `scan`, store in slot.
@@ -1389,16 +1392,19 @@ table_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
  * behavior) is also just passed through to RelationGetBufferForTuple. If
  * `bistate` is provided, table_finish_bulk_insert() needs to be called.
  *
- * On return the slot's tts_tid and tts_tableOid are updated to reflect the
- * insertion. But note that any toasting of fields within the slot is NOT
- * reflected in the slots contents.
+ * Returns the slot containing the inserted tuple, which may differ from the
+ * given slot. For instance, the source slot may be VirtualTupleTableSlot, but
+ * the result slot may correspond to the table AM. On return the slot's
+ * tts_tid and tts_tableOid are updated to reflect the insertion. But note
+ * that any toasting of fields within the slot is NOT reflected in the slots
+ * contents.
  */
-static inline void
+static inline TupleTableSlot *
 table_tuple_insert(Relation rel, TupleTableSlot *slot, CommandId cid,
 				   int options, struct BulkInsertStateData *bistate)
 {
-	rel->rd_tableam->tuple_insert(rel, slot, cid, options,
-								  bistate);
+	return rel->rd_tableam->tuple_insert(rel, slot, cid, options,
+										 bistate);
 }
 
 /*
@@ -1851,6 +1857,32 @@ table_index_validate_scan(Relation table_rel,
  * Miscellaneous functionality
  * ----------------------------------------------------------------------------
  */
+
+/*
+ * Frees relation private cache data stored in rd_amcache.  Uses
+ * free_rd_amcache method if provided.  Assumes rd_amcache to point to single
+ * memory chunk otherwise.
+ */
+static inline void
+table_free_rd_amcache(Relation rel)
+{
+	if (rel->rd_tableam && rel->rd_tableam->free_rd_amcache)
+	{
+		rel->rd_tableam->free_rd_amcache(rel);
+
+		/*
+		 * We are assuming free_rd_amcache() did clear the cache and left NULL
+		 * in rd_amcache.
+		 */
+		Assert(rel->rd_amcache == NULL);
+	}
+	else
+	{
+		if (rel->rd_amcache)
+			pfree(rel->rd_amcache);
+		rel->rd_amcache = NULL;
+	}
+}
 
 /*
  * Return the current size of `rel` in bytes. If `forkNumber` is

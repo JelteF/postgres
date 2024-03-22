@@ -16,7 +16,6 @@
 #include "postgres.h"
 
 #include "access/parallel.h"
-#include "catalog/catalog.h"
 #include "executor/instrument.h"
 #include "pgstat.h"
 #include "storage/buf_internals.h"
@@ -242,7 +241,7 @@ GetLocalVictimBuffer(void)
 		Page		localpage = (char *) LocalBufHdrGetBlock(bufHdr);
 
 		/* Find smgr relation for buffer */
-		oreln = smgropen(BufTagGetRelFileLocator(&bufHdr->tag), MyBackendId);
+		oreln = smgropen(BufTagGetRelFileLocator(&bufHdr->tag), MyProcNumber);
 
 		PageSetChecksumInplace(localpage, bufHdr->tag.blockNum);
 
@@ -373,6 +372,9 @@ ExtendBufferedRelLocal(BufferManagerRelation bmr,
 
 		victim_buf_id = -buffers[i] - 1;
 		victim_buf_hdr = GetLocalBufferDescriptor(victim_buf_id);
+
+		/* in case we need to pin an existing buffer below */
+		ResourceOwnerEnlarge(CurrentResourceOwner);
 
 		InitBufferTag(&tag, &bmr.smgr->smgr_rlocator.locator, fork, first_block + i);
 
@@ -506,7 +508,7 @@ DropRelationLocalBuffers(RelFileLocator rlocator, ForkNumber forkNum,
 				elog(ERROR, "block %u of %s is still referenced (local %u)",
 					 bufHdr->tag.blockNum,
 					 relpathbackend(BufTagGetRelFileLocator(&bufHdr->tag),
-									MyBackendId,
+									MyProcNumber,
 									BufTagGetForkNum(&bufHdr->tag)),
 					 LocalRefCount[i]);
 
@@ -551,7 +553,7 @@ DropRelationAllLocalBuffers(RelFileLocator rlocator)
 				elog(ERROR, "block %u of %s is still referenced (local %u)",
 					 bufHdr->tag.blockNum,
 					 relpathbackend(BufTagGetRelFileLocator(&bufHdr->tag),
-									MyBackendId,
+									MyProcNumber,
 									BufTagGetForkNum(&bufHdr->tag)),
 					 LocalRefCount[i]);
 			/* Remove entry from hashtable */
@@ -646,6 +648,8 @@ InitLocalBuffers(void)
  * XXX: We could have a slightly more efficient version of PinLocalBuffer()
  * that does not support adjusting the usagecount - but so far it does not
  * seem worth the trouble.
+ *
+ * Note that ResourceOwnerEnlarge() must have been done already.
  */
 bool
 PinLocalBuffer(BufferDesc *buf_hdr, bool adjust_usagecount)

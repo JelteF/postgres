@@ -30,13 +30,11 @@
 
 #include "access/xact.h"
 #include "access/xlogutils.h"
-#include "access/xlog_internal.h"
 #include "fmgr.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "replication/decode.h"
 #include "replication/logical.h"
-#include "replication/origin.h"
 #include "replication/reorderbuffer.h"
 #include "replication/snapbuild.h"
 #include "storage/proc.h"
@@ -523,6 +521,18 @@ CreateDecodingContext(XLogRecPtr start_lsn,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("replication slot \"%s\" was not created in this database",
 						NameStr(slot->data.name))));
+
+	/*
+	 * Do not allow consumption of a "synchronized" slot until the standby
+	 * gets promoted.
+	 */
+	if (RecoveryInProgress() && slot->data.synced)
+		ereport(ERROR,
+				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				errmsg("cannot use replication slot \"%s\" for logical decoding",
+					   NameStr(slot->data.name)),
+				errdetail("This slot is being synchronized from the primary server."),
+				errhint("Specify another replication slot."));
 
 	/*
 	 * Check if slot has been invalidated due to max_slot_wal_keep_size. Avoid

@@ -56,6 +56,7 @@
 #include "catalog/storage.h"
 #include "commands/tablecmds.h"
 #include "commands/typecmds.h"
+#include "common/int.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
@@ -552,6 +553,9 @@ CheckAttributeType(const char *attname,
 	char		att_typtype = get_typtype(atttypid);
 	Oid			att_typelem;
 
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
 	if (att_typtype == TYPTYPE_PSEUDO)
 	{
 		/*
@@ -680,10 +684,11 @@ CheckAttributeType(const char *attname,
  *		Construct and insert a set of tuples in pg_attribute.
  *
  * Caller has already opened and locked pg_attribute.  tupdesc contains the
- * attributes to insert.  attcacheoff is always initialized to -1.  attoptions
- * supplies the values for the attoptions fields and must contain the same
- * number of elements as tupdesc or be NULL.  The other variable-length fields
- * of pg_attribute are always initialized to null values.
+ * attributes to insert.  attcacheoff is always initialized to -1.
+ * tupdesc_extra supplies the values for certain variable-length/nullable
+ * pg_attribute fields and must contain the same number of elements as tupdesc
+ * or be NULL.  The other variable-length fields of pg_attribute are always
+ * initialized to null values.
  *
  * indstate is the index state for CatalogTupleInsertWithInfo.  It can be
  * passed as NULL, in which case we'll fetch the necessary info.  (Don't do
@@ -697,7 +702,7 @@ void
 InsertPgAttributeTuples(Relation pg_attribute_rel,
 						TupleDesc tupdesc,
 						Oid new_rel_oid,
-						const Datum *attoptions,
+						const FormExtraData_pg_attribute tupdesc_extra[],
 						CatalogIndexState indstate)
 {
 	TupleTableSlot **slot;
@@ -719,6 +724,7 @@ InsertPgAttributeTuples(Relation pg_attribute_rel,
 	while (natts < tupdesc->natts)
 	{
 		Form_pg_attribute attrs = TupleDescAttr(tupdesc, natts);
+		const FormExtraData_pg_attribute *attrs_extra = tupdesc_extra ? &tupdesc_extra[natts] : NULL;
 
 		ExecClearTuple(slot[slotCount]);
 
@@ -750,15 +756,23 @@ InsertPgAttributeTuples(Relation pg_attribute_rel,
 		slot[slotCount]->tts_values[Anum_pg_attribute_attislocal - 1] = BoolGetDatum(attrs->attislocal);
 		slot[slotCount]->tts_values[Anum_pg_attribute_attinhcount - 1] = Int16GetDatum(attrs->attinhcount);
 		slot[slotCount]->tts_values[Anum_pg_attribute_attcollation - 1] = ObjectIdGetDatum(attrs->attcollation);
-		if (attoptions && attoptions[natts] != (Datum) 0)
-			slot[slotCount]->tts_values[Anum_pg_attribute_attoptions - 1] = attoptions[natts];
+		if (attrs_extra)
+		{
+			slot[slotCount]->tts_values[Anum_pg_attribute_attstattarget - 1] = attrs_extra->attstattarget.value;
+			slot[slotCount]->tts_isnull[Anum_pg_attribute_attstattarget - 1] = attrs_extra->attstattarget.isnull;
+
+			slot[slotCount]->tts_values[Anum_pg_attribute_attoptions - 1] = attrs_extra->attoptions.value;
+			slot[slotCount]->tts_isnull[Anum_pg_attribute_attoptions - 1] = attrs_extra->attoptions.isnull;
+		}
 		else
+		{
+			slot[slotCount]->tts_isnull[Anum_pg_attribute_attstattarget - 1] = true;
 			slot[slotCount]->tts_isnull[Anum_pg_attribute_attoptions - 1] = true;
+		}
 
 		/*
 		 * The remaining fields are not set for new columns.
 		 */
-		slot[slotCount]->tts_isnull[Anum_pg_attribute_attstattarget - 1] = true;
 		slot[slotCount]->tts_isnull[Anum_pg_attribute_attacl - 1] = true;
 		slot[slotCount]->tts_isnull[Anum_pg_attribute_attfdwoptions - 1] = true;
 		slot[slotCount]->tts_isnull[Anum_pg_attribute_attmissingval - 1] = true;
@@ -2141,7 +2155,7 @@ StoreRelCheck(Relation rel, const char *ccname, Node *expr,
 							  is_local, /* conislocal */
 							  inhcount, /* coninhcount */
 							  is_no_inherit,	/* connoinherit */
-							  false,	/* conwithoutoverlaps */
+							  false,	/* conperiod */
 							  is_internal); /* internally constructed? */
 
 	pfree(ccbin);
@@ -2192,7 +2206,7 @@ StoreRelNotNull(Relation rel, const char *nnname, AttrNumber attnum,
 							  is_local,
 							  inhcount,
 							  is_no_inherit,
-							  false,	/* conwithoutoverlaps */
+							  false,	/* conperiod */
 							  false);
 	return constrOid;
 }
@@ -2759,11 +2773,7 @@ list_cookedconstr_attnum_cmp(const ListCell *p1, const ListCell *p2)
 	AttrNumber	v1 = ((CookedConstraint *) lfirst(p1))->attnum;
 	AttrNumber	v2 = ((CookedConstraint *) lfirst(p2))->attnum;
 
-	if (v1 < v2)
-		return -1;
-	if (v1 > v2)
-		return 1;
-	return 0;
+	return pg_cmp_s16(v1, v2);
 }
 
 /*

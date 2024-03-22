@@ -20,19 +20,15 @@
 #include "access/transam.h"
 #include "access/xlog.h"
 #include "access/xloginsert.h"
-#include "catalog/catalog.h"
 #include "miscadmin.h"
 #include "pgstat.h"
 #include "storage/bufmgr.h"
-#include "utils/snapmgr.h"
 #include "utils/rel.h"
 #include "utils/snapmgr.h"
 
 /* Working data for heap_page_prune and subroutines */
 typedef struct
 {
-	Relation	rel;
-
 	/* tuple visibility test, initialized for the relation */
 	GlobalVisState *vistest;
 	/* whether or not dead items can be set LP_UNUSED during pruning */
@@ -199,18 +195,17 @@ heap_page_prune_opt(Relation relation, Buffer buffer)
  * array following array truncation by us.
  *
  * vistest is used to distinguish whether tuples are DEAD or RECENTLY_DEAD
- * (see heap_prune_satisfies_vacuum and
- * HeapTupleSatisfiesVacuum).
+ * (see heap_prune_satisfies_vacuum).
  *
- * mark_unused_now indicates whether or not dead items can be set LP_UNUSED during
- * pruning.
- *
- * off_loc is the offset location required by the caller to use in error
- * callback.
+ * mark_unused_now indicates whether or not dead items can be set LP_UNUSED
+ * during pruning.
  *
  * presult contains output parameters needed by callers such as the number of
  * tuples removed and the number of line pointers newly marked LP_DEAD.
  * heap_page_prune() is responsible for initializing it.
+ *
+ * off_loc is the offset location required by the caller to use in error
+ * callback.
  */
 void
 heap_page_prune(Relation relation, Buffer buffer,
@@ -238,7 +233,6 @@ heap_page_prune(Relation relation, Buffer buffer,
 	 * initialize the rest of our working state.
 	 */
 	prstate.new_prune_xid = InvalidTransactionId;
-	prstate.rel = relation;
 	prstate.vistest = vistest;
 	prstate.mark_unused_now = mark_unused_now;
 	prstate.snapshotConflictHorizon = InvalidTransactionId;
@@ -253,7 +247,7 @@ heap_page_prune(Relation relation, Buffer buffer,
 	presult->nnewlpdead = 0;
 
 	maxoff = PageGetMaxOffsetNumber(page);
-	tup.t_tableOid = RelationGetRelid(prstate.rel);
+	tup.t_tableOid = RelationGetRelid(relation);
 
 	/*
 	 * Determine HTSV for all tuples.

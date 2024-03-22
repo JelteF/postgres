@@ -16,7 +16,6 @@
 #include "postgres.h"
 
 #include "access/printtup.h"
-#include "libpq/libpq.h"
 #include "libpq/pqformat.h"
 #include "tcop/pquery.h"
 #include "utils/lsyscache.h"
@@ -355,7 +354,7 @@ printtup(TupleTableSlot *slot, DestReceiver *self)
 			char	   *outputstr;
 
 			outputstr = OutputFunctionCall(&thisState->finfo, attr);
-			pq_sendcountedtext(buf, outputstr, strlen(outputstr), false);
+			pq_sendcountedtext(buf, outputstr, strlen(outputstr));
 		}
 		else
 		{

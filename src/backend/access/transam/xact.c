@@ -51,7 +51,6 @@
 #include "replication/origin.h"
 #include "replication/snapbuild.h"
 #include "replication/syncrep.h"
-#include "replication/walsender.h"
 #include "storage/condition_variable.h"
 #include "storage/fd.h"
 #include "storage/lmgr.h"
@@ -62,7 +61,6 @@
 #include "storage/sinvaladt.h"
 #include "storage/smgr.h"
 #include "utils/builtins.h"
-#include "utils/catcache.h"
 #include "utils/combocid.h"
 #include "utils/guc.h"
 #include "utils/inval.h"
@@ -343,6 +341,9 @@ static void CommitTransaction(void);
 static TransactionId RecordTransactionAbort(bool isSubXact);
 static void StartTransaction(void);
 
+static void CommitTransactionCommandInternal(void);
+static void AbortCurrentTransactionInternal(void);
+
 static void StartSubTransaction(void);
 static void CommitSubTransaction(void);
 static void AbortSubTransaction(void);
@@ -600,9 +601,9 @@ GetStableLatestTransactionId(void)
 	static LocalTransactionId lxid = InvalidLocalTransactionId;
 	static TransactionId stablexid = InvalidTransactionId;
 
-	if (lxid != MyProc->lxid)
+	if (lxid != MyProc->vxid.lxid)
 	{
-		lxid = MyProc->lxid;
+		lxid = MyProc->vxid.lxid;
 		stablexid = GetTopTransactionIdIfAny();
 		if (!TransactionIdIsValid(stablexid))
 			stablexid = ReadNextTransactionId();
@@ -2084,10 +2085,10 @@ StartTransaction(void)
 	AtStart_ResourceOwner();
 
 	/*
-	 * Assign a new LocalTransactionId, and combine it with the backendId to
+	 * Assign a new LocalTransactionId, and combine it with the proc number to
 	 * form a virtual transaction id.
 	 */
-	vxid.backendId = MyBackendId;
+	vxid.procNumber = MyProcNumber;
 	vxid.localTransactionId = GetNextLocalTransactionId();
 
 	/*
@@ -2097,10 +2098,11 @@ StartTransaction(void)
 
 	/*
 	 * Advertise it in the proc array.  We assume assignment of
-	 * localTransactionId is atomic, and the backendId should be set already.
+	 * localTransactionId is atomic, and the proc number should be set
+	 * already.
 	 */
-	Assert(MyProc->backendId == vxid.backendId);
-	MyProc->lxid = vxid.localTransactionId;
+	Assert(MyProc->vxid.procNumber == vxid.procNumber);
+	MyProc->vxid.lxid = vxid.localTransactionId;
 
 	TRACE_POSTGRESQL_TRANSACTION_START(vxid.localTransactionId);
 
@@ -2138,6 +2140,10 @@ StartTransaction(void)
 	 * progress"
 	 */
 	s->state = TRANS_INPROGRESS;
+
+	/* Schedule transaction timeout */
+	if (TransactionTimeout > 0)
+		enable_timeout_after(TRANSACTION_TIMEOUT, TransactionTimeout);
 
 	ShowTransactionState("StartTransaction");
 }
@@ -2258,6 +2264,10 @@ CommitTransaction(void)
 	s->state = TRANS_COMMIT;
 	s->parallelModeLevel = 0;
 
+	/* Disable transaction timeout */
+	if (TransactionTimeout > 0)
+		disable_timeout(TRANSACTION_TIMEOUT, false);
+
 	if (!is_parallel_worker)
 	{
 		/*
@@ -2281,7 +2291,7 @@ CommitTransaction(void)
 		ParallelWorkerReportLastRecEnd(XactLastRecEnd);
 	}
 
-	TRACE_POSTGRESQL_TRANSACTION_COMMIT(MyProc->lxid);
+	TRACE_POSTGRESQL_TRANSACTION_COMMIT(MyProc->vxid.lxid);
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
@@ -2531,6 +2541,10 @@ PrepareTransaction(void)
 	 */
 	s->state = TRANS_PREPARE;
 
+	/* Disable transaction timeout */
+	if (TransactionTimeout > 0)
+		disable_timeout(TRANSACTION_TIMEOUT, false);
+
 	prepared_at = GetCurrentTimestamp();
 
 	/*
@@ -2703,6 +2717,10 @@ AbortTransaction(void)
 	/* Prevent cancel/die interrupt while cleaning up */
 	HOLD_INTERRUPTS();
 
+	/* Disable transaction timeout */
+	if (TransactionTimeout > 0)
+		disable_timeout(TRANSACTION_TIMEOUT, false);
+
 	/* Make sure we have a valid memory context and resource owner */
 	AtAbort_Memory();
 	AtAbort_ResourceOwner();
@@ -2824,7 +2842,7 @@ AbortTransaction(void)
 		XLogSetAsyncXactLSN(XactLastRecEnd);
 	}
 
-	TRACE_POSTGRESQL_TRANSACTION_ABORT(MyProc->lxid);
+	TRACE_POSTGRESQL_TRANSACTION_ABORT(MyProc->vxid.lxid);
 
 	/*
 	 * Let others know about no transaction in progress by me. Note that this
@@ -3026,15 +3044,57 @@ RestoreTransactionCharacteristics(const SavedTransactionCharacteristics *s)
 	XactDeferrable = s->save_XactDeferrable;
 }
 
-
 /*
- *	CommitTransactionCommand
+ *	CommitTransactionCommand -- a wrapper function handling the
+ *		loop over subtransactions to avoid a potentially dangerous recursion
+ *		in CommitTransactionCommandInternal().
  */
 void
 CommitTransactionCommand(void)
 {
+	while (true)
+	{
+		switch (CurrentTransactionState->blockState)
+		{
+				/*
+				 * The current already-failed subtransaction is ending due to
+				 * a ROLLBACK or ROLLBACK TO command, so pop it and
+				 * recursively examine the parent (which could be in any of
+				 * several states).
+				 */
+			case TBLOCK_SUBABORT_END:
+				CleanupSubTransaction();
+				continue;
+
+				/*
+				 * As above, but it's not dead yet, so abort first.
+				 */
+			case TBLOCK_SUBABORT_PENDING:
+				AbortSubTransaction();
+				CleanupSubTransaction();
+				continue;
+			default:
+				break;
+		}
+		CommitTransactionCommandInternal();
+		break;
+	}
+}
+
+/*
+ *	CommitTransactionCommandInternal - a function doing all the material work
+ *		regarding handling the commit transaction command except for loop over
+ *		subtransactions.
+ */
+static void
+CommitTransactionCommandInternal(void)
+{
 	TransactionState s = CurrentTransactionState;
 	SavedTransactionCharacteristics savetc;
+
+	/* This states are handled in CommitTransactionCommand() */
+	Assert(s->blockState != TBLOCK_SUBABORT_END &&
+		   s->blockState != TBLOCK_SUBABORT_PENDING);
 
 	/* Must save in case we need to restore below */
 	SaveTransactionCharacteristics(&savetc);
@@ -3220,25 +3280,6 @@ CommitTransactionCommand(void)
 			break;
 
 			/*
-			 * The current already-failed subtransaction is ending due to a
-			 * ROLLBACK or ROLLBACK TO command, so pop it and recursively
-			 * examine the parent (which could be in any of several states).
-			 */
-		case TBLOCK_SUBABORT_END:
-			CleanupSubTransaction();
-			CommitTransactionCommand();
-			break;
-
-			/*
-			 * As above, but it's not dead yet, so abort first.
-			 */
-		case TBLOCK_SUBABORT_PENDING:
-			AbortSubTransaction();
-			CleanupSubTransaction();
-			CommitTransactionCommand();
-			break;
-
-			/*
 			 * The current subtransaction is the target of a ROLLBACK TO
 			 * command.  Abort and pop it, then start a new subtransaction
 			 * with the same name.
@@ -3295,16 +3336,72 @@ CommitTransactionCommand(void)
 				s->blockState = TBLOCK_SUBINPROGRESS;
 			}
 			break;
+		default:
+			/* Keep compiler quiet */
+			break;
 	}
 }
 
 /*
- *	AbortCurrentTransaction
+ *	AbortCurrentTransaction -- a wrapper function handling the
+ *		loop over subtransactions to avoid potentially dangerous recursion in
+ *		AbortCurrentTransactionInternal().
  */
 void
 AbortCurrentTransaction(void)
 {
+	while (true)
+	{
+		switch (CurrentTransactionState->blockState)
+		{
+				/*
+				 * If we failed while trying to create a subtransaction, clean
+				 * up the broken subtransaction and abort the parent.  The
+				 * same applies if we get a failure while ending a
+				 * subtransaction.
+				 */
+			case TBLOCK_SUBBEGIN:
+			case TBLOCK_SUBRELEASE:
+			case TBLOCK_SUBCOMMIT:
+			case TBLOCK_SUBABORT_PENDING:
+			case TBLOCK_SUBRESTART:
+				AbortSubTransaction();
+				CleanupSubTransaction();
+				continue;
+
+				/*
+				 * Same as above, except the Abort() was already done.
+				 */
+			case TBLOCK_SUBABORT_END:
+			case TBLOCK_SUBABORT_RESTART:
+				CleanupSubTransaction();
+				continue;
+			default:
+				break;
+		}
+		AbortCurrentTransactionInternal();
+		break;
+	}
+}
+
+/*
+ *	AbortCurrentTransactionInternal - a function doing all the material work
+ *		regarding handling the abort transaction command except for loop over
+ *		subtransactions.
+ */
+static void
+AbortCurrentTransactionInternal(void)
+{
 	TransactionState s = CurrentTransactionState;
+
+	/* This states are handled in AbortCurrentTransaction() */
+	Assert(s->blockState != TBLOCK_SUBBEGIN &&
+		   s->blockState != TBLOCK_SUBRELEASE &&
+		   s->blockState != TBLOCK_SUBCOMMIT &&
+		   s->blockState != TBLOCK_SUBABORT_PENDING &&
+		   s->blockState != TBLOCK_SUBRESTART &&
+		   s->blockState != TBLOCK_SUBABORT_END &&
+		   s->blockState != TBLOCK_SUBABORT_RESTART);
 
 	switch (s->blockState)
 	{
@@ -3426,29 +3523,8 @@ AbortCurrentTransaction(void)
 			AbortSubTransaction();
 			s->blockState = TBLOCK_SUBABORT;
 			break;
-
-			/*
-			 * If we failed while trying to create a subtransaction, clean up
-			 * the broken subtransaction and abort the parent.  The same
-			 * applies if we get a failure while ending a subtransaction.
-			 */
-		case TBLOCK_SUBBEGIN:
-		case TBLOCK_SUBRELEASE:
-		case TBLOCK_SUBCOMMIT:
-		case TBLOCK_SUBABORT_PENDING:
-		case TBLOCK_SUBRESTART:
-			AbortSubTransaction();
-			CleanupSubTransaction();
-			AbortCurrentTransaction();
-			break;
-
-			/*
-			 * Same as above, except the Abort() was already done.
-			 */
-		case TBLOCK_SUBABORT_END:
-		case TBLOCK_SUBABORT_RESTART:
-			CleanupSubTransaction();
-			AbortCurrentTransaction();
+		default:
+			/* Keep compiler quiet */
 			break;
 	}
 }
@@ -5507,8 +5583,22 @@ ShowTransactionStateRec(const char *str, TransactionState s)
 {
 	StringInfoData buf;
 
-	initStringInfo(&buf);
+	if (s->parent)
+	{
+		/*
+		 * Since this function recurses, it could be driven to stack overflow.
+		 * This is just a debugging aid, so we can leave out some details
+		 * instead of erroring out with check_stack_depth().
+		 */
+		if (stack_is_too_deep())
+			ereport(DEBUG5,
+					(errmsg_internal("%s(%d): parent omitted to avoid stack overflow",
+									 str, s->nestingLevel)));
+		else
+			ShowTransactionStateRec(str, s->parent);
+	}
 
+	initStringInfo(&buf);
 	if (s->nChildXids > 0)
 	{
 		int			i;
@@ -5517,10 +5607,6 @@ ShowTransactionStateRec(const char *str, TransactionState s)
 		for (i = 1; i < s->nChildXids; i++)
 			appendStringInfo(&buf, " %u", s->childXids[i]);
 	}
-
-	if (s->parent)
-		ShowTransactionStateRec(str, s->parent);
-
 	ereport(DEBUG5,
 			(errmsg_internal("%s(%d) name: %s; blockState: %s; state: %s, xid/subid/cid: %u/%u/%u%s%s",
 							 str, s->nestingLevel,
@@ -5532,7 +5618,6 @@ ShowTransactionStateRec(const char *str, TransactionState s)
 							 (unsigned int) currentCommandId,
 							 currentCommandIdUsed ? " (used)" : "",
 							 buf.data)));
-
 	pfree(buf.data);
 }
 

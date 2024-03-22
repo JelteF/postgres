@@ -451,7 +451,7 @@ main(int argc, char **argv)
 		pg_log_info("no rewind required");
 		if (writerecoveryconf && !dry_run)
 			WriteRecoveryConfig(conn, datadir_target,
-								GenerateRecoveryConfig(conn, NULL));
+								GenerateRecoveryConfig(conn, NULL, NULL));
 		exit(0);
 	}
 
@@ -525,7 +525,7 @@ main(int argc, char **argv)
 	/* Also update the standby configuration, if requested. */
 	if (writerecoveryconf && !dry_run)
 		WriteRecoveryConfig(conn, datadir_target,
-							GenerateRecoveryConfig(conn, NULL));
+							GenerateRecoveryConfig(conn, NULL, NULL));
 
 	/* don't need the source connection anymore */
 	source->destroy(source);
@@ -1055,8 +1055,7 @@ static void
 getRestoreCommand(const char *argv0)
 {
 	int			rc;
-	char		postgres_exec_path[MAXPGPATH],
-				cmd_output[MAXPGPATH];
+	char		postgres_exec_path[MAXPGPATH];
 	PQExpBuffer postgres_cmd;
 
 	if (!restore_wal)
@@ -1105,15 +1104,14 @@ getRestoreCommand(const char *argv0)
 	/* add -C switch, for restore_command */
 	appendPQExpBufferStr(postgres_cmd, " -C restore_command");
 
-	if (!pipe_read_line(postgres_cmd->data, cmd_output, sizeof(cmd_output)))
-		exit(1);
+	restore_command = pipe_read_line(postgres_cmd->data);
+	if (restore_command == NULL)
+		pg_fatal("unable to read restore_command from target cluster");
 
-	(void) pg_strip_crlf(cmd_output);
+	(void) pg_strip_crlf(restore_command);
 
-	if (strcmp(cmd_output, "") == 0)
+	if (strcmp(restore_command, "") == 0)
 		pg_fatal("restore_command is not set in the target cluster");
-
-	restore_command = pg_strdup(cmd_output);
 
 	pg_log_debug("using for rewind restore_command = \'%s\'",
 				 restore_command);

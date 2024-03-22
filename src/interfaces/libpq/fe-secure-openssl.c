@@ -91,12 +91,7 @@ static bool ssl_lib_initialized = false;
 
 static long crypto_open_connections = 0;
 
-#ifndef WIN32
 static pthread_mutex_t ssl_config_mutex = PTHREAD_MUTEX_INITIALIZER;
-#else
-static pthread_mutex_t ssl_config_mutex = NULL;
-static long win32_ssl_create_mutex = 0;
-#endif
 
 static PQsslKeyPassHook_OpenSSL_type PQsslKeyPassHook = NULL;
 static int	ssl_protocol_version_to_openssl(const char *protocol);
@@ -773,20 +768,6 @@ pq_lockingcallback(int mode, int n, const char *file, int line)
 int
 pgtls_init(PGconn *conn, bool do_ssl, bool do_crypto)
 {
-#ifdef WIN32
-	/* Also see similar code in fe-connect.c, default_threadlock() */
-	if (ssl_config_mutex == NULL)
-	{
-		while (InterlockedExchange(&win32_ssl_create_mutex, 1) == 1)
-			 /* loop, another thread own the lock */ ;
-		if (ssl_config_mutex == NULL)
-		{
-			if (pthread_mutex_init(&ssl_config_mutex, NULL))
-				return -1;
-		}
-		InterlockedExchange(&win32_ssl_create_mutex, 0);
-	}
-#endif
 	if (pthread_mutex_lock(&ssl_config_mutex))
 		return -1;
 
@@ -874,7 +855,6 @@ static void
 destroy_ssl_system(void)
 {
 #if defined(HAVE_CRYPTO_LOCK)
-	/* Mutex is created in pgtls_init() */
 	if (pthread_mutex_lock(&ssl_config_mutex))
 		return;
 
@@ -1682,10 +1662,11 @@ pgtls_close(PGconn *conn)
  * Obtain reason string for passed SSL errcode
  *
  * ERR_get_error() is used by caller to get errcode to pass here.
+ * The result must be freed after use, using SSLerrfree.
  *
- * Some caution is needed here since ERR_reason_error_string will
- * return NULL if it doesn't recognize the error code.  We don't
- * want to return NULL ever.
+ * Some caution is needed here since ERR_reason_error_string will return NULL
+ * if it doesn't recognize the error code, or (in OpenSSL >= 3) if the code
+ * represents a system errno value.  We don't want to return NULL ever.
  */
 static char ssl_nomem[] = "out of memory allocating error description";
 
@@ -1711,6 +1692,22 @@ SSLerrmessage(unsigned long ecode)
 		strlcpy(errbuf, errreason, SSL_ERR_LEN);
 		return errbuf;
 	}
+
+	/*
+	 * In OpenSSL 3.0.0 and later, ERR_reason_error_string randomly refuses to
+	 * map system errno values.  We can cover that shortcoming with this bit
+	 * of code.  Older OpenSSL versions don't have the ERR_SYSTEM_ERROR macro,
+	 * but that's okay because they don't have the shortcoming either.
+	 */
+#ifdef ERR_SYSTEM_ERROR
+	if (ERR_SYSTEM_ERROR(ecode))
+	{
+		strlcpy(errbuf, strerror(ERR_GET_REASON(ecode)), SSL_ERR_LEN);
+		return errbuf;
+	}
+#endif
+
+	/* No choice but to report the numeric ecode */
 	snprintf(errbuf, SSL_ERR_LEN, libpq_gettext("SSL error code %lu"), ecode);
 	return errbuf;
 }

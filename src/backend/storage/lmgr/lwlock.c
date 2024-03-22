@@ -81,9 +81,6 @@
 #include "pgstat.h"
 #include "port/pg_bitutils.h"
 #include "postmaster/postmaster.h"
-#include "replication/slot.h"
-#include "storage/ipc.h"
-#include "storage/predicate.h"
 #include "storage/proc.h"
 #include "storage/proclist.h"
 #include "storage/spin.h"
@@ -115,8 +112,8 @@ StaticAssertDecl(LW_VAL_EXCLUSIVE > (uint32) MAX_BACKENDS,
  * There are three sorts of LWLock "tranches":
  *
  * 1. The individually-named locks defined in lwlocknames.h each have their
- * own tranche.  The names of these tranches appear in IndividualLWLockNames[]
- * in lwlocknames.c.
+ * own tranche.  We absorb the names of these tranches from there into
+ * BuiltinTrancheNames here.
  *
  * 2. There are some predefined tranches for built-in groups of locks.
  * These are listed in enum BuiltinTrancheIds in lwlock.h, and their names
@@ -129,9 +126,10 @@ StaticAssertDecl(LW_VAL_EXCLUSIVE > (uint32) MAX_BACKENDS,
  * All these names are user-visible as wait event names, so choose with care
  * ... and do not forget to update the documentation's list of wait events.
  */
-extern const char *const IndividualLWLockNames[];	/* in lwlocknames.c */
-
 static const char *const BuiltinTrancheNames[] = {
+#define PG_LWLOCK(id, lockname) [id] = CppAsString(lockname) "Lock",
+#include "storage/lwlocklist.h"
+#undef PG_LWLOCK
 	[LWTRANCHE_XACT_BUFFER] = "XactBuffer",
 	[LWTRANCHE_COMMITTS_BUFFER] = "CommitTsBuffer",
 	[LWTRANCHE_SUBTRANS_BUFFER] = "SubtransBuffer",
@@ -163,6 +161,13 @@ static const char *const BuiltinTrancheNames[] = {
 	[LWTRANCHE_LAUNCHER_HASH] = "LogicalRepLauncherHash",
 	[LWTRANCHE_DSM_REGISTRY_DSA] = "DSMRegistryDSA",
 	[LWTRANCHE_DSM_REGISTRY_HASH] = "DSMRegistryHash",
+	[LWTRANCHE_COMMITTS_SLRU] = "CommitTSSLRU",
+	[LWTRANCHE_MULTIXACTOFFSET_SLRU] = "MultixactOffsetSLRU",
+	[LWTRANCHE_MULTIXACTMEMBER_SLRU] = "MultixactMemberSLRU",
+	[LWTRANCHE_NOTIFY_SLRU] = "NotifySLRU",
+	[LWTRANCHE_SERIAL_SLRU] = "SerialSLRU",
+	[LWTRANCHE_SUBTRANS_SLRU] = "SubtransSLRU",
+	[LWTRANCHE_XACT_SLRU] = "XactSLRU",
 };
 
 StaticAssertDecl(lengthof(BuiltinTrancheNames) ==
@@ -738,11 +743,7 @@ LWLockReportWaitEnd(void)
 static const char *
 GetLWTrancheName(uint16 trancheId)
 {
-	/* Individual LWLock? */
-	if (trancheId < NUM_INDIVIDUAL_LWLOCKS)
-		return IndividualLWLockNames[trancheId];
-
-	/* Built-in tranche? */
+	/* Built-in tranche or individual LWLock? */
 	if (trancheId < LWTRANCHE_FIRST_USER_DEFINED)
 		return BuiltinTrancheNames[trancheId];
 
@@ -776,7 +777,7 @@ GetLWLockIdentifier(uint32 classId, uint16 eventId)
  * in mode.
  *
  * This function will not block waiting for a lock to become free - that's the
- * callers job.
+ * caller's job.
  *
  * Returns true if the lock isn't free and we need to wait.
  */
@@ -1056,9 +1057,9 @@ LWLockQueueSelf(LWLock *lock, LWLockMode mode)
 
 	/* LW_WAIT_UNTIL_FREE waiters are always at the front of the queue */
 	if (mode == LW_WAIT_UNTIL_FREE)
-		proclist_push_head(&lock->waiters, MyProc->pgprocno, lwWaitLink);
+		proclist_push_head(&lock->waiters, MyProcNumber, lwWaitLink);
 	else
-		proclist_push_tail(&lock->waiters, MyProc->pgprocno, lwWaitLink);
+		proclist_push_tail(&lock->waiters, MyProcNumber, lwWaitLink);
 
 	/* Can release the mutex now */
 	LWLockWaitListUnlock(lock);
@@ -1097,7 +1098,7 @@ LWLockDequeueSelf(LWLock *lock)
 	 */
 	on_waitlist = MyProc->lwWaiting == LW_WS_WAITING;
 	if (on_waitlist)
-		proclist_delete(&lock->waiters, MyProc->pgprocno, lwWaitLink);
+		proclist_delete(&lock->waiters, MyProcNumber, lwWaitLink);
 
 	if (proclist_is_empty(&lock->waiters) &&
 		(pg_atomic_read_u32(&lock->state) & LW_FLAG_HAS_WAITERS) != 0)
@@ -1903,7 +1904,7 @@ LWLockHeldByMe(LWLock *lock)
 }
 
 /*
- * LWLockHeldByMe - test whether my process holds any of an array of locks
+ * LWLockAnyHeldByMe - test whether my process holds any of an array of locks
  *
  * This is meant as debug support only.
  */

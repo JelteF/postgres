@@ -409,6 +409,10 @@ struct pg_conn
 	char	   *require_auth;	/* name of the expected auth method */
 	char	   *load_balance_hosts; /* load balance over hosts */
 
+	bool		cancelRequest;	/* true if this connection is used to send a
+								 * cancel request, instead of being a normal
+								 * connection that's used for queries */
+
 	/* Optional file to write trace info to */
 	FILE	   *Pfdebug;
 	int			traceFlags;
@@ -621,24 +625,6 @@ struct pg_conn
 	PQExpBufferData workBuffer; /* expansible string */
 };
 
-/* PGcancel stores all data necessary to cancel a connection. A copy of this
- * data is required to safely cancel a connection running on a different
- * thread.
- */
-struct pg_cancel
-{
-	SockAddr	raddr;			/* Remote address */
-	int			be_pid;			/* PID of backend --- needed for cancels */
-	int			be_key;			/* key of backend --- needed for cancels */
-	int			pgtcp_user_timeout; /* tcp user timeout */
-	int			keepalives;		/* use TCP keepalives? */
-	int			keepalives_idle;	/* time between TCP keepalives */
-	int			keepalives_interval;	/* time between TCP keepalive
-										 * retransmits */
-	int			keepalives_count;	/* maximum number of TCP keepalive
-									 * retransmits */
-};
-
 
 /* String descriptions of the ExecStatusTypes.
  * direct use of this array is deprecated; call PQresStatus() instead.
@@ -675,12 +661,19 @@ extern char *const pgresStatus[];
 /* === in fe-connect.c === */
 
 extern void pqDropConnection(PGconn *conn, bool flushInput);
+extern bool pqConnectOptions2(PGconn *conn);
 #if defined(WIN32) && defined(SIO_KEEPALIVE_VALS)
 extern int	pqSetKeepalivesWin32(pgsocket sock, int idle, int interval);
 #endif
+extern int	pqConnectDBStart(PGconn *conn);
+extern int	pqConnectDBComplete(PGconn *conn);
+extern PGconn *pqMakeEmptyPGconn(void);
+extern void pqReleaseConnHosts(PGconn *conn);
+extern void pqClosePGconn(PGconn *conn);
 extern int	pqPacketSend(PGconn *conn, char pack_type,
 						 const void *buf, size_t buf_len);
 extern bool pqGetHomeDirectory(char *buf, int bufsize);
+extern bool pqCopyPGconn(PGconn *srcConn, PGconn *dstConn);
 extern bool pqParseIntParam(const char *value, int *result, PGconn *conn,
 							const char *context);
 

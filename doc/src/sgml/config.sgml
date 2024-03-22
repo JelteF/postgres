@@ -2006,6 +2006,145 @@ include_dir 'conf.d'
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-commit-timestamp-buffers" xreflabel="commit_timestamp_buffers">
+      <term><varname>commit_timestamp_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>commit_timestamp_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of memory to use to cache the contents of
+        <literal>pg_commit_ts</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>0</literal>, which requests
+        <varname>shared_buffers</varname>/512 up to 1024 blocks,
+        but not fewer than 16 blocks.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-multixact-member-buffers" xreflabel="multixact_member_buffers">
+      <term><varname>multixact_member_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>multixact_member_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_multixact/members</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>32</literal>.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-multixact-offset-buffers" xreflabel="multixact_offset_buffers">
+      <term><varname>multixact_offset_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>multixact_offset_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_multixact/offsets</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>16</literal>.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-notify-buffers" xreflabel="notify_buffers">
+      <term><varname>notify_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>notify_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_notify</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>16</literal>.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-serializable-buffers" xreflabel="serializable_buffers">
+      <term><varname>serializable_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>serializable_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_serial</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>32</literal>.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-subtransaction-buffers" xreflabel="subtransaction_buffers">
+      <term><varname>subtransaction_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>subtransaction_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_subtrans</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>0</literal>, which requests
+        <varname>shared_buffers</varname>/512 up to 1024 blocks,
+        but not fewer than 16 blocks.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-transaction-buffers" xreflabel="transaction_buffers">
+      <term><varname>transaction_buffers</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>transaction_buffers</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the amount of shared memory to use to cache the contents
+        of <literal>pg_xact</literal> (see
+        <xref linkend="pgdata-contents-table"/>).
+        If this value is specified without units, it is taken as blocks,
+        that is <symbol>BLCKSZ</symbol> bytes, typically 8kB.
+        The default value is <literal>0</literal>, which requests
+        <varname>shared_buffers</varname>/512 up to 1024 blocks,
+        but not fewer than 16 blocks.
+        This parameter can only be set at server start.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-max-stack-depth" xreflabel="max_stack_depth">
       <term><varname>max_stack_depth</varname> (<type>integer</type>)
       <indexterm>
@@ -4420,6 +4559,45 @@ restore_command = 'copy "C:\\server\\archivedir\\%f" "%p"'  # Windows
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-standby-slot-names" xreflabel="standby_slot_names">
+      <term><varname>standby_slot_names</varname> (<type>string</type>)
+      <indexterm>
+       <primary><varname>standby_slot_names</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        A comma-separated list of streaming replication standby server slot names
+        that logical WAL sender processes will wait for. Logical WAL sender processes
+        will send decoded changes to plugins only after the specified replication
+        slots confirm receiving WAL. This guarantees that logical replication
+        failover slots do not consume changes until those changes are received
+        and flushed to corresponding physical standbys. If a
+        logical replication connection is meant to switch to a physical standby
+        after the standby is promoted, the physical replication slot for the
+        standby should be listed here. Note that logical replication will not
+        proceed if the slots specified in the
+        <varname>standby_slot_names</varname> do not exist or are invalidated.
+        Additionally, the replication management functions
+        <link linkend="pg-replication-slot-advance">
+        <function>pg_replication_slot_advance</function></link>,
+        <link linkend="pg-logical-slot-get-changes">
+        <function>pg_logical_slot_get_changes</function></link>, and
+        <link linkend="pg-logical-slot-peek-changes">
+        <function>pg_logical_slot_peek_changes</function></link>,
+        when used with logical failover slots, will block until all
+        physical slots specified in <varname>standby_slot_names</varname> have
+        confirmed WAL receipt.
+       </para>
+       <para>
+        The standbys corresponding to the physical replication slots in
+        <varname>standby_slot_names</varname> must configure
+        <literal>sync_replication_slots = true</literal> so they can receive
+        logical failover slot changes from the primary.
+       </para>
+      </listitem>
+     </varlistentry>
+
      </variablelist>
     </sect2>
 
@@ -4612,8 +4790,13 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
           <varname>primary_conninfo</varname> string, or in a separate
           <filename>~/.pgpass</filename> file on the standby server (use
           <literal>replication</literal> as the database name).
-          Do not specify a database name in the
-          <varname>primary_conninfo</varname> string.
+         </para>
+         <para>
+          For replication slot synchronization (see
+          <xref linkend="logicaldecoding-replication-slots-synchronization"/>),
+          it is also necessary to specify a valid <literal>dbname</literal>
+          in the <varname>primary_conninfo</varname> string. This will only be
+          used for slot synchronization. It is ignored for streaming.
          </para>
          <para>
           This parameter can only be set in the <filename>postgresql.conf</filename>
@@ -4938,6 +5121,24 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-sync-replication-slots" xreflabel="sync_replication_slots">
+      <term><varname>sync_replication_slots</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>sync_replication_slots</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        It enables a physical standby to synchronize logical failover slots
+        from the primary server so that logical subscribers can resume
+        replication from the new primary server after failover.
+       </para>
+       <para>
+        It is disabled by default. This parameter can only be set in the
+        <filename>postgresql.conf</filename> file or on the server command line.
+       </para>
+      </listitem>
+     </varlistentry>
      </variablelist>
     </sect2>
 
@@ -7333,7 +7534,7 @@ local0.*    /var/log/postgresql
             </row>
             <row>
              <entry><literal>%v</literal></entry>
-             <entry>Virtual transaction ID (backendID/localXID);  see
+             <entry>Virtual transaction ID (procNumber/localXID);  see
              <xref linkend="transaction-id"/></entry>
              <entry>no</entry>
             </row>
@@ -9132,6 +9333,42 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         <filename>postgresql.conf</filename> is not recommended because it would
         affect all sessions.
        </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-transaction-timeout" xreflabel="transaction_timeout">
+      <term><varname>transaction_timeout</varname> (<type>integer</type>)
+      <indexterm>
+       <primary><varname>transaction_timeout</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Terminate any session that spans longer than the specified amount of
+        time in a transaction. The limit applies both to explicit transactions
+        (started with <command>BEGIN</command>) and to an implicitly started
+        transaction corresponding to a single statement.
+        If this value is specified without units, it is taken as milliseconds.
+        A value of zero (the default) disables the timeout.
+       </para>
+
+       <para>
+        If <varname>transaction_timeout</varname> is shorter or equal to
+        <varname>idle_in_transaction_session_timeout</varname> or <varname>statement_timeout</varname>
+        then the longer timeout is ignored.
+       </para>
+
+       <para>
+        Setting <varname>transaction_timeout</varname> in
+        <filename>postgresql.conf</filename> is not recommended because it would
+        affect all sessions.
+       </para>
+
+       <note>
+        <para>
+         Prepared transactions are not subject to this timeout.
+        </para>
+       </note>
       </listitem>
      </varlistentry>
 

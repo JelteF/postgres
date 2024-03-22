@@ -1277,11 +1277,24 @@ MERGE INTO rule_merge2 t USING (SELECT 1 AS a) s
 	WHEN NOT MATCHED THEN
 		INSERT VALUES (s.a, '');
 
+-- also ok if the rules are disabled
+ALTER TABLE rule_merge1 DISABLE RULE rule1;
+ALTER TABLE rule_merge1 DISABLE RULE rule2;
+ALTER TABLE rule_merge1 DISABLE RULE rule3;
+MERGE INTO rule_merge1 t USING (SELECT 1 AS a) s
+	ON t.a = s.a
+	WHEN MATCHED AND t.a < 2 THEN
+		UPDATE SET b = b || ' updated by merge'
+	WHEN MATCHED AND t.a > 2 THEN
+		DELETE
+	WHEN NOT MATCHED THEN
+		INSERT VALUES (s.a, '');
+
 -- test deparsing
 CREATE TABLE sf_target(id int, data text, filling int[]);
 
 CREATE FUNCTION merge_sf_test()
- RETURNS void
+ RETURNS TABLE(action text, a int, b text, id int, data text, filling int[])
  LANGUAGE sql
 BEGIN ATOMIC
  MERGE INTO sf_target t
@@ -1318,7 +1331,9 @@ WHEN NOT MATCHED
    VALUES (s.a, s.b, DEFAULT)
 WHEN NOT MATCHED
    THEN INSERT (filling[1], id)
-   VALUES (s.a, s.a);
+   VALUES (s.a, s.a)
+RETURNING
+   merge_action() AS action, *;
 END;
 
 \sf merge_sf_test

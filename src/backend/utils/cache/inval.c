@@ -119,7 +119,6 @@
 #include "storage/sinval.h"
 #include "storage/smgr.h"
 #include "utils/catcache.h"
-#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/memdebug.h"
 #include "utils/memutils.h"
@@ -756,7 +755,7 @@ LocalExecuteInvalidationMessage(SharedInvalidationMessage *msg)
 
 		rlocator.locator = msg->sm.rlocator;
 		rlocator.backend = (msg->sm.backend_hi << 16) | (int) msg->sm.backend_lo;
-		smgrcloserellocator(rlocator);
+		smgrreleaserellocator(rlocator);
 	}
 	else if (msg->id == SHAREDINVALRELMAP_ID)
 	{
@@ -1453,8 +1452,8 @@ CacheInvalidateRelcacheByRelid(Oid relid)
  * replaying WAL as well as when creating it.
  *
  * Note: In order to avoid bloating SharedInvalidationMessage, we store only
- * three bytes of the backend ID using what would otherwise be padding space.
- * Thus, the maximum possible backend ID is 2^23-1.
+ * three bytes of the ProcNumber using what would otherwise be padding space.
+ * Thus, the maximum possible ProcNumber is 2^23-1.
  */
 void
 CacheInvalidateSmgr(RelFileLocatorBackend rlocator)

@@ -313,6 +313,7 @@ bt_index_check_internal(Oid indrelid, bool parentcheck, bool heapallindexed,
 		SetUserIdAndSecContext(heaprel->rd_rel->relowner,
 							   save_sec_context | SECURITY_RESTRICTED_OPERATION);
 		save_nestlevel = NewGUCNestLevel();
+		RestrictSearchPath();
 	}
 	else
 	{

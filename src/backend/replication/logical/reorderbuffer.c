@@ -32,7 +32,7 @@
  *
  *	  In order to cope with large transactions - which can be several times as
  *	  big as the available memory - this module supports spooling the contents
- *	  of a large transactions to disk. When the transaction is replayed the
+ *	  of large transactions to disk. When the transaction is replayed the
  *	  contents of individual (sub-)transactions will be read from disk in
  *	  chunks.
  *
@@ -91,6 +91,7 @@
 #include "access/xact.h"
 #include "access/xlog_internal.h"
 #include "catalog/catalog.h"
+#include "common/int.h"
 #include "lib/binaryheap.h"
 #include "miscadmin.h"
 #include "pgstat.h"
@@ -102,8 +103,6 @@
 #include "storage/fd.h"
 #include "storage/sinval.h"
 #include "utils/builtins.h"
-#include "utils/combocid.h"
-#include "utils/memdebug.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/relfilenumbermap.h"
@@ -3079,10 +3078,10 @@ ReorderBufferImmediateInvalidation(ReorderBuffer *rb, uint32 ninvalidations,
  * least once for every xid in XLogRecord->xl_xid (other places in records
  * may, but do not have to be passed through here).
  *
- * Reorderbuffer keeps some datastructures about transactions in LSN order,
+ * Reorderbuffer keeps some data structures about transactions in LSN order,
  * for efficiency. To do that it has to know about when transactions are seen
  * first in the WAL. As many types of records are not actually interesting for
- * logical decoding, they do not necessarily pass though here.
+ * logical decoding, they do not necessarily pass through here.
  */
 void
 ReorderBufferProcessXid(ReorderBuffer *rb, TransactionId xid, XLogRecPtr lsn)
@@ -3514,11 +3513,11 @@ ReorderBufferLargestTXN(ReorderBuffer *rb)
  * snapshot because we don't decode such transactions.  Also, we do not select
  * the transaction which doesn't have any streamable change.
  *
- * Note that, we skip transactions that contains incomplete changes. There
+ * Note that, we skip transactions that contain incomplete changes. There
  * is a scope of optimization here such that we can select the largest
  * transaction which has incomplete changes.  But that will make the code and
  * design quite complex and that might not be worth the benefit.  If we plan to
- * stream the transactions that contains incomplete changes then we need to
+ * stream the transactions that contain incomplete changes then we need to
  * find a way to partially stream/truncate the transaction changes in-memory
  * and build a mechanism to partially truncate the spilled files.
  * Additionally, whenever we partially stream the transaction we need to
@@ -4702,8 +4701,8 @@ ReorderBufferToastAppendChunk(ReorderBuffer *rb, ReorderBufferTXN *txn,
 }
 
 /*
- * Rejigger change->newtuple to point to in-memory toast tuples instead to
- * on-disk toast tuples that may not longer exist (think DROP TABLE or VACUUM).
+ * Rejigger change->newtuple to point to in-memory toast tuples instead of
+ * on-disk toast tuples that may no longer exist (think DROP TABLE or VACUUM).
  *
  * We cannot replace unchanged toast tuples though, so those will still point
  * to on-disk toast data.
@@ -4714,7 +4713,7 @@ ReorderBufferToastAppendChunk(ReorderBuffer *rb, ReorderBufferTXN *txn,
  * at unexpected times.
  *
  * We simply subtract size of the change before rejiggering the tuple, and
- * then adding the new size. This makes it look like the change was removed
+ * then add the new size. This makes it look like the change was removed
  * and then added back, except it only tweaks the accounting info.
  *
  * In particular it can't trigger serialization, which would be pointless
@@ -5119,11 +5118,7 @@ file_sort_by_lsn(const ListCell *a_p, const ListCell *b_p)
 	RewriteMappingFile *a = (RewriteMappingFile *) lfirst(a_p);
 	RewriteMappingFile *b = (RewriteMappingFile *) lfirst(b_p);
 
-	if (a->lsn < b->lsn)
-		return -1;
-	else if (a->lsn > b->lsn)
-		return 1;
-	return 0;
+	return pg_cmp_u64(a->lsn, b->lsn);
 }
 
 /*

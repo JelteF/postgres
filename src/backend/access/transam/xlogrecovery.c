@@ -49,16 +49,16 @@
 #include "postmaster/bgwriter.h"
 #include "postmaster/startup.h"
 #include "replication/slot.h"
+#include "replication/slotsync.h"
 #include "replication/walreceiver.h"
 #include "storage/fd.h"
 #include "storage/ipc.h"
 #include "storage/latch.h"
 #include "storage/pmsignal.h"
-#include "storage/proc.h"
 #include "storage/procarray.h"
 #include "storage/spin.h"
-#include "utils/builtins.h"
 #include "utils/datetime.h"
+#include "utils/fmgrprotos.h"
 #include "utils/guc_hooks.h"
 #include "utils/pg_lsn.h"
 #include "utils/ps_status.h"
@@ -646,7 +646,8 @@ InitWalRecovery(ControlFileData *ControlFile, bool *wasShutdown_ptr,
 				if (!ReadRecord(xlogprefetcher, LOG, false,
 								checkPoint.ThisTimeLineID))
 					ereport(FATAL,
-							(errmsg("could not find redo location referenced by checkpoint record"),
+							(errmsg("could not find redo location %X/%X referenced by checkpoint record at %X/%X",
+									LSN_FORMAT_ARGS(checkPoint.redo), LSN_FORMAT_ARGS(CheckPointLoc)),
 							 errhint("If you are restoring from a backup, touch \"%s/recovery.signal\" or \"%s/standby.signal\" and add required recovery options.\n"
 									 "If you are not restoring from a backup, try removing the file \"%s/backup_label\".\n"
 									 "Be careful: removing \"%s/backup_label\" will result in a corrupt cluster if restoring from a backup.",
@@ -656,7 +657,8 @@ InitWalRecovery(ControlFileData *ControlFile, bool *wasShutdown_ptr,
 		else
 		{
 			ereport(FATAL,
-					(errmsg("could not locate required checkpoint record"),
+					(errmsg("could not locate required checkpoint record at %X/%X",
+							LSN_FORMAT_ARGS(CheckPointLoc)),
 					 errhint("If you are restoring from a backup, touch \"%s/recovery.signal\" or \"%s/standby.signal\" and add required recovery options.\n"
 							 "If you are not restoring from a backup, try removing the file \"%s/backup_label\".\n"
 							 "Be careful: removing \"%s/backup_label\" will result in a corrupt cluster if restoring from a backup.",
@@ -790,7 +792,8 @@ InitWalRecovery(ControlFileData *ControlFile, bool *wasShutdown_ptr,
 			 * simplify processing around checkpoints.
 			 */
 			ereport(PANIC,
-					(errmsg("could not locate a valid checkpoint record")));
+					(errmsg("could not locate a valid checkpoint record at %X/%X",
+							LSN_FORMAT_ARGS(CheckPointLoc))));
 		}
 		memcpy(&checkPoint, XLogRecGetData(xlogreader), sizeof(CheckPoint));
 		wasShutdown = ((record->xl_info & ~XLR_INFO_MASK) == XLOG_CHECKPOINT_SHUTDOWN);
@@ -1466,6 +1469,21 @@ FinishWalRecovery(void)
 	 * start writing WAL.
 	 */
 	XLogShutdownWalRcv();
+
+	/*
+	 * Shutdown the slot sync worker to drop any temporary slots acquired by
+	 * it and to prevent it from keep trying to fetch the failover slots.
+	 *
+	 * We do not update the 'synced' column in 'pg_replication_slots' system
+	 * view from true to false here, as any failed update could leave 'synced'
+	 * column false for some slots. This could cause issues during slot sync
+	 * after restarting the server as a standby. While updating the 'synced'
+	 * column after switching to the new timeline is an option, it does not
+	 * simplify the handling for the 'synced' column. Therefore, we retain the
+	 * 'synced' column as true after promotion as it may provide useful
+	 * information about the slot origin.
+	 */
+	ShutDownSlotSync();
 
 	/*
 	 * We are now done reading the xlog from stream. Turn off streaming

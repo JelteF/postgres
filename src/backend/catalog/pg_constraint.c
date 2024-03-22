@@ -18,7 +18,6 @@
 #include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "access/table.h"
-#include "access/xact.h"
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/heap.h"
@@ -28,7 +27,6 @@
 #include "catalog/pg_operator.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
-#include "commands/tablecmds.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
@@ -78,7 +76,7 @@ CreateConstraintEntry(const char *constraintName,
 					  bool conIsLocal,
 					  int conInhCount,
 					  bool conNoInherit,
-					  bool conWithoutOverlaps,
+					  bool conPeriod,
 					  bool is_internal)
 {
 	Relation	conDesc;
@@ -194,7 +192,7 @@ CreateConstraintEntry(const char *constraintName,
 	values[Anum_pg_constraint_conislocal - 1] = BoolGetDatum(conIsLocal);
 	values[Anum_pg_constraint_coninhcount - 1] = Int16GetDatum(conInhCount);
 	values[Anum_pg_constraint_connoinherit - 1] = BoolGetDatum(conNoInherit);
-	values[Anum_pg_constraint_conwithoutoverlaps - 1] = BoolGetDatum(conWithoutOverlaps);
+	values[Anum_pg_constraint_conperiod - 1] = BoolGetDatum(conPeriod);
 
 	if (conkeyArray)
 		values[Anum_pg_constraint_conkey - 1] = PointerGetDatum(conkeyArray);
@@ -629,6 +627,50 @@ findNotNullConstraint(Oid relid, const char *colname)
 	AttrNumber	attnum = get_attnum(relid, colname);
 
 	return findNotNullConstraintAttnum(relid, attnum);
+}
+
+/*
+ * Find and return the pg_constraint tuple that implements a validated
+ * not-null constraint for the given domain.
+ */
+HeapTuple
+findDomainNotNullConstraint(Oid typid)
+{
+	Relation	pg_constraint;
+	HeapTuple	conTup,
+				retval = NULL;
+	SysScanDesc scan;
+	ScanKeyData key;
+
+	pg_constraint = table_open(ConstraintRelationId, AccessShareLock);
+	ScanKeyInit(&key,
+				Anum_pg_constraint_contypid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(typid));
+	scan = systable_beginscan(pg_constraint, ConstraintRelidTypidNameIndexId,
+							  true, NULL, 1, &key);
+
+	while (HeapTupleIsValid(conTup = systable_getnext(scan)))
+	{
+		Form_pg_constraint con = (Form_pg_constraint) GETSTRUCT(conTup);
+
+		/*
+		 * We're looking for a NOTNULL constraint that's marked validated.
+		 */
+		if (con->contype != CONSTRAINT_NOTNULL)
+			continue;
+		if (!con->convalidated)
+			continue;
+
+		/* Found it */
+		retval = heap_copytuple(conTup);
+		break;
+	}
+
+	systable_endscan(scan);
+	table_close(pg_constraint, AccessShareLock);
+
+	return retval;
 }
 
 /*

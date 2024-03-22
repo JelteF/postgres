@@ -21,7 +21,6 @@
 #include "postgres.h"
 
 #include "access/htup_details.h"
-#include "access/sysattr.h"
 #include "catalog/pg_db_role_setting_d.h"
 #include "catalog/pg_depend_d.h"
 #include "catalog/pg_description_d.h"
@@ -29,6 +28,7 @@
 #include "catalog/pg_shdepend_d.h"
 #include "catalog/pg_shdescription_d.h"
 #include "catalog/pg_shseclabel_d.h"
+#include "common/int.h"
 #include "lib/qunique.h"
 #include "utils/catcache.h"
 #include "utils/lsyscache.h"
@@ -146,14 +146,14 @@ InitCatalogCache(void)
 	Assert(SysCacheSupportingRelOidSize <= lengthof(SysCacheSupportingRelOid));
 
 	/* Sort and de-dup OID arrays, so we can use binary search. */
-	pg_qsort(SysCacheRelationOid, SysCacheRelationOidSize,
-			 sizeof(Oid), oid_compare);
+	qsort(SysCacheRelationOid, SysCacheRelationOidSize,
+		  sizeof(Oid), oid_compare);
 	SysCacheRelationOidSize =
 		qunique(SysCacheRelationOid, SysCacheRelationOidSize, sizeof(Oid),
 				oid_compare);
 
-	pg_qsort(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
-			 sizeof(Oid), oid_compare);
+	qsort(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
+		  sizeof(Oid), oid_compare);
 	SysCacheSupportingRelOidSize =
 		qunique(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
 				sizeof(Oid), oid_compare);
@@ -668,7 +668,7 @@ RelationSupportsSysCache(Oid relid)
 
 
 /*
- * OID comparator for pg_qsort
+ * OID comparator for qsort
  */
 static int
 oid_compare(const void *a, const void *b)
@@ -676,7 +676,5 @@ oid_compare(const void *a, const void *b)
 	Oid			oa = *((const Oid *) a);
 	Oid			ob = *((const Oid *) b);
 
-	if (oa == ob)
-		return 0;
-	return (oa > ob) ? 1 : -1;
+	return pg_cmp_u32(oa, ob);
 }

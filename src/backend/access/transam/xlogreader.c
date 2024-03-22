@@ -34,9 +34,7 @@
 #include "replication/origin.h"
 
 #ifndef FRONTEND
-#include "miscadmin.h"
 #include "pgstat.h"
-#include "utils/memutils.h"
 #else
 #include "common/logging.h"
 #endif
@@ -1500,9 +1498,6 @@ err:
  *
  * Returns true if succeeded, false if an error occurs, in which case
  * 'errinfo' receives error details.
- *
- * XXX probably this should be improved to suck data directly from the
- * WAL buffers when possible.
  */
 bool
 WALRead(XLogReaderState *state,

@@ -14,11 +14,12 @@
 
 #include "postgres.h"
 
+#include "common/int.h"
 #include "libpq/pqformat.h"
 #include "nodes/miscnodes.h"
 #include "tsearch/ts_locale.h"
 #include "tsearch/ts_utils.h"
-#include "utils/builtins.h"
+#include "utils/fmgrprotos.h"
 #include "utils/memutils.h"
 #include "varatt.h"
 
@@ -37,9 +38,7 @@ compareWordEntryPos(const void *a, const void *b)
 	int			apos = WEP_GETPOS(*(const WordEntryPos *) a);
 	int			bpos = WEP_GETPOS(*(const WordEntryPos *) b);
 
-	if (apos == bpos)
-		return 0;
-	return (apos > bpos) ? 1 : -1;
+	return pg_cmp_s32(apos, bpos);
 }
 
 /*

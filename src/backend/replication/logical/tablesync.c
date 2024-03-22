@@ -107,10 +107,10 @@
 #include "replication/logicallauncher.h"
 #include "replication/logicalrelation.h"
 #include "replication/logicalworker.h"
+#include "replication/origin.h"
+#include "replication/slot.h"
 #include "replication/walreceiver.h"
 #include "replication/worker_internal.h"
-#include "replication/slot.h"
-#include "replication/origin.h"
 #include "storage/ipc.h"
 #include "storage/lmgr.h"
 #include "utils/acl.h"
@@ -1329,7 +1329,7 @@ LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 	 * so that synchronous replication can distinguish them.
 	 */
 	LogRepWorkerWalRcvConn =
-		walrcv_connect(MySubscription->conninfo, true,
+		walrcv_connect(MySubscription->conninfo, true, true,
 					   must_use_password,
 					   slotname, &err);
 	if (LogRepWorkerWalRcvConn == NULL)
@@ -1430,7 +1430,7 @@ LogicalRepSyncTableStart(XLogRecPtr *origin_startpos)
 	 */
 	walrcv_create_slot(LogRepWorkerWalRcvConn,
 					   slotname, false /* permanent */ , false /* two_phase */ ,
-					   false,
+					   MySubscription->failover,
 					   CRS_USE_SNAPSHOT, origin_startpos);
 
 	/*

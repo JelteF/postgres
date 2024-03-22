@@ -15,7 +15,7 @@
 #include "postgres.h"
 
 #include "access/nbtree.h"
-#include "storage/lmgr.h"
+#include "common/int.h"
 
 typedef enum
 {
@@ -596,12 +596,7 @@ _bt_splitcmp(const void *arg1, const void *arg2)
 	SplitPoint *split1 = (SplitPoint *) arg1;
 	SplitPoint *split2 = (SplitPoint *) arg2;
 
-	if (split1->curdelta > split2->curdelta)
-		return 1;
-	if (split1->curdelta < split2->curdelta)
-		return -1;
-
-	return 0;
+	return pg_cmp_s16(split1->curdelta, split2->curdelta);
 }
 
 /*

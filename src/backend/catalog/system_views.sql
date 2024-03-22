@@ -1024,7 +1024,8 @@ CREATE VIEW pg_replication_slots AS
             L.safe_wal_size,
             L.two_phase,
             L.conflict_reason,
-            L.failover
+            L.failover,
+            L.synced
     FROM pg_get_replication_slots() AS L
             LEFT JOIN pg_database D ON (L.datoid = D.oid);
 
@@ -1358,7 +1359,7 @@ REVOKE ALL ON pg_replication_origin_status FROM public;
 REVOKE ALL ON pg_subscription FROM public;
 GRANT SELECT (oid, subdbid, subskiplsn, subname, subowner, subenabled,
               subbinary, substream, subtwophasestate, subdisableonerr,
-			  subpasswordrequired, subrunasowner,
+			  subpasswordrequired, subrunasowner, subfailover,
               subslotname, subsynccommit, subpublications, suborigin)
     ON pg_subscription TO public;
 
