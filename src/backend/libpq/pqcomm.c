@@ -1487,7 +1487,7 @@ static void
 socket_putmessage_noblock(char msgtype, const char *s, size_t len)
 {
 	int			res PG_USED_FOR_ASSERTS_ONLY;
-	int			required;
+	size_t		required;
 
 	/*
 	 * Ensure we have enough space in the output buffer for the message header
