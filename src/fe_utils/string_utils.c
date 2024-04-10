@@ -860,6 +860,31 @@ appendReloptionsArray(PQExpBuffer buffer, const char *reloptions,
 
 
 /*
+ * Check if the given regex is a regex that looks for an exact character match.
+ *
+ * Assumes the string starts with "^(" and ends with ")$".
+ */
+static bool
+isExactMatchRegex(char *pattern)
+{
+	char	   *regexChars = "|*+?()[]{}.^$\\";
+	int			length = strlen(pattern);
+
+	Assert(pattern[0] == '^');
+	Assert(pattern[1] == '(');
+	Assert(pattern[length - 2] == ')');
+	Assert(pattern[length - 1] == '$');
+	for (char *c = regexChars; *c; c++)
+	{
+		char	   *match = strchr(&pattern[2], *c);
+
+		if (match != NULL && match < pattern + length - 2)
+			return false;
+	}
+	return true;
+}
+
+/*
  * processSQLNamePattern
  *
  * Scan a wildcard-pattern string and generate appropriate WHERE clauses
@@ -949,8 +974,32 @@ processSQLNamePattern(PGconn *conn, PQExpBuffer buf, const char *pattern,
 	{
 		/* We have a name pattern, so constrain the namevar(s) */
 
+		if (isExactMatchRegex(namebuf.data))
+		{
+			/*
+			 * Looking for an exact match, so we can use plain equality as
+			 * long as we strip the leading "^(" and trailing ")$".
+			 */
+			namebuf.data[namebuf.len - 2] = '\0';
+			WHEREAND();
+			if (altnamevar)
+			{
+				appendPQExpBuffer(buf, "(%s OPERATOR(pg_catalog.=) ", namevar);
+				appendStringLiteralConn(buf, &namebuf.data[2], conn);
+				appendPQExpBuffer(buf, "\n        OR %s OPERATOR(pg_catalog.=) ",
+								  altnamevar);
+				appendStringLiteralConn(buf, &namebuf.data[2], conn);
+				appendPQExpBufferStr(buf, ")\n");
+			}
+			else
+			{
+				appendPQExpBuffer(buf, "%s OPERATOR(pg_catalog.=) ", namevar);
+				appendStringLiteralConn(buf, &namebuf.data[2], conn);
+				appendPQExpBufferChar(buf, '\n');
+			}
+		}
 		/* Optimize away a "*" pattern */
-		if (strcmp(namebuf.data, "^(.*)$") != 0)
+		else if (strcmp(namebuf.data, "^(.*)$") != 0)
 		{
 			WHEREAND();
 			if (altnamevar)
@@ -983,8 +1032,20 @@ processSQLNamePattern(PGconn *conn, PQExpBuffer buf, const char *pattern,
 	{
 		/* We have a schema pattern, so constrain the schemavar */
 
+		if (isExactMatchRegex(schemabuf.data))
+		{
+			/*
+			 * Looking for an exact match, so we can use plain equality as
+			 * long as we strip the leading "^(" and trailing ")$".
+			 */
+			schemabuf.data[schemabuf.len - 2] = '\0';
+			WHEREAND();
+			appendPQExpBuffer(buf, "%s OPERATOR(pg_catalog.=) ", schemavar);
+			appendStringLiteralConn(buf, &schemabuf.data[2], conn);
+			appendPQExpBufferChar(buf, '\n');
+		}
 		/* Optimize away a "*" pattern */
-		if (strcmp(schemabuf.data, "^(.*)$") != 0 && schemavar)
+		else if (strcmp(schemabuf.data, "^(.*)$") != 0 && schemavar)
 		{
 			WHEREAND();
 			appendPQExpBuffer(buf, "%s OPERATOR(pg_catalog.~) ", schemavar);
