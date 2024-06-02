@@ -684,6 +684,9 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 						PG_PROTOCOL_MAJOR(PG_PROTOCOL_LATEST),
 						PG_PROTOCOL_MINOR(PG_PROTOCOL_LATEST))));
 
+	if (proto > PG_PROTOCOL_LATEST)
+		FrontendProtocol = PG_PROTOCOL_LATEST;
+
 	/*
 	 * Now fetch parameters out of startup packet and save them into the Port
 	 * structure.
@@ -790,8 +793,7 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 		 * the newest minor protocol version we do support and the names of
 		 * any unrecognized options.
 		 */
-		if (PG_PROTOCOL_MINOR(proto) > PG_PROTOCOL_MINOR(PG_PROTOCOL_LATEST) ||
-			unrecognized_protocol_options != NIL)
+		if (proto > PG_PROTOCOL_LATEST || unrecognized_protocol_options != NIL)
 			SendNegotiateProtocolVersion(unrecognized_protocol_options);
 	}
 
@@ -849,7 +851,7 @@ SendNegotiateProtocolVersion(List *unrecognized_protocol_options)
 	ListCell   *lc;
 
 	pq_beginmessage(&buf, PqMsg_NegotiateProtocolVersion);
-	pq_sendint32(&buf, PG_PROTOCOL_LATEST);
+	pq_sendint32(&buf, FrontendProtocol);
 	pq_sendint32(&buf, list_length(unrecognized_protocol_options));
 	foreach(lc, unrecognized_protocol_options)
 		pq_sendstring(&buf, lfirst(lc));
