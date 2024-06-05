@@ -704,6 +704,7 @@ pqTraceOutputNoTypeByteMessage(PGconn *conn, const char *message)
 {
 	int			length;
 	int			logCursor = 0;
+	int			version = 0;
 
 	if ((conn->traceFlags & PQTRACE_SUPPRESS_TIMESTAMPS) == 0)
 	{
@@ -719,19 +720,41 @@ pqTraceOutputNoTypeByteMessage(PGconn *conn, const char *message)
 
 	fprintf(conn->Pfdebug, "F\t%d\t", length);
 
-	switch (length)
+	if (length < 8)
 	{
-		case 16:				/* CancelRequest */
-			fprintf(conn->Pfdebug, "CancelRequest\t");
-			pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
-			pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
-			pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
-			break;
-		case 8:					/* GSSENCRequest or SSLRequest */
-			/* These messages do not reach here. */
-		default:
-			fprintf(conn->Pfdebug, "Unknown message: length is %d", length);
-			break;
+		fprintf(conn->Pfdebug, "Unknown message: length is %d\n", length);
+		return;
+	}
+
+	memcpy(&version, message + logCursor, 4);
+	version = (int) pg_ntoh32(version);
+
+	if (version == CANCEL_REQUEST_CODE)
+	{
+		fprintf(conn->Pfdebug, "CancelRequest\t");
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+	}
+	else if (version == NEGOTIATE_SSL_CODE)
+	{
+		fprintf(conn->Pfdebug, "SSLRequest\t");
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+	}
+	else if (version == NEGOTIATE_GSS_CODE)
+	{
+		fprintf(conn->Pfdebug, "GSSENCRequest\t");
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+	}
+	else
+	{
+		fprintf(conn->Pfdebug, "StartupMessage\t");
+		pqTraceOutputInt32(conn->Pfdebug, message, &logCursor, false);
+		while (message[logCursor] != '\0')
+		{
+			pqTraceOutputString(conn->Pfdebug, message, &logCursor, false);
+			pqTraceOutputString(conn->Pfdebug, message, &logCursor, false);
+		}
 	}
 
 	fputc('\n', conn->Pfdebug);
