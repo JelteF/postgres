@@ -724,6 +724,7 @@ extern int	PQsendQueryContinue(PGconn *conn, const char *query);
 
 /* === in fe-protocol3.c === */
 
+extern void pqFinishParsingMessage(PGconn *conn, int newInStart);
 extern char *pqBuildStartupPacket3(PGconn *conn, int *packetlen,
 								   const PQEnvironmentOption *options);
 extern void pqParseInput3(PGconn *conn);
