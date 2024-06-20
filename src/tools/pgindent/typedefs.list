@@ -167,6 +167,7 @@ AttrMissing
 AttrNumber
 AttributeOpts
 AuthRequest
+AuthResponseType
 AuthToken
 AutoPrewarmSharedState
 AutoVacOpts

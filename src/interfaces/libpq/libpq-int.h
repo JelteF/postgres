@@ -331,6 +331,15 @@ typedef enum
 	PGQUERY_CLOSE				/* Close Statement or Portal */
 } PGQueryClass;
 
+typedef enum
+{
+	AUTH_RESP_NONE = 0,
+	AUTH_RESP_GSS,
+	AUTH_RESP_PASSWORD,
+	AUTH_RESP_SASL_INITIAL,
+	AUTH_RESP_SASL,
+} AuthResponseType;
+
 /*
  * An entry in the pending command queue.
  */
@@ -490,6 +499,7 @@ struct pg_conn
 										 * codes */
 	bool		client_finished_auth;	/* have we finished our half of the
 										 * authentication exchange? */
+	AuthResponseType current_auth_response;
 
 
 	/* Transient state needed while establishing connection */
