@@ -821,3 +821,17 @@ pqTraceOutputNoTypeByteMessage(PGconn *conn, const char *message)
 
 	fputc('\n', conn->Pfdebug);
 }
+
+void
+pqTraceOutputEncryptionRequestResponse(PGconn *conn, const char *requestType, char response)
+{
+	if ((conn->traceFlags & PQTRACE_SUPPRESS_TIMESTAMPS) == 0)
+	{
+		char		timestr[128];
+
+		pqTraceFormatTimestamp(timestr, sizeof(timestr));
+		fprintf(conn->Pfdebug, "%s\t", timestr);
+	}
+
+	fprintf(conn->Pfdebug, "B\t1\t%sResponse\t %c\n", requestType, response);
+}

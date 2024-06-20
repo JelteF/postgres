@@ -3493,11 +3493,15 @@ keep_going:						/* We will come back to here until there is
 					}
 					if (SSLok == 'S')
 					{
+						if (conn->Pfdebug)
+							pqTraceOutputEncryptionRequestResponse(conn, "SSL", SSLok);
 						/* mark byte consumed */
 						conn->inStart = conn->inCursor;
 					}
 					else if (SSLok == 'N')
 					{
+						if (conn->Pfdebug)
+							pqTraceOutputEncryptionRequestResponse(conn, "SSL", SSLok);
 						/* mark byte consumed */
 						conn->inStart = conn->inCursor;
 
@@ -3622,6 +3626,9 @@ keep_going:						/* We will come back to here until there is
 
 					if (gss_ok == 'N')
 					{
+						if (conn->Pfdebug)
+							pqTraceOutputEncryptionRequestResponse(conn, "GSSENC", gss_ok);
+
 						/*
 						 * The connection is still valid, so if it's OK to
 						 * continue without GSS, we can proceed using this
@@ -3635,6 +3642,9 @@ keep_going:						/* We will come back to here until there is
 												gss_ok);
 						goto error_return;
 					}
+
+					if (conn->Pfdebug)
+						pqTraceOutputEncryptionRequestResponse(conn, "GSSENC", gss_ok);
 				}
 
 				/* Begin or continue GSSAPI negotiation */

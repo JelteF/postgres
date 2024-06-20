@@ -885,6 +885,7 @@ extern ssize_t pg_GSS_read(PGconn *conn, void *ptr, size_t len);
 extern void pqTraceOutputMessage(PGconn *conn, const char *message,
 								 bool toServer);
 extern void pqTraceOutputNoTypeByteMessage(PGconn *conn, const char *message);
+extern void pqTraceOutputEncryptionRequestResponse(PGconn *conn, const char *requestType, char response);
 
 /* === miscellaneous macros === */
 
