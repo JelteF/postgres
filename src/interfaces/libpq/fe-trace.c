@@ -185,11 +185,18 @@ pqTraceOutputString(FILE *pfdebug, const char *data, int *cursor, bool suppress)
  * pqTraceOutputNchar: output a string of exactly len bytes message to the log
  */
 static void
-pqTraceOutputNchar(FILE *pfdebug, int len, const char *data, int *cursor)
+pqTraceOutputNchar(FILE *pfdebug, int len, const char *data, int *cursor, bool suppress)
 {
 	int			i,
 				next;			/* first char not yet printed */
 	const char *v = data + *cursor;
+
+	if (suppress)
+	{
+		fprintf(pfdebug, " 'BBBB'");
+		*cursor += len;
+		return;
+	}
 
 	fprintf(pfdebug, " \'");
 
@@ -246,7 +253,7 @@ pqTraceOutput_Bind(FILE *f, const char *message, int *cursor)
 		nbytes = pqTraceOutputInt32(f, message, cursor, false);
 		if (nbytes == -1)
 			continue;
-		pqTraceOutputNchar(f, nbytes, message, cursor);
+		pqTraceOutputNchar(f, nbytes, message, cursor, false);
 	}
 
 	nparams = pqTraceOutputInt16(f, message, cursor);
@@ -283,7 +290,7 @@ pqTraceOutput_DataRow(FILE *f, const char *message, int *cursor)
 		len = pqTraceOutputInt32(f, message, cursor, false);
 		if (len == -1)
 			continue;
-		pqTraceOutputNchar(f, len, message, cursor);
+		pqTraceOutputNchar(f, len, message, cursor, false);
 	}
 }
 
@@ -363,7 +370,7 @@ pqTraceOutput_FunctionCall(FILE *f, const char *message, int *cursor, bool regre
 		nbytes = pqTraceOutputInt32(f, message, cursor, false);
 		if (nbytes == -1)
 			continue;
-		pqTraceOutputNchar(f, nbytes, message, cursor);
+		pqTraceOutputNchar(f, nbytes, message, cursor, false);
 	}
 
 	pqTraceOutputInt16(f, message, cursor);
@@ -487,7 +494,7 @@ pqTraceOutput_FunctionCallResponse(FILE *f, const char *message, int *cursor)
 	fprintf(f, "FunctionCallResponse\t");
 	len = pqTraceOutputInt32(f, message, cursor, false);
 	if (len != -1)
-		pqTraceOutputNchar(f, len, message, cursor);
+		pqTraceOutputNchar(f, len, message, cursor, false);
 }
 
 static void
