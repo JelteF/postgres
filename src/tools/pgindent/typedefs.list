@@ -1531,6 +1531,7 @@ LockTupleMode
 LockViewRecurse_context
 LockWaitPolicy
 LockingClause
+LogBacktraceVerbosity
 LogOpts
 LogStmtLevel
 LogicalDecodeBeginCB
