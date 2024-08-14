@@ -384,6 +384,7 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 	{"scram_server_key", NULL, NULL, NULL, "SCRAM-Server-Key", "D", SCRAM_MAX_KEY_LEN * 2,
 	offsetof(struct pg_conn, scram_server_key)},
 
+<<<<<<< HEAD
 	/* OAuth v2 */
 	{"oauth_issuer", NULL, NULL, NULL,
 		"OAuth-Issuer", "", 40,
@@ -400,6 +401,12 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 	{"oauth_scope", NULL, NULL, NULL,
 		"OAuth-Scope", "", 15,
 	offsetof(struct pg_conn, oauth_scope)},
+||||||| parent of 4e184598aa0 (Add report_parameters protocol parameter)
+=======
+	{"report_parameters", NULL, NULL, NULL,
+		"Report-Parameters", "", 40,
+	offsetof(struct pg_conn, c_report_parameters)},
+>>>>>>> 4e184598aa0 (Add report_parameters protocol parameter)
 
 	/* Terminating entry --- MUST BE LAST */
 	{NULL, NULL, NULL, NULL,

@@ -210,3 +210,7 @@ PQsetAuthDataHook         207
 PQgetAuthDataHook         208
 PQdefaultAuthDataHook     209
 PQfullProtocolVersion     210
+PQsetReportParameters     211
+PQsendSetReportParameters 212
+PQreportParameters        213
+PQreportParametersSupport 214
