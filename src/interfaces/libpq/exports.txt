@@ -207,3 +207,7 @@ PQsetChunkedRowsMode      204
 PQgetCurrentTimeUSec      205
 PQservice                 206
 PQfullProtocolVersion     207
+PQsetReportParameters     208
+PQsendSetReportParameters 209
+PQreportParameters        210
+PQreportParametersSupport 211

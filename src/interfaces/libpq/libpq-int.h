@@ -431,6 +431,8 @@ struct pg_conn
 	char	   *load_balance_hosts; /* load balance over hosts */
 	char	   *min_protocol_version;	/* minimum used protocol version */
 	char	   *max_protocol_version;	/* maximum used protocol version */
+	char	   *c_report_parameters;	/* report_parameters value from the
+										 * connection string */
 
 	bool		cancelRequest;	/* true if this connection is used to send a
 								 * cancel request, instead of being a normal
@@ -491,6 +493,11 @@ struct pg_conn
 	SockAddr	laddr;			/* Local address */
 	SockAddr	raddr;			/* Remote address */
 	ProtocolVersion pversion;	/* FE/BE protocol version in use */
+	char	   *report_parameters;	/* report_parameters value of the server,
+									 * NULL if not supported */
+	char	   *report_parameters_support;	/* report_parameters server
+											 * support string, NULL if not
+											 * supported */
 	int			sversion;		/* server version, e.g. 70401 for 7.4.1 */
 	bool		auth_req_received;	/* true if any type of auth req received */
 	bool		password_needed;	/* true if server demanded a password */
