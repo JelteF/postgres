@@ -8226,6 +8226,15 @@ pqParseProtocolVersion(const char *value, ProtocolVersion *result, PGconn *conn,
 		return true;
 	}
 
+	if (strcmp(value, "3.1") == 0)
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+								context,
+								value);
+		return false;
+	}
+
 	major = strtol(value, &end, 10);
 	if (*end != '.')
 	{

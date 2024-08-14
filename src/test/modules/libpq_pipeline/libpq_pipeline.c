@@ -198,23 +198,14 @@ send_cancellable_query_impl(int line, PGconn *conn, PGconn *monitorConn)
 }
 
 /*
- * Create a new connection with the same conninfo as the given one.
+ * Fills keywords and vals, with the same options as the ones in the opts
+ * linked-list. Returns the length of the filled in list.
  */
-static PGconn *
-copy_connection(PGconn *conn)
+static
+int
+copy_connection_options(PQconninfoOption *opts, const char **keywords, const char **vals)
 {
-	PGconn	   *copyConn;
-	PQconninfoOption *opts = PQconninfo(conn);
-	const char **keywords;
-	const char **vals;
-	int			nopts = 1;
 	int			i = 0;
-
-	for (PQconninfoOption *opt = opts; opt->keyword != NULL; ++opt)
-		nopts++;
-
-	keywords = pg_malloc(sizeof(char *) * nopts);
-	vals = pg_malloc(sizeof(char *) * nopts);
 
 	for (PQconninfoOption *opt = opts; opt->keyword != NULL; ++opt)
 	{
@@ -225,8 +216,28 @@ copy_connection(PGconn *conn)
 			i++;
 		}
 	}
-	keywords[i] = vals[i] = NULL;
+	return i;
+}
 
+/*
+ * Create a new connection with the same conninfo as the given one.
+ */
+static PGconn *
+copy_connection(PGconn *conn)
+{
+	const char **keywords;
+	const char **vals;
+	PGconn	   *copyConn;
+	PQconninfoOption *opts = PQconninfo(conn);
+	int			nopts = 1;		/* 1 for the NULL terminator */
+
+	for (PQconninfoOption *opt = opts; opt->keyword != NULL; ++opt)
+		nopts++;
+
+	keywords = pg_malloc0(sizeof(char *) * nopts);
+	vals = pg_malloc0(sizeof(char *) * nopts);
+
+	copy_connection_options(opts, keywords, vals);
 	copyConn = PQconnectdbParams(keywords, vals, false);
 
 	if (PQstatus(copyConn) != CONNECTION_OK)
@@ -1406,6 +1417,72 @@ test_prepared(PGconn *conn)
 	fprintf(stderr, "ok\n");
 }
 
+static void
+test_protocol_version(PGconn *conn)
+{
+	const char **keywords;
+	const char **vals;
+	int			nopts = 2;		/* NULL terminator + max_protocol_version */
+	PQconninfoOption *opts = PQconninfo(conn);
+	int			protocol_version;
+	int			max_protocol_version_index;
+
+	for (PQconninfoOption *opt = opts; opt->keyword != NULL; ++opt)
+		nopts++;
+
+	keywords = pg_malloc0(sizeof(char *) * nopts);
+	vals = pg_malloc0(sizeof(char *) * nopts);
+
+	max_protocol_version_index = copy_connection_options(opts, keywords, vals);
+
+	keywords[max_protocol_version_index] = "max_protocol_version";
+	vals[max_protocol_version_index] = "3.0";
+
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30000)
+		pg_fatal("expected 30000, got %d", protocol_version);
+
+	PQfinish(conn);
+
+	vals[max_protocol_version_index] = "3.1";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_BAD)
+		pg_fatal("Connecting with max_protocol_version 3.1 should have failed.");
+
+	PQfinish(conn);
+
+	vals[max_protocol_version_index] = "3.2";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30002)
+		pg_fatal("expected 30002, got %d", protocol_version);
+	PQfinish(conn);
+
+	vals[max_protocol_version_index] = "latest";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30002)
+		pg_fatal("expected 30002, got %d", protocol_version);
+	PQfinish(conn);
+}
+
 /* Notice processor: print notices, and count how many we got */
 static void
 notice_processor(void *arg, const char *message)
@@ -2154,6 +2231,7 @@ print_test_list(void)
 	printf("pipeline_idle\n");
 	printf("pipelined_insert\n");
 	printf("prepared\n");
+	printf("protocol_version\n");
 	printf("simple_pipeline\n");
 	printf("singlerow\n");
 	printf("transaction\n");
@@ -2273,6 +2351,8 @@ main(int argc, char **argv)
 		test_pipelined_insert(conn, numrows);
 	else if (strcmp(testname, "prepared") == 0)
 		test_prepared(conn);
+	else if (strcmp(testname, "protocol_version") == 0)
+		test_protocol_version(conn);
 	else if (strcmp(testname, "simple_pipeline") == 0)
 		test_simple_pipeline(conn);
 	else if (strcmp(testname, "singlerow") == 0)
