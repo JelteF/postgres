@@ -1399,58 +1399,72 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
 
 
 /*
- * Attempt to read a NegotiateProtocolVersion message.
+ * Attempt to read a NegotiateProtocolVersion message. Sets conn->pversion
+ * to the version that's negotiated by the server.
  * Entry: 'v' message type and length have already been consumed.
  * Exit: returns 0 if successfully consumed message.
- *		 returns EOF if not enough data.
+ *		 returns 1 on failure. The error message is filled in.
  */
 int
 pqGetNegotiateProtocolVersion3(PGconn *conn)
 {
-	int			tmp;
-	ProtocolVersion their_version;
+	int			their_version;
 	int			num;
-	PQExpBufferData buf;
 
-	if (pqGetInt(&tmp, 4, conn) != 0)
-		return EOF;
-	their_version = tmp;
+	if (pqGetInt(&their_version, 4, conn) != 0)
+		goto eof;
 
 	if (pqGetInt(&num, 4, conn) != 0)
-		return EOF;
+		goto eof;
 
-	initPQExpBuffer(&buf);
+	if (their_version > conn->pversion)
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server requests downgrade to higher-numbered version");
+		goto failure;
+	}
+
+	if (their_version < PG_PROTOCOL(3, 0))
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server requests downgrade to pre-3.0 protocol version");
+		goto failure;
+	}
+	
+	if (num < 0)
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported negative number of unsupported parameters");
+		goto failure;
+	}
+
+	if (their_version == conn->pversion && num == 0)
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server negotiated but asks for no changes");
+		goto failure;
+	}
+
+	conn->pversion = their_version;
 	for (int i = 0; i < num; i++)
 	{
 		if (pqGets(&conn->workBuffer, conn))
 		{
-			termPQExpBuffer(&buf);
-			return EOF;
+			goto eof;
 		}
-		if (buf.len > 0)
-			appendPQExpBufferChar(&buf, ' ');
-		appendPQExpBufferStr(&buf, conn->workBuffer.data);
+		if (strncmp(conn->workBuffer.data, "_pq_.", 5) != 0)
+		{
+			libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported unsupported parameter name without a _pq_. prefix (\"%s\")", conn->workBuffer.data);
+			goto failure;
+		}
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported an unsupported parameter that was not requested (\"%s\")", conn->workBuffer.data);
+		goto failure;
 	}
 
-	if (their_version < conn->pversion)
-		libpq_append_conn_error(conn, "protocol version not supported by server: client uses %u.%u, server supports up to %u.%u",
-								PG_PROTOCOL_MAJOR(conn->pversion), PG_PROTOCOL_MINOR(conn->pversion),
-								PG_PROTOCOL_MAJOR(their_version), PG_PROTOCOL_MINOR(their_version));
-	if (num > 0)
-	{
-		appendPQExpBuffer(&conn->errorMessage,
-						  libpq_ngettext("protocol extension not supported by server: %s",
-										 "protocol extensions not supported by server: %s", num),
-						  buf.data);
-		appendPQExpBufferChar(&conn->errorMessage, '\n');
-	}
-
-	/* neither -- server shouldn't have sent it */
-	if (!(their_version < conn->pversion) && !(num > 0))
-		libpq_append_conn_error(conn, "invalid %s message", "NegotiateProtocolVersion");
-
-	termPQExpBuffer(&buf);
 	return 0;
+
+eof:
+	libpq_append_conn_error(conn, "received invalid protocol negotation message: message too short");
+failure:
+	conn->asyncStatus = PGASYNC_READY;
+	pqSaveErrorResult(conn);
+	return 1;
 }
 
 

@@ -4091,9 +4091,10 @@ keep_going:						/* We will come back to here until there is
 						libpq_append_conn_error(conn, "received invalid protocol negotiation message");
 						goto error_return;
 					}
+
 					/* OK, we read the message; mark data consumed */
 					pqParseDone(conn, conn->inCursor);
-					goto error_return;
+					goto keep_going;
 				}
 
 				/* It is an authentication request. */
