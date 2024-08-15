@@ -695,7 +695,12 @@ pqDropServerData(PGconn *conn)
 	if (!conn->cancelRequest)
 	{
 		conn->be_pid = 0;
-		conn->be_key = 0;
+		if (conn->be_cancel_key != NULL)
+		{
+			free(conn->be_cancel_key);
+			conn->be_cancel_key = NULL;
+		}
+		conn->be_cancel_key_len = 0;
 	}
 }
 
@@ -3685,13 +3690,7 @@ keep_going:						/* We will come back to here until there is
 				 */
 				if (conn->cancelRequest)
 				{
-					CancelRequestPacket cancelpacket;
-
-					packetlen = sizeof(cancelpacket);
-					cancelpacket.cancelRequestCode = (MsgType) pg_hton32(CANCEL_REQUEST_CODE);
-					cancelpacket.backendPID = pg_hton32(conn->be_pid);
-					cancelpacket.cancelAuthCode = pg_hton32(conn->be_key);
-					if (pqPacketSend(conn, 0, &cancelpacket, packetlen) != STATUS_OK)
+					if (PQsendCancelRequest(conn) != STATUS_OK)
 					{
 						libpq_append_conn_error(conn, "could not send cancel packet: %s",
 												SOCK_STRERROR(SOCK_ERRNO, sebuf, sizeof(sebuf)));
@@ -4135,7 +4134,10 @@ keep_going:						/* We will come back to here until there is
 				{
 					if (pqGetNegotiateProtocolVersion3(conn))
 					{
-						libpq_append_conn_error(conn, "received invalid protocol negotiation message");
+						/*
+						 * Negotiation failed.  The error message was filled
+						 * in already.
+						 */
 						goto error_return;
 					}
 
