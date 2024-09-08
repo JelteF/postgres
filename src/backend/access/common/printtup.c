@@ -105,6 +105,18 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 		   myState->pub.mydest == DestRemoteExecute);
 
 	myState->portal = portal;
+
+	/*
+	 * For deferred EXECUTE statements in extended protocol, we need to send
+	 * row description even though destination is DestRemoteExecute, because
+	 * the tupDesc wasn't available during the Describe phase.
+	 */
+	if (myState->pub.mydest == DestRemoteExecute &&
+		portal->commandTag == CMDTAG_EXECUTE &&
+		portal->tupDesc == NULL)
+	{
+		myState->sendDescrip = true;
+	}
 }
 
 static void

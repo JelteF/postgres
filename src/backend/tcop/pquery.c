@@ -1046,7 +1046,14 @@ FillPortalStore(Portal portal, bool isTopLevel)
 				PlannedStmt *pstmt = PortalGetPrimaryStmt(portal);
 
 				portal->tupDesc = UtilityTupleDescriptor(pstmt->utilityStmt);
-				PortalSetResultFormat(portal, 1, portal->formats);
+
+				/* Apply the deferred format that was stored earlier */
+				if (portal->commandTag == CMDTAG_EXECUTE && portal->formats)
+				{
+					int16		format = portal->formats[0];
+
+					PortalSetResultFormat(portal, 1, &format);
+				}
 			}
 			break;
 

@@ -12,6 +12,18 @@ EXECUTE prepstmt;
 -- and one with parameters
 PREPARE prepstmt2(bigint) AS SELECT * FROM pcachetest WHERE q1 = $1;
 
+-- Do the same but with the parse/bind/execute cycle
+SELECT * FROM pcachetest \parse prepstmt3
+SELECT * FROM pcachetest WHERE q1 = $1 \parse prepstmt4
+
+-- Create separate prepared statements for EXECUTE tests
+PREPARE prepstmt5 AS SELECT * FROM pcachetest;
+PREPARE prepstmt6(bigint) AS SELECT * FROM pcachetest WHERE q1 = $1;
+
+-- Test EXECUTE via parse/bind/execute protocol (should fail when types change)
+EXECUTE prepstmt5 \parse execstmt1
+EXECUTE prepstmt6(123) \parse execstmt2
+
 EXECUTE prepstmt2(123);
 
 -- invalidate the plans and see what happens
@@ -19,6 +31,10 @@ DROP TABLE pcachetest;
 
 EXECUTE prepstmt;
 EXECUTE prepstmt2(123);
+\bind_named prepstmt3 \g
+\bind_named prepstmt4 123 \g
+\bind_named execstmt1 \g
+\bind_named execstmt2 \g
 
 -- recreate the temp table (this demonstrates that the raw plan is
 -- purely textual and doesn't depend on OIDs, for instance)
@@ -26,18 +42,30 @@ CREATE TEMP TABLE pcachetest AS SELECT * FROM int8_tbl ORDER BY 2;
 
 EXECUTE prepstmt;
 EXECUTE prepstmt2(123);
+\bind_named prepstmt3 \g
+\bind_named prepstmt4 123 \g
+\bind_named execstmt1 \g
+\bind_named execstmt2 \g
 
 -- prepared statements should work even if the output tupdesc changes
 ALTER TABLE pcachetest ADD COLUMN q3 bigint DEFAULT 20;
 
 EXECUTE prepstmt;
 EXECUTE prepstmt2(123);
+\bind_named prepstmt3 \g
+\bind_named prepstmt4 123 \g
+\bind_named execstmt1 \g
+\bind_named execstmt2 \g
 
 -- changing it back should also work fine
 ALTER TABLE pcachetest DROP COLUMN q3;
 
 EXECUTE prepstmt;
 EXECUTE prepstmt2(123);
+\bind_named prepstmt3 \g
+\bind_named prepstmt4 123 \g
+\bind_named execstmt1 \g
+\bind_named execstmt2 \g
 
 -- Try it with a view, which isn't directly used in the resulting plan
 -- but should trigger invalidation anyway
