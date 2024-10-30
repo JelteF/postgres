@@ -15,6 +15,7 @@
 #define HTUP_H
 
 #include "storage/itemptr.h"
+#include "storage/off.h"
 
 /* typedefs and forward declarations for structs defined in htup_details.h */
 
@@ -70,7 +71,14 @@ typedef struct HeapTupleData
 
 typedef HeapTupleData *HeapTuple;
 
+typedef struct HeapDeltaHeader {
+	OffsetNumber original_offset;
+	uint32 prefix;
+	uint32 suffix;
+} HeapDeltaHeader;
+
 #define HEAPTUPLESIZE	MAXALIGN(sizeof(HeapTupleData))
+#define HEAPDELTAHEADERSIZE	MAXALIGN(sizeof(HeapDeltaHeader))
 
 /*
  * Accessor macros to be used with HeapTuple pointers.

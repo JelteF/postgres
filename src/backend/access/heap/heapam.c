@@ -46,6 +46,7 @@
 #include "pgstat.h"
 #include "port/pg_bitutils.h"
 #include "storage/lmgr.h"
+#include "storage/off.h"
 #include "storage/predicate.h"
 #include "storage/procarray.h"
 #include "utils/datum.h"
@@ -3156,6 +3157,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 	HeapTuple	heaptup;
 	HeapTuple	old_key_tuple = NULL;
 	bool		old_key_copied = false;
+	OffsetNumber old_offset_number;
 	Page		page;
 	BlockNumber block;
 	MultiXactStatus mxact_status;
@@ -3183,6 +3185,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 				infomask_new_tuple,
 				infomask2_new_tuple;
 
+	elog(WARNING, "DOING HEAP UPDATE");
 	Assert(ItemPointerIsValid(otid));
 
 	/* Cheap, simplistic check that the tuple matches the rel's rowtype. */
@@ -3246,8 +3249,9 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 		visibilitymap_pin(relation, block, &vmbuffer);
 
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
+	old_offset_number = ItemPointerGetOffsetNumber(otid);
 
-	lp = PageGetItemId(page, ItemPointerGetOffsetNumber(otid));
+	lp = PageGetItemId(page, old_offset_number);
 	Assert(ItemIdIsNormal(lp));
 
 	/*
@@ -3768,6 +3772,40 @@ l2:
 		else
 			heaptup = newtup;
 
+		if (!IsCatalogRelation(relation)) {
+			uint32 i = 0;
+			char *heapdata = GETSTRUCT(heaptup);
+			char *olddata = GETSTRUCT(&oldtup);
+			uint32 heaplen = heaptup->t_len - heaptup->t_data->t_hoff;
+			uint32 oldlen = oldtup.t_len - oldtup.t_data->t_hoff;
+			for (; i < heaplen && i < oldlen; i++) {
+				if (heaptup->t_data->t_bits[i] == oldtup.t_data->t_bits[i]) {
+					if (heapdata[i] != olddata[i]) {
+						break;
+					}
+				}
+			}
+			if (oldlen == heaplen && heaplen == i) {
+				elog(WARNING, "no-op update");
+				*update_indexes = TU_None;
+				LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
+				ReleaseBuffer(buffer);
+				if (BufferIsValid(vmbuffer))
+					ReleaseBuffer(vmbuffer);
+				/*
+				 * Release the lmgr tuple lock, if we had it.
+				 */
+				if (have_tuple_lock)
+					UnlockTupleTuplock(relation, &(oldtup.t_self), *lockmode);
+				return TM_Ok;
+			}
+			elog(WARNING, "same data prefix for %u, %ld", i, sizeof(HeapDeltaHeader));
+			if (i > sizeof(HeapDeltaHeader)) {
+				elog(WARNING, "worth delta compressing %ld", i - sizeof(HeapDeltaHeader));
+
+			}
+		}
+
 		/*
 		 * Now, do we need a new page for the tuple, or not?  This is a bit
 		 * tricky since someone else could have added tuples to the page while
@@ -3833,6 +3871,72 @@ l2:
 		/* No TOAST work needed, and it'll fit on same page */
 		newbuf = buffer;
 		heaptup = newtup;
+
+		if (!IsCatalogRelation(relation)) {
+			uint32 i = 0;
+
+			HeapTupleData original_tup;
+			char *heap_data = GETSTRUCT(heaptup);
+			uint32 heap_len = heaptup->t_len - heaptup->t_data->t_hoff;
+			char *original_data;
+			uint32 original_len;
+			
+			if (oldtup.t_data->t_infomask2 & HEAP_DELTA_ENCODED) {
+				HeapDeltaHeader *old_delta_header = (HeapDeltaHeader*) GETSTRUCT(&oldtup);
+				ItemId original_lp = PageGetItemId(page, old_delta_header->original_offset);
+				original_tup.t_tableOid = RelationGetRelid(relation);
+				original_tup.t_data = (HeapTupleHeader) PageGetItem(page, original_lp);
+				original_tup.t_len = ItemIdGetLength(lp);
+				original_tup.t_self = *otid;
+			} else {
+				original_tup = oldtup;
+			}
+			original_data = GETSTRUCT(&original_tup);
+			original_len = oldtup.t_len - original_tup.t_data->t_hoff;
+
+			for (; i < heap_len && i < original_len; i++) {
+				if (heaptup->t_data->t_bits[i] == original_tup.t_data->t_bits[i]) {
+					if (heap_data[i] != original_data[i]) {
+						break;
+					}
+				}
+			}
+			if (original_len == heap_len && heap_len == i) {
+				elog(WARNING, "no-op update");
+				*update_indexes = TU_None;
+				LockBuffer(buffer, BUFFER_LOCK_UNLOCK);
+				ReleaseBuffer(buffer);
+				if (BufferIsValid(vmbuffer))
+					ReleaseBuffer(vmbuffer);
+				/*
+				 * Release the lmgr tuple lock, if we had it.
+				 */
+				if (have_tuple_lock)
+					UnlockTupleTuplock(relation, &(oldtup.t_self), *lockmode);
+				return TM_Ok;
+			}
+
+			elog(WARNING, "same data prefix for %u, %ld", i, MAXALIGN(sizeof(HeapDeltaHeader)));
+			if (i > HEAPDELTAHEADERSIZE) {
+				int32 new_header_len = SizeofHeapTupleHeader;
+				if ((HeapTupleHasNulls(heaptup))) {
+					int numAttrs = relation->rd_att->natts;
+					new_header_len += BITMAPLEN(numAttrs);
+				}
+				uint32 new_tuple_len = HEAPDELTAHEADERSIZE + heap_len - i;
+				elog(WARNING, "worth delta compressing %ld", i - sizeof(HeapDeltaHeader));
+
+				heaptup = (HeapTuple) palloc0(HEAPTUPLESIZE + new_tuple_len);
+				heaptup->t_len = new_tuple_len;
+				heaptup->t_self = newtup->t_self;
+				heaptup->t_tableOid = newtup->t_tableOid;
+				new_data = (HeapTupleHeader) ((char *) result_tuple + HEAPTUPLESIZE);
+				result_tuple->t_data = new_data;
+				newtup->t_data->t_infomask2 |= HEAP_DELTA_ENCODED;
+				newtup->t_data->t_data = (char*) palloc0(MAXALIGN(sizeof(HeapDeltaHeader)) + heap_len);
+
+			}
+		}
 	}
 
 	/*
