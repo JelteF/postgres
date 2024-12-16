@@ -571,7 +571,7 @@ transformRangeFunction(ParseState *pstate, RangeFunction *r)
 					funcexprs = lappend(funcexprs, newfexpr);
 
 					funcnames = lappend(funcnames,
-										FigureColname((Node *) newfc));
+										FigureColname((Node *) newfc, (Expr *) newfexpr));
 
 					/* coldeflist is empty, so no error is possible */
 
@@ -599,7 +599,7 @@ transformRangeFunction(ParseState *pstate, RangeFunction *r)
 		funcexprs = lappend(funcexprs, newfexpr);
 
 		funcnames = lappend(funcnames,
-							FigureColname(fexpr));
+							FigureColname(fexpr, (Expr *) newfexpr));
 
 		if (coldeflist && r->coldeflist)
 			ereport(ERROR,

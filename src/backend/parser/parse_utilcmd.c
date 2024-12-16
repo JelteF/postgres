@@ -3059,13 +3059,15 @@ transformIndexStmt(Oid relid, IndexStmt *stmt, const char *queryString)
 
 		if (ielem->expr)
 		{
+			/* Now do parse transformation of the expression */
+			Node	   *transformed = transformExpr(pstate, ielem->expr,
+													EXPR_KIND_INDEX_EXPRESSION);
+
 			/* Extract preliminary index col name before transforming expr */
 			if (ielem->indexcolname == NULL)
-				ielem->indexcolname = FigureIndexColname(ielem->expr);
+				ielem->indexcolname = FigureIndexColname(ielem->expr, (Expr *) transformed);
 
-			/* Now do parse transformation of the expression */
-			ielem->expr = transformExpr(pstate, ielem->expr,
-										EXPR_KIND_INDEX_EXPRESSION);
+			ielem->expr = transformed;
 
 			/* We have to fix its collations too */
 			assign_expr_collations(pstate, ielem->expr);

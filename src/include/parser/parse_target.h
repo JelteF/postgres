@@ -52,7 +52,7 @@ extern List *checkInsertTargets(ParseState *pstate, List *cols,
 								List **attrnos);
 extern TupleDesc expandRecordVariable(ParseState *pstate, Var *var,
 									  int levelsup);
-extern char *FigureColname(Node *node);
-extern char *FigureIndexColname(Node *node);
+extern char *FigureColname(Node *untransformed, Expr *transformed);
+extern char *FigureIndexColname(Node *untransformed, Expr *transformed);
 
 #endif							/* PARSE_TARGET_H */

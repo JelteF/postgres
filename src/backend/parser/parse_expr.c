@@ -2377,7 +2377,7 @@ transformXmlExpr(ParseState *pstate, XmlExpr *x)
 		if (r->name)
 			argname = map_sql_identifier_to_xml_name(r->name, false, false);
 		else if (IsA(r->val, ColumnRef))
-			argname = map_sql_identifier_to_xml_name(FigureColname(r->val),
+			argname = map_sql_identifier_to_xml_name(FigureColname(r->val, (Expr *) expr),
 													 true, false);
 		else
 		{

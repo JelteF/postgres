@@ -55,7 +55,8 @@ static List *ExpandSingleTable(ParseState *pstate, ParseNamespaceItem *nsitem,
 							   bool make_target_entry);
 static List *ExpandRowReference(ParseState *pstate, Node *expr,
 								bool make_target_entry);
-static int	FigureColnameInternal(Node *node, char **name);
+static char *FigureColnameTransformed(Expr *expr);
+static int	FigureColnameUntransformed(Node *node, char **name);
 
 
 /*
@@ -99,7 +100,7 @@ transformTargetEntry(ParseState *pstate,
 		 * Generate a suitable column name for a column without any explicit
 		 * 'AS ColumnName' clause.
 		 */
-		colname = FigureColname(node);
+		colname = FigureColname(node, (Expr *) expr);
 	}
 
 	return makeTargetEntry((Expr *) expr,
@@ -1706,15 +1707,25 @@ expandRecordVariable(ParseState *pstate, Var *var, int levelsup)
  *	  list, we have to guess a suitable name.  The SQL spec provides some
  *	  guidance, but not much...
  *
- * Note that the argument is the *untransformed* parse tree for the target
- * item.  This is a shade easier to work with than the transformed tree.
+ * Note that this requires both the *untransformed* and the *transformed* parse
+ * tree. The untransformed is generally easier to work with than the
+ * transformed one, but in some cases we need the details.
  */
 char *
-FigureColname(Node *node)
+FigureColname(Node *untransformed, Expr *transformed)
 {
 	char	   *name = NULL;
 
-	(void) FigureColnameInternal(node, &name);
+	/*
+	 * XXX: Could add hook here that receives both transform and untransformed
+	 * to allow extensions to create arbitrary column names
+	 */
+
+	name = FigureColnameTransformed(transformed);
+	if (name != NULL)
+		return name;
+
+	(void) FigureColnameUntransformed(untransformed, &name);
 	if (name != NULL)
 		return name;
 	/* default result if we can't guess anything */
@@ -1729,16 +1740,100 @@ FigureColname(Node *node)
  * we can't pick a good name.
  */
 char *
-FigureIndexColname(Node *node)
+FigureIndexColname(Node *untransformed, Expr *transformed)
 {
 	char	   *name = NULL;
 
-	(void) FigureColnameInternal(node, &name);
+	/*
+	 * XXX: Could add hook here to allow extensions to create arbitrary column
+	 * names
+	 */
+
+	name = FigureColnameTransformed(transformed);
+	if (name != NULL)
+		return name;
+
+	(void) FigureColnameUntransformed(untransformed, &name);
 	return name;
 }
 
+char *
+FigureColnameTransformed(Expr *expr)
+{
+	if (expr == NULL)
+		return NULL;
+
+	switch (nodeTag(expr))
+	{
+		case T_SubscriptingRef:
+			{
+				SubscriptingRef *sbsref = (SubscriptingRef *) expr;
+				char	   *name = NULL;
+
+				/*
+				 * XXX: Could add a hook here based on the type of
+				 * refcontainertype and getSubscriptingRoutines.
+				 */
+
+				if (sbsref->reflowerindexpr != NIL)
+					return NULL;
+
+				foreach_ptr(Node, upper, sbsref->refupperindexpr)
+				{
+					Const	   *constExpr;
+
+					if (!IsA(upper, Const))
+						continue;
+					constExpr = (Const *) upper;
+
+					if (constExpr->constisnull)
+						return NULL;
+
+					if (constExpr->consttype != TEXTOID)
+						return NULL;
+
+					name = TextDatumGetCString(constExpr->constvalue);
+				}
+				return name;
+
+			}
+			break;
+		case T_CoerceViaIO:
+			{
+				CoerceViaIO *cvi = (CoerceViaIO *) expr;
+
+				return FigureColnameTransformed(cvi->arg);
+			}
+			break;
+		case T_RelabelType:
+			{
+				RelabelType *cvi = (RelabelType *) expr;
+
+				return FigureColnameTransformed(cvi->arg);
+			}
+			break;
+		case T_ArrayCoerceExpr:
+			{
+				ArrayCoerceExpr *cvi = (ArrayCoerceExpr *) expr;
+
+				return FigureColnameTransformed(cvi->arg);
+			}
+			break;
+		case T_ConvertRowtypeExpr:
+			{
+				ConvertRowtypeExpr *cvi = (ConvertRowtypeExpr *) expr;
+
+				return FigureColnameTransformed(cvi->arg);
+			}
+			break;
+		default:
+			return NULL;
+	}
+	return NULL;
+}
+
 /*
- * FigureColnameInternal -
+ * FigureColnameUntransformed -
  *	  internal workhorse for FigureColname
  *
  * Return value indicates strength of confidence in result:
@@ -1749,7 +1844,7 @@ FigureIndexColname(Node *node)
  * If the result isn't zero, *name is set to the chosen name.
  */
 static int
-FigureColnameInternal(Node *node, char **name)
+FigureColnameUntransformed(Node *node, char **name)
 {
 	int			strength = 0;
 
@@ -1791,13 +1886,14 @@ FigureColnameInternal(Node *node, char **name)
 
 					if (IsA(i, String))
 						fname = strVal(i);
+
 				}
 				if (fname)
 				{
 					*name = fname;
 					return 2;
 				}
-				return FigureColnameInternal(ind->arg, name);
+				return FigureColnameUntransformed(ind->arg, name);
 			}
 			break;
 		case T_FuncCall:
@@ -1812,8 +1908,8 @@ FigureColnameInternal(Node *node, char **name)
 			}
 			break;
 		case T_TypeCast:
-			strength = FigureColnameInternal(((TypeCast *) node)->arg,
-											 name);
+			strength = FigureColnameUntransformed(((TypeCast *) node)->arg,
+												  name);
 			if (strength <= 1)
 			{
 				if (((TypeCast *) node)->typeName != NULL)
@@ -1824,7 +1920,7 @@ FigureColnameInternal(Node *node, char **name)
 			}
 			break;
 		case T_CollateClause:
-			return FigureColnameInternal(((CollateClause *) node)->arg, name);
+			return FigureColnameUntransformed(((CollateClause *) node)->arg, name);
 		case T_GroupingFunc:
 			/* make GROUPING() act like a regular function */
 			*name = "grouping";
@@ -1877,8 +1973,8 @@ FigureColnameInternal(Node *node, char **name)
 			}
 			break;
 		case T_CaseExpr:
-			strength = FigureColnameInternal((Node *) ((CaseExpr *) node)->defresult,
-											 name);
+			strength = FigureColnameUntransformed((Node *) ((CaseExpr *) node)->defresult,
+												  name);
 			if (strength <= 1)
 			{
 				*name = "case";
