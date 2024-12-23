@@ -206,3 +206,4 @@ PQsocketPoll              203
 PQsetChunkedRowsMode      204
 PQgetCurrentTimeUSec      205
 PQservice                 206
+PQfullProtocolVersion     207
