@@ -325,6 +325,16 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"Require-Auth", "", 14, /* sizeof("scram-sha-256") == 14 */
 	offsetof(struct pg_conn, require_auth)},
 
+	{"min_protocol_version", "PGMINPROTOCOLVERSION",
+		NULL, NULL,
+		"Min-Protocol-Version", "", 6,	/* sizeof("latest") = 6 */
+	offsetof(struct pg_conn, min_protocol_version)},
+
+	{"max_protocol_version", "PGMAXPROTOCOLVERSION",
+		NULL, NULL,
+		"Max-Protocol-Version", "", 6,	/* sizeof("latest") = 6 */
+	offsetof(struct pg_conn, max_protocol_version)},
+
 	{"ssl_min_protocol_version", "PGSSLMINPROTOCOLVERSION", "TLSv1.2", NULL,
 		"SSL-Minimum-Protocol-Version", "", 8,	/* sizeof("TLSv1.x") == 8 */
 	offsetof(struct pg_conn, ssl_min_protocol_version)},
@@ -483,6 +493,7 @@ static void pgpassfileWarning(PGconn *conn);
 static void default_threadlock(int acquire);
 static bool sslVerifyProtocolVersion(const char *version);
 static bool sslVerifyProtocolRange(const char *min, const char *max);
+static bool pqParseProtocolVersion(const char *value, ProtocolVersion *result, PGconn *conn, const char *context);
 
 
 /* global variable because fe-auth.c needs to access it */
@@ -684,7 +695,12 @@ pqDropServerData(PGconn *conn)
 	if (!conn->cancelRequest)
 	{
 		conn->be_pid = 0;
-		conn->be_key = 0;
+		if (conn->be_cancel_key != NULL)
+		{
+			free(conn->be_cancel_key);
+			conn->be_cancel_key = NULL;
+		}
+		conn->be_cancel_key_len = 0;
 	}
 }
 
@@ -2080,6 +2096,42 @@ pqConnectOptions2(PGconn *conn)
 		}
 	}
 
+	if (conn->min_protocol_version)
+	{
+		if (!pqParseProtocolVersion(conn->min_protocol_version, &conn->min_pversion, conn, "min_protocol_version"))
+			return false;
+	}
+	else
+	{
+		conn->min_pversion = PG_PROTOCOL_EARLIEST;
+	}
+
+	if (conn->max_protocol_version)
+	{
+		if (!pqParseProtocolVersion(conn->max_protocol_version, &conn->max_pversion, conn, "max_protocol_version"))
+			return false;
+	}
+	else
+	{
+		/*
+		 * To not break connecting to older servers/poolers that do not yet
+		 * support NegotiateProtocolVersion, default to the 3.0 protocol at
+		 * least for a while longer. Except when min_protocol_version is set
+		 * to something larger, then we might as well default to the latest.
+		 */
+		if (conn->min_pversion > PG_PROTOCOL(3, 0))
+			conn->max_pversion = PG_PROTOCOL_LATEST;
+		else
+			conn->max_pversion = PG_PROTOCOL(3, 0);
+	}
+
+	if (conn->min_pversion > conn->max_pversion)
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "min_protocol_version is greater than max_protocol_version");
+		return false;
+	}
+
 	/*
 	 * Resolve special "auto" client_encoding from the locale
 	 */
@@ -3083,7 +3135,7 @@ keep_going:						/* We will come back to here until there is
 		 * must persist across individual connection attempts, but we must
 		 * reset them when we start to consider a new server.
 		 */
-		conn->pversion = PG_PROTOCOL(3, 0);
+		conn->pversion = conn->max_pversion;
 		conn->send_appname = true;
 		conn->failed_enc_methods = 0;
 		conn->current_enc_method = 0;
@@ -3638,13 +3690,7 @@ keep_going:						/* We will come back to here until there is
 				 */
 				if (conn->cancelRequest)
 				{
-					CancelRequestPacket cancelpacket;
-
-					packetlen = sizeof(cancelpacket);
-					cancelpacket.cancelRequestCode = (MsgType) pg_hton32(CANCEL_REQUEST_CODE);
-					cancelpacket.backendPID = pg_hton32(conn->be_pid);
-					cancelpacket.cancelAuthCode = pg_hton32(conn->be_key);
-					if (pqPacketSend(conn, 0, &cancelpacket, packetlen) != STATUS_OK)
+					if (PQsendCancelRequest(conn) != STATUS_OK)
 					{
 						libpq_append_conn_error(conn, "could not send cancel packet: %s",
 												SOCK_STRERROR(SOCK_ERRNO, sebuf, sizeof(sebuf)));
@@ -4088,12 +4134,17 @@ keep_going:						/* We will come back to here until there is
 				{
 					if (pqGetNegotiateProtocolVersion3(conn))
 					{
-						libpq_append_conn_error(conn, "received invalid protocol negotiation message");
+						/*
+						 * Negotiation failed.  The error message was filled
+						 * in already.
+						 */
 						goto error_return;
 					}
+
 					/* OK, we read the message; mark data consumed */
 					pqParseDone(conn, conn->inCursor);
-					goto error_return;
+
+					goto keep_going;
 				}
 
 				/* It is an authentication request. */
@@ -8146,6 +8197,69 @@ error:
 	libpq_append_conn_error(conn, "invalid integer value \"%s\" for connection option \"%s\"",
 							value, context);
 	return false;
+}
+
+/*
+ * Parse and try to interpret "value" as a ProtocolVersion value, and if successful,
+ * store it in *result.
+ */
+static bool
+pqParseProtocolVersion(const char *value, ProtocolVersion *result, PGconn *conn,
+					   const char *context)
+{
+	char	   *end;
+	int			major;
+	int			minor;
+	ProtocolVersion version;
+
+	if (strcmp(value, "latest") == 0)
+	{
+		*result = PG_PROTOCOL_LATEST;
+		return true;
+	}
+
+	if (strcmp(value, "3.1") == 0)
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+								context,
+								value);
+		return false;
+	}
+
+	major = strtol(value, &end, 10);
+	if (*end != '.')
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+								context,
+								value);
+		return false;
+	}
+
+	minor = strtol(&end[1], &end, 10);
+	if (*end != '\0')
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+								context,
+								value);
+		return false;
+	}
+
+	version = PG_PROTOCOL(major, minor);
+	if (version > PG_PROTOCOL_LATEST ||
+		version < PG_PROTOCOL_EARLIEST)
+	{
+		conn->status = CONNECTION_BAD;
+		libpq_append_conn_error(conn, "invalid %s value: \"%s\"",
+								context,
+								value);
+		return false;
+	}
+
+	*result = version;
+	return true;
 }
 
 /*

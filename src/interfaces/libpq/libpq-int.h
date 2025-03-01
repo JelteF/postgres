@@ -425,6 +425,8 @@ struct pg_conn
 	char	   *gsslib;			/* What GSS library to use ("gssapi" or
 								 * "sspi") */
 	char	   *gssdelegation;	/* Try to delegate GSS credentials? (0 or 1) */
+	char	   *min_protocol_version;	/* minimum used protocol version */
+	char	   *max_protocol_version;	/* maximum used protocol version */
 	char	   *ssl_min_protocol_version;	/* minimum TLS protocol version */
 	char	   *ssl_max_protocol_version;	/* maximum TLS protocol version */
 	char	   *target_session_attrs;	/* desired session properties */
@@ -545,10 +547,13 @@ struct pg_conn
 	void	   *scram_client_key_binary;	/* binary SCRAM client key */
 	size_t		scram_server_key_len;
 	void	   *scram_server_key_binary;	/* binary SCRAM server key */
+	ProtocolVersion min_pversion;	/* protocol version to request */
+	ProtocolVersion max_pversion;	/* protocol version to request */
 
 	/* Miscellaneous stuff */
 	int			be_pid;			/* PID of backend --- needed for cancels */
-	int			be_key;			/* key of backend --- needed for cancels */
+	char	   *be_cancel_key;	/* query cancellation key and its length */
+	uint16		be_cancel_key_len;
 	pgParameterStatus *pstatus; /* ParameterStatus data */
 	int			client_encoding;	/* encoding id */
 	bool		std_strings;	/* standard_conforming_strings */
@@ -767,6 +772,10 @@ extern PGresult *pqFunctionCall3(PGconn *conn, Oid fnid,
 								 int *result_buf, int *actual_result_len,
 								 int result_is_int,
 								 const PQArgBlock *args, int nargs);
+
+/* === in fe-cancel.c === */
+
+extern int	PQsendCancelRequest(PGconn *cancelConn);
 
 /* === in fe-misc.c === */
 
