@@ -45,7 +45,48 @@ PostgreSQL documentation
     </para>
  </refsect1>
 
- <refsect1 id="r1-app-psql-3">
+ <refsect1 id="app-psql-toc">
+  <title>Table of Contents</title>
+   <itemizedlist>
+    <listitem><para><xref linkend="r1-app-psql-3"/></para></listitem>
+    <listitem><para><xref linkend="app-psql-exitstatus"/></para></listitem>
+    <listitem>
+     <para><xref linkend="app-psql-usage"/></para>
+     <para>
+      <itemizedlist>
+       <listitem><para><xref linkend="r2-app-psql-connecting"/></para></listitem>
+       <listitem><para><xref linkend="r2-app-psql-4"/></para></listitem>
+       <listitem>
+        <para><xref linkend="app-psql-meta-commands"/></para>
+        <para>
+         <itemizedlist>
+          <listitem><para><xref linkend="app-psql-patterns"/></para></listitem>
+         </itemizedlist>
+        </para>
+       </listitem>
+       <listitem>
+        <para><xref linkend="app-psql-advanced"/></para>
+        <para>
+         <itemizedlist>
+          <listitem><para><xref linkend="app-psql-variables"/></para></listitem>
+          <listitem><para><xref linkend="app-psql-interpolation"/></para></listitem>
+          <listitem><para><xref linkend="app-psql-prompting"/></para></listitem>
+          <listitem><para><xref linkend="app-psql-readline"/></para></listitem>
+         </itemizedlist>
+        </para>
+       </listitem>
+      </itemizedlist>
+     </para>
+    </listitem>
+    <listitem><para><xref linkend="app-psql-environment"/></para></listitem>
+    <listitem><para><xref linkend="app-psql-files"/></para></listitem>
+    <listitem><para><xref linkend="app-psql-notes"/></para></listitem>
+    <listitem><para><xref linkend="app-psql-noteswindows"/></para></listitem>
+    <listitem><para><xref linkend="app-psql-examples"/></para></listitem>
+   </itemizedlist>
+ </refsect1>
+
+ <refsect1 id="r1-app-psql-3" xreflabel="Command-Line Options">
   <title>Options</title>
 
   <variablelist>
@@ -623,7 +664,7 @@ EOF
  </refsect1>
 
 
- <refsect1>
+ <refsect1 id="app-psql-exitstatus" xreflabel="Exit Status">
   <title>Exit Status</title>
 
   <para>
@@ -636,10 +677,10 @@ EOF
  </refsect1>
 
 
- <refsect1>
+ <refsect1 id="app-psql-usage" xreflabel="Usage">
   <title>Usage</title>
 
-  <refsect2 id="r2-app-psql-connecting">
+  <refsect2 id="r2-app-psql-connecting" xreflabel="Connecting to a Database">
     <title>Connecting to a Database</title>
 
     <para>
@@ -712,7 +753,7 @@ $ <userinput>psql postgresql://dbmaster:5433/mydb?sslmode=require</userinput>
     </para>
   </refsect2>
 
-  <refsect2 id="r2-app-psql-4">
+  <refsect2 id="r2-app-psql-4" xreflabel="Entering SQL Commands">
     <title>Entering SQL Commands</title>
 
     <para>
@@ -764,7 +805,7 @@ testdb=&gt;
     </para>
   </refsect2>
 
-  <refsect2 id="app-psql-meta-commands">
+  <refsect2 id="app-psql-meta-commands" xreflabel="Meta-Commands">
     <title>Meta-Commands</title>
 
     <para>
@@ -4151,7 +4192,7 @@ SELECT 1\; SELECT 2\; SELECT 3;
   </refsect3>
  </refsect2>
 
- <refsect2>
+ <refsect2 id="app-psql-advanced" xreflabel="Advanced Features">
   <title>Advanced Features</title>
 
    <refsect3 id="app-psql-variables" xreflabel="Variables">
@@ -5179,7 +5220,7 @@ testdb=&gt; \set PROMPT1 '%[%033[1;33;40m%]%n@%/%R%[%033[0m%]%# '
 
    </refsect3>
 
-   <refsect3 id="app-psql-readline">
+   <refsect3 id="app-psql-readline" xreflabel="Command-Line Editing">
     <title>Command-Line Editing</title>
 
    <indexterm>
@@ -5422,7 +5463,7 @@ PSQL_EDITOR_LINENUMBER_ARG='--line '
  </refsect1>
 
 
- <refsect1>
+ <refsect1 id="app-psql-files" xreflabel="Files">
   <title>Files</title>
 
  <variablelist>
@@ -5493,7 +5534,7 @@ PSQL_EDITOR_LINENUMBER_ARG='--line '
  </refsect1>
 
 
- <refsect1>
+ <refsect1 id="app-psql-notes" xreflabel="Notes">
   <title>Notes</title>
 
     <itemizedlist>
@@ -5540,7 +5581,7 @@ PSQL_EDITOR_LINENUMBER_ARG='--line '
  </refsect1>
 
 
- <refsect1>
+ <refsect1 id="app-psql-noteswindows" xreflabel="Notes for Windows Users">
   <title>Notes for Windows Users</title>
 
  <para>
