@@ -411,8 +411,10 @@ PostgreSQL documentation
       <term><option>--waldir=<replaceable class="parameter">directory</replaceable></option></term>
       <listitem>
        <para>
-        This option specifies the directory where the write-ahead log
-        should be stored.
+        This option specifies the directory in which to store write-ahead log files.
+        See <xref linkend="wal-internals-relocation"/> for more information.
+        The specified path must be absolute. It will be created, including parents,
+        if missing.  Otherwise, the directory must be empty.
        </para>
       </listitem>
      </varlistentry>
@@ -695,6 +697,7 @@ PostgreSQL documentation
    <command>initdb</command> can also be invoked via
    <command>pg_ctl initdb</command>.
   </para>
+
  </refsect1>
 
  <refsect1>
