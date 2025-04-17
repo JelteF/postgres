@@ -119,16 +119,26 @@ pgxs_kv = {
   'LIBS': var_libs,
 }
 
+if have_cpp
+  pgxs_kv += {
+    'CXX': ' '.join(cpp.cmd_array()),
+  }
+else
+  # Default to 'g++' so PGXS users get a clear "g++ not found" error
+  # rather than a confusing make error when building C++ extensions.
+  pgxs_kv += {
+    'CXX': 'g++',
+  }
+endif
+
 if llvm.found()
   pgxs_kv += {
     'CLANG': clang.full_path(),
-    'CXX': ' '.join(cpp.cmd_array()),
     'LLVM_BINPATH': llvm_binpath,
   }
 else
   pgxs_kv += {
     'CLANG': '',
-    'CXX': '',
     'LLVM_BINPATH': '',
   }
 endif

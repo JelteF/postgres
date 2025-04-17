@@ -36,7 +36,7 @@ config_paths_data.set_quoted('MANDIR', dir_prefix / dir_man)
 var_cc = ' '.join(cc.cmd_array())
 var_cpp = ' '.join(cc.cmd_array() + ['-E'])
 var_cflags = ' '.join(cflags + cflags_builtin + cflags_warn + get_option('c_args'))
-if llvm.found()
+if have_cpp
   var_cxxflags = ' '.join(cxxflags + cxxflags_builtin + cxxflags_warn + get_option('cpp_args'))
 else
   var_cxxflags = ''
