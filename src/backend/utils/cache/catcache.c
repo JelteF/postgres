@@ -989,7 +989,7 @@ RehashCatCache(CatCache *cp)
 	int			newnbuckets;
 	int			i;
 
-	elog(DEBUG1, "rehashing catalog cache id %d for %s; %d tups, %d buckets",
+	elog(DEBUG4, "rehashing catalog cache id %d for %s; %d tups, %d buckets",
 		 cp->id, cp->cc_relname, cp->cc_ntup, cp->cc_nbuckets);
 
 	/* Allocate a new, larger, hash table. */
@@ -1027,7 +1027,7 @@ RehashCatCacheLists(CatCache *cp)
 	int			newnbuckets;
 	int			i;
 
-	elog(DEBUG1, "rehashing catalog cache id %d for %s; %d lists, %d buckets",
+	elog(DEBUG4, "rehashing catalog cache id %d for %s; %d lists, %d buckets",
 		 cp->id, cp->cc_relname, cp->cc_nlist, cp->cc_nlbuckets);
 
 	/* Allocate a new, larger, hash table. */

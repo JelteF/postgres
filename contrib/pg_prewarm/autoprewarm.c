@@ -803,7 +803,7 @@ apw_dump_now(bool is_bgworker, bool dump_unlogged)
 	(void) durable_rename(transient_dump_file_path, AUTOPREWARM_FILE, ERROR);
 	apw_state->pid_using_dumpfile = InvalidPid;
 
-	ereport(DEBUG1,
+	ereport(is_bgworker ? DEBUG1 : DEBUG2,
 			(errmsg_internal("wrote block details for %d blocks", num_blocks)));
 	return num_blocks;
 }

@@ -2117,7 +2117,7 @@ CheckPointReplicationSlots(bool is_shutdown)
 	int			i;
 	bool		last_saved_restart_lsn_updated = false;
 
-	elog(DEBUG1, "performing replication slot checkpoint");
+	elog(DEBUG2, "performing replication slot checkpoint");
 
 	/*
 	 * Prevent any slot from being created/dropped while we're active. As we

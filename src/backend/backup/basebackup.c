@@ -1295,7 +1295,7 @@ sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeonly,
 				cmplen++;
 			if (strncmp(de->d_name, excludeFiles[excludeIdx].name, cmplen) == 0)
 			{
-				elog(DEBUG1, "file \"%s\" excluded from backup", de->d_name);
+				elog(DEBUG3, "file \"%s\" excluded from backup", de->d_name);
 				excludeFound = true;
 				break;
 			}
@@ -1370,7 +1370,7 @@ sendDir(bbsink *sink, const char *path, int basepathlen, bool sizeonly,
 		{
 			if (strcmp(de->d_name, excludeDirContents[excludeIdx]) == 0)
 			{
-				elog(DEBUG1, "contents of directory \"%s\" excluded from backup", de->d_name);
+				elog(DEBUG3, "contents of directory \"%s\" excluded from backup", de->d_name);
 				convert_link_to_directory(pathbuf, &statbuf);
 				size += _tarWriteHeader(sink, pathbuf + basepathlen + 1, NULL,
 										&statbuf, sizeonly);

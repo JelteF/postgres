@@ -707,19 +707,19 @@ create_collation_from_locale(const char *locale, int nspid,
 	 */
 	if (!pg_is_ascii(locale))
 	{
-		elog(DEBUG1, "skipping locale with non-ASCII name: \"%s\"", locale);
+		elog(DEBUG3, "skipping locale with non-ASCII name: \"%s\"", locale);
 		return -1;
 	}
 
 	enc = pg_get_encoding_from_locale(locale, false);
 	if (enc < 0)
 	{
-		elog(DEBUG1, "skipping locale with unrecognized encoding: \"%s\"", locale);
+		elog(DEBUG3, "skipping locale with unrecognized encoding: \"%s\"", locale);
 		return -1;
 	}
 	if (!PG_VALID_BE_ENCODING(enc))
 	{
-		elog(DEBUG1, "skipping locale with client-only encoding: \"%s\"", locale);
+		elog(DEBUG3, "skipping locale with client-only encoding: \"%s\"", locale);
 		return -1;
 	}
 	if (enc == PG_SQL_ASCII)
@@ -786,7 +786,7 @@ win32_read_locale(LPWSTR pStr, DWORD dwFlags, LPARAM lparam)
 	if (result == 0)
 	{
 		if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-			elog(DEBUG1, "skipping locale with too-long name: \"%s\"", localebuf);
+			elog(DEBUG3, "skipping locale with too-long name: \"%s\"", localebuf);
 		return TRUE;
 	}
 	if (localebuf[0] == '\0')
@@ -882,7 +882,7 @@ pg_import_system_collations(PG_FUNCTION_ARGS)
 
 			if (len == 0 || localebuf[len - 1] != '\n')
 			{
-				elog(DEBUG1, "skipping locale with too-long name: \"%s\"", localebuf);
+				elog(DEBUG3, "skipping locale with too-long name: \"%s\"", localebuf);
 				continue;
 			}
 			localebuf[len - 1] = '\0';

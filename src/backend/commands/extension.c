@@ -1109,9 +1109,9 @@ execute_extension_script(Oid extensionOid, ExtensionControlFile *control,
 	filename = get_extension_script_filename(control, from_version, version);
 
 	if (from_version == NULL)
-		elog(DEBUG1, "executing extension script for \"%s\" version '%s'", control->name, version);
+		elog(DEBUG2, "executing extension script for \"%s\" version '%s'", control->name, version);
 	else
-		elog(DEBUG1, "executing extension script for \"%s\" update from version '%s' to '%s'", control->name, from_version, version);
+		elog(DEBUG2, "executing extension script for \"%s\" update from version '%s' to '%s'", control->name, from_version, version);
 
 	/*
 	 * If installing a trusted extension on behalf of a non-superuser, become

@@ -23,12 +23,30 @@ struct Node;
 
 
 /* Error level codes */
-#define DEBUG5		10			/* Debugging messages, in categories of
-								 * decreasing detail. */
-#define DEBUG4		11
-#define DEBUG3		12
-#define DEBUG2		13
-#define DEBUG1		14			/* used by GUC debug_* variables */
+#define DEBUG5		10			/* Messages that should basically never be
+								 * shown */
+#define DEBUG4		11			/* Tracing of cache-flush-sensitive behavior
+								 * and other very noisy cases. */
+#define DEBUG3		12			/* "run of the mill" debug messages; This is
+								 * the debug level that you normally should
+								 * use. */
+#define DEBUG2		13			/* High-level tracing of actions. Do not use
+								 * this for logs that are likely to be
+								 * triggered many times for a single command.
+								 * Use DEBUG3 or DEBUG4 in that case.
+								 * Stability is desired. */
+#define DEBUG1		14			/* Used by background workers, postmaster and
+								 * replication backends for cases where
+								 * regular backends would use DEBUG2. Core
+								 * postgres should never use this log message
+								 * in regular backends, except when it's
+								 * additonally guarded by a debug_* or trace_*
+								 * GUC. These rules allow users to set
+								 * log_min_messages to DEBUG1 globally to get
+								 * more insights into background workers
+								 * without creating additional logs for
+								 * regular backends. Any other usages are
+								 * reserved for extensions. */
 #define LOG			15			/* Server operational messages; sent only to
 								 * server log by default. */
 #define LOG_SERVER_ONLY 16		/* Same as LOG for server reporting, but never

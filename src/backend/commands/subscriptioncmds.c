@@ -946,7 +946,7 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data,
 				AddSubscriptionRelState(sub->oid, relid,
 										copy_data ? SUBREL_STATE_INIT : SUBREL_STATE_READY,
 										InvalidXLogRecPtr, true);
-				ereport(DEBUG1,
+				ereport(DEBUG3,
 						(errmsg_internal("table \"%s.%s\" added to subscription \"%s\"",
 										 rv->schemaname, rv->relname, sub->name)));
 			}
@@ -1020,7 +1020,7 @@ AlterSubscription_refresh(Subscription *sub, bool copy_data,
 					replorigin_drop_by_name(originname, true, false);
 				}
 
-				ereport(DEBUG1,
+				ereport(DEBUG3,
 						(errmsg_internal("table \"%s.%s\" removed from subscription \"%s\"",
 										 get_namespace_name(get_rel_namespace(relid)),
 										 get_rel_name(relid),

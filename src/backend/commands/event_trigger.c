@@ -1088,7 +1088,7 @@ EventTriggerInvoke(List *fn_oid_list, EventTriggerData *trigdata)
 		FmgrInfo	flinfo;
 		PgStat_FunctionCallUsage fcusage;
 
-		elog(DEBUG1, "EventTriggerInvoke %u", fnoid);
+		elog(DEBUG2, "EventTriggerInvoke %u", fnoid);
 
 		/*
 		 * We want each event trigger to be able to see the results of the

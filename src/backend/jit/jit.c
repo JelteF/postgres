@@ -88,10 +88,10 @@ provider_init(void)
 	 * because that'd error out in case the shlib isn't available.
 	 */
 	snprintf(path, MAXPGPATH, "%s/%s%s", pkglib_path, jit_provider, DLSUFFIX);
-	elog(DEBUG1, "probing availability of JIT provider at %s", path);
+	elog(DEBUG2, "probing availability of JIT provider at %s", path);
 	if (!pg_file_exists(path))
 	{
-		elog(DEBUG1,
+		elog(DEBUG2,
 			 "provider not available, disabling JIT for current session");
 		provider_failed_loading = true;
 		return false;
@@ -114,7 +114,7 @@ provider_init(void)
 	provider_successfully_loaded = true;
 	provider_failed_loading = false;
 
-	elog(DEBUG1, "successfully loaded JIT provider in current session");
+	elog(DEBUG2, "successfully loaded JIT provider in current session");
 
 	return true;
 }
