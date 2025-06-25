@@ -4322,6 +4322,9 @@ keep_going:						/* We will come back to here until there is
 				if (PQisBusy(conn))
 					return PGRES_POLLING_READING;
 
+				if (conn->status == CONNECTION_BAD)
+					goto error_return;
+
 				res = PQgetResult(conn);
 
 				/*

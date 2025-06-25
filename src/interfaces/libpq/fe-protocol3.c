@@ -1547,13 +1547,31 @@ getBackendKeyData(PGconn *conn, int msgLength)
 
 	cancel_key_len = 5 + msgLength - (conn->inCursor - conn->inStart);
 
+	if (cancel_key_len != 4 && conn->pversion == PG_PROTOCOL(3, 0))
+	{
+		libpq_append_conn_error(conn, "received invalid BackendKeyData message: cancel key length %d is different from 4, which is not supported in version 3.0 of the protocol", cancel_key_len);
+		goto failure;
+	}
+
+	if (cancel_key_len < 4)
+	{
+		libpq_append_conn_error(conn, "received invalid BackendKeyData message: cancel key length %d is below minimum of 4 bytes", cancel_key_len);
+		goto failure;
+	}
+
+	if (cancel_key_len > 256)
+	{
+		libpq_append_conn_error(conn, "received invalid BackendKeyData message: cancel key length %d exceeds maximum of 256 bytes", cancel_key_len);
+		goto failure;
+	}
+
 	conn->be_cancel_key = malloc(cancel_key_len);
 	if (conn->be_cancel_key == NULL)
 	{
 		libpq_append_conn_error(conn, "out of memory");
-		/* discard the message */
-		return EOF;
+		goto failure;
 	}
+
 	if (pqGetnchar(conn->be_cancel_key, cancel_key_len, conn))
 	{
 		free(conn->be_cancel_key);
@@ -1562,6 +1580,14 @@ getBackendKeyData(PGconn *conn, int msgLength)
 	}
 	conn->be_cancel_key_len = cancel_key_len;
 	return 0;
+
+failure:
+	pqSaveErrorResult(conn);
+	conn->asyncStatus = PGASYNC_READY;	/* drop out of PQgetResult wait loop */
+	/* flush input data since we're giving up on processing it */
+	pqDropConnection(conn, true);
+	conn->status = CONNECTION_BAD;	/* No more connection to backend */
+	return EOF;
 }
 
 
