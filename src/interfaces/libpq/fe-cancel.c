@@ -86,13 +86,6 @@ PQcancelCreate(PGconn *conn)
 		return (PGcancelConn *) cancelConn;
 	}
 
-	/* Check that we have received a cancellation key */
-	if (conn->be_cancel_key_len == 0)
-	{
-		libpq_append_conn_error(cancelConn, "no cancellation key received");
-		return (PGcancelConn *) cancelConn;
-	}
-
 	/*
 	 * Indicate that this connection is used to send a cancellation
 	 */
@@ -111,7 +104,7 @@ PQcancelCreate(PGconn *conn)
 	 * Copy cancellation token data from the original connection
 	 */
 	cancelConn->be_pid = conn->be_pid;
-	if (conn->be_cancel_key != NULL)
+	if (conn->be_cancel_key_len > 0)
 	{
 		cancelConn->be_cancel_key = malloc(conn->be_cancel_key_len);
 		if (cancelConn->be_cancel_key == NULL)
@@ -205,6 +198,17 @@ PQcancelStart(PGcancelConn *cancelConn)
 {
 	if (!cancelConn || cancelConn->conn.status == CONNECTION_BAD)
 		return 0;
+
+	/*
+	 * Check that we actually have a concel key. We check this here as apposed
+	 * to in PQcancelCreate because users of libpq might call PQcancelCreate
+	 * even when they don't need to cancel a connection.
+	 */
+	if (cancelConn->conn.be_cancel_key_len == 0)
+	{
+		libpq_append_conn_error(&cancelConn->conn, "no cancellation key received");
+		return 0;
+	}
 
 	if (cancelConn->conn.status != CONNECTION_ALLOCATED)
 	{
@@ -379,7 +383,14 @@ PQgetCancel(PGconn *conn)
 
 	/* Check that we have received a cancellation key */
 	if (conn->be_cancel_key_len == 0)
-		return NULL;
+	{
+		/*
+		 * In case there is no cancel key, we return an all-zero PGCancel
+		 * object. Actually calling PQcancel on this will fail, but we allow
+		 * creating the PGCancel object
+		 */
+		return calloc(1, sizeof(PGcancel));
+	}
 
 	cancel_req_len = offsetof(CancelRequestPacket, cancelAuthCode) + conn->be_cancel_key_len;
 	cancel = malloc(offsetof(PGcancel, cancel_req) + cancel_req_len);
@@ -539,6 +550,14 @@ PQcancel(PGcancel *cancel, char *errbuf, int errbufsize)
 	if (!cancel)
 	{
 		strlcpy(errbuf, "PQcancel() -- no cancel object supplied", errbufsize);
+		/* strlcpy probably doesn't change errno, but be paranoid */
+		SOCK_ERRNO_SET(save_errno);
+		return false;
+	}
+
+	if (cancel->cancel_pkt_len == 0)
+	{
+		strlcpy(errbuf, "PQcancel() -- no cancellation key received", errbufsize);
 		/* strlcpy probably doesn't change errno, but be paranoid */
 		SOCK_ERRNO_SET(save_errno);
 		return false;

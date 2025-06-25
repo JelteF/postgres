@@ -535,7 +535,21 @@
         This message provides secret-key data that the frontend must
         save if it wants to be able to issue cancel requests later.
         The frontend should not respond to this message, but should
-        continue listening for a ReadyForQuery message.
+        continue listening for a ReadyForQuery message. The PostgreSQL backend
+        will always send this message before sending the inital ReadyForQuery
+        message but other backend implementations of the protocol may not.
+        Since protocol version 3.2, if the server sent no BackendKeyData, then
+        that means that the backend does not support canceling queries using
+        the CancelRequest messages. In protocol versions before 3.2 the
+        behaviour is undefined if the client receives no BackendKeyData.
+        Up until the libpq shipped in PostgreSQL 17, it would send a
+        CancelRequest with all zeros to 3.0 connections that did not send a
+        BackendKeyData message. Since the libpq shipped with PostgreSQL 18 it
+        does not send any CancelRequest at all for such connections anymore,
+        thus aligning with the behaviour for protocol 3.2. Throwing an error
+        as a client when not receiving BackendKeyData on a 3.0 connection is
+        not recommended, because certain server implementations are known not
+        to send it.
        </para>
       </listitem>
      </varlistentry>
