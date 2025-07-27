@@ -3031,12 +3031,12 @@ index_build(Relation heapRelation,
 									  RelationGetRelid(indexRelation));
 
 	if (indexInfo->ii_ParallelWorkers == 0)
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errmsg_internal("building index \"%s\" on table \"%s\" serially",
 								 RelationGetRelationName(indexRelation),
 								 RelationGetRelationName(heapRelation))));
 	else
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errmsg_internal("building index \"%s\" on table \"%s\" with request for %d parallel workers",
 								 RelationGetRelationName(indexRelation),
 								 RelationGetRelationName(heapRelation),

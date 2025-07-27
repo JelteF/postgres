@@ -3277,7 +3277,7 @@ check_default_partition_contents(Relation parent, Relation default_rel,
 	 */
 	if (PartConstraintImpliedByRelConstraint(default_rel, def_part_constraints))
 	{
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errmsg_internal("updated partition constraint for default partition \"%s\" is implied by existing constraints",
 								 RelationGetRelationName(default_rel))));
 		return;
@@ -3328,7 +3328,7 @@ check_default_partition_contents(Relation parent, Relation default_rel,
 			if (PartConstraintImpliedByRelConstraint(part_rel,
 													 def_part_constraints))
 			{
-				ereport(DEBUG1,
+				ereport(DEBUG2,
 						(errmsg_internal("updated partition constraint for default partition \"%s\" is implied by existing constraints",
 										 RelationGetRelationName(part_rel))));
 

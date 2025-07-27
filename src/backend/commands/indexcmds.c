@@ -1190,7 +1190,7 @@ DefineIndex(Oid tableId,
 			constraint_type = NULL; /* keep compiler quiet */
 		}
 
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errmsg_internal("%s %s will create implicit index \"%s\" for table \"%s\"",
 								 is_alter_table ? "ALTER TABLE / ADD" : "CREATE TABLE /",
 								 constraint_type,

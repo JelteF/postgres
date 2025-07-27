@@ -6273,11 +6273,11 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap)
 		}
 
 		if (newrel)
-			ereport(DEBUG1,
+			ereport(DEBUG2,
 					(errmsg_internal("rewriting table \"%s\"",
 									 RelationGetRelationName(oldrel))));
 		else
-			ereport(DEBUG1,
+			ereport(DEBUG2,
 					(errmsg_internal("verifying table \"%s\"",
 									 RelationGetRelationName(oldrel))));
 
