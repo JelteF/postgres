@@ -2364,7 +2364,7 @@ SetMultiXactIdLimit(MultiXactId oldest_datminmxid, Oid oldest_datoid,
 	LWLockRelease(MultiXactGenLock);
 
 	/* Log the info */
-	ereport(DEBUG1,
+	ereport(DEBUG3,
 			(errmsg_internal("MultiXactId wrap limit is %u, limited by database with OID %u",
 							 multiWrapLimit, oldest_datoid)));
 
@@ -2707,7 +2707,7 @@ SetOffsetVacuumLimit(bool is_startup)
 			find_multixact_start(oldestMultiXactId, &oldestOffset);
 
 		if (oldestOffsetKnown)
-			ereport(DEBUG1,
+			ereport(DEBUG3,
 					(errmsg_internal("oldest MultiXactId member is at offset %u",
 									 oldestOffset)));
 		else
@@ -2736,7 +2736,7 @@ SetOffsetVacuumLimit(bool is_startup)
 			ereport(LOG,
 					(errmsg("MultiXact member wraparound protections are now enabled")));
 
-		ereport(DEBUG1,
+		ereport(DEBUG3,
 				(errmsg_internal("MultiXact member stop limit is now %u based on MultiXact %u",
 								 offsetStopLimit, oldestMultiXactId)));
 	}
@@ -3149,7 +3149,7 @@ TruncateMultiXact(MultiXactId newOldestMulti, Oid newOldestMultiDB)
 		return;
 	}
 
-	elog(DEBUG1, "performing multixact truncation: "
+	elog(DEBUG3, "performing multixact truncation: "
 		 "offsets [%u, %u), offsets segments [%" PRIx64 ", %" PRIx64 "), "
 		 "members [%u, %u), members segments [%" PRIx64 ", %" PRIx64 ")",
 		 oldestMulti, newOldestMulti,
@@ -3377,7 +3377,7 @@ multixact_redo(XLogReaderState *record)
 		memcpy(&xlrec, XLogRecGetData(record),
 			   SizeOfMultiXactTruncate);
 
-		elog(DEBUG1, "replaying multixact truncation: "
+		elog(DEBUG3, "replaying multixact truncation: "
 			 "offsets [%u, %u), offsets segments [%" PRIx64 ", %" PRIx64 "), "
 			 "members [%u, %u), members segments [%" PRIx64 ", %" PRIx64 ")",
 			 xlrec.startTruncOff, xlrec.endTruncOff,
