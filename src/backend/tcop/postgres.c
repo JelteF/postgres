@@ -375,7 +375,7 @@ SocketBackend(StringInfo inBuf)
 			 * whereToSendOutput.
 			 */
 			whereToSendOutput = DestNone;
-			ereport(DEBUG1,
+			ereport(DEBUG2,
 					(errcode(ERRCODE_CONNECTION_DOES_NOT_EXIST),
 					 errmsg_internal("unexpected EOF on client connection")));
 		}
