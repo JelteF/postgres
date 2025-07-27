@@ -3293,7 +3293,7 @@ recovery_create_dbdir(char *path, bool only_tblspc)
 		ereport(PANIC,
 				errmsg("missing directory \"%s\"", path));
 
-	elog(reachedConsistency ? WARNING : DEBUG1,
+	elog(reachedConsistency ? WARNING : DEBUG3,
 		 "creating missing directory: %s", path);
 
 	if (pg_mkdir_p(path, pg_dir_create_mode) != 0)

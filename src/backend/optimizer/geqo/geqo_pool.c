@@ -120,7 +120,7 @@ random_init_pool(PlannerInfo *root, Pool *pool)
 
 #ifdef GEQO_DEBUG
 	if (bad > 0)
-		elog(DEBUG1, "%d invalid tours found while selecting %d pool entries",
+		elog(DEBUG3, "%d invalid tours found while selecting %d pool entries",
 			 bad, pool->size);
 #endif
 }

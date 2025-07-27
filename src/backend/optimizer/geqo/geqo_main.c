@@ -124,7 +124,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 								 * future (-> geqo_pool.c:spread_chromo ) */
 
 #ifdef GEQO_DEBUG
-	elog(DEBUG1, "GEQO selected %d pool entries, best %.2f, worst %.2f",
+	elog(DEBUG3, "GEQO selected %d pool entries, best %.2f, worst %.2f",
 		 pool_size,
 		 pool->data[0].worth,
 		 pool->data[pool_size - 1].worth);
@@ -258,7 +258,7 @@ geqo(PlannerInfo *root, int number_of_rels, List *initial_rels)
 #endif
 
 #ifdef GEQO_DEBUG
-	elog(DEBUG1, "GEQO best is %.2f after %d generations",
+	elog(DEBUG3, "GEQO best is %.2f after %d generations",
 		 pool->data[0].worth, number_generations);
 #endif
 

@@ -635,7 +635,7 @@ pg_get_shmem_allocations_numa(PG_FUNCTION_ARGS)
 	pages_status = palloc(sizeof(int) * shm_total_page_count);
 
 	if (firstNumaTouch)
-		elog(DEBUG1, "NUMA: page-faulting shared memory segments for proper NUMA readouts");
+		elog(DEBUG3, "NUMA: page-faulting shared memory segments for proper NUMA readouts");
 
 	LWLockAcquire(ShmemIndexLock, LW_SHARED);
 

@@ -425,7 +425,7 @@ WaitForProcSignalBarrier(uint64 generation)
 {
 	Assert(generation <= pg_atomic_read_u64(&ProcSignal->psh_barrierGeneration));
 
-	elog(DEBUG1,
+	elog(DEBUG3,
 		 "waiting for all backends to process ProcSignalBarrier generation "
 		 UINT64_FORMAT,
 		 generation);
@@ -455,7 +455,7 @@ WaitForProcSignalBarrier(uint64 generation)
 		ConditionVariableCancelSleep();
 	}
 
-	elog(DEBUG1,
+	elog(DEBUG3,
 		 "finished waiting for all backends to process ProcSignalBarrier generation "
 		 UINT64_FORMAT,
 		 generation);
