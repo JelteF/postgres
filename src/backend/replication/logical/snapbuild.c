@@ -834,7 +834,7 @@ SnapBuildAddCommittedTxn(SnapBuild *builder, TransactionId xid)
 	{
 		builder->committed.xcnt_space = builder->committed.xcnt_space * 2 + 1;
 
-		elog(DEBUG1, "increasing space for committed transactions to %u",
+		elog(DEBUG3, "increasing space for committed transactions to %u",
 			 (uint32) builder->committed.xcnt_space);
 
 		builder->committed.xip = repalloc(builder->committed.xip,
@@ -991,7 +991,7 @@ SnapBuildCommitTxn(SnapBuild *builder, XLogRecPtr lsn, TransactionId xid,
 			sub_needs_timetravel = true;
 			needs_snapshot = true;
 
-			elog(DEBUG1, "found subtransaction %u:%u with catalog changes",
+			elog(DEBUG3, "found subtransaction %u:%u with catalog changes",
 				 xid, subxid);
 
 			SnapBuildAddCommittedTxn(builder, subxid);
@@ -1570,7 +1570,7 @@ SnapBuildSerialize(SnapBuild *builder, XLogRecPtr lsn)
 	 * so this is perfectly fine, although a bit of a resource waste. Locking
 	 * seems like pointless complication.
 	 */
-	elog(DEBUG1, "serializing snapshot to %s", path);
+	elog(DEBUG3, "serializing snapshot to %s", path);
 
 	/* to make sure only we will write to this tempfile, include pid */
 	sprintf(tmppath, "%s/%X-%X.snap.%d.tmp",
@@ -2002,11 +2002,11 @@ CheckPointSnapBuild(void)
 			continue;
 
 		snprintf(path, sizeof(path), "%s/%s", PG_LOGICAL_SNAPSHOTS_DIR, snap_de->d_name);
-		de_type = get_dirent_type(path, snap_de, false, DEBUG1);
+		de_type = get_dirent_type(path, snap_de, false, DEBUG3);
 
 		if (de_type != PGFILETYPE_ERROR && de_type != PGFILETYPE_REG)
 		{
-			elog(DEBUG1, "only regular files expected: %s", path);
+			elog(DEBUG3, "only regular files expected: %s", path);
 			continue;
 		}
 
@@ -2031,7 +2031,7 @@ CheckPointSnapBuild(void)
 		/* check whether we still need it */
 		if (lsn < cutoff || cutoff == InvalidXLogRecPtr)
 		{
-			elog(DEBUG1, "removing snapbuild snapshot %s", path);
+			elog(DEBUG3, "removing snapbuild snapshot %s", path);
 
 			/*
 			 * It's not particularly harmful, though strange, if we can't

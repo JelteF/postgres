@@ -5512,7 +5512,7 @@ UpdateLogicalMappings(HTAB *tuplecid_data, Oid relid, Snapshot snapshot)
 	{
 		RewriteMappingFile *f = (RewriteMappingFile *) lfirst(file);
 
-		elog(DEBUG1, "applying mapping: \"%s\" in %u", f->fname,
+		elog(DEBUG3, "applying mapping: \"%s\" in %u", f->fname,
 			 snapshot->subxip[0]);
 		ApplyLogicalMappingFile(tuplecid_data, relid, f->fname);
 		pfree(f);
