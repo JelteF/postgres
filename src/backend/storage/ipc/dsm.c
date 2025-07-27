@@ -254,7 +254,7 @@ dsm_cleanup_using_control_segment(dsm_handle old_control_handle)
 	 * out quietly.
 	 */
 	if (!dsm_impl_op(DSM_OP_ATTACH, old_control_handle, 0, &impl_private,
-					 &mapped_address, &mapped_size, DEBUG1))
+					 &mapped_address, &mapped_size, DEBUG3))
 		return;
 
 	/*

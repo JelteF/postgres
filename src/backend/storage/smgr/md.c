@@ -1504,7 +1504,7 @@ register_dirty_segment(SMgrRelation reln, ForkNumber forknum, MdfdVec *seg)
 	{
 		instr_time	io_start;
 
-		ereport(DEBUG1,
+		ereport(DEBUG3,
 				(errmsg_internal("could not forward fsync request because request queue is full")));
 
 		io_start = pgstat_prepare_io_time(track_io_timing);

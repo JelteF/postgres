@@ -1121,7 +1121,7 @@ ProcArrayApplyRecoveryInfo(RunningTransactions running)
 									  running->oldestRunningXid))
 			{
 				standbyState = STANDBY_SNAPSHOT_READY;
-				elog(DEBUG1,
+				elog(DEBUG3,
 					 "recovery snapshots are now enabled");
 			}
 			else
@@ -1212,7 +1212,7 @@ ProcArrayApplyRecoveryInfo(RunningTransactions running)
 		{
 			if (i > 0 && TransactionIdEquals(xids[i - 1], xids[i]))
 			{
-				elog(DEBUG1,
+				elog(DEBUG3,
 					 "found duplicated transaction %u for KnownAssignedXids insertion",
 					 xids[i]);
 				continue;
@@ -1301,9 +1301,9 @@ ProcArrayApplyRecoveryInfo(RunningTransactions running)
 
 	KnownAssignedXidsDisplay(DEBUG3);
 	if (standbyState == STANDBY_SNAPSHOT_READY)
-		elog(DEBUG1, "recovery snapshots are now enabled");
+		elog(DEBUG3, "recovery snapshots are now enabled");
 	else
-		elog(DEBUG1,
+		elog(DEBUG3,
 			 "recovery snapshot waiting for non-overflowed snapshot or "
 			 "until oldest active xid on standby is at least %u (now %u)",
 			 standbySnapshotPendingXmin,
@@ -3916,7 +3916,7 @@ ProcArraySetReplicationSlotXmin(TransactionId xmin, TransactionId catalog_xmin,
 	if (!already_locked)
 		LWLockRelease(ProcArrayLock);
 
-	elog(DEBUG1, "xmin required by slots: data %u, catalog %u",
+	elog(DEBUG3, "xmin required by slots: data %u, catalog %u",
 		 xmin, catalog_xmin);
 }
 

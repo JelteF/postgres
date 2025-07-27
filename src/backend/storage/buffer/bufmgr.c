@@ -1621,7 +1621,7 @@ ProcessReadBuffersResult(ReadBuffersOperation *operation)
 		 * We'll retry, so we just emit a debug message to the server log (or
 		 * not even that in prod scenarios).
 		 */
-		pgaio_result_report(aio_ret->result, &aio_ret->target_data, DEBUG1);
+		pgaio_result_report(aio_ret->result, &aio_ret->target_data, DEBUG3);
 		elog(DEBUG3, "partial read, will retry");
 	}
 
@@ -3870,7 +3870,7 @@ BgBufferSync(WritebackContext *wb_context)
 	PendingBgWriterStats.buf_written_clean += num_written;
 
 #ifdef BGW_DEBUG
-	elog(DEBUG1, "bgwriter: recent_alloc=%u smoothed=%.2f delta=%ld ahead=%d density=%.2f reusable_est=%d upcoming_est=%d scanned=%d wrote=%d reusable=%d",
+	elog(DEBUG4, "bgwriter: recent_alloc=%u smoothed=%.2f delta=%ld ahead=%d density=%.2f reusable_est=%d upcoming_est=%d scanned=%d wrote=%d reusable=%d",
 		 recent_alloc, smoothed_alloc, strategy_delta, bufs_ahead,
 		 smoothed_density, reusable_buffers_est, upcoming_alloc_est,
 		 bufs_to_lap - num_to_scan,
@@ -7251,7 +7251,7 @@ buffer_readv_complete(PgAioHandle *ioh, PgAioResult prior_result,
 								  error_count, zeroed_count, checkfail_count,
 								  first_error_off, first_zeroed_off,
 								  first_ignored_off);
-		pgaio_result_report(result, td, DEBUG1);
+		pgaio_result_report(result, td, DEBUG3);
 	}
 
 	/*

@@ -191,7 +191,7 @@ pgaio_uring_check_capabilities(void)
 		{
 			pgaio_uring_caps.mem_init_size = ret;
 
-			elog(DEBUG1,
+			elog(DEBUG3,
 				 "can use combined memory mapping for io_uring, each ring needs %d bytes",
 				 ret);
 
@@ -207,7 +207,7 @@ pgaio_uring_check_capabilities(void)
 			 * pgaio_uring_shmem_init().
 			 */
 			errno = -ret;
-			elog(DEBUG1,
+			elog(DEBUG3,
 				 "cannot use combined memory mapping for io_uring, ring creation failed: %m");
 
 		}
@@ -217,7 +217,7 @@ pgaio_uring_check_capabilities(void)
 	}
 #else
 	{
-		elog(DEBUG1,
+		elog(DEBUG3,
 			 "can't use combined memory mapping for io_uring, kernel or liburing too old");
 	}
 #endif
