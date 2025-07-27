@@ -2278,7 +2278,7 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 	/* Was this the only page on the level before split? */
 	wasonly = (P_LEFTMOST(lpageop) && P_RIGHTMOST(rpageop));
 
-	elog(DEBUG1, "finishing incomplete split of %u/%u",
+	elog(DEBUG2, "finishing incomplete split of %u/%u",
 		 BufferGetBlockNumber(lbuf), BufferGetBlockNumber(rbuf));
 
 	_bt_insert_parent(rel, heaprel, lbuf, rbuf, stack, wasroot, wasonly);

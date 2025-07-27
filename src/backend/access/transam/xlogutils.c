@@ -125,8 +125,8 @@ log_invalid_page(RelFileLocator locator, ForkNumber forkno, BlockNumber blkno,
 	 * tracing of the cause (note the elog context mechanism will tell us
 	 * something about the XLOG record that generated the reference).
 	 */
-	if (message_level_is_interesting(DEBUG1))
-		report_invalid_page(DEBUG1, locator, forkno, blkno, present);
+	if (message_level_is_interesting(DEBUG3))
+		report_invalid_page(DEBUG3, locator, forkno, blkno, present);
 
 	if (invalid_page_tab == NULL)
 	{

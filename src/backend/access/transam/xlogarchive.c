@@ -206,7 +206,7 @@ RestoreArchivedFile(char *path, const char *xlogfname,
 				 * done recovering ...
 				 */
 				if (StandbyMode && stat_buf.st_size < expectedSize)
-					elevel = DEBUG1;
+					elevel = DEBUG2;
 				else
 					elevel = FATAL;
 				ereport(elevel,

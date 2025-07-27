@@ -3677,10 +3677,10 @@ SyncDataDirectory(void)
 	 * directory and its contents.  Errors in this step are even less
 	 * interesting than normal, so log them only at DEBUG1.
 	 */
-	walkdir(".", pre_sync_fname, false, DEBUG1);
+	walkdir(".", pre_sync_fname, false, DEBUG2);
 	if (xlog_is_symlink)
-		walkdir("pg_wal", pre_sync_fname, false, DEBUG1);
-	walkdir(PG_TBLSPC_DIR, pre_sync_fname, true, DEBUG1);
+		walkdir("pg_wal", pre_sync_fname, false, DEBUG2);
+	walkdir(PG_TBLSPC_DIR, pre_sync_fname, true, DEBUG2);
 #endif
 
 	/* Prepare to report progress syncing the data directory via fsync. */

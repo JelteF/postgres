@@ -426,7 +426,7 @@ ProcessSyncRequests(void)
 					processed++;
 
 					if (log_checkpoints)
-						elog(DEBUG1, "checkpoint sync: number=%d file=%s time=%.3f ms",
+						elog(DEBUG4, "checkpoint sync: number=%d file=%s time=%.3f ms",
 							 processed,
 							 path,
 							 (double) elapsed / 1000);
@@ -446,7 +446,7 @@ ProcessSyncRequests(void)
 							 errmsg("could not fsync file \"%s\": %m",
 									path)));
 				else
-					ereport(DEBUG1,
+					ereport(DEBUG4,
 							(errcode_for_file_access(),
 							 errmsg_internal("could not fsync file \"%s\" but retrying: %m",
 											 path)));

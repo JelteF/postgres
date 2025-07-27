@@ -1080,7 +1080,7 @@ gin_clean_pending_list(PG_FUNCTION_ARGS)
 		ginInsertCleanup(&ginstate, true, true, true, &stats);
 	}
 	else
-		ereport(DEBUG1,
+		ereport(DEBUG3,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("index \"%s\" is not valid",
 						RelationGetRelationName(indexRel))));

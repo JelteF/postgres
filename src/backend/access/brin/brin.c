@@ -1467,7 +1467,7 @@ brin_summarize_range(PG_FUNCTION_ARGS)
 	if (indexRel->rd_index->indisvalid)
 		brinsummarize(indexRel, heapRel, heapBlk, true, &numSummarized, NULL);
 	else
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("index \"%s\" is not valid",
 						RelationGetRelationName(indexRel))));
@@ -1563,7 +1563,7 @@ brin_desummarize_range(PG_FUNCTION_ARGS)
 		while (!done);
 	}
 	else
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
 				 errmsg("index \"%s\" is not valid",
 						RelationGetRelationName(indexRel))));

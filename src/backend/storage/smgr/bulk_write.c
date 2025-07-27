@@ -211,7 +211,7 @@ smgr_bulk_finish(BulkWriteState *bulkstate)
 			 */
 			MyProc->delayChkptFlags &= ~DELAY_CHKPT_START;
 			smgrimmedsync(bulkstate->smgr, bulkstate->forknum);
-			elog(DEBUG1, "flushed relation because a checkpoint occurred concurrently");
+			elog(DEBUG3, "flushed relation because a checkpoint occurred concurrently");
 		}
 		else
 		{

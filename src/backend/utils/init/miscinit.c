@@ -1885,7 +1885,7 @@ load_libraries(const char *libraries, const char *gucname, bool restricted)
 			filename = expanded;
 		}
 		load_file(filename, restricted);
-		ereport(DEBUG1,
+		ereport(DEBUG2,
 				(errmsg_internal("loaded library \"%s\"", filename)));
 		if (expanded)
 			pfree(expanded);

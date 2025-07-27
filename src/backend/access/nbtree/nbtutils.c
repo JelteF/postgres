@@ -4254,10 +4254,10 @@ _bt_allequalimage(Relation rel, bool debugmessage)
 	if (debugmessage)
 	{
 		if (allequalimage)
-			elog(DEBUG1, "index \"%s\" can safely use deduplication",
+			elog(DEBUG3, "index \"%s\" can safely use deduplication",
 				 RelationGetRelationName(rel));
 		else
-			elog(DEBUG1, "index \"%s\" cannot use deduplication",
+			elog(DEBUG3, "index \"%s\" cannot use deduplication",
 				 RelationGetRelationName(rel));
 	}
 

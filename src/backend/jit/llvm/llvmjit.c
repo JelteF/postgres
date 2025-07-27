@@ -805,7 +805,7 @@ llvm_compile_module(LLVMJitContext *context)
 	context->handles = lappend(context->handles, handle);
 	MemoryContextSwitchTo(oldcontext);
 
-	ereport(DEBUG1,
+	ereport(DEBUG3,
 			(errmsg_internal("time to inline: %.3fs, opt: %.3fs, emit: %.3fs",
 							 INSTR_TIME_GET_DOUBLE(context->base.instr.inlining_counter),
 							 INSTR_TIME_GET_DOUBLE(context->base.instr.optimization_counter),

@@ -2124,7 +2124,7 @@ _bt_mark_page_halfdead(Relation rel, Relation heaprel, Buffer leafbuf,
 	 */
 	if (_bt_rightsib_halfdeadflag(rel, leafrightsib))
 	{
-		elog(DEBUG1, "could not delete page %u because its right sibling %u is half-dead",
+		elog(DEBUG3, "could not delete page %u because its right sibling %u is half-dead",
 			 leafblkno, leafrightsib);
 		return false;
 	}
