@@ -5,6 +5,7 @@ subdir('isolation')
 
 subdir('authentication')
 subdir('postmaster')
+subdir('pytest')
 subdir('recovery')
 subdir('subscription')
 subdir('modules')
