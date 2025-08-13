@@ -31,6 +31,8 @@ win32ver.rc
 *.exe
 lib*dll.def
 lib*.pc
+__pycache__/
+*.egg-info/
 
 # Local excludes in root directory
 /GNUmakefile
