@@ -225,11 +225,16 @@ AC_SUBST(DTRACEFLAGS)])
 AC_SUBST(enable_dtrace)
 
 #
-# TAP tests
+# Test frameworks
 #
 PGAC_ARG_BOOL(enable, tap-tests, no,
-              [enable TAP tests (requires Perl and IPC::Run)])
+              [enable (Perl-based) TAP tests (requires Perl and IPC::Run)])
 AC_SUBST(enable_tap_tests)
+
+PGAC_ARG_BOOL(enable, pytest, no,
+              [enable (Python-based) pytest suites (requires Python)])
+AC_SUBST(enable_pytest)
+
 AC_ARG_VAR(PG_TEST_EXTRA,
            [enable selected extra tests (overridden at runtime by PG_TEST_EXTRA environment variable)])
 
@@ -2409,6 +2414,13 @@ if test "$enable_tap_tests" = yes; then
     # on failure, though, show the results to the user
     AC_MSG_RESULT([$modulestderr])
     AC_MSG_ERROR([Additional Perl modules are required to run TAP tests])
+  fi
+fi
+
+if test "$enable_pytest" = yes; then
+  PGAC_PATH_PROGS(PYTEST, pytest py.test)
+  if test -z "$PYTEST"; then
+    AC_MSG_ERROR([pytest not found])
   fi
 fi
 
