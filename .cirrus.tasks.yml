@@ -21,7 +21,8 @@ env:
 
   # target to test, for all but windows
   CHECK: check-world PROVE_FLAGS=$PROVE_FLAGS
-  CHECKFLAGS: -Otarget
+  # TODO were we avoiding --keep-going on purpose?
+  CHECKFLAGS: -Otarget --keep-going
   PROVE_FLAGS: --timer
   # Build test dependencies as part of the build step, to see compiler
   # errors/warnings in one place.
@@ -44,6 +45,7 @@ env:
     -Dldap=enabled
     -Dssl=openssl
     -Dtap_tests=enabled
+    -Dpytest=enabled
     -Dplperl=enabled
     -Dplpython=enabled
     -Ddocs=enabled
@@ -222,7 +224,9 @@ task:
     chown root:postgres /tmp/cores
     sysctl kern.corefile='/tmp/cores/%N.%P.core'
   setup_additional_packages_script: |
-    #pkg install -y ...
+    pkg install -y \
+      py311-packaging \
+      py311-pytest
 
   # NB: Intentionally build without -Dllvm. The freebsd image size is already
   # large enough to make VM startup slow, and even without llvm freebsd
@@ -311,7 +315,10 @@ task:
           -Dpam=enabled
 
       setup_additional_packages_script: |
-        #pkgin -y install ...
+        pkgin -y install \
+          py312-packaging \
+          py312-test
+        ln -s /usr/pkg/bin/pytest-3.12 /usr/pkg/bin/pytest
       <<: *netbsd_task_template
 
     - name: OpenBSD - Meson
@@ -322,6 +329,7 @@ task:
         OS_NAME: openbsd
         IMAGE_FAMILY: pg-ci-openbsd-postgres
         PKGCONFIG_PATH: '/usr/lib/pkgconfig:/usr/local/lib/pkgconfig'
+        TERM: # TODO why does pytest print ANSI escapes on OpenBSD?
 
         MESON_FEATURES: >-
           -Dbsd_auth=enabled
@@ -330,7 +338,9 @@ task:
           -Duuid=e2fs
 
       setup_additional_packages_script: |
-        #pkg_add -I ...
+        pkg_add -I \
+          py3-test \
+          py3-packaging
       # Always core dump to ${CORE_DUMP_DIR}
       set_core_dump_script: sysctl -w kern.nosuidcoredump=2
       <<: *openbsd_task_template
@@ -489,8 +499,10 @@ task:
     EOF
 
   setup_additional_packages_script: |
-    #apt-get update
-    #DEBIAN_FRONTEND=noninteractive apt-get -y install ...
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get -y install \
+      python3-pytest \
+      python3-packaging
 
   matrix:
     # SPECIAL:
@@ -513,14 +525,15 @@ task:
         su postgres <<-EOF
           ./configure \
             --enable-cassert --enable-injection-points --enable-debug \
-            --enable-tap-tests --enable-nls \
+            --enable-tap-tests --enable-pytest --enable-nls \
             --with-segsize-blocks=6 \
             --with-libnuma \
             --with-liburing \
             \
             ${LINUX_CONFIGURE_FEATURES} \
             \
-            CLANG="ccache clang-16"
+            CLANG="ccache clang-16" \
+            PYTEST="env LD_PRELOAD=/lib/x86_64-linux-gnu/libasan.so.8 pytest"
         EOF
       build_script: su postgres -c "make -s -j${BUILD_JOBS} world-bin"
       upload_caches: ccache
@@ -650,6 +663,8 @@ task:
       p5.34-io-tty
       p5.34-ipc-run
       python312
+      py312-packaging
+      py312-pytest
       tcl
       zstd
 
@@ -699,6 +714,7 @@ task:
     sh src/tools/ci/ci_macports_packages.sh $MACOS_PACKAGE_LIST
     # system python doesn't provide headers
     sudo /opt/local/bin/port select python3 python312
+    sudo /opt/local/bin/port select pytest pytest312
     # Make macports install visible for subsequent steps
     echo PATH=/opt/local/sbin/:/opt/local/bin/:$PATH >> $CIRRUS_ENV
   upload_caches: macports
@@ -772,6 +788,8 @@ task:
       -Dldap=enabled
       -Dssl=openssl
       -Dtap_tests=enabled
+      -Dpytest=enabled
+      -DPYTEST=c:\Windows\system32\config\systemprofile\AppData\Roaming\Python\Python310\Scripts\pytest.exe
       -Dplperl=enabled
       -Dplpython=enabled
 
@@ -780,8 +798,10 @@ task:
   depends_on: SanityCheck
   only_if: $CI_WINDOWS_ENABLED
 
+  # XXX Does Chocolatey really not have any Python package installers?
   setup_additional_packages_script: |
     REM choco install -y --no-progress ...
+    pip3 install --user packaging pytest
 
   setup_hosts_file_script: |
     echo 127.0.0.1 pg-loadbalancetest >> c:\Windows\System32\Drivers\etc\hosts
@@ -844,7 +864,7 @@ task:
     folder: ${CCACHE_DIR}
 
   setup_additional_packages_script: |
-    REM C:\msys64\usr\bin\pacman.exe -S --noconfirm ...
+    C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-ucrt-x86_64-python-packaging mingw-w64-ucrt-x86_64-python-pytest
 
   mingw_info_script: |
     %BASH% -c "where gcc"

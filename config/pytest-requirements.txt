@@ -1,0 +1,21 @@
+#
+# This file contains the Python packages which are required in order for us to
+# enable pytest.
+#
+# The syntax is a *subset* of pip's requirements.txt syntax, so that both pip
+# and check_pytest.py can use it. Only whole-line comments and standard Python
+# dependency specifiers are allowed. pip-specific goodies like includes and
+# environment substitutions are not supported; keep it simple.
+#
+# Packages belong here if their absence should cause a configuration failure. If
+# you'd like to make a package optional, consider using pytest.importorskip()
+# instead.
+#
+
+# pytest 7.0 was the last version which supported Python 3.6, but the BSDs have
+# started putting 8.x into ports, so we support both. (pytest 8 can be used
+# throughout once we drop support for Python 3.7.)
+pytest >= 7.0, < 9
+
+# packaging is used by check_pytest.py at configure time.
+packaging
