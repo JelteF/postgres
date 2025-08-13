@@ -91,6 +91,7 @@ env:
     -Dreadline=enabled
     -Dssl=openssl
     -Dtap_tests=enabled
+    -Dpytest=enabled
     -Dzlib=enabled
     -Dzstd=enabled
 
@@ -502,7 +503,7 @@ jobs:
         run: |
           ./configure \
             --enable-cassert --enable-injection-points --enable-debug \
-            --enable-tap-tests --enable-nls \
+            --enable-tap-tests --enable-pytest --enable-nls \
             --with-segsize-blocks=6 \
             --with-libnuma \
             --with-liburing \
@@ -711,6 +712,8 @@ jobs:
         p5.34-io-tty
         p5.34-ipc-run
         python312
+        py312-packaging
+        py312-pytest
         tcl
         zstd
 
@@ -779,6 +782,7 @@ jobs:
           sh src/tools/ci/ci_macports_packages.sh $MACOS_PACKAGE_LIST
           # system python doesn't provide headers
           sudo /opt/local/bin/port select python3 python312
+          sudo /opt/local/bin/port select pytest pytest312
           # Make macports install visible to subsequent steps
           echo /opt/local/sbin >> "$GITHUB_PATH"
           echo /opt/local/bin >> "$GITHUB_PATH"
@@ -871,6 +875,7 @@ jobs:
         -Dplpython=enabled
         -Dssl=openssl
         -Dtap_tests=enabled
+        -Dpytest=enabled
 
     defaults:
       run:
