@@ -1,0 +1,43 @@
+src/test/pytest/README
+
+Pytest-based tests
+==================
+
+This directory contains infrastructure for Python-based tests using pytest.
+
+
+Running the tests
+=================
+
+NOTE: You must have given the --enable-pytest argument to configure (or
+-Dpytest=enabled for Meson builds). You also need to have pytest installed.
+
+If you don't have pytest installed system-wide, you can create a virtual
+environment:
+
+    python3 -m venv .venv
+    source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+    pip install .                # Installs pytest and other dependencies
+
+Or using uv (https://docs.astral.sh/uv/):
+
+    uv sync
+    source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+
+Remember to activate the virtual environment before running configure/meson
+setup.
+
+With Meson builds, you can run:
+    meson test --suite pytest
+
+With autoconf based builds, you can run:
+    make check
+or
+    make installcheck
+
+
+Directory structure
+===================
+
+pgtap.py
+    A pytest plugin to output results in TAP format
