@@ -15,4 +15,10 @@ tests += {
       't/003_sslinfo.pl',
     ],
   },
+  'pytest': {
+    'tests': [
+      'pyt/test_client.py',
+      'pyt/test_server.py',
+    ],
+  },
 }
