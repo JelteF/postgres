@@ -11,6 +11,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_something.py',
+      'pyt/test_libpq.py',
     ],
   },
 }
