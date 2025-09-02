@@ -28,7 +28,7 @@ env:
   # errors/warnings in one place.
   MBUILD_TARGET: all testprep
   MTEST_ARGS: --print-errorlogs --no-rebuild -C build
-  MTEST_SUITES: # --suite setup --suite ssl --suite ...
+  MTEST_SUITES: --suite setup --suite pytest --suite ssl --suite libpq
   PGCTLTIMEOUT: 120 # avoids spurious failures during parallel tests
   TEMP_CONFIG: ${CIRRUS_WORKING_DIR}/src/tools/ci/pg_ci_base.conf
   PG_TEST_EXTRA: kerberos ldap ssl libpq_encryption load_balance oauth
