@@ -28,6 +28,7 @@ env:
   # errors/warnings in one place.
   MBUILD_TARGET: all testprep
   MTEST_ARGS: --print-errorlogs --no-rebuild -C build
+  MTEST_SUITES: # --suite setup --suite ssl --suite ...
   PGCTLTIMEOUT: 120 # avoids spurious failures during parallel tests
   TEMP_CONFIG: ${CIRRUS_WORKING_DIR}/src/tools/ci/pg_ci_base.conf
   PG_TEST_EXTRA: kerberos ldap ssl libpq_encryption load_balance oauth
@@ -252,7 +253,7 @@ task:
     su postgres <<-EOF
       set -e
       ulimit -c unlimited
-      meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
+      meson test $MTEST_ARGS --num-processes ${TEST_JOBS} ${MTEST_SUITES}
     EOF
 
   # test runningcheck, freebsd chosen because it's currently fast enough
@@ -400,7 +401,7 @@ task:
       # Otherwise tests will fail on OpenBSD, due to inability to start enough
       # processes.
       ulimit -p 256
-      meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
+      meson test $MTEST_ARGS --num-processes ${TEST_JOBS} ${MTEST_SUITES}
     EOF
 
   on_failure:
@@ -619,7 +620,7 @@ task:
         su postgres <<-EOF
           set -e
           ulimit -c unlimited
-          meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
+          meson test $MTEST_ARGS --num-processes ${TEST_JOBS} ${MTEST_SUITES}
         EOF
         # so that we don't upload 64bit logs if 32bit fails
         rm -rf build/
@@ -632,7 +633,7 @@ task:
         su postgres <<-EOF
           set -e
           ulimit -c unlimited
-          PYTHONCOERCECLOCALE=0 LANG=C meson test $MTEST_ARGS -C build-32 --num-processes ${TEST_JOBS}
+          PYTHONCOERCECLOCALE=0 LANG=C meson test $MTEST_ARGS -C build-32 --num-processes ${TEST_JOBS} ${MTEST_SUITES}
         EOF
 
       on_failure:
@@ -758,7 +759,7 @@ task:
   test_world_script: |
     ulimit -c unlimited # default is 0
     ulimit -n 1024 # default is 256, pretty low
-    meson test $MTEST_ARGS --num-processes ${TEST_JOBS}
+    meson test $MTEST_ARGS --num-processes ${TEST_JOBS} ${MTEST_SUITES}
 
   on_failure:
     <<: *on_failure_meson
@@ -841,7 +842,7 @@ task:
 
   check_world_script: |
     vcvarsall x64
-    meson test %MTEST_ARGS% --num-processes %TEST_JOBS%
+    meson test %MTEST_ARGS% --num-processes %TEST_JOBS% %MTEST_SUITES%
 
   on_failure:
     <<: *on_failure_meson
@@ -902,7 +903,7 @@ task:
   upload_caches: ccache
 
   test_world_script: |
-    %BASH% -c "meson test %MTEST_ARGS% --num-processes %TEST_JOBS%"
+    %BASH% -c "meson test %MTEST_ARGS% --num-processes %TEST_JOBS% %MTEST_SUITES%"
 
   on_failure:
     <<: *on_failure_meson
