@@ -3981,6 +3981,7 @@ summary(
     'bison': '@0@ @1@'.format(bison.full_path(), bison_version),
     'dtrace': dtrace,
     'flex': '@0@ @1@'.format(flex.full_path(), flex_version),
+    'prove': prove,
   },
   section: 'Programs',
 )
@@ -4015,5 +4016,13 @@ summary(
     'zstd': zstd,
   },
   section: 'External libraries',
+  list_sep: ' ',
+)
+
+summary(
+  {
+    'tap': tap_tests_enabled,
+  },
+  section: 'Other features',
   list_sep: ' ',
 )
