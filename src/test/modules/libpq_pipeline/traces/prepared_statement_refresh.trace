@@ -1,0 +1,265 @@
+F	105	Query	 "CREATE TEMP TABLE pcachetest AS SELECT * FROM generate_series(1,5) AS q1, generate_series(1,2) AS q2"
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	41	Parse	 "prepstmt1" "SELECT * FROM pcachetest" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	55	Parse	 "prepstmt2" "SELECT * FROM pcachetest WHERE q1 = $1" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	41	Parse	 "prepstmt3" "SELECT * FROM pcachetest" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	55	Parse	 "prepstmt4" "SELECT * FROM pcachetest WHERE q1 = $1" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	41	Parse	 "prepstmt5" "SELECT * FROM pcachetest" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	55	Parse	 "prepstmt6" "SELECT * FROM pcachetest WHERE q1 = $1" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt1" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt3" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	22	Query	 "EXECUTE prepstmt5"
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	25	Query	 "EXECUTE prepstmt6(3)"
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	59	Query	 "ALTER TABLE pcachetest ADD COLUMN q3 bigint DEFAULT 20"
+B	16	CommandComplete	 "ALTER TABLE"
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt1" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '1' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '1' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '2' 2 '20'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt3" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '1' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '1' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '2' 2 '20'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	22	Query	 "EXECUTE prepstmt5"
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '1' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '1' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '2' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '4' 1 '2' 2 '20'
+B	22	DataRow	 3 1 '5' 1 '2' 2 '20'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	25	Query	 "EXECUTE prepstmt6(3)"
+B	69	RowDescription	 3 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0 "q3" NNNN 3 NNNN 8 -1 0
+B	22	DataRow	 3 1 '3' 1 '1' 2 '20'
+B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	42	Query	 "ALTER TABLE pcachetest DROP COLUMN q3"
+B	16	CommandComplete	 "ALTER TABLE"
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt1" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	23	Bind	 "" "prepstmt3" 0 0 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
+F	6	Describe	 P ""
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	22	Query	 "EXECUTE prepstmt5"
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '1' 1 '1'
+B	16	DataRow	 2 1 '2' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '4' 1 '1'
+B	16	DataRow	 2 1 '5' 1 '1'
+B	16	DataRow	 2 1 '1' 1 '2'
+B	16	DataRow	 2 1 '2' 1 '2'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	16	DataRow	 2 1 '4' 1 '2'
+B	16	DataRow	 2 1 '5' 1 '2'
+B	14	CommandComplete	 "SELECT 10"
+B	5	ReadyForQuery	 I
+F	25	Query	 "EXECUTE prepstmt6(3)"
+B	48	RowDescription	 2 "q1" NNNN 1 NNNN 4 -1 0 "q2" NNNN 2 NNNN 4 -1 0
+B	16	DataRow	 2 1 '3' 1 '1'
+B	16	DataRow	 2 1 '3' 1 '2'
+B	13	CommandComplete	 "SELECT 2"
+B	5	ReadyForQuery	 I
+F	26	Query	 "DROP TABLE pcachetest"
+B	15	CommandComplete	 "DROP TABLE"
+B	5	ReadyForQuery	 I
+F	4	Terminate

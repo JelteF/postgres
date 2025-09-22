@@ -16,8 +16,11 @@
 #include "postgres.h"
 
 #include "access/printtup.h"
+#include "libpq/libpq-be.h"
+#include "libpq/pqcomm.h"
 #include "libpq/pqformat.h"
 #include "libpq/protocol.h"
+#include "miscadmin.h"
 #include "tcop/pquery.h"
 #include "utils/lsyscache.h"
 #include "utils/memdebug.h"
@@ -94,6 +97,36 @@ printtup_create_DR(CommandDest dest)
 }
 
 /*
+ * Compare two tuple descriptors to see if they are equivalent for RowDescription
+ * purposes. We compare the number of attributes and their types and names.
+ */
+static bool
+TupleDescsSame(TupleDesc desc1, TupleDesc desc2)
+{
+	int			i;
+
+	if (desc1 == NULL || desc2 == NULL)
+		return (desc1 == desc2);
+
+	if (desc1->natts != desc2->natts)
+		return false;
+
+	for (i = 0; i < desc1->natts; i++)
+	{
+		Form_pg_attribute attr1 = TupleDescAttr(desc1, i);
+		Form_pg_attribute attr2 = TupleDescAttr(desc2, i);
+
+		if (attr1->atttypid != attr2->atttypid ||
+			attr1->atttypmod != attr2->atttypmod ||
+			attr1->attcollation != attr2->attcollation ||
+			strcmp(NameStr(attr1->attname), NameStr(attr2->attname)) != 0)
+			return false;
+	}
+
+	return true;
+}
+
+/*
  * Set parameters for a DestRemote (or DestRemoteExecute) receiver
  */
 void
@@ -117,6 +150,20 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 	{
 		myState->sendDescrip = true;
 	}
+
+	/*
+	 * For protocol 3.3+, automatically send RowDescription for EXECUTE
+	 * statements if the tupDesc has changed since the last Describe. This
+	 * eliminates the need for explicit Describe calls.
+	 */
+	if (myState->pub.mydest == DestRemoteExecute &&
+		portal->commandTag == CMDTAG_EXECUTE &&
+		portal->tupDesc != NULL &&
+		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3) &&
+		!TupleDescsSame(portal->tupDesc, portal->describedTupDesc))
+	{
+		myState->sendDescrip = true;
+	}
 }
 
 static void
@@ -124,6 +171,7 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
 	DR_printtup *myState = (DR_printtup *) self;
 	Portal		portal = myState->portal;
+	MemoryContext oldcxt;
 
 	/*
 	 * Create I/O buffer to be used for all messages.  This cannot be inside
@@ -146,10 +194,24 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	 * descriptor of the tuples.
 	 */
 	if (myState->sendDescrip)
+	{
 		SendRowDescriptionMessage(&myState->buf,
 								  typeinfo,
 								  FetchPortalTargetList(portal),
 								  portal->formats);
+
+		/*
+		 * Update the described tupDesc for automatic RowDescription
+		 * detection. This ensures we track what was actually sent to the
+		 * client.
+		 */
+		if (portal->describedTupDesc)
+			FreeTupleDesc(portal->describedTupDesc);
+		/* Allocate in portal context to ensure proper cleanup */
+		oldcxt = MemoryContextSwitchTo(portal->portalContext);
+		portal->describedTupDesc = CreateTupleDescCopy(typeinfo);
+		MemoryContextSwitchTo(oldcxt);
+	}
 
 	/* ----------------
 	 * We could set up the derived attr info at this time, but we postpone it

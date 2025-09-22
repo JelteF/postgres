@@ -2760,6 +2760,7 @@ static void
 exec_describe_portal_message(const char *portal_name)
 {
 	Portal		portal;
+	MemoryContext oldcxt;
 
 	/*
 	 * Start up a transaction command. (Note that this will normally change
@@ -2796,10 +2797,23 @@ exec_describe_portal_message(const char *portal_name)
 		return;					/* can't actually do anything... */
 
 	if (portal->tupDesc)
+	{
 		SendRowDescriptionMessage(&row_description_buf,
 								  portal->tupDesc,
 								  FetchPortalTargetList(portal),
 								  portal->formats);
+
+		/*
+		 * Store what tupDesc we described for protocol 3.3+ automatic
+		 * RowDescription
+		 */
+		if (portal->describedTupDesc)
+			FreeTupleDesc(portal->describedTupDesc);
+		/* Allocate in portal context to ensure proper cleanup */
+		oldcxt = MemoryContextSwitchTo(portal->portalContext);
+		portal->describedTupDesc = CreateTupleDescCopy(portal->tupDesc);
+		MemoryContextSwitchTo(oldcxt);
+	}
 	else
 		pq_putemptymessage(PqMsg_NoData);
 }
