@@ -94,7 +94,7 @@ is_unixsock_path(const char *path)
  */
 
 #define PG_PROTOCOL_EARLIEST	PG_PROTOCOL(3,0)
-#define PG_PROTOCOL_LATEST		PG_PROTOCOL(3,2)
+#define PG_PROTOCOL_LATEST		PG_PROTOCOL(3,3)
 
 typedef uint32 ProtocolVersion; /* FE/BE protocol version number */
 

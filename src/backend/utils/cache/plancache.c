@@ -59,6 +59,8 @@
 #include "access/transam.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
+#include "libpq/libpq-be.h"
+#include "libpq/pqcomm.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
@@ -1299,15 +1301,14 @@ cached_plan_cost(CachedPlan *plan, bool include_planner)
  *		Helper function to determine if we should allow result type changes
  *		in prepared statements based on protocol version.
  *
- * For now, this always returns false to maintain existing behavior.
- * In the future, this can be extended to check protocol version and
- * allow the behavior for newer protocol versions.
+ * This feature is enabled for protocol version 3.3 and later.
+ * Older protocol versions maintain the existing behavior of failing
+ * when prepared statement result types change.
  */
 bool
 ShouldAllowFixedRefresh(void)
 {
-	/* TODO: Add protocol version check here when ready */
-	return false;
+	return MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3);
 }
 
 CachedPlan *
