@@ -26,7 +26,6 @@ F	4	Sync
 B	4	ParseComplete
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt1" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -44,7 +43,6 @@ B	16	DataRow	 2 1 '5' 1 '2'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -54,7 +52,6 @@ B	16	DataRow	 2 1 '3' 1 '2'
 B	13	CommandComplete	 "SELECT 2"
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt3" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -72,7 +69,6 @@ B	16	DataRow	 2 1 '5' 1 '2'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -105,7 +101,6 @@ F	59	Query	 "ALTER TABLE pcachetest ADD COLUMN q3 bigint DEFAULT 20"
 B	16	CommandComplete	 "ALTER TABLE"
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt1" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -123,7 +118,6 @@ B	22	DataRow	 3 1 '5' 1 '2' 2 '20'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -133,7 +127,6 @@ B	22	DataRow	 3 1 '3' 1 '2' 2 '20'
 B	13	CommandComplete	 "SELECT 2"
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt3" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -151,7 +144,6 @@ B	22	DataRow	 3 1 '5' 1 '2' 2 '20'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -184,7 +176,6 @@ F	42	Query	 "ALTER TABLE pcachetest DROP COLUMN q3"
 B	16	CommandComplete	 "ALTER TABLE"
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt1" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -202,7 +193,6 @@ B	16	DataRow	 2 1 '5' 1 '2'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt2" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -212,7 +202,6 @@ B	16	DataRow	 2 1 '3' 1 '2'
 B	13	CommandComplete	 "SELECT 2"
 B	5	ReadyForQuery	 I
 F	23	Bind	 "" "prepstmt3" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete
@@ -230,7 +219,6 @@ B	16	DataRow	 2 1 '5' 1 '2'
 B	14	CommandComplete	 "SELECT 10"
 B	5	ReadyForQuery	 I
 F	28	Bind	 "" "prepstmt4" 0 1 1 '3' 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 B	4	BindComplete

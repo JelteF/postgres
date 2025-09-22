@@ -2101,19 +2101,30 @@ process_result(PGconn *conn, PGresult *res, int results, int numsent)
 /*
  * Helper function to test a prepared statement and verify column count.
  */
+#define test_prepared_statement_columns(conn, stmt_name, nparams, paramValues, expected_columns, desc) \
+	test_prepared_statement_columns_impl(__LINE__, conn, stmt_name, nparams, paramValues, expected_columns, desc)
+
 static void
-test_prepared_statement_columns(PGconn *conn, const char *stmt_name,
-								int nparams, const char **paramValues,
-								int expected_columns, const char *desc)
+test_prepared_statement_columns_impl(int line, PGconn *conn, const char *stmt_name,
+									 int nparams, const char **paramValues,
+									 int expected_columns, const char *desc)
 {
 	PGresult   *res;
 
 	if (PQsendQueryPrepared(conn, stmt_name, nparams, paramValues, NULL, NULL, 0) != 1)
-		pg_fatal("failed to send %s %s: %s", stmt_name, desc, PQerrorMessage(conn));
-	res = confirm_result_status(conn, PGRES_TUPLES_OK);
+		pg_fatal_impl(line, "failed to send %s %s: %s", stmt_name, desc, PQerrorMessage(conn));
+
+	res = PQgetResult(conn);
+	if (res == NULL)
+		pg_fatal_impl(line, "PQgetResult returned NULL for %s %s", stmt_name, desc);
+
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal_impl(line, "%s %s returned status %s, expected PGRES_TUPLES_OK: %s",
+					  stmt_name, desc, PQresStatus(PQresultStatus(res)), PQresultErrorMessage(res));
+
 	if (PQnfields(res) != expected_columns)
-		pg_fatal("expected %d columns from %s %s, got %d",
-				 expected_columns, stmt_name, desc, PQnfields(res));
+		pg_fatal_impl(line, "expected %d columns from %s %s, got %d",
+					  expected_columns, stmt_name, desc, PQnfields(res));
 	PQclear(res);
 	consume_null_result(conn);
 }
@@ -2121,18 +2132,21 @@ test_prepared_statement_columns(PGconn *conn, const char *stmt_name,
 /*
  * Helper function to test EXECUTE statements and verify column count.
  */
+#define test_execute_statement_columns(conn, execute_cmd, expected_columns, desc) \
+	test_execute_statement_columns_impl(__LINE__, conn, execute_cmd, expected_columns, desc)
+
 static void
-test_execute_statement_columns(PGconn *conn, const char *execute_cmd,
-							   int expected_columns, const char *desc)
+test_execute_statement_columns_impl(int line, PGconn *conn, const char *execute_cmd,
+									int expected_columns, const char *desc)
 {
 	PGresult   *res;
 
 	res = PQexec(conn, execute_cmd);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
-		pg_fatal("failed to execute %s: %s", desc, PQerrorMessage(conn));
+		pg_fatal_impl(line, "failed to execute %s: %s", desc, PQerrorMessage(conn));
 	if (PQnfields(res) != expected_columns)
-		pg_fatal("expected %d columns from %s, got %d",
-				 expected_columns, desc, PQnfields(res));
+		pg_fatal_impl(line, "expected %d columns from %s, got %d",
+					  expected_columns, desc, PQnfields(res));
 	PQclear(res);
 }
 
@@ -2192,6 +2206,16 @@ test_prepared_statement_refresh(PGconn *conn)
 	test_prepared_statement_columns(conn, "prepstmt4", 1, paramValues, 2, "initial");
 	test_execute_statement_columns(conn, "EXECUTE prepstmt5", 2, "prepstmt5 initial");
 	test_execute_statement_columns(conn, "EXECUTE prepstmt6(3)", 2, "prepstmt6 initial");
+
+	/*
+	 * Test executing the same prepared statement multiple times without
+	 * schema changes
+	 */
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 1");
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 2");
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 3");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "repeat execution with params 1");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "repeat execution with params 2");
 
 	/* Now alter the table to add a column */
 	res = PQexec(conn, "ALTER TABLE pcachetest ADD COLUMN q3 bigint DEFAULT 20");

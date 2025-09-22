@@ -23,7 +23,6 @@ B	5	ReadyForQuery	 T
 F	43	Query	 "DECLARE cursor_one CURSOR FOR SELECT 1"
 B	19	CommandComplete	 "DECLARE CURSOR"
 B	5	ReadyForQuery	 T
-F	16	Describe	 P "cursor_one"
 F	4	Sync
 B	33	RowDescription	 1 "?column?" NNNN 0 NNNN 4 -1 0
 B	5	ReadyForQuery	 T
@@ -31,7 +30,6 @@ F	16	Close	 P "cursor_one"
 F	4	Sync
 B	4	CloseComplete
 B	5	ReadyForQuery	 T
-F	16	Describe	 P "cursor_one"
 F	4	Sync
 B	NN	ErrorResponse	 S "ERROR" V "ERROR" C "34000" M "portal "cursor_one" does not exist" F "SSSS" L "SSSS" R "SSSS" \x00
 B	5	ReadyForQuery	 E
