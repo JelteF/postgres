@@ -152,17 +152,32 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 	}
 
 	/*
-	 * For protocol 3.3+, automatically send RowDescription for EXECUTE
-	 * statements if the tupDesc has changed since the last Describe. This
-	 * eliminates the need for explicit Describe calls.
+	 * For protocol 3.3+, automatically send RowDescription or NoData for
+	 * EXECUTE statements in two cases:
+	 *
+	 * 1. No Describe was issued yet (describedTupDesc is NULL) - allows
+	 * clients to skip Describe entirely
+	 *
+	 * 2. A Describe was issued but types have changed since then (only
+	 * applies when portal->tupDesc != NULL)
+	 *
+	 * We send RowDescription when there are result columns (tupDesc != NULL)
+	 * and NoData when there are no result columns (tupDesc == NULL).
 	 */
 	if (myState->pub.mydest == DestRemoteExecute &&
-		portal->commandTag == CMDTAG_EXECUTE &&
-		portal->tupDesc != NULL &&
-		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3) &&
-		!TupleDescsSame(portal->tupDesc, portal->describedTupDesc))
+		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3))
 	{
-		myState->sendDescrip = true;
+		if (portal->describedTupDesc == NULL)
+		{
+			/* No Describe was issued - send RowDescription or NoData */
+			myState->sendDescrip = true;
+		}
+		else if (portal->tupDesc != NULL &&
+				 !TupleDescsSame(portal->tupDesc, portal->describedTupDesc))
+		{
+			/* Types have changed since last Describe */
+			myState->sendDescrip = true;
+		}
 	}
 }
 

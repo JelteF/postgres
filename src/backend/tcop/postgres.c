@@ -2236,6 +2236,20 @@ exec_execute_message(const char *portal_name, long max_rows)
 		SetRemoteDestReceiverParams(receiver, portal);
 
 	/*
+	 * For protocol 3.3+, send NoData immediately for commands without result
+	 * columns when no Describe was issued. This allows clients to skip
+	 * Describe entirely. RowDescription will be sent from printtup_startup
+	 * for commands with result columns.
+	 */
+	if (dest == DestRemoteExecute &&
+		portal->tupDesc == NULL &&
+		portal->describedTupDesc == NULL &&
+		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3))
+	{
+		pq_putemptymessage(PqMsg_NoData);
+	}
+
+	/*
 	 * Ensure we are in a transaction command (this should normally be the
 	 * case already due to prior BIND).
 	 */
