@@ -2327,6 +2327,21 @@ PQprepare(PGconn *conn,
 {
 	if (!PQexecStart(conn))
 		return NULL;
+
+	/*
+	 * Check if minimal_describe is enabled. The standard
+	 * PQprepare/PQexecPrepared API doesn't cache metadata from Describe
+	 * messages, so when the server skips RowDescription (as it does with
+	 * minimal_describe), libpq won't have the metadata needed for subsequent
+	 * executions. Users should use PQprepareExt/PQexecPreparedExt instead.
+	 */
+	if (conn->minimal_describe && conn->minimal_describe[0])
+	{
+		libpq_append_conn_error(conn,
+								"PQprepare is not compatible with _pq_.minimal_describe; use PQprepareExt instead");
+		return PQmakeEmptyPGresult(conn, PGRES_FATAL_ERROR);
+	}
+
 	if (!PQsendPrepare(conn, stmtName, query, nParams, paramTypes))
 		return NULL;
 	return PQexecFinish(conn);

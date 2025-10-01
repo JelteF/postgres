@@ -2258,6 +2258,182 @@ test_prepared_statement_refresh(PGconn *conn)
 	fprintf(stderr, " ok\n");
 }
 
+/*
+ * Test minimal_describe protocol extension (_pq_.minimal_describe).
+ * This tests that RowDescription messages are only sent when result types
+ * actually change, and that type changes are properly detected and handled.
+ * Uses the extended protocol (PQprepareExt/PQexecPreparedExt).
+ */
+static void
+test_minimal_describe(PGconn *conn)
+{
+	PGresult   *res;
+
+	fprintf(stderr, "minimal_describe ...");
+
+	/*
+	 * Verify we're using protocol 3.3+ and minimal_describe. We need to check
+	 * that the connection was established with the right parameters.
+	 */
+	if (PQfullProtocolVersion(conn) < 30003)
+		pg_fatal("minimal_describe requires protocol 3.3 or later, got protocol version %d",
+				 PQfullProtocolVersion(conn));
+
+	/*
+	 * Test 1: Verify PQprepare fails with minimal_describe. The standard
+	 * PQprepare/PQexecPrepared API doesn't cache metadata, so it's
+	 * incompatible with minimal_describe when the server skips
+	 * RowDescription.
+	 */
+	res = PQprepare(conn, "test_compat", "SELECT 1::int", 0, NULL);
+	if (PQresultStatus(res) != PGRES_FATAL_ERROR)
+		pg_fatal("PQprepare should fail with minimal_describe, got status %s",
+				 PQresStatus(PQresultStatus(res)));
+	if (strstr(PQresultErrorMessage(res), "PQprepare is not compatible") == NULL)
+		pg_fatal("expected error message about PQprepare compatibility");
+	if (strstr(PQresultErrorMessage(res), "PQprepareExt") == NULL)
+		pg_fatal("expected error message to mention PQprepareExt");
+	PQclear(res);
+
+	/*
+	 * Test 2: PQprepareExt basic functionality. This API caches metadata on
+	 * the statement handle, making it compatible with minimal_describe.
+	 *
+	 * The trace will show: - First execution: server sends RowDescription
+	 * message - Second execution: server skips RowDescription
+	 * (minimal_describe optimization), client uses cached metadata
+	 */
+	{
+		PGpreparedStmt *stmt;
+
+		stmt = PQprepareExt(conn, "SELECT 1::int AS a, 'hello'::text AS b", 0, NULL);
+		if (stmt == NULL)
+			pg_fatal("PQprepareExt failed: %s", PQerrorMessage(conn));
+
+		/* Before first execution, no metadata should be cached */
+		if (PQpreparedNfields(stmt) != 0)
+			pg_fatal("expected 0 cached fields before execution, got %d",
+					 PQpreparedNfields(stmt));
+
+		/*
+		 * First execution - server will send RowDescription since this is the
+		 * first time we're executing this prepared statement.
+		 */
+		res = PQexecPreparedExt(stmt, 0, NULL, NULL, NULL, 0);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			pg_fatal("PQexecPreparedExt failed: %s", PQresultErrorMessage(res));
+		if (PQnfields(res) != 2)
+			pg_fatal("expected 2 fields, got %d", PQnfields(res));
+		PQclear(res);
+
+		/* After first execution, metadata should be cached */
+		if (PQpreparedNfields(stmt) != 2)
+			pg_fatal("expected 2 cached fields after execution, got %d",
+					 PQpreparedNfields(stmt));
+		if (strcmp(PQpreparedFname(stmt, 0), "a") != 0)
+			pg_fatal("expected field name 'a', got '%s'", PQpreparedFname(stmt, 0));
+		if (strcmp(PQpreparedFname(stmt, 1), "b") != 0)
+			pg_fatal("expected field name 'b', got '%s'", PQpreparedFname(stmt, 1));
+		if (PQpreparedFtype(stmt, 0) != INT4OID)
+			pg_fatal("expected int4 type, got %u", PQpreparedFtype(stmt, 0));
+		if (PQpreparedFtype(stmt, 1) != TEXTOID)
+			pg_fatal("expected text type, got %u", PQpreparedFtype(stmt, 1));
+
+		/*
+		 * Second execution - server will NOT send RowDescription because
+		 * types haven't changed. Check trace to verify no RowDescription
+		 * message.
+		 */
+		res = PQexecPreparedExt(stmt, 0, NULL, NULL, NULL, 0);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			pg_fatal("PQexecPreparedExt (2nd) failed: %s", PQresultErrorMessage(res));
+		if (PQnfields(res) != 2)
+			pg_fatal("expected 2 fields, got %d", PQnfields(res));
+		PQclear(res);
+
+		PQclosePreparedExt(stmt);
+	}
+
+	/*
+	 * Test 3: PQprepareExt with type changes. Verify that metadata is updated
+	 * when types change.
+	 *
+	 * The trace will show: - First execution: server sends RowDescription
+	 * with int4 type - After ALTER TABLE: server sends new RowDescription
+	 * with int8 type - Third execution: server skips RowDescription (types
+	 * unchanged)
+	 */
+	{
+		PGpreparedStmt *stmt;
+
+		res = PQexec(conn, "CREATE TEMP TABLE test_table2 (a int)");
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+			pg_fatal("CREATE TABLE failed: %s", PQerrorMessage(conn));
+		PQclear(res);
+
+		stmt = PQprepareExt(conn, "SELECT * FROM test_table2", 0, NULL);
+		if (stmt == NULL)
+			pg_fatal("PQprepareExt failed: %s", PQerrorMessage(conn));
+
+		/*
+		 * First execution - server sends RowDescription with int4 type
+		 * (length 4 bytes)
+		 */
+		res = PQexecPreparedExt(stmt, 0, NULL, NULL, NULL, 0);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			pg_fatal("PQexecPreparedExt failed: %s", PQresultErrorMessage(res));
+		if (PQftype(res, 0) != INT4OID)
+			pg_fatal("expected int4 type, got %u", PQftype(res, 0));
+		PQclear(res);
+
+		/* Verify cached type */
+		if (PQpreparedFtype(stmt, 0) != INT4OID)
+			pg_fatal("expected cached int4 type, got %u", PQpreparedFtype(stmt, 0));
+
+		/* Change column type - this will invalidate the prepared statement */
+		res = PQexec(conn, "ALTER TABLE test_table2 ALTER COLUMN a TYPE bigint");
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+			pg_fatal("ALTER TABLE failed: %s", PQerrorMessage(conn));
+		PQclear(res);
+
+		/*
+		 * Execute again - server detects type change and sends new
+		 * RowDescription with int8 type (length 8 bytes)
+		 */
+		res = PQexecPreparedExt(stmt, 0, NULL, NULL, NULL, 0);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			pg_fatal("PQexecPreparedExt after ALTER failed: %s", PQresultErrorMessage(res));
+		if (PQftype(res, 0) != INT8OID)
+			pg_fatal("expected int8 type after ALTER, got %u", PQftype(res, 0));
+		PQclear(res);
+
+		/* Verify cached type was updated */
+		if (PQpreparedFtype(stmt, 0) != INT8OID)
+			pg_fatal("expected cached int8 type after ALTER, got %u",
+					 PQpreparedFtype(stmt, 0));
+
+		/*
+		 * Third execution - server skips RowDescription because types haven't
+		 * changed since last execution
+		 */
+		res = PQexecPreparedExt(stmt, 0, NULL, NULL, NULL, 0);
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			pg_fatal("PQexecPreparedExt (3rd) failed: %s", PQresultErrorMessage(res));
+		if (PQftype(res, 0) != INT8OID)
+			pg_fatal("expected int8 type, got %u", PQftype(res, 0));
+		PQclear(res);
+
+		PQclosePreparedExt(stmt);
+
+		res = PQexec(conn, "DROP TABLE test_table2");
+		if (PQresultStatus(res) != PGRES_COMMAND_OK)
+			pg_fatal("DROP TABLE failed: %s", PQerrorMessage(conn));
+		PQclear(res);
+	}
+
+	fprintf(stderr, " ok\n");
+}
+
 static void
 usage(const char *progname)
 {
@@ -2275,6 +2451,7 @@ print_test_list(void)
 {
 	printf("cancel\n");
 	printf("disallowed_in_pipeline\n");
+	printf("minimal_describe\n");
 	printf("multi_pipelines\n");
 	printf("nosync\n");
 	printf("pipeline_abort\n");
@@ -2383,6 +2560,8 @@ main(int argc, char **argv)
 		test_cancel(conn);
 	else if (strcmp(testname, "disallowed_in_pipeline") == 0)
 		test_disallowed_in_pipeline(conn);
+	else if (strcmp(testname, "minimal_describe") == 0)
+		test_minimal_describe(conn);
 	else if (strcmp(testname, "multi_pipelines") == 0)
 		test_multi_pipelines(conn);
 	else if (strcmp(testname, "nosync") == 0)

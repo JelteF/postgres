@@ -779,11 +779,27 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 			{
 				/*
 				 * Any option beginning with _pq_. is reserved for use as a
-				 * protocol-level option, but at present no such options are
-				 * defined.
+				 * protocol-level option.
 				 */
-				unrecognized_protocol_options =
-					lappend(unrecognized_protocol_options, pstrdup(nameptr));
+				if (strcmp(nameptr, "_pq_.minimal_describe") == 0)
+				{
+					/*
+					 * _pq_.minimal_describe: only send RowDescription when
+					 * the result types actually change
+					 */
+					if (!parse_bool(valptr, &port->minimal_describe))
+						ereport(FATAL,
+								(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+								 errmsg("invalid value for parameter \"%s\": \"%s\"",
+										"_pq_.minimal_describe",
+										valptr)));
+				}
+				else
+				{
+					/* Unrecognized protocol extension */
+					unrecognized_protocol_options =
+						lappend(unrecognized_protocol_options, pstrdup(nameptr));
+				}
 			}
 			else
 			{

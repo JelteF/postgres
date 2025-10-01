@@ -16,6 +16,7 @@
 #include "postgres.h"
 
 #include "access/printtup.h"
+#include "commands/prepare.h"
 #include "libpq/libpq-be.h"
 #include "libpq/pqcomm.h"
 #include "libpq/pqformat.h"
@@ -25,6 +26,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memdebug.h"
 #include "utils/memutils.h"
+#include "utils/plancache.h"
 #include "varatt.h"
 
 
@@ -168,22 +170,62 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	 */
 	if (myState->sendDescrip)
 	{
-		SendRowDescriptionMessage(&myState->buf,
-								  typeinfo,
-								  FetchPortalTargetList(portal),
-								  portal->formats);
+		bool		should_send = true;
+		PreparedStatement *pstmt = NULL;
+		CachedPlanSource *plansource = NULL;
 
 		/*
-		 * Update the described tupDesc for automatic RowDescription
-		 * detection. This ensures we track what was actually sent to the
-		 * client.
+		 * If minimal_describe is enabled, only send RowDescription when the
+		 * tuple descriptor has actually changed. For prepared statements, we
+		 * track what was sent at the prepared statement level, not the portal
+		 * level (since portals are ephemeral with extended protocol).
 		 */
-		if (portal->describedTupDesc)
-			FreeTupleDesc(portal->describedTupDesc);
-		/* Allocate in portal context to ensure proper cleanup */
-		oldcxt = MemoryContextSwitchTo(portal->portalContext);
-		portal->describedTupDesc = CreateTupleDescCopy(typeinfo);
-		MemoryContextSwitchTo(oldcxt);
+		if (MyProcPort && MyProcPort->minimal_describe && portal->prepStmtName)
+		{
+			pstmt = FetchPreparedStatement(portal->prepStmtName, false);
+			if (pstmt)
+			{
+				plansource = pstmt->plansource;
+				if (plansource->describedResultDesc != NULL)
+					should_send = !equalTupleDescs(typeinfo, plansource->describedResultDesc);
+			}
+		}
+		else if (MyProcPort && MyProcPort->minimal_describe &&
+				 portal->describedTupDesc != NULL)
+		{
+			/* For non-prepared statements, use portal-level tracking */
+			should_send = !equalTupleDescs(typeinfo, portal->describedTupDesc);
+		}
+
+		if (should_send)
+		{
+			SendRowDescriptionMessage(&myState->buf,
+									  typeinfo,
+									  FetchPortalTargetList(portal),
+									  portal->formats);
+
+			/*
+			 * Update the described tupDesc for automatic RowDescription
+			 * detection. For prepared statements, store it on the plan
+			 * source. For others, store it on the portal.
+			 */
+			if (plansource)
+			{
+				if (plansource->describedResultDesc)
+					FreeTupleDesc(plansource->describedResultDesc);
+				oldcxt = MemoryContextSwitchTo(plansource->context);
+				plansource->describedResultDesc = CreateTupleDescCopy(typeinfo);
+				MemoryContextSwitchTo(oldcxt);
+			}
+			else
+			{
+				if (portal->describedTupDesc)
+					FreeTupleDesc(portal->describedTupDesc);
+				oldcxt = MemoryContextSwitchTo(portal->portalContext);
+				portal->describedTupDesc = CreateTupleDescCopy(typeinfo);
+				MemoryContextSwitchTo(oldcxt);
+			}
+		}
 	}
 
 	/* ----------------

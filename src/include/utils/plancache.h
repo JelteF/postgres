@@ -118,6 +118,8 @@ typedef struct CachedPlanSource
 	int			cursor_options; /* cursor options used for planning */
 	bool		fixed_result;	/* disallow change in result tupdesc? */
 	TupleDesc	resultDesc;		/* result type; NULL = doesn't return tuples */
+	TupleDesc	describedResultDesc;	/* what we last sent to client via
+										 * RowDescription */
 	MemoryContext context;		/* memory context holding all above */
 	/* These fields describe the current analyzed-and-rewritten query tree: */
 	List	   *query_list;		/* list of Query nodes, or NIL if not valid */

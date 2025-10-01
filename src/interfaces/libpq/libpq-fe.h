@@ -503,6 +503,27 @@ extern PGresult *PQexecPrepared(PGconn *conn,
 								const int *paramFormats,
 								int resultFormat);
 
+/* Extended prepared statement API with cached result metadata */
+typedef struct pg_prepared_stmt PGpreparedStmt;
+
+extern PGpreparedStmt *PQprepareExt(PGconn *conn,
+									const char *query,
+									int nParams,
+									const Oid *paramTypes);
+extern PGresult *PQexecPreparedExt(PGpreparedStmt *stmt,
+								   int nParams,
+								   const char *const *paramValues,
+								   const int *paramLengths,
+								   const int *paramFormats,
+								   int resultFormat);
+extern void PQclosePreparedExt(PGpreparedStmt *stmt);
+
+/* Access cached result metadata from prepared statement */
+extern int	PQpreparedNfields(PGpreparedStmt *stmt);
+extern char *PQpreparedFname(PGpreparedStmt *stmt, int field_num);
+extern Oid	PQpreparedFtype(PGpreparedStmt *stmt, int field_num);
+extern int	PQpreparedFmod(PGpreparedStmt *stmt, int field_num);
+
 /* Interface for multiple-result or asynchronous queries */
 #define PQ_QUERY_PARAM_MAX_LIMIT 65535
 

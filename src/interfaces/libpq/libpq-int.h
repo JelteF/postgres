@@ -365,6 +365,24 @@ typedef struct pg_conn_host
 } pg_conn_host;
 
 /*
+ * PGpreparedStmt stores the state for a prepared statement with cached
+ * result metadata. This allows libpq to avoid needing a RowDescription
+ * message on every execution when using minimal_describe.
+ */
+typedef struct pg_prepared_stmt
+{
+	PGconn	   *conn;			/* connection this statement belongs to */
+	char	   *stmtName;		/* server-side statement name */
+	int			nParams;		/* number of parameters */
+	Oid		   *paramTypes;		/* parameter types, if specified */
+
+	/* Cached result metadata from last RowDescription */
+	int			nfields;		/* number of result columns */
+	PGresAttDesc *attDescs;		/* array of column descriptors */
+	bool		hasResultDesc;	/* true if we've received a RowDescription */
+} PGpreparedStmt;
+
+/*
  * PGconn stores all the state data associated with a single connection
  * to a backend.
  */
@@ -422,6 +440,7 @@ struct pg_conn
 	char	   *gssdelegation;	/* Try to delegate GSS credentials? (0 or 1) */
 	char	   *min_protocol_version;	/* minimum used protocol version */
 	char	   *max_protocol_version;	/* maximum used protocol version */
+	char	   *minimal_describe;	/* enable _pq_.minimal_describe extension */
 	char	   *ssl_min_protocol_version;	/* minimum TLS protocol version */
 	char	   *ssl_max_protocol_version;	/* maximum TLS protocol version */
 	char	   *target_session_attrs;	/* desired session properties */
