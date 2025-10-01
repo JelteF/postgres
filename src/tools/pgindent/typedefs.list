@@ -1894,6 +1894,7 @@ PGlobjfuncs
 PGnotify
 PGoauthBearerRequest
 PGpipelineStatus
+PGpreparedStmt
 PGpromptOAuthDevice
 PGresAttDesc
 PGresAttValue

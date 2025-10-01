@@ -238,6 +238,11 @@ typedef struct Port
 	char	   *raw_buf;
 	ssize_t		raw_buf_consumed,
 				raw_buf_remaining;
+
+	/*
+	 * Protocol extensions (options beginning with _pq_.)
+	 */
+	bool		minimal_describe;	/* _pq_.minimal_describe enabled? */
 } Port;
 
 /*

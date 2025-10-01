@@ -325,10 +325,16 @@ pqParseInput3(PGconn *conn)
 						conn->inCursor += msgLength;
 					}
 					else if (conn->result == NULL ||
+							 (conn->result != NULL && conn->result->attDescs != NULL) ||
 							 (conn->cmd_queue_head &&
 							  conn->cmd_queue_head->queryclass == PGQUERY_DESCRIBE))
 					{
-						/* First 'T' in a query sequence */
+						/*
+						 * First 'T' in a query sequence, or updating
+						 * pre-populated result metadata (for minimal_describe
+						 * protocol extension), or handling a DESCRIBE
+						 * command.
+						 */
 						if (getRowDescriptions(conn, msgLength))
 							return;
 					}
@@ -523,7 +529,10 @@ getRowDescriptions(PGconn *conn, int msgLength)
 	/*
 	 * When doing Describe for a prepared statement, there'll already be a
 	 * PGresult created by getParamDescriptions, and we should fill data into
-	 * that.  Otherwise, create a new, empty PGresult.
+	 * that.  Otherwise, check if there's already a result (potentially
+	 * pre-populated by PQexecPreparedExt with cached metadata). If so, reuse
+	 * it so we can update the metadata. Otherwise create a new empty
+	 * PGresult.
 	 */
 	if (!conn->cmd_queue_head ||
 		(conn->cmd_queue_head &&
@@ -535,7 +544,13 @@ getRowDescriptions(PGconn *conn, int msgLength)
 			result = PQmakeEmptyPGresult(conn, PGRES_COMMAND_OK);
 	}
 	else
-		result = PQmakeEmptyPGresult(conn, PGRES_TUPLES_OK);
+	{
+		/* Reuse pre-populated result if available, otherwise create new one */
+		if (conn->result && conn->result->attDescs)
+			result = conn->result;
+		else
+			result = PQmakeEmptyPGresult(conn, PGRES_TUPLES_OK);
+	}
 	if (!result)
 	{
 		errmsg = NULL;			/* means "out of memory", see below */
@@ -2438,6 +2453,10 @@ build_startup_packet(const PGconn *conn, char *packet,
 
 	if (conn->client_encoding_initial && conn->client_encoding_initial[0])
 		ADD_STARTUP_OPTION("client_encoding", conn->client_encoding_initial);
+
+	/* Add protocol extension options */
+	if (conn->minimal_describe && conn->minimal_describe[0])
+		ADD_STARTUP_OPTION("_pq_.minimal_describe", conn->minimal_describe);
 
 	/* Add any environment-driven GUC settings needed */
 	for (next_eo = options; next_eo->envName; next_eo++)

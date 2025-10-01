@@ -226,6 +226,7 @@ CreateCachedPlan(RawStmt *raw_parse_tree,
 	plansource->cursor_options = 0;
 	plansource->fixed_result = false;
 	plansource->resultDesc = NULL;
+	plansource->describedResultDesc = NULL;
 	plansource->context = source_context;
 	plansource->query_list = NIL;
 	plansource->relationOids = NIL;
@@ -883,6 +884,12 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 		if (plansource->resultDesc)
 			FreeTupleDesc(plansource->resultDesc);
 		plansource->resultDesc = resultDesc;
+		/* Clear describedResultDesc since result type changed */
+		if (plansource->describedResultDesc)
+		{
+			FreeTupleDesc(plansource->describedResultDesc);
+			plansource->describedResultDesc = NULL;
+		}
 		MemoryContextSwitchTo(oldcxt);
 	}
 

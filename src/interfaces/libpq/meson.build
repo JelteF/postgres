@@ -9,6 +9,7 @@ libpq_sources = files(
   'fe-exec.c',
   'fe-lobj.c',
   'fe-misc.c',
+  'fe-prep-ext.c',
   'fe-print.c',
   'fe-protocol3.c',
   'fe-secure.c',

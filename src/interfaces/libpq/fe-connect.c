@@ -345,6 +345,11 @@ static const internalPQconninfoOption PQconninfoOptions[] = {
 		"Max-Protocol-Version", "", 6,	/* sizeof("latest") = 6 */
 	offsetof(struct pg_conn, max_protocol_version)},
 
+	{"minimal_describe", "PGMINIMALDESCRIBE",
+		NULL, NULL,
+		"Minimal-Describe", "", 5,	/* sizeof("false") = 5, sizeof("true") = 4 */
+	offsetof(struct pg_conn, minimal_describe)},
+
 	{"ssl_min_protocol_version", "PGSSLMINPROTOCOLVERSION", "TLSv1.2", NULL,
 		"SSL-Minimum-Protocol-Version", "", 8,	/* sizeof("TLSv1.x") == 8 */
 	offsetof(struct pg_conn, ssl_min_protocol_version)},
@@ -5101,6 +5106,7 @@ freePGconn(PGconn *conn)
 	free(conn->gssdelegation);
 	free(conn->min_protocol_version);
 	free(conn->max_protocol_version);
+	free(conn->minimal_describe);
 	free(conn->ssl_min_protocol_version);
 	free(conn->ssl_max_protocol_version);
 	free(conn->target_session_attrs);
