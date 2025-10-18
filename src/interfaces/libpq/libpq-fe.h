@@ -63,6 +63,10 @@ extern "C"
 /* Indicates presence of the PQAUTHDATA_PROMPT_OAUTH_DEVICE authdata hook */
 #define LIBPQ_HAS_PROMPT_OAUTH_DEVICE 1
 
+/* Features added in PostgreSQL v19: */
+/* Indicates presence of PQgoAwayReceived */
+#define LIBPQ_HAS_GOAWAY 1
+
 /*
  * Option flags for PQcopyResult
  */
@@ -411,6 +415,7 @@ extern const char *PQparameterStatus(const PGconn *conn,
 extern int	PQprotocolVersion(const PGconn *conn);
 extern int	PQfullProtocolVersion(const PGconn *conn);
 extern int	PQserverVersion(const PGconn *conn);
+extern int	PQgoAwayReceived(PGconn *conn);
 extern char *PQerrorMessage(const PGconn *conn);
 extern int	PQsocket(const PGconn *conn);
 extern int	PQbackendPID(const PGconn *conn);

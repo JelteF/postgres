@@ -42,8 +42,10 @@
 #include "common/pg_prng.h"
 #include "jit/jit.h"
 #include "libpq/libpq.h"
+#include "libpq/pqcomm.h"
 #include "libpq/pqformat.h"
 #include "libpq/pqsignal.h"
+#include "libpq/protocol.h"
 #include "mb/pg_wchar.h"
 #include "mb/stringinfo_mb.h"
 #include "miscadmin.h"
@@ -90,6 +92,14 @@ const char *debug_query_string; /* client-supplied query string */
 
 /* Note: whereToSendOutput is initialized for the bootstrap/standalone case */
 CommandDest whereToSendOutput = DestDebug;
+
+/*
+ * Track whether we've been notified of smart shutdown and sent GoAway.
+ * SmartShutdownPending is set by the PROCSIG_SMART_SHUTDOWN signal handler.
+ * GoAwaySent tracks whether we've already sent the GoAway message.
+ */
+static volatile sig_atomic_t SmartShutdownPending = false;
+static bool GoAwaySent = false;
 
 /* flag for logging end of session */
 bool		Log_disconnections = false;
@@ -507,6 +517,20 @@ ProcessClientReadInterrupt(bool blocked)
 	{
 		/* Check for general interrupts that arrived before/while reading */
 		CHECK_FOR_INTERRUPTS();
+
+		/* Send GoAway message if smart shutdown is pending */
+		if (SmartShutdownPending && !GoAwaySent &&
+			whereToSendOutput == DestRemote &&
+			MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3))
+		{
+			StringInfoData buf;
+
+			pq_beginmessage(&buf, PqMsg_GoAway);
+			pq_endmessage(&buf);
+			pq_flush();
+
+			GoAwaySent = true;
+		}
 
 		/* Process sinval catchup interrupts, if any */
 		if (catchupInterruptPending)
@@ -3085,6 +3109,18 @@ FloatExceptionHandler(SIGNAL_ARGS)
 			 errdetail("An invalid floating-point operation was signaled. "
 					   "This probably means an out-of-range result or an "
 					   "invalid operation, such as division by zero.")));
+}
+
+/*
+ * Tell the next CHECK_FOR_INTERRUPTS() or main loop iteration to send a
+ * GoAway message to the client.  Runs in a SIGUSR1 handler.
+ */
+void
+HandleSmartShutdownInterrupt(void)
+{
+	SmartShutdownPending = true;
+	InterruptPending = true;
+	/* latch will be set by procsignal_sigusr1_handler */
 }
 
 /*

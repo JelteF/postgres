@@ -134,8 +134,8 @@ pqParseInput3(PGconn *conn)
 		}
 
 		/*
-		 * NOTIFY and NOTICE messages can happen in any state; always process
-		 * them right away.
+		 * NOTIFY and NOTICE and GoAway messages can happen in any state;
+		 * always process them right away.
 		 *
 		 * Most other messages should only be processed while in BUSY state.
 		 * (In particular, in READY state we hold off further parsing until
@@ -158,6 +158,10 @@ pqParseInput3(PGconn *conn)
 		{
 			if (pqGetErrorNotice3(conn, false))
 				return;
+		}
+		else if (id == PqMsg_GoAway)
+		{
+			conn->goaway_received = true;
 		}
 		else if (conn->asyncStatus != PGASYNC_BUSY)
 		{
@@ -304,6 +308,9 @@ pqParseInput3(PGconn *conn)
 				case PqMsg_ParameterStatus:
 					if (getParameterStatus(conn))
 						return;
+					break;
+				case PqMsg_GoAway:
+					conn->goaway_received = true;
 					break;
 				case PqMsg_BackendKeyData:
 
@@ -1856,6 +1863,9 @@ getCopyDataMessage(PGconn *conn)
 				if (getParameterStatus(conn))
 					return 0;
 				break;
+			case PqMsg_GoAway:
+				conn->goaway_received = true;
+				break;
 			case PqMsg_CopyData:
 				return msgLength;
 			case PqMsg_CopyDone:
@@ -2348,6 +2358,9 @@ pqFunctionCall3(PGconn *conn, Oid fnid,
 			case PqMsg_ParameterStatus:
 				if (getParameterStatus(conn))
 					continue;
+				break;
+			case PqMsg_GoAway:
+				conn->goaway_received = true;
 				break;
 			default:
 				/* The backend violates the protocol. */

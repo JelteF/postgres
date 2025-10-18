@@ -2996,6 +2996,47 @@ int PQserverVersion(const PGconn *conn);
      </listitem>
     </varlistentry>
 
+    <varlistentry id="libpq-PQgoAwayReceived">
+     <term><function>PQgoAwayReceived</function><indexterm><primary>PQgoAwayReceived</primary></indexterm></term>
+     <listitem>
+      <para>
+       Returns true if the server has sent a <literal>GoAway</literal> message,
+       requesting the client to disconnect when convenient.
+
+<synopsis>
+int PQgoAwayReceived(const PGconn *conn);
+</synopsis>
+      </para>
+
+      <para>
+       The <literal>GoAway</literal> message is sent by the server during a
+       smart shutdown to politely request that clients disconnect. This is
+       advisory only - the connection remains fully functional and queries
+       can continue to be executed. Applications can choose to honor the rquest
+       by calling this function periodically and disconnect gracefully when
+       possible, such as after completing the current transaction.
+      </para>
+
+      <para>
+       This message is only sent to clients using protocol version 3.3 or
+       later. The function returns 1 if the <literal>GoAway</literal> message
+       was received, 0 otherwise.
+      </para>
+
+      <para>
+       <function>PQgoAwayReceived</function> does not actually read data from the
+       server; it just returns messages previously absorbed by another
+       <application>libpq</application> function. So normally you would first
+       call <xref linkend="libpq-PQconsumeInput"/>, then check
+       <function>PQgoAwayReceived</function>.  You can use
+       <function>select()</function> to wait for data to arrive from the
+       server, thereby using no <acronym>CPU</acronym> power unless there is
+       something to do.  (See <xref linkend="libpq-PQsocket"/> to obtain the file
+       descriptor number to use with <function>select()</function>.)
+      </para>
+     </listitem>
+    </varlistentry>
+
     <varlistentry id="libpq-PQerrorMessage">
      <term>
       <function>PQerrorMessage</function><indexterm><primary>PQerrorMessage</primary></indexterm>
