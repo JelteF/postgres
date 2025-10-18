@@ -624,6 +624,12 @@ typedef struct
 	/* whether client prepared each command of each script */
 	bool	  **prepared;
 
+	/* cached prepared statement handles (for protocol 3.3+) */
+	PGpreparedStmt ***preparedExt;
+
+	/* cached result from synchronous PQexecPreparedExt */
+	PGresult   *sync_result;
+
 	/*
 	 * For processing failures and repeating transactions with serialization
 	 * or deadlock errors:
@@ -3100,6 +3106,7 @@ allocCStatePrepared(CState *st)
 	Assert(st->prepared == NULL);
 
 	st->prepared = pg_malloc(sizeof(bool *) * num_scripts);
+	st->preparedExt = pg_malloc(sizeof(PGpreparedStmt **) * num_scripts);
 	for (int i = 0; i < num_scripts; i++)
 	{
 		ParsedScript *script = &sql_script[i];
@@ -3108,6 +3115,7 @@ allocCStatePrepared(CState *st)
 		for (numcmds = 0; script->commands[numcmds] != NULL; numcmds++)
 			;
 		st->prepared[i] = pg_malloc0(sizeof(bool) * numcmds);
+		st->preparedExt[i] = pg_malloc0(sizeof(PGpreparedStmt *) * numcmds);
 	}
 }
 
@@ -3128,14 +3136,29 @@ prepareCommand(CState *st, int command_num)
 
 	if (!st->prepared[st->use_file][command_num])
 	{
-		PGresult   *res;
-
 		pg_log_debug("client %d preparing %s", st->id, command->prepname);
-		res = PQprepare(st->con, command->prepname,
-						command->argv[0], command->argc - 1, NULL);
-		if (PQresultStatus(res) != PGRES_COMMAND_OK)
-			pg_log_error("%s", PQerrorMessage(st->con));
-		PQclear(res);
+
+		if (PQfullProtocolVersion(st->con) >= 30003)
+		{
+			PGpreparedStmt *stmt;
+
+			stmt = PQprepareExt(st->con, command->argv[0],
+								command->argc - 1, NULL);
+			if (stmt == NULL)
+				pg_log_error("%s", PQerrorMessage(st->con));
+			else
+				st->preparedExt[st->use_file][command_num] = stmt;
+		}
+		else
+		{
+			PGresult   *res;
+
+			res = PQprepare(st->con, command->prepname,
+							command->argv[0], command->argc - 1, NULL);
+			if (PQresultStatus(res) != PGRES_COMMAND_OK)
+				pg_log_error("%s", PQerrorMessage(st->con));
+			PQclear(res);
+		}
 		st->prepared[st->use_file][command_num] = true;
 	}
 }
@@ -3214,9 +3237,22 @@ sendCommand(CState *st, Command *command)
 		prepareCommand(st, st->command);
 		getQueryParams(&st->variables, command, params);
 
-		pg_log_debug("client %d sending %s", st->id, command->prepname);
-		r = PQsendQueryPrepared(st->con, command->prepname, command->argc - 1,
-								params, NULL, NULL, 0);
+		if (st->preparedExt && st->preparedExt[st->use_file][st->command])
+		{
+			PGpreparedStmt *stmt = st->preparedExt[st->use_file][st->command];
+
+			pg_log_debug("client %d executing prepared statement", st->id);
+
+			st->sync_result = PQexecPreparedExt(stmt, command->argc - 1,
+												params, NULL, NULL, 0);
+			r = (st->sync_result != NULL);
+		}
+		else
+		{
+			pg_log_debug("client %d sending %s", st->id, command->prepname);
+			r = PQsendQueryPrepared(st->con, command->prepname, command->argc - 1,
+									params, NULL, NULL, 0);
+		}
 	}
 	else						/* unknown sql mode */
 		r = 0;
@@ -3281,7 +3317,19 @@ readCommandResponse(CState *st, MetaCommand meta, char *varprefix)
 		   ((meta == META_ENDPIPELINE) && varprefix == NULL) ||
 		   ((meta == META_GSET || meta == META_ASET) && varprefix != NULL));
 
-	res = PQgetResult(st->con);
+	/*
+	 * If we have a cached sync_result from PQexecPreparedExt, use that
+	 * instead of calling PQgetResult.
+	 */
+	if (st->sync_result)
+	{
+		res = st->sync_result;
+		st->sync_result = NULL;
+	}
+	else
+	{
+		res = PQgetResult(st->con);
+	}
 
 	while (res != NULL)
 	{
@@ -7769,6 +7817,36 @@ done:
 static void
 finishCon(CState *st)
 {
+	if (st->sync_result)
+	{
+		PQclear(st->sync_result);
+		st->sync_result = NULL;
+	}
+
+	if (st->preparedExt)
+	{
+		for (int i = 0; i < num_scripts; i++)
+		{
+			ParsedScript *script = &sql_script[i];
+			int			numcmds;
+
+			for (numcmds = 0; script->commands[numcmds] != NULL; numcmds++)
+				;
+
+			for (int j = 0; j < numcmds; j++)
+			{
+				if (st->preparedExt[i][j])
+				{
+					PQclosePreparedExt(st->preparedExt[i][j]);
+					st->preparedExt[i][j] = NULL;
+				}
+			}
+			free(st->preparedExt[i]);
+		}
+		free(st->preparedExt);
+		st->preparedExt = NULL;
+	}
+
 	if (st->con != NULL)
 	{
 		PQfinish(st->con);
