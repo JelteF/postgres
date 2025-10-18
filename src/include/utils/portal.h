@@ -160,6 +160,9 @@ typedef struct PortalData
 	/* and these are the format codes to use for the columns: */
 	int16	   *formats;		/* a format code for each column */
 
+	/* For protocol 3.3+ automatic RowDescription: */
+	TupleDesc	describedTupDesc;	/* tupDesc that was sent in last Describe */
+
 	/*
 	 * Outermost ActiveSnapshot for execution of the portal's queries.  For
 	 * all but a few utility commands, we require such a snapshot to exist.

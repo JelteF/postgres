@@ -6,31 +6,24 @@ B	5	ReadyForQuery	 I
 F	24	Parse	 "rollback" "ROLLBACK" 0
 F	13	Parse	 "" "BEGIN" 0
 F	14	Bind	 "" "" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	18	Parse	 "" "SELECT 0/0" 0
 F	14	Bind	 "" "" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	22	Bind	 "" "rollback" 0 0 1 1
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	46	Parse	 "" "INSERT INTO pq_pipeline_tst VALUES (1)" 0
 F	14	Bind	 "" "" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 F	46	Parse	 "" "INSERT INTO pq_pipeline_tst VALUES (2)" 0
 F	14	Bind	 "" "" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 F	22	Bind	 "" "rollback" 0 0 1 1
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	46	Parse	 "" "INSERT INTO pq_pipeline_tst VALUES (3)" 0
 F	14	Bind	 "" "" 0 0 1 0
-F	6	Describe	 P ""
 F	9	Execute	 "" 0
 F	4	Sync
 F	4	Sync

@@ -570,7 +570,14 @@ PortalStart(Portal portal, ParamListInfo params,
 					PlannedStmt *pstmt = PortalGetPrimaryStmt(portal);
 
 					Assert(pstmt->commandType == CMD_UTILITY);
-					portal->tupDesc = UtilityTupleDescriptor(pstmt->utilityStmt);
+
+					/*
+					 * For EXECUTE queries tupDesc will be filled by
+					 * FillPortalStore later because it might change due to
+					 * replanning when ExecuteQuery calls GetCachedPlan.
+					 */
+					if (portal->commandTag != CMDTAG_EXECUTE)
+						portal->tupDesc = UtilityTupleDescriptor(pstmt->utilityStmt);
 				}
 
 				/*
@@ -1025,6 +1032,29 @@ FillPortalStore(Portal portal, bool isTopLevel)
 		case PORTAL_UTIL_SELECT:
 			PortalRunUtility(portal, linitial_node(PlannedStmt, portal->stmts),
 							 isTopLevel, true, treceiver, &qc);
+
+			if (!portal->tupDesc)
+			{
+				/*
+				 * Now fill in the tupDesc and formats fields of the portal.
+				 * We delay this for EXECUTE queries, because we only know the
+				 * tuple once we run GetCachedPlan. Since its original plan
+				 * might get replaced with a new one that returns different
+				 * columns, due to the table having changed since the last
+				 * PREPARE/EXECUTE command.
+				 */
+				PlannedStmt *pstmt = PortalGetPrimaryStmt(portal);
+
+				portal->tupDesc = UtilityTupleDescriptor(pstmt->utilityStmt);
+
+				/* Apply the deferred format that was stored earlier */
+				if (portal->commandTag == CMDTAG_EXECUTE && portal->formats)
+				{
+					int16		format = portal->formats[0];
+
+					PortalSetResultFormat(portal, 1, &format);
+				}
+			}
 			break;
 
 		default:

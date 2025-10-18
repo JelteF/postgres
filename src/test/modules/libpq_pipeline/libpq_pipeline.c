@@ -1405,7 +1405,23 @@ test_protocol_version(PGconn *conn)
 	PQfinish(conn);
 
 	/*
-	 * Test max_protocol_version=latest. 'latest' currently means '3.2'.
+	 * Test max_protocol_version=3.3
+	 */
+	vals[max_protocol_version_index] = "3.3";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30003)
+		pg_fatal("expected 30003, got %d", protocol_version);
+
+	PQfinish(conn);
+
+	/*
+	 * Test max_protocol_version=latest. 'latest' currently means '3.3'.
 	 */
 	vals[max_protocol_version_index] = "latest";
 	conn = PQconnectdbParams(keywords, vals, false);
@@ -1415,8 +1431,8 @@ test_protocol_version(PGconn *conn)
 				 PQerrorMessage(conn));
 
 	protocol_version = PQfullProtocolVersion(conn);
-	if (protocol_version != 30002)
-		pg_fatal("expected 30002, got %d", protocol_version);
+	if (protocol_version != 30003)
+		pg_fatal("expected 30003, got %d", protocol_version);
 
 	PQfinish(conn);
 
@@ -2082,6 +2098,165 @@ process_result(PGconn *conn, PGresult *res, int results, int numsent)
 	return got_error;
 }
 
+/*
+ * Helper function to test a prepared statement and verify column count.
+ */
+#define test_prepared_statement_columns(conn, stmt_name, nparams, paramValues, expected_columns, desc) \
+	test_prepared_statement_columns_impl(__LINE__, conn, stmt_name, nparams, paramValues, expected_columns, desc)
+
+static void
+test_prepared_statement_columns_impl(int line, PGconn *conn, const char *stmt_name,
+									 int nparams, const char **paramValues,
+									 int expected_columns, const char *desc)
+{
+	PGresult   *res;
+
+	if (PQsendQueryPrepared(conn, stmt_name, nparams, paramValues, NULL, NULL, 0) != 1)
+		pg_fatal_impl(line, "failed to send %s %s: %s", stmt_name, desc, PQerrorMessage(conn));
+
+	res = PQgetResult(conn);
+	if (res == NULL)
+		pg_fatal_impl(line, "PQgetResult returned NULL for %s %s", stmt_name, desc);
+
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal_impl(line, "%s %s returned status %s, expected PGRES_TUPLES_OK: %s",
+					  stmt_name, desc, PQresStatus(PQresultStatus(res)), PQresultErrorMessage(res));
+
+	if (PQnfields(res) != expected_columns)
+		pg_fatal_impl(line, "expected %d columns from %s %s, got %d",
+					  expected_columns, stmt_name, desc, PQnfields(res));
+	PQclear(res);
+	consume_null_result(conn);
+}
+
+/*
+ * Helper function to test EXECUTE statements and verify column count.
+ */
+#define test_execute_statement_columns(conn, execute_cmd, expected_columns, desc) \
+	test_execute_statement_columns_impl(__LINE__, conn, execute_cmd, expected_columns, desc)
+
+static void
+test_execute_statement_columns_impl(int line, PGconn *conn, const char *execute_cmd,
+									int expected_columns, const char *desc)
+{
+	PGresult   *res;
+
+	res = PQexec(conn, execute_cmd);
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal_impl(line, "failed to execute %s: %s", desc, PQerrorMessage(conn));
+	if (PQnfields(res) != expected_columns)
+		pg_fatal_impl(line, "expected %d columns from %s, got %d",
+					  expected_columns, desc, PQnfields(res));
+	PQclear(res);
+}
+
+/*
+ * Test prepared statement invalidation and refresh with schema changes
+ * This tests the adaptive behavior introduced in protocol version 3.3
+ */
+static void
+test_prepared_statement_refresh(PGconn *conn)
+{
+	PGresult   *res;
+	const char *paramValues[1] = {"3"};
+
+	fprintf(stderr, "prepared_statement_refresh ...");
+
+	/* Set up test table - mimicking the regress test */
+	res = PQexec(conn, "CREATE TEMP TABLE pcachetest AS SELECT * FROM generate_series(1,5) AS q1, generate_series(1,2) AS q2");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to create table: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	/* Create all 6 prepared statements to match regress test */
+	res = PQprepare(conn, "prepstmt1", "SELECT * FROM pcachetest", 0, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt1: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	res = PQprepare(conn, "prepstmt2", "SELECT * FROM pcachetest WHERE q1 = $1", 1, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt2: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	res = PQprepare(conn, "prepstmt3", "SELECT * FROM pcachetest", 0, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt3: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	res = PQprepare(conn, "prepstmt4", "SELECT * FROM pcachetest WHERE q1 = $1", 1, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt4: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	res = PQprepare(conn, "prepstmt5", "SELECT * FROM pcachetest", 0, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt5: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	res = PQprepare(conn, "prepstmt6", "SELECT * FROM pcachetest WHERE q1 = $1", 1, NULL);
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to prepare prepstmt6: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	/* Test all prepared statements to verify they work initially */
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "initial");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "initial");
+	test_prepared_statement_columns(conn, "prepstmt3", 0, NULL, 2, "initial");
+	test_prepared_statement_columns(conn, "prepstmt4", 1, paramValues, 2, "initial");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt5", 2, "prepstmt5 initial");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt6(3)", 2, "prepstmt6 initial");
+
+	/*
+	 * Test executing the same prepared statement multiple times without
+	 * schema changes
+	 */
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 1");
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 2");
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "repeat execution 3");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "repeat execution with params 1");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "repeat execution with params 2");
+
+	/* Now alter the table to add a column */
+	res = PQexec(conn, "ALTER TABLE pcachetest ADD COLUMN q3 bigint DEFAULT 20");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to alter table: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	/*
+	 * Test that all prepared statements adapt to the schema change. With
+	 * protocol 3.3, these should succeed and return 3 columns. With older
+	 * protocols, these would fail with "cached plan must not change result
+	 * type". The tests for older protocol tests are done in plancache.sql
+	 */
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 3, "after add column");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 3, "after add column");
+	test_prepared_statement_columns(conn, "prepstmt3", 0, NULL, 3, "after add column");
+	test_prepared_statement_columns(conn, "prepstmt4", 1, paramValues, 3, "after add column");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt5", 3, "prepstmt5 after add column");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt6(3)", 3, "prepstmt6 after add column");
+
+	/* Drop the column and verify all prepared statements still work */
+	res = PQexec(conn, "ALTER TABLE pcachetest DROP COLUMN q3");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to drop column: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	test_prepared_statement_columns(conn, "prepstmt1", 0, NULL, 2, "after drop column");
+	test_prepared_statement_columns(conn, "prepstmt2", 1, paramValues, 2, "after drop column");
+	test_prepared_statement_columns(conn, "prepstmt3", 0, NULL, 2, "after drop column");
+	test_prepared_statement_columns(conn, "prepstmt4", 1, paramValues, 2, "after drop column");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt5", 2, "prepstmt5 after drop column");
+	test_execute_statement_columns(conn, "EXECUTE prepstmt6(3)", 2, "prepstmt6 after drop column");
+
+	/* Clean up */
+	res = PQexec(conn, "DROP TABLE pcachetest");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("failed to drop table: %s", PQerrorMessage(conn));
+	PQclear(res);
+
+	fprintf(stderr, " ok\n");
+}
 
 static void
 usage(const char *progname)
@@ -2106,6 +2281,7 @@ print_test_list(void)
 	printf("pipeline_idle\n");
 	printf("pipelined_insert\n");
 	printf("prepared\n");
+	printf("prepared_statement_refresh\n");
 	printf("protocol_version\n");
 	printf("simple_pipeline\n");
 	printf("singlerow\n");
@@ -2219,6 +2395,8 @@ main(int argc, char **argv)
 		test_pipelined_insert(conn, numrows);
 	else if (strcmp(testname, "prepared") == 0)
 		test_prepared(conn);
+	else if (strcmp(testname, "prepared_statement_refresh") == 0)
+		test_prepared_statement_refresh(conn);
 	else if (strcmp(testname, "protocol_version") == 0)
 		test_protocol_version(conn);
 	else if (strcmp(testname, "simple_pipeline") == 0)

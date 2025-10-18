@@ -59,6 +59,8 @@
 #include "access/transam.h"
 #include "catalog/namespace.h"
 #include "executor/executor.h"
+#include "libpq/libpq-be.h"
+#include "libpq/pqcomm.h"
 #include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/optimizer.h"
@@ -92,7 +94,8 @@ static void ReleaseGenericPlan(CachedPlanSource *plansource);
 static bool StmtPlanRequiresRevalidation(CachedPlanSource *plansource);
 static bool BuildingPlanRequiresSnapshot(CachedPlanSource *plansource);
 static List *RevalidateCachedQuery(CachedPlanSource *plansource,
-								   QueryEnvironment *queryEnv);
+								   QueryEnvironment *queryEnv,
+								   bool allow_fixed_refresh);
 static bool CheckCachedPlan(CachedPlanSource *plansource);
 static CachedPlan *BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 								   ParamListInfo boundParams, QueryEnvironment *queryEnv);
@@ -680,7 +683,8 @@ BuildingPlanRequiresSnapshot(CachedPlanSource *plansource)
  */
 static List *
 RevalidateCachedQuery(CachedPlanSource *plansource,
-					  QueryEnvironment *queryEnv)
+					  QueryEnvironment *queryEnv,
+					  bool allow_fixed_refresh)
 {
 	bool		snapshot_set;
 	List	   *tlist;			/* transient query-tree list */
@@ -869,10 +873,10 @@ RevalidateCachedQuery(CachedPlanSource *plansource,
 			 !equalRowTypes(resultDesc, plansource->resultDesc))
 	{
 		/* can we give a better error message? */
-		if (plansource->fixed_result)
+		if (plansource->fixed_result && !allow_fixed_refresh)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("cached plan must not change result type")));
+					 errmsg("cached plan must not change result type since previous Describe")));
 		oldcxt = MemoryContextSwitchTo(plansource->context);
 		if (resultDesc)
 			resultDesc = CreateTupleDescCopy(resultDesc);
@@ -1056,7 +1060,7 @@ BuildCachedPlan(CachedPlanSource *plansource, List *qlist,
 	 * let's treat it as real and redo the RevalidateCachedQuery call.
 	 */
 	if (!plansource->is_valid)
-		qlist = RevalidateCachedQuery(plansource, queryEnv);
+		qlist = RevalidateCachedQuery(plansource, queryEnv, ShouldAllowFixedRefresh());
 
 	/*
 	 * If we don't already have a copy of the querytree list that can be
@@ -1291,6 +1295,22 @@ cached_plan_cost(CachedPlan *plan, bool include_planner)
  * Note: if any replanning activity is required, the caller's memory context
  * is used for that work.
  */
+
+/*
+ * ShouldAllowFixedRefresh
+ *		Helper function to determine if we should allow result type changes
+ *		in prepared statements based on protocol version.
+ *
+ * This feature is enabled for protocol version 3.3 and later.
+ * Older protocol versions maintain the existing behavior of failing
+ * when prepared statement result types change.
+ */
+bool
+ShouldAllowFixedRefresh(void)
+{
+	return MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3);
+}
+
 CachedPlan *
 GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 			  ResourceOwner owner, QueryEnvironment *queryEnv)
@@ -1308,7 +1328,7 @@ GetCachedPlan(CachedPlanSource *plansource, ParamListInfo boundParams,
 		elog(ERROR, "cannot apply ResourceOwner to non-saved cached plan");
 
 	/* Make sure the querytree list is valid and we have parse-time locks */
-	qlist = RevalidateCachedQuery(plansource, queryEnv);
+	qlist = RevalidateCachedQuery(plansource, queryEnv, ShouldAllowFixedRefresh());
 
 	/* Decide whether to use a custom plan */
 	customplan = choose_custom_plan(plansource, boundParams);
@@ -1792,7 +1812,7 @@ CachedPlanGetTargetList(CachedPlanSource *plansource,
 		return NIL;
 
 	/* Make sure the querytree list is valid and we have parse-time locks */
-	RevalidateCachedQuery(plansource, queryEnv);
+	RevalidateCachedQuery(plansource, queryEnv, ShouldAllowFixedRefresh());
 
 	/* Get the primary statement and find out what it returns */
 	pstmt = QueryListGetPrimaryStmt(plansource->query_list);

@@ -1259,7 +1259,28 @@ exec_simple_query(const char *query_string)
 					format = 1; /* BINARY */
 			}
 		}
-		PortalSetResultFormat(portal, 1, &format);
+
+		if (portal->commandTag == CMDTAG_EXECUTE)
+		{
+			/*
+			 * For EXECUTE queries we clear the tupDesc now, and it will be
+			 * filled in later by FillPortalStore, because the tupDesc might
+			 * change due to replanning when ExecuteQuery calls GetCachedPlan.
+			 * So we should only fetch the tupDesc after the query is actually
+			 * executed. This also means that we cannot set the result format
+			 * for the output tuple yet, so we temporarily store the desired
+			 * format in portal->formats. Then after creating the actual
+			 * tupDesc we call PortalSetResultFormat, using this format.
+			 */
+			Assert(portal->tupDesc == NULL);
+			portal->formats = (int16 *) MemoryContextAlloc(portal->portalContext,
+														   sizeof(int16));
+			portal->formats[0] = format;
+		}
+		else
+		{
+			PortalSetResultFormat(portal, 1, &format);
+		}
 
 		/*
 		 * Now we can create the destination receiver object.
@@ -2216,6 +2237,19 @@ exec_execute_message(const char *portal_name, long max_rows)
 		SetRemoteDestReceiverParams(receiver, portal);
 
 	/*
+	 * For protocol 3.3+, always send NoData immediately for commands without
+	 * result columns. This ensures clients always know the result format.
+	 * RowDescription will be sent from printtup_startup for commands with
+	 * result columns.
+	 */
+	if (dest == DestRemoteExecute &&
+		portal->tupDesc == NULL &&
+		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3))
+	{
+		pq_putemptymessage(PqMsg_NoData);
+	}
+
+	/*
 	 * Ensure we are in a transaction command (this should normally be the
 	 * case already due to prior BIND).
 	 */
@@ -2740,6 +2774,7 @@ static void
 exec_describe_portal_message(const char *portal_name)
 {
 	Portal		portal;
+	MemoryContext oldcxt;
 
 	/*
 	 * Start up a transaction command. (Note that this will normally change
@@ -2776,10 +2811,23 @@ exec_describe_portal_message(const char *portal_name)
 		return;					/* can't actually do anything... */
 
 	if (portal->tupDesc)
+	{
 		SendRowDescriptionMessage(&row_description_buf,
 								  portal->tupDesc,
 								  FetchPortalTargetList(portal),
 								  portal->formats);
+
+		/*
+		 * Store what tupDesc we described for protocol 3.3+ automatic
+		 * RowDescription
+		 */
+		if (portal->describedTupDesc)
+			FreeTupleDesc(portal->describedTupDesc);
+		/* Allocate in portal context to ensure proper cleanup */
+		oldcxt = MemoryContextSwitchTo(portal->portalContext);
+		portal->describedTupDesc = CreateTupleDescCopy(portal->tupDesc);
+		MemoryContextSwitchTo(oldcxt);
+	}
 	else
 		pq_putemptymessage(PqMsg_NoData);
 }

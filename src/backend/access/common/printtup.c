@@ -16,8 +16,11 @@
 #include "postgres.h"
 
 #include "access/printtup.h"
+#include "libpq/libpq-be.h"
+#include "libpq/pqcomm.h"
 #include "libpq/pqformat.h"
 #include "libpq/protocol.h"
+#include "miscadmin.h"
 #include "tcop/pquery.h"
 #include "utils/lsyscache.h"
 #include "utils/memdebug.h"
@@ -94,6 +97,7 @@ printtup_create_DR(CommandDest dest)
 	return (DestReceiver *) self;
 }
 
+
 /*
  * Set parameters for a DestRemote (or DestRemoteExecute) receiver
  */
@@ -106,6 +110,33 @@ SetRemoteDestReceiverParams(DestReceiver *self, Portal portal)
 		   myState->pub.mydest == DestRemoteExecute);
 
 	myState->portal = portal;
+
+	/*
+	 * For deferred EXECUTE statements in extended protocol, we need to send
+	 * row description even though destination is DestRemoteExecute, because
+	 * the tupDesc wasn't available during the Describe phase.
+	 */
+	if (myState->pub.mydest == DestRemoteExecute &&
+		portal->commandTag == CMDTAG_EXECUTE &&
+		portal->tupDesc == NULL)
+	{
+		myState->sendDescrip = true;
+	}
+
+	/*
+	 * For protocol 3.3+, always send RowDescription or NoData for EXECUTE
+	 * statements by default. This ensures clients always know the result
+	 * format without needing to issue Describe.
+	 *
+	 * We send RowDescription when there are result columns (tupDesc != NULL)
+	 * and NoData when there are no result columns (tupDesc == NULL).
+	 */
+	if (myState->pub.mydest == DestRemoteExecute &&
+		MyProcPort && MyProcPort->proto >= PG_PROTOCOL(3, 3))
+	{
+		/* Always send RowDescription or NoData for protocol 3.3+ */
+		myState->sendDescrip = true;
+	}
 }
 
 static void
@@ -113,6 +144,7 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
 	DR_printtup *myState = (DR_printtup *) self;
 	Portal		portal = myState->portal;
+	MemoryContext oldcxt;
 
 	/*
 	 * Create I/O buffer to be used for all messages.  This cannot be inside
@@ -135,10 +167,24 @@ printtup_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	 * descriptor of the tuples.
 	 */
 	if (myState->sendDescrip)
+	{
 		SendRowDescriptionMessage(&myState->buf,
 								  typeinfo,
 								  FetchPortalTargetList(portal),
 								  portal->formats);
+
+		/*
+		 * Update the described tupDesc for automatic RowDescription
+		 * detection. This ensures we track what was actually sent to the
+		 * client.
+		 */
+		if (portal->describedTupDesc)
+			FreeTupleDesc(portal->describedTupDesc);
+		/* Allocate in portal context to ensure proper cleanup */
+		oldcxt = MemoryContextSwitchTo(portal->portalContext);
+		portal->describedTupDesc = CreateTupleDescCopy(typeinfo);
+		MemoryContextSwitchTo(oldcxt);
+	}
 
 	/* ----------------
 	 * We could set up the derived attr info at this time, but we postpone it

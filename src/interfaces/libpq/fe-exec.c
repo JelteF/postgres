@@ -1880,12 +1880,19 @@ PQsendQueryGuts(PGconn *conn,
 	if (pqPutMsgEnd(conn) < 0)
 		goto sendFailed;
 
-	/* construct the Describe Portal message */
-	if (pqPutMsgStart(PqMsg_Describe, conn) < 0 ||
-		pqPutc('P', conn) < 0 ||
-		pqPuts("", conn) < 0 ||
-		pqPutMsgEnd(conn) < 0)
-		goto sendFailed;
+	/*
+	 * construct the Describe Portal message For protocol 3.3+, PostgreSQL
+	 * automatically sends RowDescription during Execute when tuple
+	 * descriptors change, so we can skip the Describe.
+	 */
+	if (conn->pversion < PG_PROTOCOL(3, 3))
+	{
+		if (pqPutMsgStart(PqMsg_Describe, conn) < 0 ||
+			pqPutc('P', conn) < 0 ||
+			pqPuts("", conn) < 0 ||
+			pqPutMsgEnd(conn) < 0)
+			goto sendFailed;
+	}
 
 	/* construct the Execute message */
 	if (pqPutMsgStart(PqMsg_Execute, conn) < 0 ||
