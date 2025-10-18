@@ -203,6 +203,11 @@ typedef struct Port
 #endif
 
 	/*
+	 * Protocol extensions.
+	 */
+	bool		goaway_negotiated;	/* client supports GoAway message */
+
+	/*
 	 * SSL structures.
 	 */
 	bool		ssl_in_use;

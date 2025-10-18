@@ -2134,7 +2134,33 @@ process_pm_shutdown_request(void)
 			 * later state, do not change it.
 			 */
 			if (pmState == PM_RUN || pmState == PM_HOT_STANDBY)
+			{
+				dlist_iter	iter;
+
 				connsAllowed = false;
+
+				/*
+				 * Signal all backends to send a GoAway message to their
+				 * clients, to politely request that they disconnect.
+				 */
+				dlist_foreach(iter, &ActiveChildList)
+				{
+					PMChild    *bp = dlist_container(PMChild, elem, iter.cur);
+
+					/*
+					 * Only signal regular backends, since those are the ones
+					 * that need to notify their clients using a GoAway
+					 * message. Follow the same pattern as SignalChildren to
+					 * correctly distinguish backends from WAL senders.
+					 */
+					if (bp->bkend_type == B_BACKEND &&
+						!IsPostmasterChildWalSender(bp->child_slot))
+					{
+						SendProcSignal(bp->pid, PROCSIG_SMART_SHUTDOWN,
+									   INVALID_PROC_NUMBER);
+					}
+				}
+			}
 			else if (pmState == PM_STARTUP || pmState == PM_RECOVERY)
 			{
 				/* There should be no clients, so proceed to stop children */

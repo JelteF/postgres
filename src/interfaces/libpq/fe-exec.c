@@ -2703,6 +2703,33 @@ PQnotifies(PGconn *conn)
 }
 
 /*
+ * PQgoAwayReceived
+ *	  returns 1 if a GoAway message has been received from the server
+ *	  returns 0 if not
+ *
+ * Note that this function does not read any new data from the socket;
+ * caller should call PQconsumeInput() first if they want to ensure
+ * all available data has been read.
+ */
+int
+PQgoAwayReceived(PGconn *conn)
+{
+	if (!conn)
+		return 0;
+
+	if (conn->goaway_received)
+		return 1;
+
+	/*
+	 * Parse any available data to see if a GoAway message has arrived.
+	 */
+	parseInput(conn);
+
+	return conn->goaway_received ? 1 : 0;
+}
+
+
+/*
  * PQputCopyData - send some data to the backend during COPY IN or COPY BOTH
  *
  * Returns 1 if successful, 0 if data could not be sent (only possible
