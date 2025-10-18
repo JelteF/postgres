@@ -18,8 +18,8 @@
  </para>
 
  <para>
-  This document describes version 3.2 of the protocol, introduced in
-  <productname>PostgreSQL</productname> version 18. The server and the libpq
+  This document describes version 3.3 of the protocol, introduced in
+  <productname>PostgreSQL</productname> version 19. The server and the libpq
   client library are backwards compatible with protocol version 3.0,
   implemented in <productname>PostgreSQL</productname> 7.4 and later.
  </para>
@@ -192,7 +192,7 @@
    <title>Protocol Versions</title>
 
    <para>
-    The current, latest version of the protocol is version 3.2. However, for
+    The current, latest version of the protocol is version 3.3. However, for
     backwards compatibility with old server versions and middleware that don't
     support the version negotiation yet, libpq still uses protocol version 3.0
     by default.
@@ -206,7 +206,7 @@
     this would occur if the client requested protocol version 4.0, which does
     not exist as of this writing).  If the minor version requested by the
     client is not supported by the server (e.g., the client requests version
-    3.2, but the server supports only 3.0), the server may either reject the
+    3.3, but the server supports only 3.0), the server may either reject the
     connection or may respond with a NegotiateProtocolVersion message
     containing the highest minor protocol version which it supports.  The
     client may then choose either to continue with the connection using the
@@ -239,9 +239,15 @@
 
      <tbody>
       <row>
+      <entry>3.3</entry>
+      <entry>PostgreSQL 19 and later</entry>
+      <entry>Current latest version.
+      </entry>
+      </row>
+      <row>
       <entry>3.2</entry>
       <entry>PostgreSQL 18 and later</entry>
-      <entry>Current latest version. The secret key used in query
+      <entry>The secret key used in query
         cancellation was enlarged from 4 bytes to a variable length field. The
         BackendKeyData message was changed to accommodate that, and the CancelRequest
         message was redefined to have a variable length payload.
@@ -6076,9 +6082,9 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
         <para>
          The protocol version number.  The most significant 16 bits are
          the major version number. The least significant 16 bits are the minor
-         version number. As an example protocol version 3.2 is represented as
-         <literal>196610</literal> in decimal or more clearly as
-         <literal>0x00030002</literal> in hexadecimal.
+         version number. As an example protocol version 3.3 is represented as
+         <literal>196611</literal> in decimal or more clearly as
+         <literal>0x00030003</literal> in hexadecimal.
         </para>
        </listitem>
       </varlistentry>

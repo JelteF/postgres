@@ -1405,7 +1405,23 @@ test_protocol_version(PGconn *conn)
 	PQfinish(conn);
 
 	/*
-	 * Test max_protocol_version=latest. 'latest' currently means '3.2'.
+	 * Test max_protocol_version=3.3
+	 */
+	vals[max_protocol_version_index] = "3.3";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30003)
+		pg_fatal("expected 30003, got %d", protocol_version);
+
+	PQfinish(conn);
+
+	/*
+	 * Test max_protocol_version=latest. 'latest' currently means '3.3'.
 	 */
 	vals[max_protocol_version_index] = "latest";
 	conn = PQconnectdbParams(keywords, vals, false);
@@ -1415,8 +1431,8 @@ test_protocol_version(PGconn *conn)
 				 PQerrorMessage(conn));
 
 	protocol_version = PQfullProtocolVersion(conn);
-	if (protocol_version != 30002)
-		pg_fatal("expected 30002, got %d", protocol_version);
+	if (protocol_version != 30003)
+		pg_fatal("expected 30003, got %d", protocol_version);
 
 	PQfinish(conn);
 
