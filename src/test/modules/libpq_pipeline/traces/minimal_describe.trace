@@ -1,0 +1,53 @@
+F	72	Parse	 "pqprepext_0_0x5c4545f5e330" "SELECT 1::int AS a, 'hello'::text AS b" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	40	Bind	 "" "pqprepext_0_0x5c4545f5e330" 0 0 1 0
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	46	RowDescription	 2 "a" NNNN 0 NNNN 4 -1 0 "b" NNNN 0 NNNN 65535 -1 0
+B	20	DataRow	 2 1 '1' 5 'hello'
+B	13	CommandComplete	 "SELECT 1"
+B	5	ReadyForQuery	 I
+F	40	Bind	 "" "pqprepext_0_0x5c4545f5e330" 0 0 1 0
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	20	DataRow	 2 1 '1' 5 'hello'
+B	13	CommandComplete	 "SELECT 1"
+B	5	ReadyForQuery	 I
+F	42	Query	 "CREATE TEMP TABLE test_table2 (a int)"
+B	17	CommandComplete	 "CREATE TABLE"
+B	5	ReadyForQuery	 I
+F	59	Parse	 "pqprepext_1_0x5c4545f5e330" "SELECT * FROM test_table2" 0
+F	4	Sync
+B	4	ParseComplete
+B	5	ReadyForQuery	 I
+F	40	Bind	 "" "pqprepext_1_0x5c4545f5e330" 0 0 1 0
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	26	RowDescription	 1 "a" NNNN 1 NNNN 4 -1 0
+B	13	CommandComplete	 "SELECT 0"
+B	5	ReadyForQuery	 I
+F	55	Query	 "ALTER TABLE test_table2 ALTER COLUMN a TYPE bigint"
+B	16	CommandComplete	 "ALTER TABLE"
+B	5	ReadyForQuery	 I
+F	40	Bind	 "" "pqprepext_1_0x5c4545f5e330" 0 0 1 0
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	26	RowDescription	 1 "a" NNNN 1 NNNN 8 -1 0
+B	13	CommandComplete	 "SELECT 0"
+B	5	ReadyForQuery	 I
+F	40	Bind	 "" "pqprepext_1_0x5c4545f5e330" 0 0 1 0
+F	9	Execute	 "" 0
+F	4	Sync
+B	4	BindComplete
+B	13	CommandComplete	 "SELECT 0"
+B	5	ReadyForQuery	 I
+F	27	Query	 "DROP TABLE test_table2"
+B	15	CommandComplete	 "DROP TABLE"
+B	5	ReadyForQuery	 I
+F	4	Terminate

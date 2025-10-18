@@ -39,7 +39,7 @@ for my $testname (@tests)
 	my $cmptrace = grep(/^$testname$/,
 		qw(simple_pipeline nosync multi_pipelines prepared singlerow
 		  pipeline_abort pipeline_idle transaction
-		  disallowed_in_pipeline prepared_statement_refresh)) > 0;
+		  disallowed_in_pipeline prepared_statement_refresh minimal_describe)) > 0;
 
 	# For a bunch of tests, generate a libpq trace file too.
 	my $traceout =
@@ -49,12 +49,21 @@ for my $testname (@tests)
 		push @extraargs, "-t" => $traceout;
 	}
 
+	# Build connection string with test-specific options
+	my $connstr = $node->connstr('postgres') . " max_protocol_version=latest";
+
+	# minimal_describe test requires the minimal_describe connection parameter
+	if ($testname eq 'minimal_describe')
+	{
+		$connstr .= " minimal_describe=true";
+	}
+
 	# Execute the test using the latest protocol version.
 	$node->command_ok(
 		[
 			'libpq_pipeline', @extraargs,
 			$testname,
-			$node->connstr('postgres') . " max_protocol_version=latest"
+			$connstr
 		],
 		"libpq_pipeline $testname");
 
