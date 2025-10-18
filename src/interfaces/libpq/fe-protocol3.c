@@ -134,8 +134,8 @@ pqParseInput3(PGconn *conn)
 		}
 
 		/*
-		 * NOTIFY and NOTICE messages can happen in any state; always process
-		 * them right away.
+		 * NOTIFY and NOTICE and GoAway messages can happen in any state;
+		 * always process them right away.
 		 *
 		 * Most other messages should only be processed while in BUSY state.
 		 * (In particular, in READY state we hold off further parsing until
@@ -158,6 +158,10 @@ pqParseInput3(PGconn *conn)
 		{
 			if (pqGetErrorNotice3(conn, false))
 				return;
+		}
+		else if (id == PqMsg_GoAway)
+		{
+			conn->goaway_received = true;
 		}
 		else if (conn->asyncStatus != PGASYNC_BUSY)
 		{
@@ -1446,6 +1450,7 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 	int			num;
 	bool		found_test_protocol_negotiation;
 	bool		expect_test_protocol_negotiation;
+	bool		requested_goaway = conn->pversion >= PG_PROTOCOL(3, 2);
 
 	/*
 	 * During 19beta only, if protocol grease is in use, assume that it's the
@@ -1521,8 +1526,7 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 	conn->pversion = their_version;
 
 	/*
-	 * Check that all expected unsupported parameters are reported by the
-	 * server.
+	 * Process the list of unsupported protocol extensions.
 	 */
 	found_test_protocol_negotiation = false;
 	expect_test_protocol_negotiation = (conn->max_pversion == PG_PROTOCOL_GREASE);
@@ -1539,11 +1543,22 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 			goto failure;
 		}
 
-		/* Check if this is the expected test parameter */
+		/*
+		 * Handle protocol extensions that we requested. Extensions that were
+		 * not requested by us are an error.
+		 */
 		if (expect_test_protocol_negotiation &&
 			strcmp(conn->workBuffer.data, "_pq_.test_protocol_negotiation") == 0)
 		{
 			found_test_protocol_negotiation = true;
+		}
+		else if (requested_goaway && strcmp(conn->workBuffer.data, "_pq_.goaway") == 0)
+		{
+			/*
+			 * Server doesn't support GoAway, that's fine. It will simply never
+			 * send the message.
+			 */
+			continue;
 		}
 		else
 		{
@@ -1904,6 +1919,9 @@ getCopyDataMessage(PGconn *conn)
 			case PqMsg_ParameterStatus:
 				if (getParameterStatus(conn))
 					return 0;
+				break;
+			case PqMsg_GoAway:
+				conn->goaway_received = true;
 				break;
 			case PqMsg_CopyData:
 				return msgLength;
@@ -2398,6 +2416,9 @@ pqFunctionCall3(PGconn *conn, Oid fnid,
 				if (getParameterStatus(conn))
 					continue;
 				break;
+			case PqMsg_GoAway:
+				conn->goaway_received = true;
+				break;
 			default:
 				/* The backend violates the protocol. */
 				libpq_append_conn_error(conn, "protocol error: id=0x%x", id);
@@ -2530,6 +2551,14 @@ build_startup_packet(const PGconn *conn, char *packet,
 				ADD_STARTUP_OPTION(next_eo->pgName, val);
 		}
 	}
+
+	/*
+	 * Request protocol extensions. Only do this for protocol version 3.2 and
+	 * later, to avoid confusing old proxies that don't understand _pq_.*
+	 * options.
+	 */
+	if (conn->pversion >= PG_PROTOCOL(3, 2))
+		ADD_STARTUP_OPTION("_pq_.goaway", "1");
 
 	/* Add trailing terminator */
 	if (packet)

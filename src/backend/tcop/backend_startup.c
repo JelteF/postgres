@@ -779,11 +779,24 @@ ProcessStartupPacket(Port *port, bool ssl_done, bool gss_done)
 			{
 				/*
 				 * Any option beginning with _pq_. is reserved for use as a
-				 * protocol-level option, but at present no such options are
-				 * defined.
+				 * protocol-level option.
 				 */
-				unrecognized_protocol_options =
-					lappend(unrecognized_protocol_options, pstrdup(nameptr));
+				if (strcmp(nameptr, "_pq_.goaway") == 0)
+				{
+					/* Client wants to receive GoAway messages. */
+					if (strcmp(valptr, "1") != 0)
+						ereport(FATAL,
+								(errcode(ERRCODE_PROTOCOL_VIOLATION),
+								 errmsg("invalid value for protocol option \"%s\": \"%s\"",
+										nameptr, valptr),
+								 errhint("Valid values are: \"1\".")));
+					port->goaway_negotiated = true;
+				}
+				else
+				{
+					unrecognized_protocol_options =
+						lappend(unrecognized_protocol_options, pstrdup(nameptr));
+				}
 			}
 			else
 			{

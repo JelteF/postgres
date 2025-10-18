@@ -701,6 +701,7 @@ pqDropServerData(PGconn *conn)
 	conn->password_needed = false;
 	conn->gssapi_used = false;
 	conn->write_failed = false;
+	conn->goaway_received = false;
 	free(conn->write_err_msg);
 	conn->write_err_msg = NULL;
 	conn->oauth_want_retry = false;

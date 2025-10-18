@@ -68,6 +68,8 @@ extern "C"
 #define LIBPQ_HAS_GET_THREAD_LOCK 1
 /* Indicates presence of the PQAUTHDATA_OAUTH_BEARER_TOKEN_V2 authdata hook */
 #define LIBPQ_HAS_OAUTH_BEARER_TOKEN_V2 1
+/* Indicates presence of PQgoAwayReceived */
+#define LIBPQ_HAS_GOAWAY 1
 
 /*
  * Option flags for PQcopyResult
@@ -419,6 +421,7 @@ extern const char *PQparameterStatus(const PGconn *conn,
 extern int	PQprotocolVersion(const PGconn *conn);
 extern int	PQfullProtocolVersion(const PGconn *conn);
 extern int	PQserverVersion(const PGconn *conn);
+extern int	PQgoAwayReceived(PGconn *conn);
 extern char *PQerrorMessage(const PGconn *conn);
 extern int	PQsocket(const PGconn *conn);
 extern int	PQbackendPID(const PGconn *conn);

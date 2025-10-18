@@ -739,6 +739,7 @@ PSQLexecWatch(const char *query, const printQueryOpt *opt, FILE *printQueryFout,
 static void
 PrintNotifications(void)
 {
+	static bool goaway_reported = false;
 	PGnotify   *notify;
 
 	PQconsumeInput(pset.db);
@@ -754,6 +755,12 @@ PrintNotifications(void)
 		fflush(pset.queryFout);
 		PQfreemem(notify);
 		PQconsumeInput(pset.db);
+	}
+
+	if (!goaway_reported && PQgoAwayReceived(pset.db))
+	{
+		pg_log_info("Server sent GoAway, requesting disconnect when convenient.");
+		goaway_reported = true;
 	}
 }
 

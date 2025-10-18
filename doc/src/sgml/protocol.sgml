@@ -346,8 +346,14 @@
 
      <tbody>
       <row>
-       <entry namest="last" align="center" valign="middle">
-        <emphasis>(No supported protocol extensions are currently defined.)</emphasis>
+       <entry><literal>_pq_.goaway</literal></entry>
+       <entry><literal>1</literal></entry>
+       <entry>PostgreSQL 19</entry>
+       <entry>
+        Enables the server to send
+        <link linkend="protocol-message-formats-GoAway">GoAway</link>
+        messages to request the client to disconnect when convenient.
+        See <xref linkend="protocol-async"/> for more details.
        </entry>
       </row>
      </tbody>
@@ -707,6 +713,17 @@
         A warning message has been issued.  The frontend should
         display the message but continue listening for ReadyForQuery
         or ErrorResponse.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term>GoAway</term>
+      <listitem>
+       <para>
+        The server requests the client politely to close the connection at its
+        earliest convenient moment. See <xref linkend="protocol-async"/> for
+        more details.
        </para>
       </listitem>
      </varlistentry>
@@ -1458,7 +1475,7 @@ SELCT 1/0;<!-- this typo is intentional -->
    </para>
 
    <para>
-    It is possible for NoticeResponse and ParameterStatus messages to be
+    It is possible for NoticeResponse, ParameterStatus and GoAway messages to be
     interspersed between CopyData messages; frontends must handle these cases,
     and should be prepared for other asynchronous message types as well (see
     <xref linkend="protocol-async"/>).  Otherwise, any message type other than
@@ -1567,6 +1584,28 @@ SELCT 1/0;<!-- this typo is intentional -->
     This set might change in the future, or even become configurable.
     Accordingly, a frontend should simply ignore ParameterStatus for
     parameters that it does not understand or care about.
+   </para>
+
+   <para>
+    A GoAway message is sent by the server to politely request the client to
+    disconnect when convenient and reconnect when the client needs a connection
+    again. This is advisory only - the connection remains fully functional and
+    queries can continue to be executed. "When convenient" is very vaguely
+    defined on purpose because it depends on the client and application whether
+    such a moment even exists. So clients are allowed to completely ignore this
+    message and disconnect whenever they otherwise would have. An important
+    type of client that can actually honor the request to disconnect early is a
+    client that maintains a connection pool. Such a client can honor the
+    request by disconnecting a connection that has received a GoAway message
+    when it's not in use by a user of the pool. It is allowed for a server to
+    send multiple GoAway messages on the same connection, but any subsequent
+    GoAway messages after the first GoAway have no effect on the client's
+    behavior. The GoAway message is currently sent by Postgres during the
+    "smart" shutdown procedure (i.e. when postmaster receives
+    <systemitem>SIGTERM</systemitem>). The server only sends the GoAway
+    message to clients that request the <literal>goaway</literal> protocol
+    extension by setting <literal>_pq_.goaway</literal> to <literal>1</literal>
+    in the StartupMessage.
    </para>
 
    <para>
@@ -5352,6 +5391,31 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
          The value of the function result, in the format indicated by
          the associated format code.
          <replaceable>n</replaceable> is the above length.
+        </para>
+       </listitem>
+      </varlistentry>
+     </variablelist>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry id="protocol-message-formats-GoAway">
+    <term>GoAway (B)</term>
+    <listitem>
+     <variablelist>
+      <varlistentry>
+       <term>Byte1('g')</term>
+       <listitem>
+        <para>
+         Identifies the message as a polite request for the client to disconnect.
+        </para>
+       </listitem>
+      </varlistentry>
+
+      <varlistentry>
+       <term>Int32(4)</term>
+       <listitem>
+        <para>
+         Length of message contents in bytes, including self.
         </para>
        </listitem>
       </varlistentry>

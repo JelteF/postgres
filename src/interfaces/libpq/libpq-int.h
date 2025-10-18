@@ -511,6 +511,7 @@ struct pg_conn
 	bool		sigpipe_flag;	/* can we mask SIGPIPE via MSG_NOSIGNAL? */
 	bool		write_failed;	/* have we had a write failure on sock? */
 	char	   *write_err_msg;	/* write error message, or NULL if OOM */
+	bool		goaway_received;	/* true if server sent GoAway message */
 
 	bool		auth_required;	/* require an authentication challenge from
 								 * the server? */

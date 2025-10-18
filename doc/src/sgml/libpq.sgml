@@ -2248,6 +2248,14 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
         equivalent to the latest protocol version supported by the libpq
         version being used, which is currently <literal>3.2</literal>.
        </para>
+
+       <para>
+        When using protocol version <literal>3.2</literal> or higher,
+        <application>libpq</application> requests all supported
+        <link linkend="protocol-extensions">protocol extensions</link>
+        from the server, such as <literal>goaway</literal>
+        which enables <xref linkend="libpq-PQgoAwayReceived"/>.
+       </para>
       </listitem>
      </varlistentry>
 
@@ -3000,6 +3008,50 @@ int PQserverVersion(const PGconn *conn);
        by 100 not 10000 to determine a logical major version number.
        In all release series, only the last two digits differ between
        minor releases (bug-fix releases).
+      </para>
+     </listitem>
+    </varlistentry>
+
+    <varlistentry id="libpq-PQgoAwayReceived">
+     <term><function>PQgoAwayReceived</function><indexterm><primary>PQgoAwayReceived</primary></indexterm></term>
+     <listitem>
+      <para>
+       Returns true if the server has sent a <literal>GoAway</literal> message,
+       requesting the client to disconnect when convenient.
+
+<synopsis>
+int PQgoAwayReceived(PGconn *conn);
+</synopsis>
+      </para>
+
+      <para>
+       The <literal>GoAway</literal> message is sent by the server during a
+       smart shutdown to politely request that clients disconnect. This is
+       advisory only - the connection remains fully functional and queries
+       can continue to be executed. Applications can choose to honor the request
+       by calling this function periodically and disconnect gracefully when
+       possible, such as after completing the current transaction.
+      </para>
+
+      <para>
+       This message is only sent to clients that request the
+       <literal>goaway</literal> protocol extension in the startup message,
+       which <application>libpq</application> does when using protocol version
+       3.2 or higher (see <xref linkend="libpq-connect-max-protocol-version"/>).
+       The function returns 1 if the <literal>GoAway</literal> message was
+       received, 0 otherwise.
+      </para>
+
+      <para>
+       <function>PQgoAwayReceived</function> does not actually read data from the
+       server; it just returns messages previously absorbed by another
+       <application>libpq</application> function. So normally you would first
+       call <xref linkend="libpq-PQconsumeInput"/>, then check
+       <function>PQgoAwayReceived</function>.  You can use
+       <function>select()</function> to wait for data to arrive from the
+       server, thereby using no <acronym>CPU</acronym> power unless there is
+       something to do.  (See <xref linkend="libpq-PQsocket"/> to obtain the file
+       descriptor number to use with <function>select()</function>.)
       </para>
      </listitem>
     </varlistentry>

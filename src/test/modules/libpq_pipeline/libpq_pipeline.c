@@ -2102,6 +2102,76 @@ process_result(PGconn *conn, PGresult *res, int results, int numsent)
 
 
 static void
+test_goaway(PGconn *conn)
+{
+	PGconn	   *otherConn;
+	PGresult   *res;
+	int			pid;
+	char		pid_str[32];
+	int			i;
+
+	fprintf(stderr, "test goaway... ");
+
+	otherConn = copy_connection(conn);
+	Assert(PQstatus(otherConn) == CONNECTION_OK);
+
+	if (!PQconsumeInput(conn))
+		pg_fatal("PQconsumeInput failed: %s", PQerrorMessage(conn));
+
+	pid = PQbackendPID(conn);
+	snprintf(pid_str, sizeof(pid_str), "%d", pid);
+
+	/* Verify GoAway has not been received yet */
+	if (PQgoAwayReceived(conn))
+		pg_fatal("GoAway received before sending request");
+
+	/* Ask the target backend to send GoAway */
+	{
+		const char *paramValues[1] = {pid_str};
+
+		res = PQexecParams(otherConn,
+						   "SELECT pg_goaway_backend($1)",
+						   1, NULL, paramValues,
+						   NULL, NULL, 0);
+	}
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal("pg_goaway_backend failed: %s", PQerrorMessage(otherConn));
+	if (strcmp(PQgetvalue(res, 0, 0), "t") != 0)
+		pg_fatal("pg_goaway_backend returned false");
+	PQclear(res);
+
+	/*
+	 * The GoAway signal is delivered asynchronously. Poll PQgoAwayReceived on
+	 * the target connection until it returns true.
+	 */
+	for (i = 0; i < 100; i++)
+	{
+		if (!PQconsumeInput(conn))
+			pg_fatal("PQconsumeInput failed: %s", PQerrorMessage(conn));
+
+		if (PQgoAwayReceived(conn))
+			break;
+
+		pg_usleep(50000);		/* 50ms */
+	}
+
+	if (!PQgoAwayReceived(conn))
+		pg_fatal("GoAway not received after sending pg_goaway_backend");
+
+	/* Verify the connection still works after GoAway */
+	res = PQexec(conn, "SELECT 'still_alive'");
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal("query failed after GoAway: %s", PQerrorMessage(conn));
+	if (strcmp(PQgetvalue(res, 0, 0), "still_alive") != 0)
+		pg_fatal("unexpected query result after GoAway");
+	PQclear(res);
+
+	PQfinish(otherConn);
+
+	fprintf(stderr, "ok\n");
+}
+
+static void
 usage(const char *progname)
 {
 	fprintf(stderr, "%s tests libpq's pipeline mode.\n\n", progname);
@@ -2118,6 +2188,7 @@ print_test_list(void)
 {
 	printf("cancel\n");
 	printf("disallowed_in_pipeline\n");
+	printf("goaway\n");
 	printf("multi_pipelines\n");
 	printf("nosync\n");
 	printf("pipeline_abort\n");
@@ -2225,6 +2296,8 @@ main(int argc, char **argv)
 		test_cancel(conn);
 	else if (strcmp(testname, "disallowed_in_pipeline") == 0)
 		test_disallowed_in_pipeline(conn);
+	else if (strcmp(testname, "goaway") == 0)
+		test_goaway(conn);
 	else if (strcmp(testname, "multi_pipelines") == 0)
 		test_multi_pipelines(conn);
 	else if (strcmp(testname, "nosync") == 0)
