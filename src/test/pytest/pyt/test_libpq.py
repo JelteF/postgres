@@ -9,6 +9,8 @@ from typing import Callable
 
 import pytest
 
+from libpq import connstr, LibpqError
+
 
 @pytest.mark.parametrize(
     "opts, expected",
@@ -22,15 +24,15 @@ import pytest
         (dict(keyword=" \\' "), r"keyword=' \\\' '"),
     ],
 )
-def test_connstr(libpq, opts, expected):
-    """Tests the escape behavior for libpq._connstr()."""
-    assert libpq._connstr(opts) == expected
+def test_connstr(opts, expected):
+    """Tests the escape behavior for connstr()."""
+    assert connstr(opts) == expected
 
 
-def test_must_connect_errors(libpq):
-    """Tests that must_connect() raises libpq.Error."""
-    with pytest.raises(libpq.Error, match="invalid connection option"):
-        libpq.must_connect(some_unknown_keyword="whatever")
+def test_must_connect_errors(connect):
+    """Tests that connect() raises LibpqError."""
+    with pytest.raises(LibpqError, match="invalid connection option"):
+        connect(some_unknown_keyword="whatever")
 
 
 @pytest.fixture
@@ -145,7 +147,7 @@ def local_server(tmp_path, remaining_timeout):
         yield s
 
 
-def test_connection_is_finished_on_error(libpq, local_server, remaining_timeout):
+def test_connection_is_finished_on_error(connect, local_server):
     """Tests that PQfinish() gets called at the end of testing."""
     expected_error = "something is wrong"
 
@@ -165,7 +167,6 @@ def test_connection_is_finished_on_error(libpq, local_server, remaining_timeout)
 
     local_server.background(serve_error)
 
-    with pytest.raises(libpq.Error, match=expected_error):
+    with pytest.raises(LibpqError, match=expected_error):
         # Exiting this context should result in PQfinish().
-        with libpq:
-            libpq.must_connect(host=local_server.host, port=local_server.port)
+        connect(host=local_server.host, port=local_server.port)

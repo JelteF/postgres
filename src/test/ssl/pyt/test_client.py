@@ -10,10 +10,11 @@ from typing import Callable
 
 import pytest
 
-import pg
+import pypg
+from libpq import LibpqError, ExecStatus
 
 # This suite opens up local TCP ports and is hidden behind PG_TEST_EXTRA=ssl.
-pytestmark = pg.require_test_extra("ssl")
+pytestmark = pypg.require_test_extra("ssl")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -192,7 +193,7 @@ def ssl_server(tcp_server_class, certs):
 
 
 @pytest.mark.parametrize("sslmode", ("require", "verify-ca", "verify-full"))
-def test_server_with_ssl_disabled(libpq, tcp_server, certs, sslmode):
+def test_server_with_ssl_disabled(connect, tcp_server, certs, sslmode):
     """
     Make sure client refuses to talk to non-SSL servers with stricter
     sslmodes.
@@ -214,16 +215,15 @@ def test_server_with_ssl_disabled(libpq, tcp_server, certs, sslmode):
 
     tcp_server.background(refuse_ssl)
 
-    with pytest.raises(libpq.Error, match="server does not support SSL"):
-        with libpq:  # XXX tests shouldn't need to do this
-            libpq.must_connect(
-                **tcp_server.conninfo,
-                sslrootcert=certs.ca.certpath,
-                sslmode=sslmode,
-            )
+    with pytest.raises(LibpqError, match="server does not support SSL"):
+        connect(
+            **tcp_server.conninfo,
+            sslrootcert=certs.ca.certpath,
+            sslmode=sslmode,
+        )
 
 
-def test_verify_full_connection(libpq, ssl_server, certs):
+def test_verify_full_connection(connect, ssl_server, certs):
     """Completes a verify-full connection and empty query."""
 
     def handle_empty_query(s: ssl.SSLSocket):
@@ -269,10 +269,10 @@ def test_verify_full_connection(libpq, ssl_server, certs):
 
     ssl_server.background_ssl(handle_empty_query)
 
-    conn = libpq.must_connect(
+    conn = connect(
         **ssl_server.conninfo,
         sslrootcert=certs.ca.certpath,
         sslmode="verify-full",
     )
     with conn:
-        assert conn.exec("").status() == libpq.PGRES_EMPTY_QUERY
+        assert conn.exec("").status() == ExecStatus.PGRES_EMPTY_QUERY
