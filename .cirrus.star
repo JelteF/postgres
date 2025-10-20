@@ -96,6 +96,7 @@ def compute_environment_vars():
 
     operating_systems = [
       'compilerwarnings',
+      'formattingcheck',
       'freebsd',
       'linux',
       'macos',
