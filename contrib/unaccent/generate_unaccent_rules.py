@@ -32,16 +32,18 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-sys.stdout = codecs.getwriter('utf8')(sys.stdout.buffer)
+sys.stdout = codecs.getwriter("utf8")(sys.stdout.buffer)
 
 # The ranges of Unicode characters that we consider to be "plain letters".
 # For now we are being conservative by including only Latin and Greek.  This
 # could be extended in future based on feedback from people with relevant
 # language knowledge.
-PLAIN_LETTER_RANGES = ((ord('a'), ord('z')),  # Latin lower case
-                       (ord('A'), ord('Z')),  # Latin upper case
-                       (0x03b1, 0x03c9),      # GREEK SMALL LETTER ALPHA, GREEK SMALL LETTER OMEGA
-                       (0x0391, 0x03a9))      # GREEK CAPITAL LETTER ALPHA, GREEK CAPITAL LETTER OMEGA
+PLAIN_LETTER_RANGES = (
+    (ord("a"), ord("z")),  # Latin lower case
+    (ord("A"), ord("Z")),  # Latin upper case
+    (0x03B1, 0x03C9),  # GREEK SMALL LETTER ALPHA, GREEK SMALL LETTER OMEGA
+    (0x0391, 0x03A9),
+)  # GREEK CAPITAL LETTER ALPHA, GREEK CAPITAL LETTER OMEGA
 
 # Combining marks follow a "base" character, and result in a composite
 # character. Example: "U&'A\0300'"produces "À".There are three types of
@@ -51,16 +53,18 @@ PLAIN_LETTER_RANGES = ((ord('a'), ord('z')),  # Latin lower case
 #   https://en.wikipedia.org/wiki/Combining_character
 #   https://www.unicode.org/charts/PDF/U0300.pdf
 #   https://www.unicode.org/charts/PDF/U20D0.pdf
-COMBINING_MARK_RANGES = ((0x0300, 0x0362),   # Mn: Accents, IPA
-                         (0x20dd, 0x20E0),   # Me: Symbols
-                         (0x20e2, 0x20e4),)  # Me: Screen, keycap, triangle
+COMBINING_MARK_RANGES = (
+    (0x0300, 0x0362),  # Mn: Accents, IPA
+    (0x20DD, 0x20E0),  # Me: Symbols
+    (0x20E2, 0x20E4),
+)  # Me: Screen, keycap, triangle
 
 
 def print_record(codepoint, letter):
     if letter:
         # If the letter has whitespace or double quotes, escape double
         # quotes and apply more quotes around it.
-        if (' ' in letter) or ('"' in letter):
+        if (" " in letter) or ('"' in letter):
             letter = '"' + letter.replace('"', '""') + '"'
         output = chr(codepoint) + "\t" + letter
     else:
@@ -116,8 +120,10 @@ def is_letter_with_marks(codepoint, table):
 
     # Check if the base letter of this letter has marks.
     codepoint_base = codepoint.combining_ids[0]
-    if is_plain_letter(table[codepoint_base]) is False and \
-       is_letter_with_marks(table[codepoint_base], table) is False:
+    if (
+        is_plain_letter(table[codepoint_base]) is False
+        and is_letter_with_marks(table[codepoint_base], table) is False
+    ):
         return False
 
     return True
@@ -139,21 +145,24 @@ def get_plain_letter(codepoint, table):
             return table[codepoint.combining_ids[0]]
 
         # Should not come here
-        assert False, 'Codepoint U+%0.2X' % codepoint.id
+        assert False, "Codepoint U+%0.2X" % codepoint.id
     elif is_plain_letter(codepoint):
         return codepoint
 
     # Should not come here
-    assert False, 'Codepoint U+%0.2X' % codepoint.id
+    assert False, "Codepoint U+%0.2X" % codepoint.id
 
 
 def is_ligature(codepoint, table):
     """Return true for letters combined with letters."""
-    return all(i in table and is_letter(table[i], table) for i in codepoint.combining_ids)
+    return all(
+        i in table and is_letter(table[i], table) for i in codepoint.combining_ids
+    )
+
 
 def get_plain_letters(codepoint, table):
     """Return a list of plain letters from a ligature."""
-    assert(is_ligature(codepoint, table))
+    assert is_ligature(codepoint, table)
     return [get_plain_letter(table[id], table) for id in codepoint.combining_ids]
 
 
@@ -163,7 +172,7 @@ def parse_cldr_latin_ascii_transliterator(latinAsciiFilePath):
     charactersSet = set()
 
     # RegEx to parse rules
-    rulePattern = re.compile(r'^(?:(.)|(\\u[0-9a-fA-F]{4})) \u2192 (?:\'(.+)\'|(.+)) ;')
+    rulePattern = re.compile(r"^(?:(.)|(\\u[0-9a-fA-F]{4})) \u2192 (?:\'(.+)\'|(.+)) ;")
 
     # construct tree from XML
     transliterationTree = ET.parse(latinAsciiFilePath)
@@ -173,7 +182,7 @@ def parse_cldr_latin_ascii_transliterator(latinAsciiFilePath):
     # all the transliteration rules are located in a single tRule block with
     # all rules separated into separate lines.
     blockRules = transliterationTreeRoot.findall("./transforms/transform/tRule")
-    assert(len(blockRules) == 1)
+    assert len(blockRules) == 1
 
     # Split the block of rules into one element per line.
     rules = blockRules[0].text.splitlines()
@@ -191,7 +200,11 @@ def parse_cldr_latin_ascii_transliterator(latinAsciiFilePath):
         # Group 3: plain "trg" char. Empty if group 4 is not.
         # Group 4: plain "trg" char between quotes. Empty if group 3 is not.
         if matches is not None:
-            src = matches.group(1) if matches.group(1) is not None else bytes(matches.group(2), 'UTF-8').decode('unicode-escape')
+            src = (
+                matches.group(1)
+                if matches.group(1) is not None
+                else bytes(matches.group(2), "UTF-8").decode("unicode-escape")
+            )
             trg = matches.group(3) if matches.group(3) is not None else matches.group(4)
 
             # "'" and """ are escaped
@@ -219,8 +232,8 @@ def special_cases():
     charactersSet.add((0x0451, "\u0435"))  # CYRILLIC SMALL LETTER IO
 
     # Symbols of "Letterlike Symbols" Unicode Block (U+2100 to U+214F)
-    charactersSet.add((0x2103, "\xb0C"))   # DEGREE CELSIUS
-    charactersSet.add((0x2109, "\xb0F"))   # DEGREE FAHRENHEIT
+    charactersSet.add((0x2103, "\xb0C"))  # DEGREE CELSIUS
+    charactersSet.add((0x2109, "\xb0F"))  # DEGREE FAHRENHEIT
 
     return charactersSet
 
@@ -237,8 +250,10 @@ def main(args):
 
     # read file UnicodeData.txt
     with codecs.open(
-      args.unicodeDataFilePath, mode='r', encoding='UTF-8',
-      ) as unicodeDataFile:
+        args.unicodeDataFilePath,
+        mode="r",
+        encoding="UTF-8",
+    ) as unicodeDataFile:
         # read everything we need into memory
         for line in unicodeDataFile:
             fields = line.split(";")
@@ -246,25 +261,37 @@ def main(args):
                 # https://www.unicode.org/reports/tr44/tr44-14.html#UnicodeData.txt
                 general_category = fields[2]
                 decomposition = fields[5]
-                decomposition = re.sub(decomposition_type_pattern, ' ', decomposition)
+                decomposition = re.sub(decomposition_type_pattern, " ", decomposition)
                 id = int(fields[0], 16)
-                combining_ids = [int(s, 16) for s in decomposition.split(" ") if s != ""]
+                combining_ids = [
+                    int(s, 16) for s in decomposition.split(" ") if s != ""
+                ]
                 codepoint = Codepoint(id, general_category, combining_ids)
                 table[id] = codepoint
                 all.append(codepoint)
 
     # walk through all the codepoints looking for interesting mappings
     for codepoint in all:
-        if codepoint.general_category.startswith('L') and \
-           len(codepoint.combining_ids) > 0:
+        if (
+            codepoint.general_category.startswith("L")
+            and len(codepoint.combining_ids) > 0
+        ):
             if is_letter_with_marks(codepoint, table):
-                charactersSet.add((codepoint.id,
-                                   chr(get_plain_letter(codepoint, table).id)))
+                charactersSet.add(
+                    (codepoint.id, chr(get_plain_letter(codepoint, table).id))
+                )
             elif args.noLigaturesExpansion is False and is_ligature(codepoint, table):
-                charactersSet.add((codepoint.id,
-                                   "".join(chr(combining_codepoint.id)
-                                           for combining_codepoint
-                                           in get_plain_letters(codepoint, table))))
+                charactersSet.add(
+                    (
+                        codepoint.id,
+                        "".join(
+                            chr(combining_codepoint.id)
+                            for combining_codepoint in get_plain_letters(
+                                codepoint, table
+                            )
+                        ),
+                    )
+                )
         elif is_mark_to_remove(codepoint):
             charactersSet.add((codepoint.id, None))
 
@@ -281,14 +308,34 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='This script builds unaccent.rules on standard output when given the contents of UnicodeData.txt and Latin-ASCII.xml given as arguments.')
-    parser.add_argument("--unicode-data-file", help="Path to formatted text file corresponding to UnicodeData.txt.", type=str, required=True, dest='unicodeDataFilePath')
-    parser.add_argument("--latin-ascii-file", help="Path to XML file from Unicode Common Locale Data Repository (CLDR) corresponding to Latin-ASCII transliterator (Latin-ASCII.xml).", type=str, dest='latinAsciiFilePath')
-    parser.add_argument("--no-ligatures-expansion", help="Do not expand ligatures and do not use Unicode CLDR Latin-ASCII transliterator. By default, this option is not enabled and \"--latin-ascii-file\" argument is required. If this option is enabled, \"--latin-ascii-file\" argument is optional and ignored.", action="store_true", dest='noLigaturesExpansion')
+    parser = argparse.ArgumentParser(
+        description="This script builds unaccent.rules on standard output when given the contents of UnicodeData.txt and Latin-ASCII.xml given as arguments."
+    )
+    parser.add_argument(
+        "--unicode-data-file",
+        help="Path to formatted text file corresponding to UnicodeData.txt.",
+        type=str,
+        required=True,
+        dest="unicodeDataFilePath",
+    )
+    parser.add_argument(
+        "--latin-ascii-file",
+        help="Path to XML file from Unicode Common Locale Data Repository (CLDR) corresponding to Latin-ASCII transliterator (Latin-ASCII.xml).",
+        type=str,
+        dest="latinAsciiFilePath",
+    )
+    parser.add_argument(
+        "--no-ligatures-expansion",
+        help='Do not expand ligatures and do not use Unicode CLDR Latin-ASCII transliterator. By default, this option is not enabled and "--latin-ascii-file" argument is required. If this option is enabled, "--latin-ascii-file" argument is optional and ignored.',
+        action="store_true",
+        dest="noLigaturesExpansion",
+    )
     args = parser.parse_args()
 
     if args.noLigaturesExpansion is False and args.latinAsciiFilePath is None:
-        sys.stderr.write('You must specify the path to Latin-ASCII transliterator file with \"--latin-ascii-file\" option or use \"--no-ligatures-expansion\" option. Use \"-h\" option for help.')
+        sys.stderr.write(
+            'You must specify the path to Latin-ASCII transliterator file with "--latin-ascii-file" option or use "--no-ligatures-expansion" option. Use "-h" option for help.'
+        )
         sys.exit(1)
 
     main(args)

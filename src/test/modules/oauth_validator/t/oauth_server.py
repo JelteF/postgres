@@ -359,9 +359,9 @@ class OAuthHandler(http.server.BaseHTTPRequestHandler):
             now = time.monotonic()
             if self._token_state.last_try is not None:
                 delay = now - self._token_state.last_try
-                assert (
-                    delay > self._token_state.min_delay
-                ), f"client waited only {delay} seconds between token requests (expected {self._token_state.min_delay})"
+                assert delay > self._token_state.min_delay, (
+                    f"client waited only {delay} seconds between token requests (expected {self._token_state.min_delay})"
+                )
 
             self._token_state.last_try = now
 
