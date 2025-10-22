@@ -5218,8 +5218,8 @@ enable_statement_timeout(void)
 	if (StatementTimeout > 0
 		&& (StatementTimeout < TransactionTimeout || TransactionTimeout == 0))
 	{
-		if (!get_timeout_active(STATEMENT_TIMEOUT))
-			enable_timeout_after(STATEMENT_TIMEOUT, StatementTimeout);
+if (!get_timeout_active(STATEMENT_TIMEOUT))
+	enable_timeout_after(STATEMENT_TIMEOUT, StatementTimeout);
 	}
 	else
 	{
