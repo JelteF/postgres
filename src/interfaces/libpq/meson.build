@@ -170,6 +170,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_load_balance.py',
+      'pyt/test_goaway.py',
     ],
   },
 }
