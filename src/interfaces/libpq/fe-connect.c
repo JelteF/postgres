@@ -2131,15 +2131,11 @@ pqConnectOptions2(PGconn *conn)
 	else
 	{
 		/*
-		 * To not break connecting to older servers/poolers that do not yet
-		 * support NegotiateProtocolVersion, default to the 3.0 protocol at
-		 * least for a while longer. Except when min_protocol_version is set
-		 * to something larger, then we might as well default to the latest.
+		 * Default to the latest protocol version. The server will
+		 * automatically downgrade via NegotiateProtocolVersion if it doesn't
+		 * support the requested version.
 		 */
-		if (conn->min_pversion > PG_PROTOCOL(3, 0))
-			conn->max_pversion = PG_PROTOCOL_LATEST;
-		else
-			conn->max_pversion = PG_PROTOCOL(3, 0);
+		conn->max_pversion = PG_PROTOCOL_LATEST;
 	}
 
 	if (conn->min_pversion > conn->max_pversion)

@@ -1378,8 +1378,8 @@ test_protocol_version(PGconn *conn)
 				 PQerrorMessage(conn));
 
 	protocol_version = PQfullProtocolVersion(conn);
-	if (protocol_version != 30000)
-		pg_fatal("expected 30000, got %d", protocol_version);
+	if (protocol_version != 30002)
+		pg_fatal("expected 30002, got %d", protocol_version);
 
 	PQfinish(conn);
 
