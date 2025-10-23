@@ -1328,7 +1328,7 @@ test_protocol_version(PGconn *conn)
 	int			nopts;
 	PQconninfoOption *opts = PQconninfo(conn);
 	int			protocol_version;
-	int			max_protocol_version_index;
+	int			max_protocol_version_index = -1;
 	int			i;
 
 	/*
@@ -1351,14 +1351,37 @@ test_protocol_version(PGconn *conn)
 		{
 			keywords[i] = opt->keyword;
 			vals[i] = opt->val;
+			if (strcmp(opt->keyword, "max_protocol_version") == 0)
+			{
+				max_protocol_version_index = i;
+			}
+
 			i++;
 		}
 	}
 
-	max_protocol_version_index = i;
-	keywords[i] = "max_protocol_version";	/* value is filled in below */
-	i++;
-	keywords[i] = vals[i] = NULL;
+	if (max_protocol_version_index == -1)
+	{
+		max_protocol_version_index = i;
+		keywords[i] = "max_protocol_version";	/* value is filled in below */
+		i++;
+	}
+
+	/*
+	 * Test default protocol_version
+	 */
+	vals[max_protocol_version_index] = "";
+	conn = PQconnectdbParams(keywords, vals, false);
+
+	if (PQstatus(conn) != CONNECTION_OK)
+		pg_fatal("Connection to database failed: %s",
+				 PQerrorMessage(conn));
+
+	protocol_version = PQfullProtocolVersion(conn);
+	if (protocol_version != 30000)
+		pg_fatal("expected 30000, got %d", protocol_version);
+
+	PQfinish(conn);
 
 	/*
 	 * Test max_protocol_version=3.0
