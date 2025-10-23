@@ -147,6 +147,12 @@ def load_libpq_handle(libdir, bindir):
     lib.PQresultErrorField.restype = ctypes.c_char_p
     lib.PQresultErrorField.argtypes = [_PGresult_p, ctypes.c_int]
 
+    lib.PQgoAwayReceived.restype = ctypes.c_int
+    lib.PQgoAwayReceived.argtypes = [_PGconn_p]
+
+    lib.PQconsumeInput.restype = ctypes.c_int
+    lib.PQconsumeInput.argtypes = [_PGconn_p]
+
     return lib
 
 
@@ -419,6 +425,18 @@ class PGconn(contextlib.AbstractContextManager):
             return simplify_query_results(results)
         else:
             res.raise_error()
+
+    def consume_input(self) -> bool:
+        """
+        Consumes any available input from the server. Returns True on success.
+        """
+        return bool(self._lib.PQconsumeInput(self._handle))
+
+    def goaway_received(self) -> bool:
+        """
+        Returns True if a GoAway message was received from the server.
+        """
+        return bool(self._lib.PQgoAwayReceived(self._handle))
 
 
 def connstr(opts: Dict[str, Any]) -> str:

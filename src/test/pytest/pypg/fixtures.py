@@ -57,6 +57,30 @@ def remaining_timeout_module():
     return lambda: max(deadline - time.monotonic(), 0)
 
 
+@pytest.fixture
+def wait_until(remaining_timeout):
+    def wait_until(error_message="Did not complete in time", timeout=None, interval=1):
+        """
+        Loop until the timeout is reached. If the timeout is reached, raise an
+        exception with the given error message.
+        """
+        if timeout is None:
+            timeout = remaining_timeout()
+
+        end = time.time() + timeout
+        print_progress = timeout / 10 > 4
+        last_printed_progress = 0
+        while time.time() < end:
+            if print_progress and time.time() - last_printed_progress > 4:
+                last_printed_progress = time.time()
+                print(f"{error_message} - will retry")
+            yield
+            time.sleep(interval)
+        raise TimeoutError(error_message)
+
+    return wait_until
+
+
 @pytest.fixture(scope="session")
 def libpq_handle(libdir, bindir):
     """
