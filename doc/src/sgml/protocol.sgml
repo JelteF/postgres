@@ -192,10 +192,13 @@
    <title>Protocol Versions</title>
 
    <para>
-    The current, latest version of the protocol is version 3.2. However, for
-    backwards compatibility with old server versions and middleware that don't
-    support the version negotiation yet, libpq still uses protocol version 3.0
-    by default.
+    The current, latest version of the protocol is version 3.2. During the
+    PostgreSQL 19 beta period, libpq defaults to requesting protocol version
+    3.9999 to test that servers and middleware properly implement protocol
+    version negotiation. Servers that support negotiation will automatically
+    downgrade to version 3.2 or 3.0. For servers that don't support
+    negotiation, users can connect by explicitly setting
+    <literal>max_protocol_version=3.0</literal> in their connection string.
    </para>
 
    <para>
@@ -238,6 +241,20 @@
      </thead>
 
      <tbody>
+      <row>
+      <entry>3.9999</entry>
+      <entry>-</entry>
+      <entry>GREASE (Generate Random Extensions And Sustain Extensibility)
+        version. This version number is intentionally reserved and will never
+        be implemented. During the PostgreSQL 19 beta period, libpq requests
+        this version by default to test that servers and middleware properly
+        implement protocol version negotiation via
+        <literal>NegotiateProtocolVersion</literal>. Servers should respond
+        by downgrading to a supported version. This mechanism helps ensure
+        the ecosystem is ready for future protocol versions. libpq will revert
+        to defaulting to version 3.2 before the PostgreSQL 19 final release.
+      </entry>
+      </row>
       <row>
       <entry>3.2</entry>
       <entry>PostgreSQL 18 and later</entry>
@@ -6144,6 +6161,24 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
              <literal>database</literal>, and the default is
              <literal>false</literal>. See
              <xref linkend="protocol-replication"/> for details.
+            </para>
+           </listitem>
+          </varlistentry>
+          <varlistentry>
+           <term><literal>_pq_.test_protocol_negotiation</literal></term>
+           <listitem>
+            <para>
+             A reserved protocol extension requested by libpq during the
+             PostgreSQL 19 beta period to test that servers properly implement
+             protocol version negotiation. When the client requests the GREASE
+             protocol version (3.9999), this parameter is automatically
+             included in the startup packet too. Servers should report it as
+             unsupported in their <literal>NegotiateProtocolVersion</literal>
+             response. In GREASE mode the connection will fail if the server
+             doesn't report this parameter as unsupported, ensuring
+             comprehensive implementation of protocol negotiation. This
+             parameter is reserved and will never actually be implemented by a
+             server.
             </para>
            </listitem>
           </varlistentry>

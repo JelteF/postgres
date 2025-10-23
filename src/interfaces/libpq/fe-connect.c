@@ -2142,15 +2142,12 @@ pqConnectOptions2(PGconn *conn)
 	else
 	{
 		/*
-		 * To not break connecting to older servers/poolers that do not yet
-		 * support NegotiateProtocolVersion, default to the 3.0 protocol at
-		 * least for a while longer. Except when min_protocol_version is set
-		 * to something larger, then we might as well default to the latest.
+		 * Default to the GREASE protocol version to test that servers
+		 * properly implement NegotiateProtocolVersion. The server will
+		 * automatically downgrade to a supported version. This will be
+		 * changed to a supported version before the PG19 release.
 		 */
-		if (conn->min_pversion > PG_PROTOCOL(3, 0))
-			conn->max_pversion = PG_PROTOCOL_LATEST;
-		else
-			conn->max_pversion = PG_PROTOCOL(3, 0);
+		conn->max_pversion = PG_PROTOCOL_GREASE;
 	}
 
 	if (conn->min_pversion > conn->max_pversion)
@@ -4383,6 +4380,13 @@ keep_going:						/* We will come back to here until there is
 						conn->errorMessage.data[conn->errorMessage.len - 1] != '\n')
 						appendPQExpBufferChar(&conn->errorMessage, '\n');
 					PQclear(res);
+					goto error_return;
+				}
+
+				if (conn->max_pversion == PG_PROTOCOL_GREASE &&
+					conn->pversion == PG_PROTOCOL_GREASE)
+				{
+					libpq_append_conn_error(conn, "server incorrectly accepted reserved GREASE protocol version 3.9999 without negotiation");
 					goto error_return;
 				}
 

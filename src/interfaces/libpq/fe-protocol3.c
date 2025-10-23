@@ -1444,6 +1444,8 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 {
 	int			their_version;
 	int			num;
+	bool		found_test_protocol_negotiation;
+	bool		expect_test_protocol_negotiation;
 
 	if (pqGetInt(&their_version, 4, conn) != 0)
 		goto eof;
@@ -1468,6 +1470,13 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 	if (their_version == PG_PROTOCOL_RESERVED_31)
 	{
 		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server requested downgrade to non-existent 3.1 protocol version");
+		goto failure;
+	}
+
+	/* The GREASE protocol version is intentionally unsupported and reserved */
+	if (their_version == PG_PROTOCOL_GREASE)
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server claimed to support reserved GREASE protocol version 3.9999");
 		goto failure;
 	}
 
@@ -1499,9 +1508,12 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 	conn->pversion = their_version;
 
 	/*
-	 * We don't currently request any protocol extensions, so we don't expect
-	 * the server to reply with any either.
+	 * Check that all expected unsupported parameters are reported by the
+	 * server.
 	 */
+	found_test_protocol_negotiation = false;
+	expect_test_protocol_negotiation = (conn->max_pversion == PG_PROTOCOL_GREASE);
+
 	for (int i = 0; i < num; i++)
 	{
 		if (pqGets(&conn->workBuffer, conn))
@@ -1513,7 +1525,27 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 			libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported unsupported parameter name without a \"%s\" prefix (\"%s\")", "_pq_.", conn->workBuffer.data);
 			goto failure;
 		}
-		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported an unsupported parameter that was not requested (\"%s\")", conn->workBuffer.data);
+
+		/* Check if this is the expected test parameter */
+		if (expect_test_protocol_negotiation && strcmp(conn->workBuffer.data, "_pq_.test_protocol_negotiation") == 0)
+		{
+			found_test_protocol_negotiation = true;
+		}
+		else
+		{
+			libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported an unsupported parameter that was not requested (\"%s\")", conn->workBuffer.data);
+			goto failure;
+		}
+	}
+
+	/*
+	 * If we requested the GREASE protocol version, the server must report
+	 * _pq_.test_protocol_negotiation as unsupported. This ensures
+	 * comprehensive NegotiateProtocolVersion implementation.
+	 */
+	if (expect_test_protocol_negotiation && !found_test_protocol_negotiation)
+	{
+		libpq_append_conn_error(conn, "server did not report the unsupported `_pq_.test_protocol_negotiation` parameter in its protocol negotiation message");
 		goto failure;
 	}
 
@@ -2463,6 +2495,14 @@ build_startup_packet(const PGconn *conn, char *packet,
 
 	if (conn->client_encoding_initial && conn->client_encoding_initial[0])
 		ADD_STARTUP_OPTION("client_encoding", conn->client_encoding_initial);
+
+	/*
+	 * Add the test protocol negotiation option if we're using the GREASE
+	 * protocol version. This tests that servers properly report unsupported
+	 * protocol options in their NegotiateProtocolVersion response.
+	 */
+	if (conn->pversion == PG_PROTOCOL_GREASE)
+		ADD_STARTUP_OPTION("_pq_.test_protocol_negotiation", "");
 
 	/* Add any environment-driven GUC settings needed */
 	for (next_eo = options; next_eo->envName; next_eo++)

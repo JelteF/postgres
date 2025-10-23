@@ -2213,15 +2213,21 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
       <listitem>
        <para>
         Specifies the protocol version to request from the server.
-        The default is to use version <literal>3.0</literal> of the
-        <productname>PostgreSQL</productname> protocol, unless the connection
-        string specifies a feature that relies on a higher protocol version,
-        in which case the latest version supported by libpq is used. If the
-        server does not support the protocol version requested by the client,
-        the connection is automatically downgraded to a lower minor protocol
-        version that the server supports. After the connection attempt has
-        completed you can use <xref linkend="libpq-PQfullProtocolVersion"/> to
-        find out which exact protocol version was negotiated.
+        During the PostgreSQL 19 beta period, the default is to use
+        <literal>3.9999</literal>, a GREASE (Generate Random Extensions And
+        Sustain Extensibility) value that tests proper protocol negotiation
+        implementation. If the server does not support the protocol version
+        requested by the client, the connection is automatically downgraded to
+        a lower minor protocol version that the server supports. After the
+        connection attempt has completed you can use
+        <xref linkend="libpq-PQfullProtocolVersion"/> to find out which exact
+        protocol version was negotiated.
+       </para>
+
+       <para>
+        For servers that don't properly implement protocol version negotiation,
+        you can set <literal>max_protocol_version=3.0</literal> to connect
+        successfully.
        </para>
 
        <para>
