@@ -41,6 +41,14 @@ typedef struct BufferUsage
 	instr_time	temp_blk_write_time;	/* time spent writing temp blocks */
 } BufferUsage;
 
+typedef struct StorageIOUsage
+{
+	long		inblock;		/* # of times the file system had to perform
+								 * input */
+	long		outblock;		/* # of times the file system had to perform
+								 * output */
+} StorageIOUsage;
+
 /*
  * WalUsage tracks only WAL activity like WAL records generation that
  * can be measured per query and is displayed by EXPLAIN command,
@@ -101,6 +109,7 @@ typedef struct WorkerInstrumentation
 } WorkerInstrumentation;
 
 extern PGDLLIMPORT BufferUsage pgBufferUsage;
+extern PGDLLIMPORT StorageIOUsage pgStorageIOUsageParallel;
 extern PGDLLIMPORT WalUsage pgWalUsage;
 
 extern Instrumentation *InstrAlloc(int n, int instrument_options,
@@ -111,11 +120,16 @@ extern void InstrStopNode(Instrumentation *instr, double nTuples);
 extern void InstrUpdateTupleCount(Instrumentation *instr, double nTuples);
 extern void InstrEndLoop(Instrumentation *instr);
 extern void InstrAggNode(Instrumentation *dst, Instrumentation *add);
-extern void InstrStartParallelQuery(void);
-extern void InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage);
-extern void InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage);
+extern void InstrStartParallelQuery(StorageIOUsage *storageiousage);
+extern void InstrEndParallelQuery(BufferUsage *bufusage, StorageIOUsage *storageiousage, WalUsage *walusage, StorageIOUsage *storageiousage_start);
+extern void InstrAccumParallelQuery(BufferUsage *bufusage, StorageIOUsage *storageiousage, WalUsage *walusage);
 extern void BufferUsageAccumDiff(BufferUsage *dst,
 								 const BufferUsage *add, const BufferUsage *sub);
+extern void StorageIOUsageAccumDiff(StorageIOUsage *dst,
+									const StorageIOUsage *add, const StorageIOUsage *sub);
+extern void StorageIOUsageDiff(StorageIOUsage *dst, const StorageIOUsage *sub);
+extern void StorageIOUsageAdd(StorageIOUsage *dst, const StorageIOUsage *add);
+extern void GetStorageIOUsage(StorageIOUsage *usage);
 extern void WalUsageAccumDiff(WalUsage *dst, const WalUsage *add,
 							  const WalUsage *sub);
 

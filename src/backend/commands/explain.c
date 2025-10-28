@@ -32,6 +32,7 @@
 #include "parser/analyze.h"
 #include "parser/parsetree.h"
 #include "rewrite/rewriteHandler.h"
+#include "storage/aio_subsys.h"
 #include "storage/bufmgr.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
@@ -144,6 +145,8 @@ static void show_foreignscan_info(ForeignScanState *fsstate, ExplainState *es);
 static const char *explain_get_index_name(Oid indexId);
 static bool peek_buffer_usage(ExplainState *es, const BufferUsage *usage);
 static void show_buffer_usage(ExplainState *es, const BufferUsage *usage);
+static bool peek_storageio_usage(ExplainState *es, const StorageIOUsage *usage);
+static void show_storageio_usage(ExplainState *es, const StorageIOUsage *usage);
 static void show_wal_usage(ExplainState *es, const WalUsage *usage);
 static void show_memory_counters(ExplainState *es,
 								 const MemoryContextCounters *mem_counters);
@@ -326,6 +329,8 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
 				planduration;
 	BufferUsage bufusage_start,
 				bufusage;
+	StorageIOUsage storageio,
+				storageio_start;
 	MemoryContextCounters mem_counters;
 	MemoryContext planner_ctx = NULL;
 	MemoryContext saved_ctx = NULL;
@@ -347,7 +352,10 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
 	}
 
 	if (es->buffers)
+	{
 		bufusage_start = pgBufferUsage;
+		GetStorageIOUsage(&storageio_start);
+	}
 	INSTR_TIME_SET_CURRENT(planstart);
 
 	/* plan the query */
@@ -362,16 +370,20 @@ standard_ExplainOneQuery(Query *query, int cursorOptions,
 		MemoryContextMemConsumed(planner_ctx, &mem_counters);
 	}
 
-	/* calc differences of buffer counters. */
+	/* calc differences of buffer and storage I/O counters. */
 	if (es->buffers)
 	{
 		memset(&bufusage, 0, sizeof(BufferUsage));
 		BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
+
+		GetStorageIOUsage(&storageio);
+		StorageIOUsageDiff(&storageio, &storageio_start);
 	}
 
 	/* run it (if needed) and produce output */
 	ExplainOnePlan(plan, into, es, queryString, params, queryEnv,
 				   &planduration, (es->buffers ? &bufusage : NULL),
+				   es->buffers ? &storageio : NULL,
 				   es->memory ? &mem_counters : NULL);
 }
 
@@ -495,7 +507,7 @@ void
 ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 			   const char *queryString, ParamListInfo params,
 			   QueryEnvironment *queryEnv, const instr_time *planduration,
-			   const BufferUsage *bufusage,
+			   const BufferUsage *bufusage, const StorageIOUsage *planstorageio,
 			   const MemoryContextCounters *mem_counters)
 {
 	DestReceiver *dest;
@@ -505,6 +517,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	int			eflags;
 	int			instrument_option = 0;
 	SerializeMetrics serializeMetrics = {0};
+	StorageIOUsage storageio_start;
 
 	Assert(plannedstmt->commandType != CMD_UTILITY);
 
@@ -514,7 +527,19 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		instrument_option |= INSTRUMENT_ROWS;
 
 	if (es->buffers)
+	{
+		GetStorageIOUsage(&storageio_start);
+
+		/*
+		 * Initialize global variable counters for parallel query workers.
+		 * Even if the query is cancelled on the way, the EXPLAIN execution
+		 * always passes here, so it can be initialized here.
+		 */
+		pgStorageIOUsageParallel.inblock = 0;
+		pgStorageIOUsageParallel.outblock = 0;
+
 		instrument_option |= INSTRUMENT_BUFFERS;
+	}
 	if (es->wal)
 		instrument_option |= INSTRUMENT_WAL;
 
@@ -598,8 +623,9 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	/* Create textual dump of plan tree */
 	ExplainPrintPlan(es, queryDesc);
 
-	/* Show buffer and/or memory usage in planning */
-	if (peek_buffer_usage(es, bufusage) || mem_counters)
+	/* Show buffer, storage I/O, and/or memory usage in planning */
+	if (peek_buffer_usage(es, bufusage) || peek_storageio_usage(es, planstorageio) ||
+		mem_counters)
 	{
 		ExplainOpenGroup("Planning", "Planning", true, es);
 
@@ -611,8 +637,10 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		}
 
 		if (bufusage)
+		{
 			show_buffer_usage(es, bufusage);
-
+			show_storageio_usage(es, planstorageio);
+		}
 		if (mem_counters)
 			show_memory_counters(es, mem_counters);
 
@@ -668,6 +696,34 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		CommandCounterIncrement();
 
 	totaltime += elapsed_time(&starttime);
+
+	/* Show storage I/O usage in execution */
+	if (es->buffers)
+	{
+		StorageIOUsage storageio;
+
+		GetStorageIOUsage(&storageio);
+		StorageIOUsageDiff(&storageio, &storageio_start);
+		StorageIOUsageAdd(&storageio, &pgStorageIOUsageParallel);
+
+		if (peek_storageio_usage(es, &storageio))
+		{
+			ExplainOpenGroup("Execution", "Execution", true, es);
+
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+			{
+				ExplainIndentText(es);
+				appendStringInfoString(es->str, "Execution:\n");
+				es->indent++;
+			}
+			show_storageio_usage(es, &storageio);
+
+			if (es->format == EXPLAIN_FORMAT_TEXT)
+				es->indent--;
+
+			ExplainCloseGroup("Execution", "Execution", true, es);
+		}
+	}
 
 	/*
 	 * We only report execution time if we actually ran the query (that is,
@@ -4272,6 +4328,65 @@ show_buffer_usage(ExplainState *es, const BufferUsage *usage)
 								 INSTR_TIME_GET_MILLISEC(usage->temp_blk_write_time),
 								 3, es);
 		}
+	}
+}
+
+/*
+ * Return whether show_storageio_usage would have anything to print, if given
+ * the same 'usage' data.  Note that when the format is anything other than
+ * text, we print even if the counters are all zeroes.
+ */
+static bool
+peek_storageio_usage(ExplainState *es, const StorageIOUsage *usage)
+{
+	if (usage == NULL)
+		return false;
+
+	/*
+	 * Since showing only the I/O excluding AIO workers underestimates the
+	 * total I/O, treat this case as having nothing to print.
+	 */
+	if (pgaio_workers_enabled())
+		return false;
+
+	if (es->format != EXPLAIN_FORMAT_TEXT)
+		return true;
+
+	return usage->inblock > 0 || usage->outblock > 0;
+}
+
+/*
+ * Show storage I/O usage.
+ */
+static void
+show_storageio_usage(ExplainState *es, const StorageIOUsage *usage)
+{
+	/*
+	 * Since showing only the I/O excluding AIO workers underestimates the
+	 * total I/O, do not show anything.
+	 */
+	if (pgaio_workers_enabled())
+		return;
+
+	if (es->format == EXPLAIN_FORMAT_TEXT)
+	{
+		/* Show only positive counter values. */
+		if (usage->inblock <= 0 && usage->outblock <= 0)
+			return;
+
+		ExplainIndentText(es);
+		appendStringInfoString(es->str, "Storage I/O:");
+		appendStringInfo(es->str, " read=%ld times", (long) usage->inblock);
+		appendStringInfo(es->str, " write=%ld times", (long) usage->outblock);
+
+		appendStringInfoChar(es->str, '\n');
+	}
+	else
+	{
+		ExplainPropertyInteger("Storage I/O Read", NULL,
+							   usage->inblock, es);
+		ExplainPropertyInteger("Storage I/O Read", NULL,
+							   usage->outblock, es);
 	}
 }
 
