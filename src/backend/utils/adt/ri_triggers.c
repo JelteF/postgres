@@ -4193,9 +4193,6 @@ RI_FKey_trigger_type(Oid tgfoid)
 static void
 ri_FastPathEndBatch(void *arg)
 {
-	HASH_SEQ_STATUS status;
-	RI_FastPathEntry *entry;
-
 	if (ri_fastpath_cache == NULL)
 		return;
 
@@ -4216,8 +4213,7 @@ ri_FastPathEndBatch(void *arg)
 	ri_fastpath_flushing = true;
 	PG_TRY();
 	{
-		hash_seq_init(&status, ri_fastpath_cache);
-		while ((entry = hash_seq_search(&status)) != NULL)
+		foreach_hash(RI_FastPathEntry, entry, ri_fastpath_cache)
 		{
 			if (entry->batch_count > 0)
 			{
@@ -4247,14 +4243,10 @@ ri_FastPathEndBatch(void *arg)
 static void
 ri_FastPathTeardown(void)
 {
-	HASH_SEQ_STATUS status;
-	RI_FastPathEntry *entry;
-
 	if (ri_fastpath_cache == NULL)
 		return;
 
-	hash_seq_init(&status, ri_fastpath_cache);
-	while ((entry = hash_seq_search(&status)) != NULL)
+	foreach_hash(RI_FastPathEntry, entry, ri_fastpath_cache)
 	{
 		if (entry->idx_rel)
 			index_close(entry->idx_rel, NoLock);
