@@ -102,6 +102,10 @@ test_cplusplus_add(PG_FUNCTION_ARGS)
 						 "NameData should use HASH_STRINGS");
 
 		htab = hash_make(OidEntry, oid, "C++ oid hash", 8);
+		foreach_hash(OidEntry, myOidEntry, htab)
+		{
+			(void) myOidEntry;
+		}
 		hash_destroy(htab);
 
 		htab = hash_make(NameEntry, name, "C++ name hash", 8);
