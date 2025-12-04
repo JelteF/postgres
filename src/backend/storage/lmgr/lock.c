@@ -461,27 +461,21 @@ LockManagerShmemRequest(void *arg)
 	 * Hash table for LOCK structs.  This stores per-locked-object
 	 * information.
 	 */
-	ShmemRequestHash(.name = "LOCK hash",
+	ShmemRequestHash(LOCK, tag,
+					 .name = "LOCK hash",
 					 .nelems = max_table_size,
 					 .ptr = &LockMethodLockHash,
-					 .hash_info.keysize = sizeof(LOCKTAG),
-					 .hash_info.entrysize = sizeof(LOCK),
-					 .hash_info.num_partitions = NUM_LOCK_PARTITIONS,
-					 .hash_flags = HASH_ELEM | HASH_BLOBS | HASH_PARTITION,
-		);
+					 .hash_opts.num_partitions = NUM_LOCK_PARTITIONS);
 
 	/* Assume an average of 2 holders per lock */
 	max_table_size *= 2;
 
-	ShmemRequestHash(.name = "PROCLOCK hash",
+	ShmemRequestHash(PROCLOCK, tag,
+					 .name = "PROCLOCK hash",
 					 .nelems = max_table_size,
 					 .ptr = &LockMethodProcLockHash,
-					 .hash_info.keysize = sizeof(PROCLOCKTAG),
-					 .hash_info.entrysize = sizeof(PROCLOCK),
-					 .hash_info.hash = proclock_hash,
-					 .hash_info.num_partitions = NUM_LOCK_PARTITIONS,
-					 .hash_flags = HASH_ELEM | HASH_FUNCTION | HASH_PARTITION,
-		);
+					 .hash_opts.hash = proclock_hash,
+					 .hash_opts.num_partitions = NUM_LOCK_PARTITIONS);
 
 	ShmemRequestStruct(.name = "Fast Path Strong Relation Lock Data",
 					   .size = sizeof(FastPathStrongRelationLockData),
@@ -505,15 +499,9 @@ InitLockManagerAccess(void)
 	 * Allocate non-shared hash table for LOCALLOCK structs.  This stores lock
 	 * counts and resource owner information.
 	 */
-	HASHCTL		info;
-
-	info.keysize = sizeof(LOCALLOCKTAG);
-	info.entrysize = sizeof(LOCALLOCK);
-
-	LockMethodLocalHash = hash_create("LOCALLOCK hash",
-									  16,
-									  &info,
-									  HASH_ELEM | HASH_BLOBS);
+	LockMethodLocalHash = hash_make(LOCALLOCK, tag,
+									"LOCALLOCK hash", 16,
+									.mcxt = TopMemoryContext);
 }
 
 
@@ -3383,18 +3371,11 @@ CheckForSessionAndXactLocks(void)
 		bool		xactLock;	/* is any lockmode held at xact level? */
 	} PerLockTagEntry;
 
-	HASHCTL		hash_ctl;
 	HTAB	   *lockhtab;
 
 	/* Create a local hash table keyed by LOCKTAG only */
-	hash_ctl.keysize = sizeof(LOCKTAG);
-	hash_ctl.entrysize = sizeof(PerLockTagEntry);
-	hash_ctl.hcxt = CurrentMemoryContext;
-
-	lockhtab = hash_create("CheckForSessionAndXactLocks table",
-						   256, /* arbitrary initial size */
-						   &hash_ctl,
-						   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	lockhtab = hash_make(PerLockTagEntry, lock,
+						 "CheckForSessionAndXactLocks table", 256);
 
 	/* Scan local lock table to find entries for each LOCKTAG */
 	foreach_hash(LOCALLOCK, locallock, LockMethodLocalHash)

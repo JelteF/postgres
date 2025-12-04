@@ -2219,19 +2219,9 @@ ExecuteTruncateGuts(List *explicit_rels,
 
 			/* First time through, initialize hashtable for foreign tables */
 			if (!ft_htab)
-			{
-				HASHCTL		hctl;
-
-				memset(&hctl, 0, sizeof(HASHCTL));
-				hctl.keysize = sizeof(Oid);
-				hctl.entrysize = sizeof(ForeignTruncateInfo);
-				hctl.hcxt = CurrentMemoryContext;
-
-				ft_htab = hash_create("TRUNCATE for Foreign Tables",
-									  32,	/* start small and extend */
-									  &hctl,
-									  HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
-			}
+				ft_htab = hash_make(ForeignTruncateInfo, serverid,
+									"TRUNCATE for Foreign Tables",
+									32);	/* start small and extend */
 
 			/* Find or create cached entry for the foreign table */
 			ft_info = hash_search(ft_htab, &serverid, HASH_ENTER, &found);

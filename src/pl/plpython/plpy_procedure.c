@@ -29,12 +29,9 @@ static char *PLy_procedure_munge_source(const char *name, const char *src);
 void
 init_procedure_caches(void)
 {
-	HASHCTL		hash_ctl;
-
-	hash_ctl.keysize = sizeof(PLyProcedureKey);
-	hash_ctl.entrysize = sizeof(PLyProcedureEntry);
-	PLy_procedure_cache = hash_create("PL/Python procedures", 32, &hash_ctl,
-									  HASH_ELEM | HASH_BLOBS);
+	PLy_procedure_cache = hash_make(PLyProcedureEntry, key,
+									"PL/Python procedures", 32,
+									.mcxt = TopMemoryContext);
 }
 
 /*
