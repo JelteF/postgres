@@ -15,6 +15,9 @@
 #define HSEARCH_H
 
 
+/* Hash table control struct is an opaque type known only within dynahash.c */
+typedef struct HTAB HTAB;
+
 /*
  * Hash functions must have this signature.
  */
@@ -43,6 +46,105 @@ typedef void *(*HashCopyFunc) (void *dest, const void *src, Size keysize);
 typedef void *(*HashAllocFunc) (Size request, void *alloc_arg);
 
 /*
+ * Hash options for hash_make() and ShmemRequestHash() macros.
+ *
+ * All fields are optional: zero-initialized fields use the appropriate
+ * default behavior.
+ */
+typedef struct HASHOPTS
+{
+	HashValueFunc hash;			/* custom hash function (NULL for default) */
+	HashCompareFunc match;		/* custom comparison function (NULL for
+								 * default) */
+	HashCopyFunc keycopy;		/* custom key copy function (NULL for default) */
+	HashAllocFunc alloc;		/* custom allocator (NULL for default) */
+	MemoryContext mcxt;			/* memory context (NULL for
+								 * CurrentMemoryContext); ignored for shared
+								 * memory hash tables */
+	int64		num_partitions; /* partition count (0 for none) */
+	bool		fixed_size;		/* if true, hash table cannot grow */
+	bool		force_blobs;	/* if true, use HASH_BLOBS even for string
+								 * types */
+} HASHOPTS;
+
+/*
+ * Helpers to detect if a type should be hashed as a string.
+ *
+ * String types include: char arrays and NameData.
+ * Everything else is treated as a binary blob (HASH_BLOBS).
+ */
+#define HASH_PTR_AS_STRING(ptr, size) \
+	(pg_expr_has_type_p((ptr), char(*)[size]) || pg_expr_has_type_p((ptr), NameData *))
+#define HASH_KEY_AS_STRING(entrytype, keymember) \
+	HASH_PTR_AS_STRING(&((entrytype *)0)->keymember, \
+					   sizeof(((entrytype *)0)->keymember))
+#define HASH_TYPE_AS_STRING(type) \
+	HASH_PTR_AS_STRING(pg_nullptr_of(type), sizeof(type))
+
+/*
+ * Create a hash table with minimal boilerplate.
+ *
+ * This is the simplest way to create a hash table. It:
+ * - Derives keysize from the keymember's actual type
+ * - Derives entrysize from the entrytype
+ * - Automatically chooses HASH_STRINGS or HASH_BLOBS based on key type
+ *   (char arrays and NameData are treated as strings)
+ * - Uses CurrentMemoryContext by default
+ * - Validates that keymember is at offset 0
+ *
+ * Optional behavior is specified via designated initializers in the
+ * trailing varargs, which initialize a HASHOPTS struct.  See HASHOPTS for
+ * available fields.
+ *
+ * NOTE: If you use char[N] to store binary data that might contain null bytes
+ * and/or is not null terminated, the automatic detection will incorrectly
+ * treat it as a string and use string comparison.  In such cases, pass
+ * .force_blobs = true to override the automatic detection.
+ *
+ * Usage:
+ *   typedef struct { Oid oid; char *data; } MyEntry;
+ *   HTAB *h = hash_make(MyEntry, oid, "my table", 64);
+ *
+ *   HTAB *h = hash_make(MyEntry, oid, "my table", 64,
+ *                       .mcxt = TopMemoryContext,
+ *                       .num_partitions = 16);
+ *
+ *   HTAB *h = hash_make(MyEntry, key, "my table", 64,
+ *                       .hash = my_hash_func,
+ *                       .match = my_match_func);
+ */
+#define hash_make(entrytype, keymember, tabname, nelem, ...) \
+	(StaticAssertExpr(offsetof(entrytype, keymember) == 0, \
+					  #keymember " must be first member in " #entrytype), \
+	 hash_make_impl((tabname), (nelem), \
+					sizeof(((entrytype *)0)->keymember), \
+					sizeof(entrytype), \
+					HASH_KEY_AS_STRING(entrytype, keymember), \
+					(HASHOPTS){__VA_ARGS__}))
+
+/*
+ * Create a hash set where the entire entry is the key.
+ *
+ * Like hash_make, but the key is the entire entry.  Same designated
+ * initializer syntax in the varargs for optional HASHOPTS fields.
+ */
+#define hashset_make(entrytype, tabname, nelem, ...) \
+	hash_make_impl((tabname), (nelem), sizeof(entrytype), sizeof(entrytype), \
+				   HASH_TYPE_AS_STRING(entrytype), \
+				   (HASHOPTS){__VA_ARGS__})
+
+/*
+ * Implementation function for hash_make/hashset_make macros.  Not meant to
+ * be called directly.
+ *
+ * If string_key is true, the key is treated as a null-terminated string.
+ */
+extern HTAB *hash_make_impl(const char *tabname, int64 nelem,
+							Size keysize, Size entrysize,
+							bool string_key,
+							HASHOPTS opts);
+
+/*
  * HASHELEMENT is the private part of a hashtable entry.  The caller's data
  * follows the HASHELEMENT structure (on a MAXALIGN'd boundary).  The hash key
  * is expected to be at the start of the caller's hash entry data structure.
@@ -56,11 +158,11 @@ typedef struct HASHELEMENT
 /* Hash table header struct is an opaque type known only within dynahash.c */
 typedef struct HASHHDR HASHHDR;
 
-/* Hash table control struct is an opaque type known only within dynahash.c */
-typedef struct HTAB HTAB;
-
-/* Parameter data structure for hash_create */
-/* Only those fields indicated by hash_flags need be set */
+/*
+ * Parameter data structure for hash_create (which is the low-level method of
+ * initializing hash tables, hash_make macros are preferred)
+ * Only those fields indicated by hash_flags need be set
+ */
 typedef struct HASHCTL
 {
 	/* Used if HASH_PARTITION flag is set: */
@@ -126,6 +228,9 @@ typedef struct
  */
 extern HTAB *hash_create(const char *tabname, int64 nelem,
 						 const HASHCTL *info, int flags);
+extern void hash_opts_init(HASHCTL *ctl, int *flags,
+						   Size keysize, Size entrysize, bool string_key,
+						   const HASHOPTS *opts);
 extern void hash_destroy(HTAB *hashp);
 extern void hash_stats(const char *caller, HTAB *hashp);
 extern void *hash_search(HTAB *hashp, const void *keyPtr, HASHACTION action,

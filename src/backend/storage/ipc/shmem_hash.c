@@ -20,6 +20,7 @@
 
 #include "storage/shmem.h"
 #include "storage/shmem_internal.h"
+#include "utils/hsearch.h"
 #include "utils/memutils.h"
 
 /*
@@ -46,6 +47,8 @@ ShmemRequestHashWithOpts(const ShmemHashOpts *options)
 	ShmemHashOpts *options_copy;
 
 	Assert(options->name != NULL);
+	/* Shared memory hash tables use ShmemHashAlloc(), not a custom allocator */
+	Assert(options->hash_opts.alloc == NULL);
 
 	options_copy = MemoryContextAlloc(TopMemoryContext,
 									  sizeof(ShmemHashOpts));
@@ -54,7 +57,7 @@ ShmemRequestHashWithOpts(const ShmemHashOpts *options)
 	/* Set options for the fixed-size area holding the hash table */
 	options_copy->base.name = options->name;
 	options_copy->base.size = hash_estimate_size(options_copy->nelems,
-												 options_copy->hash_info.entrysize);
+												 options_copy->entrysize);
 
 	ShmemRequestInternal(&options_copy->base, SHMEM_KIND_HASH);
 }
@@ -63,13 +66,17 @@ void
 shmem_hash_init(void *location, ShmemStructOpts *base_options)
 {
 	ShmemHashOpts *options = (ShmemHashOpts *) base_options;
-	int			hash_flags = options->hash_flags;
+	HASHCTL		ctl;
+	int			hash_flags;
 	HTAB	   *htab;
 
-	options->hash_info.hctl = location;
+	hash_opts_init(&ctl, &hash_flags,
+				   options->keysize, options->entrysize, options->string_key,
+				   &options->hash_opts);
+
 	htab = shmem_hash_create(location, options->base.size, false,
 							 options->name,
-							 options->nelems, &options->hash_info, hash_flags);
+							 options->nelems, &ctl, hash_flags);
 
 	if (options->ptr)
 		*options->ptr = htab;
@@ -79,16 +86,20 @@ void
 shmem_hash_attach(void *location, ShmemStructOpts *base_options)
 {
 	ShmemHashOpts *options = (ShmemHashOpts *) base_options;
-	int			hash_flags = options->hash_flags;
+	HASHCTL		ctl;
+	int			hash_flags;
 	HTAB	   *htab;
+
+	hash_opts_init(&ctl, &hash_flags,
+				   options->keysize, options->entrysize, options->string_key,
+				   &options->hash_opts);
 
 	/* attach to it rather than allocate and initialize new space */
 	hash_flags |= HASH_ATTACH;
-	options->hash_info.hctl = location;
-	Assert(options->hash_info.hctl != NULL);
+	ctl.hctl = location;
 	htab = shmem_hash_create(location, options->base.size, true,
 							 options->name,
-							 options->nelems, &options->hash_info, hash_flags);
+							 options->nelems, &ctl, hash_flags);
 
 	if (options->ptr)
 		*options->ptr = htab;

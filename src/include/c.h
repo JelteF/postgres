@@ -83,6 +83,12 @@
 #ifdef ENABLE_NLS
 #include <libintl.h>
 #endif
+#ifdef __cplusplus
+extern "C++"
+{
+#include <type_traits>
+}
+#endif
 
 #ifdef __cplusplus
 extern "C++"
@@ -408,6 +414,18 @@ extern "C++"
 	std::is_same<typename std::decay<decltype(expr)>::type, _type>::value
 #else
 #define pg_expr_has_type_p(expr, type) _Generic((expr), type: 1, default: 0)
+#endif
+
+/*
+ * pg_nullptr_of(type) - Create a null pointer of the given type.
+ *
+ * In C, (type *) NULL works for all types. In C++, this syntax fails for types
+ * containing brackets (like char[64]), so we use std::add_pointer_t instead.
+ */
+#if defined(__cplusplus)
+#define pg_nullptr_of(type) (static_cast<std::add_pointer_t<type>>(nullptr))
+#else
+#define pg_nullptr_of(type) ((type *) NULL)
 #endif
 
 /*
