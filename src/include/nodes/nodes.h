@@ -226,8 +226,8 @@ extern int16 *readAttrNumberCols(int numCols);
 extern void *copyObjectImpl(const void *from);
 
 /* cast result back to argument type, if supported by compiler */
-#ifdef HAVE_TYPEOF
-#define copyObject(obj) ((typeof(obj)) copyObjectImpl(obj))
+#ifdef pg_exprtype
+#define copyObject(obj) ((pg_exprtype(obj)) copyObjectImpl(obj))
 #else
 #define copyObject(obj) copyObjectImpl(obj)
 #endif

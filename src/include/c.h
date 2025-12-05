@@ -419,6 +419,19 @@
 #endif
 
 /*
+ * pg_exprtype
+ *		Get the type of an expression at compile time.
+ *
+ * In C++ we use decltype since typeof is not standard C++, while in C we use
+ * typeof when available.
+ */
+#if defined(__cplusplus)
+#define pg_exprtype(x) decltype(x)
+#elif defined(HAVE_TYPEOF)
+#define pg_exprtype(x) typeof(x)
+#endif
+
+/*
  * CppAsString
  *		Convert the argument to a string, using the C preprocessor.
  * CppAsString2
