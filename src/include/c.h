@@ -976,10 +976,10 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
  */
 #ifdef HAVE__BUILTIN_TYPES_COMPATIBLE_P
 #define AssertVariableIsOfType(varname, typename) \
-	StaticAssertStmt(__builtin_types_compatible_p(__typeof__(varname), typename), \
+	StaticAssertStmt(__builtin_types_compatible_p(pg_exprtype(varname), typename), \
 	CppAsString(varname) " does not have type " CppAsString(typename))
 #define AssertVariableIsOfTypeMacro(varname, typename) \
-	(StaticAssertExpr(__builtin_types_compatible_p(__typeof__(varname), typename), \
+	(StaticAssertExpr(__builtin_types_compatible_p(pg_exprtype(varname), typename), \
 	 CppAsString(varname) " does not have type " CppAsString(typename)))
 #else							/* !HAVE__BUILTIN_TYPES_COMPATIBLE_P */
 #define AssertVariableIsOfType(varname, typename) \
@@ -1227,11 +1227,11 @@ typedef struct PGAlignedXLogBlock
 #define unvolatize(underlying_type, expr) const_cast<underlying_type>(expr)
 #elif defined(HAVE__BUILTIN_TYPES_COMPATIBLE_P)
 #define unconstify(underlying_type, expr) \
-	(StaticAssertExpr(__builtin_types_compatible_p(__typeof(expr), const underlying_type), \
+	(StaticAssertExpr(__builtin_types_compatible_p(pg_exprtype(expr), const underlying_type), \
 					  "wrong cast"), \
 	 (underlying_type) (expr))
 #define unvolatize(underlying_type, expr) \
-	(StaticAssertExpr(__builtin_types_compatible_p(__typeof(expr), volatile underlying_type), \
+	(StaticAssertExpr(__builtin_types_compatible_p(pg_exprtype(expr), volatile underlying_type), \
 					  "wrong cast"), \
 	 (underlying_type) (expr))
 #else
