@@ -565,7 +565,7 @@ c11_test = '''
 if not cc.compiles(c11_test, name: 'C11')
   c11_ok = false
   if cc.get_id() == 'msvc'
-    c11_test_args = ['/std:c11']
+    c11_test_args = ['/std:c11', '/Zc:preprocesser']
   else
     c11_test_args = ['-std=gnu11', '-std=c11']
   endif
