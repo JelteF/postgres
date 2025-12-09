@@ -939,16 +939,14 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
 	_Static_assert(condition, errmessage)
 #define StaticAssertStmt(condition, errmessage) \
 	do { _Static_assert(condition, errmessage); } while(0)
-#define StaticAssertExpr(condition, errmessage) \
-	((void) ({ StaticAssertStmt(condition, errmessage); true; }))
 #else							/* !HAVE__STATIC_ASSERT */
 #define StaticAssertDecl(condition, errmessage) \
 	extern void static_assert_func(int static_assert_failure[(condition) ? 1 : -1])
 #define StaticAssertStmt(condition, errmessage) \
 	((void) sizeof(struct { int static_assert_failure : (condition) ? 1 : -1; }))
-#define StaticAssertExpr(condition, errmessage) \
-	StaticAssertStmt(condition, errmessage)
 #endif							/* HAVE__STATIC_ASSERT */
+#define StaticAssertExpr(condition, errmessage) \
+	((void) sizeof(int[(condition) ? 1 : -1]))
 #else							/* C++ */
 #if defined(__cpp_static_assert) && __cpp_static_assert >= 200410
 #define StaticAssertDecl(condition, errmessage) \
