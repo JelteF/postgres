@@ -18,6 +18,12 @@
 
 #include <limits.h>
 
+#ifdef WIN32
+#include "pthread-win32.h"
+#else
+#include <pthread.h>
+#endif
+
 #include "pg_backup_archiver.h"
 
 /* Function to call in leader process on completion of a worker task */
@@ -60,10 +66,8 @@ typedef struct ParallelState
 	ParallelSlot *parallelSlot; /* private info about each worker */
 } ParallelState;
 
-#ifdef WIN32
 extern bool parallel_init_done;
-extern DWORD mainThreadId;
-#endif
+extern pthread_t mainThreadId;
 
 extern void init_parallel_dump_utils(void);
 
