@@ -478,7 +478,7 @@ main(int argc, char *argv[])
 	cparams.dbname = NULL;
 	cparams.override_dbname = NULL;
 
-	setup_cancel_handler(NULL);
+	setup_cancel_handler(NULL, NULL);
 
 	/* choose the database for our initial connection */
 	if (opts.alldb)
