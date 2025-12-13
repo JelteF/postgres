@@ -164,12 +164,11 @@ void
 DisconnectDatabase(Archive *AHX)
 {
 	ArchiveHandle *AH = (ArchiveHandle *) AHX;
-	char		errbuf[1];
 
 	if (!AH->connection)
 		return;
 
-	if (AH->connCancel)
+	if (AH->cancelConn)
 	{
 		/*
 		 * If we have an active query, send a cancel before closing, ignoring
@@ -177,7 +176,7 @@ DisconnectDatabase(Archive *AHX)
 		 * helpful during pg_fatal().
 		 */
 		if (PQtransactionStatus(AH->connection) == PQTRANS_ACTIVE)
-			(void) PQcancel(AH->connCancel, errbuf, sizeof(errbuf));
+			(void) PQcancelBlocking(AH->cancelConn);
 
 		/*
 		 * Prevent signal handler from sending a cancel after this.

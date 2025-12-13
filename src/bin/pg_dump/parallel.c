@@ -58,8 +58,12 @@
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pthread.h>
+#else
+#include "pthread-win32.h"
 #endif
 
+#include "common/logging.h"
 #include "fe_utils/string_utils.h"
 #include "parallel.h"
 #include "pg_backup_utils.h"
@@ -167,15 +171,24 @@ typedef struct DumpSignalInformation
 	ArchiveHandle *myAH;		/* database connection to issue cancel for */
 	ParallelState *pstate;		/* parallel state, if any */
 	bool		handler_set;	/* signal handler set up in this process? */
-#ifndef WIN32
-	bool		am_worker;		/* am I a worker process? */
-#endif
+	bool		am_worker;		/* am I a worker process/thread? */
 } DumpSignalInformation;
 
 static volatile DumpSignalInformation signal_info;
 
-#ifdef WIN32
-static CRITICAL_SECTION signal_info_lock;
+/*
+ * Mutex protecting signal_info during cancel operations.
+ */
+static pthread_mutex_t signal_info_lock;
+
+#ifndef WIN32
+/*
+ * On Unix, we use a self-pipe to wake up a cancel thread from the signal
+ * handler, since it's not safe to call PQcancelBlocking from a signal handler.
+ */
+static int	cancel_pipe[2] = {-1, -1};
+static pthread_t cancel_thread;
+static volatile bool cancel_thread_running = false;
 #endif
 
 /*
@@ -423,18 +436,17 @@ ShutdownWorkersHard(ParallelState *pstate)
 
 	/*
 	 * On Windows, send query cancels directly to the workers' backends.  Use
-	 * a critical section to ensure worker threads don't change state.
+	 * the mutex to ensure worker threads don't change state.
 	 */
-	EnterCriticalSection(&signal_info_lock);
+	pthread_mutex_lock(&signal_info_lock);
 	for (i = 0; i < pstate->numWorkers; i++)
 	{
 		ArchiveHandle *AH = pstate->parallelSlot[i].AH;
-		char		errbuf[1];
 
 		if (AH != NULL && AH->connCancel != NULL)
-			(void) PQcancel(AH->connCancel, errbuf, sizeof(errbuf));
+			(void) PQcancelBlocking(AH->connCancel);
 	}
-	LeaveCriticalSection(&signal_info_lock);
+	pthread_mutex_unlock(&signal_info_lock);
 #endif
 
 	/* Now wait for them to terminate. */
@@ -519,72 +531,44 @@ WaitForTerminatingWorkers(ParallelState *pstate)
  * could leave a SQL command (e.g., CREATE INDEX on a large table) running
  * for a long time.  Instead, we try to send a cancel request and then die.
  * pg_dump probably doesn't really need this, but we might as well use it
- * there too.  Note that sending the cancel directly from the signal handler
- * is safe because PQcancel() is written to make it so.
+ * there too.  We use PQcancelBlocking() to send the cancel request, which
+ * requires running in a thread since it's not signal-safe.
  *
- * In parallel operation on Unix, each process is responsible for canceling
- * its own connection (this must be so because nobody else has access to it).
- * Furthermore, the leader process should attempt to forward its signal to
- * each child.  In simple manual use of pg_dump/pg_restore, forwarding isn't
- * needed because typing control-C at the console would deliver SIGINT to
- * every member of the terminal process group --- but in other scenarios it
- * might be that only the leader gets signaled.
+ * On Unix, the signal handler wakes up a dedicated cancel thread via a
+ * self-pipe, which then sends the cancel and calls _exit().  The signal
+ * handler also forwards the signal to worker processes.  In parallel
+ * operation, each process is responsible for canceling its own connection
+ * (this must be so because nobody else has access to it).  In simple manual
+ * use of pg_dump/pg_restore, forwarding isn't needed because typing control-C
+ * at the console would deliver SIGINT to every member of the terminal process
+ * group --- but in other scenarios it might be that only the leader gets
+ * signaled.
  *
  * On Windows, the cancel handler runs in a separate thread, because that's
  * how SetConsoleCtrlHandler works.  We make it stop worker threads, send
  * cancels on all active connections, and then return FALSE, which will allow
  * the process to die.  For safety's sake, we use a critical section to
- * protect the PGcancel structures against being changed while the signal
+ * protect the PGcancelConn structures against being changed while the signal
  * thread runs.
  */
 
-#ifndef WIN32
-
 /*
- * Signal handler (Unix only)
+ * Send cancel request and print termination message.  Called from the cancel
+ * thread (Unix) or console handler (Windows).  Caller must hold signal_info_lock.
  */
 static void
-sigTermHandler(SIGNAL_ARGS)
+SendCancelRequest(void)
 {
-	int			i;
-	char		errbuf[1];
-
-	/*
-	 * Some platforms allow delivery of new signals to interrupt an active
-	 * signal handler.  That could muck up our attempt to send PQcancel, so
-	 * disable the signals that set_cancel_handler enabled.
-	 */
-	pqsignal(SIGINT, SIG_IGN);
-	pqsignal(SIGTERM, SIG_IGN);
-	pqsignal(SIGQUIT, SIG_IGN);
-
-	/*
-	 * If we're in the leader, forward signal to all workers.  (It seems best
-	 * to do this before PQcancel; killing the leader transaction will result
-	 * in invalid-snapshot errors from active workers, which maybe we can
-	 * quiet by killing workers first.)  Ignore any errors.
-	 */
-	if (signal_info.pstate != NULL)
-	{
-		for (i = 0; i < signal_info.pstate->numWorkers; i++)
-		{
-			pid_t		pid = signal_info.pstate->parallelSlot[i].pid;
-
-			if (pid != 0)
-				kill(pid, SIGTERM);
-		}
-	}
-
 	/*
 	 * Send QueryCancel if we have a connection to send to.  Ignore errors,
 	 * there's not much we can do about them anyway.
 	 */
-	if (signal_info.myAH != NULL && signal_info.myAH->connCancel != NULL)
-		(void) PQcancel(signal_info.myAH->connCancel, errbuf, sizeof(errbuf));
+	if (signal_info.myAH != NULL && signal_info.myAH->cancelConn != NULL)
+		(void) PQcancelBlocking(signal_info.myAH->cancelConn);
 
 	/*
 	 * Report we're quitting, using nothing more complicated than write(2).
-	 * When in parallel operation, only the leader process should do this.
+	 * When in parallel operation, only the leader should do this.
 	 */
 	if (!signal_info.am_worker)
 	{
@@ -595,35 +579,40 @@ sigTermHandler(SIGNAL_ARGS)
 		}
 		write_stderr("terminated by user\n");
 	}
-
-	/*
-	 * And die, using _exit() not exit() because the latter will invoke atexit
-	 * handlers that can fail if we interrupted related code.
-	 */
-	_exit(1);
 }
+
+#ifdef WIN32
 
 /*
- * Enable cancel interrupt handler, if not already done.
+ * On Windows in parallel mode, we need to stop worker threads and cancel
+ * their connections.  This is Windows-specific because workers are threads
+ * in the same process, unlike Unix where they're separate processes.
  */
 static void
-set_cancel_handler(void)
+StopWorkersAndCancel(void)
 {
-	/*
-	 * When forking, signal_info.handler_set will propagate into the new
-	 * process, but that's fine because the signal handler state does too.
-	 */
-	if (!signal_info.handler_set)
-	{
-		signal_info.handler_set = true;
+	int			i;
 
-		pqsignal(SIGINT, sigTermHandler);
-		pqsignal(SIGTERM, sigTermHandler);
-		pqsignal(SIGQUIT, sigTermHandler);
+	if (signal_info.pstate == NULL)
+		return;
+
+	for (i = 0; i < signal_info.pstate->numWorkers; i++)
+	{
+		ParallelSlot *slot = &(signal_info.pstate->parallelSlot[i]);
+		ArchiveHandle *AH = slot->AH;
+		HANDLE		hThread = (HANDLE) slot->hThread;
+
+		/*
+		 * Using TerminateThread here may leave some resources leaked, but it
+		 * doesn't matter since we're about to end the whole process.
+		 */
+		if (hThread != INVALID_HANDLE_VALUE)
+			TerminateThread(hThread, 0);
+
+		if (AH != NULL && AH->connCancel != NULL)
+			(void) PQcancelBlocking(AH->connCancel);
 	}
 }
-
-#else							/* WIN32 */
 
 /*
  * Console interrupt handler --- runs in a newly-started thread.
@@ -635,14 +624,11 @@ set_cancel_handler(void)
 static BOOL WINAPI
 consoleHandler(DWORD dwCtrlType)
 {
-	int			i;
-	char		errbuf[1];
-
 	if (dwCtrlType == CTRL_C_EVENT ||
 		dwCtrlType == CTRL_BREAK_EVENT)
 	{
-		/* Critical section prevents changing data we look at here */
-		EnterCriticalSection(&signal_info_lock);
+		/* Mutex prevents changing data we look at here */
+		pthread_mutex_lock(&signal_info_lock);
 
 		/*
 		 * If in parallel mode, stop worker threads and send QueryCancel to
@@ -651,52 +637,14 @@ consoleHandler(DWORD dwCtrlType)
 		 * which would clutter the user's screen.  We needn't stop the leader
 		 * thread since it won't be doing much anyway.  Do this before
 		 * canceling the main transaction, else we might get invalid-snapshot
-		 * errors reported before we can stop the workers.  Ignore errors,
-		 * there's not much we can do about them anyway.
+		 * errors reported before we can stop the workers.
 		 */
-		if (signal_info.pstate != NULL)
-		{
-			for (i = 0; i < signal_info.pstate->numWorkers; i++)
-			{
-				ParallelSlot *slot = &(signal_info.pstate->parallelSlot[i]);
-				ArchiveHandle *AH = slot->AH;
-				HANDLE		hThread = (HANDLE) slot->hThread;
+		StopWorkersAndCancel();
 
-				/*
-				 * Using TerminateThread here may leave some resources leaked,
-				 * but it doesn't matter since we're about to end the whole
-				 * process.
-				 */
-				if (hThread != INVALID_HANDLE_VALUE)
-					TerminateThread(hThread, 0);
+		/* Send cancel to leader connection and print message */
+		SendCancelRequest();
 
-				if (AH != NULL && AH->connCancel != NULL)
-					(void) PQcancel(AH->connCancel, errbuf, sizeof(errbuf));
-			}
-		}
-
-		/*
-		 * Send QueryCancel to leader connection, if enabled.  Ignore errors,
-		 * there's not much we can do about them anyway.
-		 */
-		if (signal_info.myAH != NULL && signal_info.myAH->connCancel != NULL)
-			(void) PQcancel(signal_info.myAH->connCancel,
-							errbuf, sizeof(errbuf));
-
-		LeaveCriticalSection(&signal_info_lock);
-
-		/*
-		 * Report we're quitting, using nothing more complicated than
-		 * write(2).  (We might be able to get away with using pg_log_*()
-		 * here, but since we terminated other threads uncleanly above, it
-		 * seems better to assume as little as possible.)
-		 */
-		if (progname)
-		{
-			write_stderr(progname);
-			write_stderr(": ");
-		}
-		write_stderr("terminated by user\n");
+		pthread_mutex_unlock(&signal_info_lock);
 	}
 
 	/* Always return FALSE to allow signal handling to continue */
@@ -713,9 +661,131 @@ set_cancel_handler(void)
 	{
 		signal_info.handler_set = true;
 
-		InitializeCriticalSection(&signal_info_lock);
+		pthread_mutex_init(&signal_info_lock, NULL);
 
 		SetConsoleCtrlHandler(consoleHandler, TRUE);
+	}
+}
+
+#else							/* !WIN32 */
+
+/*
+ * Cancel thread main function. Waits for the signal handler to write to the
+ * pipe, then forwards signal to workers, sends cancel request, and calls _exit().
+ */
+static void *
+cancel_thread_main(void *arg)
+{
+	for (;;)
+	{
+		char		buf[16];
+		ssize_t		rc;
+		int			i;
+
+		/* Wait for signal handler to wake us up */
+		rc = read(cancel_pipe[0], buf, sizeof(buf));
+		if (rc <= 0)
+		{
+			if (errno == EINTR)
+				continue;
+			/* Pipe closed or error - exit thread */
+			break;
+		}
+
+		pthread_mutex_lock(&signal_info_lock);
+
+		/*
+		 * If we're in the leader, forward signal to all workers.  (It seems
+		 * best to do this before canceling the leader's connection, to avoid
+		 * invalid-snapshot errors from workers.)  Ignore any errors.
+		 */
+		if (signal_info.pstate != NULL)
+		{
+			for (i = 0; i < signal_info.pstate->numWorkers; i++)
+			{
+				pid_t		pid = signal_info.pstate->parallelSlot[i].pid;
+
+				if (pid != 0)
+					kill(pid, SIGTERM);
+			}
+		}
+
+		SendCancelRequest();
+		pthread_mutex_unlock(&signal_info_lock);
+
+		/*
+		 * And die, using _exit() not exit() because the latter will invoke
+		 * atexit handlers that can fail if we interrupted related code.
+		 */
+		_exit(1);
+	}
+
+	return NULL;
+}
+
+/*
+ * Signal handler (Unix only).  Wakes up the cancel thread by writing to the
+ * pipe.
+ */
+static void
+sigTermHandler(SIGNAL_ARGS)
+{
+	int			save_errno = errno;
+	char		c = 1;
+
+	/* Wake up the cancel thread - write() is async-signal-safe */
+	if (cancel_pipe[1] >= 0)
+		(void) write(cancel_pipe[1], &c, 1);
+
+	errno = save_errno;
+}
+
+/*
+ * Enable cancel interrupt handler, if not already done.
+ */
+static void
+set_cancel_handler(void)
+{
+	/*
+	 * When forking, signal_info.handler_set will propagate into the new
+	 * process, but that's fine because the signal handler state does too.
+	 */
+	if (!signal_info.handler_set)
+	{
+		signal_info.handler_set = true;
+
+		pthread_mutex_init(&signal_info_lock, NULL);
+
+		/*
+		 * Set up the self-pipe for communication between signal handler and
+		 * cancel thread.  We use a pipe because write() is async-signal-safe.
+		 */
+		if (cancel_pipe[0] < 0)
+		{
+			if (pipe(cancel_pipe) < 0)
+			{
+				pg_log_error("could not create pipe for cancel: %m");
+				exit(1);
+			}
+		}
+
+		/* Start the cancel thread if not already running */
+		if (!cancel_thread_running)
+		{
+			int			rc;
+
+			rc = pthread_create(&cancel_thread, NULL, cancel_thread_main, NULL);
+			if (rc != 0)
+			{
+				pg_log_error("could not create cancel thread: %s", strerror(rc));
+				exit(1);
+			}
+			cancel_thread_running = true;
+		}
+
+		pqsignal(SIGINT, sigTermHandler);
+		pqsignal(SIGTERM, sigTermHandler);
+		pqsignal(SIGQUIT, sigTermHandler);
 	}
 }
 
@@ -731,36 +801,32 @@ set_cancel_handler(void)
 void
 set_archive_cancel_info(ArchiveHandle *AH, PGconn *conn)
 {
-	PGcancel   *oldConnCancel;
+	PGcancelConn *oldConnCancel;
 
 	/*
-	 * Activate the interrupt handler if we didn't yet in this process.  On
-	 * Windows, this also initializes signal_info_lock; therefore it's
-	 * important that this happen at least once before we fork off any
-	 * threads.
+	 * Activate the interrupt handler if we didn't yet in this process.  This
+	 * also initializes signal_info_lock; therefore it's important that this
+	 * happen at least once before we fork off any threads.
 	 */
 	set_cancel_handler();
 
 	/*
-	 * On Unix, we assume that storing a pointer value is atomic with respect
-	 * to any possible signal interrupt.  On Windows, use a critical section.
+	 * Use mutex to prevent the cancel handler from using the pointer while
+	 * we're changing it.
 	 */
-
-#ifdef WIN32
-	EnterCriticalSection(&signal_info_lock);
-#endif
+	pthread_mutex_lock(&signal_info_lock);
 
 	/* Free the old one if we have one */
-	oldConnCancel = AH->connCancel;
+	oldConnCancel = AH->cancelConn;
 	/* be sure interrupt handler doesn't use pointer while freeing */
-	AH->connCancel = NULL;
+	AH->cancelConn = NULL;
 
 	if (oldConnCancel != NULL)
-		PQfreeCancel(oldConnCancel);
+		PQcancelFinish(oldConnCancel);
 
 	/* Set the new one if specified */
 	if (conn)
-		AH->connCancel = PQgetCancel(conn);
+		AH->cancelConn = PQcancelCreate(conn);
 
 	/*
 	 * On Unix, there's only ever one active ArchiveHandle per process, so we
@@ -776,49 +842,35 @@ set_archive_cancel_info(ArchiveHandle *AH, PGconn *conn)
 		signal_info.myAH = AH;
 #endif
 
-#ifdef WIN32
-	LeaveCriticalSection(&signal_info_lock);
-#endif
+	pthread_mutex_unlock(&signal_info_lock);
 }
 
 /*
  * set_cancel_pstate
  *
  * Set signal_info.pstate to point to the specified ParallelState, if any.
- * We need this mainly to have an interlock against Windows signal thread.
+ * We need this mainly to have an interlock against the cancel handler thread.
  */
 static void
 set_cancel_pstate(ParallelState *pstate)
 {
-#ifdef WIN32
-	EnterCriticalSection(&signal_info_lock);
-#endif
-
+	pthread_mutex_lock(&signal_info_lock);
 	signal_info.pstate = pstate;
-
-#ifdef WIN32
-	LeaveCriticalSection(&signal_info_lock);
-#endif
+	pthread_mutex_unlock(&signal_info_lock);
 }
 
 /*
  * set_cancel_slot_archive
  *
  * Set ParallelSlot's AH field to point to the specified archive, if any.
- * We need this mainly to have an interlock against Windows signal thread.
+ * We need this mainly to have an interlock against the cancel handler thread.
  */
 static void
 set_cancel_slot_archive(ParallelSlot *slot, ArchiveHandle *AH)
 {
-#ifdef WIN32
-	EnterCriticalSection(&signal_info_lock);
-#endif
-
+	pthread_mutex_lock(&signal_info_lock);
 	slot->AH = AH;
-
-#ifdef WIN32
-	LeaveCriticalSection(&signal_info_lock);
-#endif
+	pthread_mutex_unlock(&signal_info_lock);
 }
 
 
