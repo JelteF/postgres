@@ -2,9 +2,38 @@
  *
  * Query cancellation support for frontend code
  *
- * Assorted utility functions to control query cancellation with signal
- * handler for SIGINT.
+ * This module provides SIGINT/Ctrl-C handling for frontend tools that need
+ * to cancel queries running on the server.  It combines three completely
+ * independent mechanisms, any combination of which can be used by a caller:
  *
+ * 1. Server cancel request -- Often what applications need. When a query is
+ *    running, and the main thread is waiting for the result of that query in a
+ *    blocking manner, we want SIGINT/Ctrl-C to cancel that query. This can be
+ *    done by having the application call SetCancelConn() to register the
+ *    connection that is running the query, prior to waiting for the result.
+ *    When SIGINT/Ctrl-C is received a cancel request for this connection will
+ *    then be sent to the server from a separate thread. That in turn will then
+ *    (assuming a co-operating server) cause the server to cancel the query and
+ *    send an error to the waiting client on the main thread. The cancel
+ *    connection is a process-wide global, so only one connection can be the
+ *    cancel target at a time. ResetCancelConn() can be used to unregister the
+ *    connection again, preventing sending a cancel request if SIGINT/Ctrl-C is
+ *    received after blocking wait has already completed.
+ *
+ * 2. CancelRequested flag -- A more involved but also much more flexible way
+ *    of cancelling. A volatile sig_atomic_t CancelRequested flag is set to
+ *    true whenever SIGINT is received. This means that the application code
+ *    can fully control what it does with this flag. The primary usecase for
+ *    this is when the application code is not blocked (indefinitely), but
+ *    needs to take an action when Ctrl-C is pressed, such as break out of a
+ *    long running loop.
+ *
+ * 3. Cancel callback -- The most complex way of handling a sigint. An optional
+ *    function pointer registered via setup_cancel_handler().  If set, it is
+ *    called directly from the signal handler, so it must be async-signal-safe.
+ *    Writing async-signal-safe code is not easy, so this is only recommended
+ *    as a last resort. psql uses this to longjmp back to the main loop when no
+ *    query is active.
  *
  * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -16,9 +45,21 @@
 
 #include "postgres_fe.h"
 
+#include <signal.h>
 #include <unistd.h>
 
+#ifndef WIN32
+#include <fcntl.h>
+#endif
+
+#ifdef WIN32
+#include "pthread-win32.h"
+#else
+#include <pthread.h>
+#endif
+
 #include "common/connect.h"
+#include "common/logging.h"
 #include "fe_utils/cancel.h"
 #include "fe_utils/string_utils.h"
 
@@ -36,11 +77,19 @@
 		(void) rc_; \
 	} while (0)
 
+
 /*
- * Contains all the information needed to cancel a query issued from
- * a database connection to the backend.
+ * Cancel connection that should be used to send cancel requests.
  */
-static PGcancel *volatile cancelConn = NULL;
+static PGcancelConn *cancelConn = NULL;
+
+/*
+ * Mutex protecting cancelConn.  Held by SendCancelRequest() for the entire
+ * duration of the cancel (including the blocking network I/O), so that
+ * SetCancelConn()/ResetCancelConn() on the main thread will wait for the
+ * cancel to finish before replacing or freeing cancelConn.
+ */
+static pthread_mutex_t cancelConnLock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * Predetermined localized error strings --- needed to avoid trying
@@ -58,144 +107,139 @@ static const char *cancel_not_sent_msg = NULL;
  */
 volatile sig_atomic_t CancelRequested = false;
 
-#ifdef WIN32
-static CRITICAL_SECTION cancelConnLock;
-#endif
-
 /*
  * Additional callback for cancellations.
  */
 static void (*cancel_callback) (void) = NULL;
 
+#ifndef WIN32
+/*
+ * On Unix, the SIGINT signal handler cannot call PQcancelBlocking() directly
+ * because it is not async-signal-safe.  Instead, we use a pipe to wake a
+ * dedicated cancel thread: the signal handler writes a byte to the pipe, and
+ * the cancel thread's blocking read() returns, triggering the actual cancel
+ * request.
+ */
+static int	cancel_pipe[2] = {-1, -1};
+static pthread_t cancel_thread;
+#endif
+
+
+/*
+ * Send a cancel request to the connection, if one is set.
+ *
+ * Called from the cancel thread (Unix) or the console handler thread
+ * (Windows), never from the signal handler itself.
+ *
+ * We hold cancelConnLock for the entire duration, so that the main thread's
+ * SetCancelConn()/ResetCancelConn() will block until we're done.
+ */
+static void
+SendCancelRequest(void)
+{
+	PGcancelConn *cc;
+
+	pthread_mutex_lock(&cancelConnLock);
+	cc = cancelConn;
+	if (cc == NULL)
+	{
+		goto done;
+	}
+
+	write_stderr(cancel_sent_msg);
+
+	if (!PQcancelBlocking(cc))
+	{
+		char	   *errmsg = PQcancelErrorMessage(cc);
+
+		write_stderr(cancel_not_sent_msg);
+		if (errmsg)
+			write_stderr(errmsg);
+	}
+	/* Reset for possible reuse */
+	PQcancelReset(cc);
+
+done:
+
+#ifndef WIN32
+	{
+		/*
+		 * Drain any pending bytes from the cancel pipe. So that SIGINTs
+		 * received while we were already cancelling don't cause the cancel
+		 * thread to wake up again and cancel a subsequent query.
+		 */
+		char		buf[16];
+
+		fcntl(cancel_pipe[0], F_SETFL, O_NONBLOCK);
+		while (read(cancel_pipe[0], buf, sizeof(buf)) > 0)
+		{
+			/* loop until pipe is fully drained */
+		}
+		fcntl(cancel_pipe[0], F_SETFL, 0);
+	}
+#endif
+
+	pthread_mutex_unlock(&cancelConnLock);
+	return;
+}
+
+
+/*
+ * Helper to replace cancelConn with a new value.
+ *
+ * Takes cancelConnLock, which also waits for any in-flight cancel request
+ * to finish, since SendCancelRequest() holds the same lock while sending.
+ */
+static void
+SetCancelConnInternal(PGcancelConn *newCancelConn)
+{
+	PGcancelConn *oldCancelConn;
+
+	pthread_mutex_lock(&cancelConnLock);
+	oldCancelConn = cancelConn;
+	cancelConn = newCancelConn;
+	pthread_mutex_unlock(&cancelConnLock);
+
+	if (oldCancelConn != NULL)
+		PQcancelFinish(oldCancelConn);
+}
 
 /*
  * SetCancelConn
  *
- * Set cancelConn to point to the current database connection.
+ * Set cancelConn to point to a cancel connection for the given database
+ * connection. This creates a new PGcancelConn that can be used to send
+ * cancel requests.
  */
 void
 SetCancelConn(PGconn *conn)
 {
-	PGcancel   *oldCancelConn;
-
-#ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
-#endif
-
-	/* Free the old one if we have one */
-	oldCancelConn = cancelConn;
-
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
-
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
-
-	cancelConn = PQgetCancel(conn);
-
-#ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
-#endif
+	SetCancelConnInternal(PQcancelCreate(conn));
 }
 
 /*
  * ResetCancelConn
  *
- * Free the current cancel connection, if any, and set to NULL.
+ * Clear cancelConn, preventing any pending cancel from being sent.
+ * Waits for any in-flight cancel request to complete first.
  */
 void
 ResetCancelConn(void)
 {
-	PGcancel   *oldCancelConn;
+	SetCancelConnInternal(NULL);
+}
+
 
 #ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
-#endif
-
-	oldCancelConn = cancelConn;
-
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
-
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
-
-#ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
-#endif
-}
-
-
 /*
- * Code to support query cancellation
+ * Console control handler for Windows.
  *
- * Note that sending the cancel directly from the signal handler is safe
- * because PQcancel() is written to make it so.  We use write() to report
- * to stderr because it's better to use simple facilities in a signal
- * handler.
- *
- * On Windows, the signal canceling happens on a separate thread, because
- * that's how SetConsoleCtrlHandler works.  The PQcancel function is safe
- * for this (unlike PQrequestCancel).  However, a CRITICAL_SECTION is required
- * to protect the PGcancel structure against being changed while the signal
- * thread is using it.
+ * This runs in a separate thread created by the OS, so we can safely call
+ * the blocking cancel API directly.
  */
-
-#ifndef WIN32
-
-/*
- * handle_sigint
- *
- * Handle interrupt signals by canceling the current command, if cancelConn
- * is set.
- */
-static void
-handle_sigint(SIGNAL_ARGS)
-{
-	char		errbuf[256];
-
-	CancelRequested = true;
-
-	if (cancel_callback != NULL)
-		cancel_callback();
-
-	/* Send QueryCancel if we are processing a database query */
-	if (cancelConn != NULL)
-	{
-		if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
-		{
-			write_stderr(cancel_sent_msg);
-		}
-		else
-		{
-			write_stderr(cancel_not_sent_msg);
-			write_stderr(errbuf);
-		}
-	}
-}
-
-/*
- * setup_cancel_handler
- *
- * Register query cancellation callback for SIGINT.
- */
-void
-setup_cancel_handler(void (*query_cancel_callback) (void))
-{
-	cancel_callback = query_cancel_callback;
-	cancel_sent_msg = _("Cancel request sent\n");
-	cancel_not_sent_msg = _("Could not send cancel request: ");
-
-	pqsignal(SIGINT, handle_sigint);
-}
-
-#else							/* WIN32 */
-
 static BOOL WINAPI
 consoleHandler(DWORD dwCtrlType)
 {
-	char		errbuf[256];
-
 	if (dwCtrlType == CTRL_C_EVENT ||
 		dwCtrlType == CTRL_BREAK_EVENT)
 	{
@@ -204,22 +248,7 @@ consoleHandler(DWORD dwCtrlType)
 		if (cancel_callback != NULL)
 			cancel_callback();
 
-		/* Send QueryCancel if we are processing a database query */
-		EnterCriticalSection(&cancelConnLock);
-		if (cancelConn != NULL)
-		{
-			if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
-			{
-				write_stderr(cancel_sent_msg);
-			}
-			else
-			{
-				write_stderr(cancel_not_sent_msg);
-				write_stderr(errbuf);
-			}
-		}
-
-		LeaveCriticalSection(&cancelConnLock);
+		SendCancelRequest();
 
 		return TRUE;
 	}
@@ -228,16 +257,127 @@ consoleHandler(DWORD dwCtrlType)
 		return FALSE;
 }
 
-void
-setup_cancel_handler(void (*callback) (void))
+#else							/* !WIN32 */
+
+/*
+ * Cancel thread main function. Waits for the signal handler to write to the
+ * pipe, then sends a cancel request.
+ */
+static void *
+cancel_thread_main(void *arg)
 {
-	cancel_callback = callback;
-	cancel_sent_msg = _("Cancel request sent\n");
-	cancel_not_sent_msg = _("Could not send cancel request: ");
+	for (;;)
+	{
+		char		buf[16];
+		ssize_t		rc;
 
-	InitializeCriticalSection(&cancelConnLock);
+		/* Wait for signal handler to wake us up (blocking read) */
+		rc = read(cancel_pipe[0], buf, sizeof(buf));
+		if (rc <= 0)
+		{
+			if (errno == EINTR)
+				continue;
+			/* Pipe closed or error - exit thread */
+			break;
+		}
 
-	SetConsoleCtrlHandler(consoleHandler, TRUE);
+		SendCancelRequest();
+	}
+
+	return NULL;
+}
+
+/*
+ * Signal handler for SIGINT. Sets CancelRequested and wakes up the cancel
+ * thread by writing to the pipe.
+ */
+static void
+handle_sigint(SIGNAL_ARGS)
+{
+	int			save_errno = errno;
+	char		c = 1;
+
+	CancelRequested = true;
+
+	if (cancel_callback != NULL)
+		cancel_callback();
+
+	/* Wake up the cancel thread - write() is async-signal-safe */
+	if (cancel_pipe[1] >= 0)
+	{
+		int			rc = write(cancel_pipe[1], &c, 1);
+
+		(void) rc;
+	}
+
+	errno = save_errno;
 }
 
 #endif							/* WIN32 */
+
+
+/*
+ * setup_cancel_handler
+ *
+ * Set up handler for SIGINT (Unix) or console events (Windows) to send a
+ * cancel request to the server.
+ *
+ * The optional callback is invoked directly from the signal handler context
+ * on every SIGINT (on Unix), so it must be async-signal-safe.
+ */
+void
+setup_cancel_handler(void (*query_cancel_callback) (void))
+{
+	cancel_callback = query_cancel_callback;
+	cancel_sent_msg = _("Sending cancel request\n");
+	cancel_not_sent_msg = _("Could not send cancel request: ");
+
+#ifdef WIN32
+	SetConsoleCtrlHandler(consoleHandler, TRUE);
+#else
+
+	/*
+	 * Create the pipe and cancel thread (see comment on cancel_pipe above).
+	 */
+	if (pipe(cancel_pipe) < 0)
+	{
+		pg_log_error("could not create pipe for cancel: %m");
+		exit(1);
+	}
+
+	/*
+	 * Make the write end non-blocking, so that the signal handler won't block
+	 * if the pipe buffer is full (which is very unlikely in practice but
+	 * possible in theory).
+	 */
+	fcntl(cancel_pipe[1], F_SETFL, O_NONBLOCK);
+
+	/*
+	 * Block SIGINT before creating the cancel thread, so that it inherits a
+	 * signal mask with SIGINT blocked. This ensures SIGINT is always
+	 * delivered to the main thread, which matters because some cancel
+	 * callbacks (e.g. psql's) call siglongjmp() back to a sigsetjmp() on the
+	 * main thread's stack.
+	 */
+	{
+		sigset_t	sigint_sigset;
+		int			rc;
+
+		sigemptyset(&sigint_sigset);
+		sigaddset(&sigint_sigset, SIGINT);
+		pthread_sigmask(SIG_BLOCK, &sigint_sigset, NULL);
+
+		rc = pthread_create(&cancel_thread, NULL, cancel_thread_main, NULL);
+
+		pthread_sigmask(SIG_UNBLOCK, &sigint_sigset, NULL);
+
+		if (rc != 0)
+		{
+			pg_log_error("could not create cancel thread: %s", strerror(rc));
+			exit(1);
+		}
+	}
+
+	pqsignal(SIGINT, handle_sigint);
+#endif
+}
