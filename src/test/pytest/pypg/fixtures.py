@@ -36,7 +36,14 @@ def libpq_handle(libdir):
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
     """
-    return load_libpq_handle(libdir)
+    try:
+        return load_libpq_handle(libdir)
+    except OSError as e:
+        if "wrong ELF class" in str(e):
+            # This happens in CI when trying to lead a 32-bit libpq library
+            # with a 64-bit Python
+            pytest.skip("libpq architecture does not match Python interpreter")
+        raise
 
 
 @pytest.fixture
