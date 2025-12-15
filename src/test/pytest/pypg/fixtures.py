@@ -31,13 +31,13 @@ def remaining_timeout():
 
 
 @pytest.fixture(scope="session")
-def libpq_handle(libdir):
+def libpq_handle(libdir, bindir):
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
     """
     try:
-        return load_libpq_handle(libdir)
+        return load_libpq_handle(libdir, bindir)
     except OSError as e:
         if "wrong ELF class" in str(e):
             # This happens in CI when trying to lead a 32-bit libpq library

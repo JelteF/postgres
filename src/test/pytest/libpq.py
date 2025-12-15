@@ -62,7 +62,7 @@ _PGconn_p = ctypes.POINTER(_PGconn)
 _PGresult_p = ctypes.POINTER(_PGresult)
 
 
-def load_libpq_handle(libdir):
+def load_libpq_handle(libdir, bindir):
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
@@ -78,17 +78,14 @@ def load_libpq_handle(libdir):
     else:
         assert False, f"the libpq fixture must be updated for {system}"
 
-    libpq_path = os.path.join(libdir, name)
-
-    # XXX ctypes.CDLL() is a little stricter with load paths on Windows. The
-    # preferred way around that is to know the absolute path to libpq.dll, but
-    # that doesn't seem to mesh well with the current test infrastructure. For
-    # now, enable "standard" LoadLibrary behavior.
-    loadopts = {}
     if system == "Windows":
-        loadopts["winmode"] = 0
-
-    lib = ctypes.CDLL(libpq_path, **loadopts)
+        # On Windows, libpq.dll is confusingly in bindir, not libdir. And we
+        # need to add this directory the the search path.
+        libpq_path = os.path.join(bindir, name)
+        lib = ctypes.CDLL(libpq_path)
+    else:
+        libpq_path = os.path.join(libdir, name)
+        lib = ctypes.CDLL(libpq_path)
 
     #
     # Function Prototypes
