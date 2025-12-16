@@ -10,7 +10,9 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
-      'pyt/test_something.py',
+      'pyt/test_errors.py',
+      'pyt/test_libpq.py',
+      'pyt/test_query_helpers.py',
     ],
   },
 }
