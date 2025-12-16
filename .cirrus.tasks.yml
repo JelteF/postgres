@@ -646,6 +646,7 @@ task:
     CIRRUS_WORKING_DIR: ${HOME}/pgsql/
     CCACHE_DIR: ${HOME}/ccache
     MACPORTS_CACHE: ${HOME}/macports-cache
+    PYTEST_DEBUG_TEMPROOT: /tmp  # default is too long for UNIX sockets on Mac
 
     MESON_FEATURES: >-
       -Dbonjour=enabled
@@ -666,6 +667,7 @@ task:
       p5.34-io-tty
       p5.34-ipc-run
       python312
+      py312-cryptography
       py312-packaging
       py312-pytest
       tcl
