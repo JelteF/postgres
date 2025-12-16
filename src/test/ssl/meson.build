@@ -16,4 +16,10 @@ tests += {
       't/004_sni.pl',
     ],
   },
+  'pytest': {
+    'tests': [
+      'pyt/test_client.py',
+      'pyt/test_server.py',
+    ],
+  },
 }

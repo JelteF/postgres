@@ -661,6 +661,7 @@ jobs:
         p5.34-io-tty
         p5.34-ipc-run
         python312
+        py312-cryptography
         py312-packaging
         py312-pytest
         tcl
