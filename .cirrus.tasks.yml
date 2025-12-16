@@ -229,6 +229,7 @@ task:
     sysctl kern.corefile='/tmp/cores/%N.%P.core'
   setup_additional_packages_script: |
     pkg install -y \
+      py311-cryptography \
       py311-packaging \
       py311-pytest
 
@@ -323,6 +324,7 @@ task:
 
       setup_additional_packages_script: |
         pkgin -y install \
+          py312-cryptography \
           py312-packaging \
           py312-test
         ln -s /usr/pkg/bin/pytest-3.12 /usr/pkg/bin/pytest
@@ -346,8 +348,9 @@ task:
 
       setup_additional_packages_script: |
         pkg_add -I \
-          py3-test \
-          py3-packaging
+          py3-cryptography \
+          py3-packaging \
+          py3-test
       # Always core dump to ${CORE_DUMP_DIR}
       set_core_dump_script: sysctl -w kern.nosuidcoredump=2
       <<: *openbsd_task_template
@@ -508,8 +511,9 @@ task:
   setup_additional_packages_script: |
     apt-get update
     DEBIAN_FRONTEND=noninteractive apt-get -y install \
-      python3-pytest \
-      python3-packaging
+      python3-cryptography \
+      python3-packaging \
+      python3-pytest
 
   matrix:
     # SPECIAL:
@@ -658,6 +662,7 @@ task:
     CIRRUS_WORKING_DIR: ${HOME}/pgsql/
     CCACHE_DIR: ${HOME}/ccache
     MACPORTS_CACHE: ${HOME}/macports-cache
+    PYTEST_DEBUG_TEMPROOT: /tmp  # default is too long for UNIX sockets on Mac
 
     MESON_FEATURES: >-
       -Dbonjour=enabled
@@ -678,6 +683,7 @@ task:
       p5.34-io-tty
       p5.34-ipc-run
       python312
+      py312-cryptography
       py312-packaging
       py312-pytest
       tcl
@@ -816,7 +822,7 @@ task:
   # XXX Does Chocolatey really not have any Python package installers?
   setup_additional_packages_script: |
     REM choco install -y --no-progress ...
-    pip3 install --user packaging pytest
+    pip3 install --user cryptography packaging pytest
 
   setup_hosts_file_script: |
     echo 127.0.0.1 pg-loadbalancetest >> c:\Windows\System32\Drivers\etc\hosts
@@ -879,7 +885,7 @@ task:
     folder: ${CCACHE_DIR}
 
   setup_additional_packages_script: |
-    C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-ucrt-x86_64-python-pytest
+    C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-ucrt-x86_64-python-cryptography mingw-w64-ucrt-x86_64-python-pytest
 
   mingw_info_script: |
     %BASH% -c "where gcc"
