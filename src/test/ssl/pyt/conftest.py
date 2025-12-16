@@ -126,3 +126,53 @@ def certs(cryptography, tmp_path_factory):
             return f.name
 
     return _Certs()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def ssl_setup(pg_server_module, certs, datadir):
+    """
+    Sets up required server settings for all tests in this module.
+    """
+    try:
+        with pg_server_module.restarting() as s:
+            s.conf.set(
+                ssl="on",
+                ssl_ca_file=certs.ca.certpath,
+                ssl_cert_file=certs.server.certpath,
+                ssl_key_file=certs.server.keypath,
+            )
+
+            # Reject by default.
+            s.hba.prepend("hostssl all all all reject")
+
+    except subprocess.CalledProcessError:
+        # This is a decent place to skip if the server isn't set up for SSL.
+        logpath = datadir / "postgresql.log"
+        unsupported = re.compile("SSL is not supported")
+
+        with open(logpath, "r") as log:
+            for line in log:
+                if unsupported.search(line):
+                    pytest.skip("the server does not support SSL")
+
+        # Some other error happened.
+        raise
+
+    users = pg_server_module.create_users("ssl")
+    dbs = pg_server_module.create_dbs("ssl")
+
+    return (users, dbs)
+
+
+@pytest.fixture(scope="module")
+def client_cert(ssl_setup, certs):
+    """
+    Creates a Cert for the "ssl" user.
+    """
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+
+    users, _ = ssl_setup
+    user = users["ssl"]
+
+    return certs.new(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, user)]))
