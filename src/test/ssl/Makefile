@@ -30,6 +30,8 @@ clean distclean:
 # Doesn't depend on sslfiles because we don't rebuild them by default
 check:
 	$(prove_check)
+	# XXX these suites should run independently, not serially
+	$(pytest_check)
 
 installcheck:
 	$(prove_installcheck)
