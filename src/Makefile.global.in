@@ -522,16 +522,27 @@ pytest_installcheck = @echo "Installcheck is not currently supported for pytest.
 # people manually running pytest outside of meson/make, but we expect those to
 # use a recent enough version of pytest anyway (and if not they can manually
 # configure PYTHONPATH too).
+#
+# Each test file is run in its own pytest invocation with its own TESTDATADIR,
+# mirroring how meson runs one test per file. The session-scoped fixtures (the
+# default server, its data directory, ...) are shared within a session and the
+# data directories are kept for post-mortem debugging, so running every file of
+# a suite in a single session would make files that reuse a node name collide
+# on the same data directory.
 define pytest_check
 echo "# +++ pytest check in $(subdir) +++" && \
 rm -rf '$(CURDIR)'/tmp_check && \
 $(MKDIR_P) '$(CURDIR)'/tmp_check && \
 cd $(srcdir) && \
-   TESTLOGDIR='$(CURDIR)/tmp_check/log' \
-   TESTDATADIR='$(CURDIR)/tmp_check' \
+for pyt_file in pyt/test_*.py; do \
+   test -e "$$pyt_file" || continue; \
+   pyt_name=`basename "$$pyt_file" .py`; \
+   TESTLOGDIR="$(CURDIR)/tmp_check/$$pyt_name/log" \
+   TESTDATADIR="$(CURDIR)/tmp_check/$$pyt_name" \
    PYTHONPATH='$(abs_top_srcdir)/src/test/pytest:$$PYTHONPATH' \
    $(with_temp_install) \
-   $(PYTEST) -c '$(abs_top_srcdir)/pyproject.toml' --verbose -ra ./pyt/
+   $(PYTEST) -c '$(abs_top_srcdir)/pyproject.toml' --verbose -ra "$$pyt_file" || exit $$?; \
+done
 endef
 
 else
