@@ -1,9 +1,15 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
 import os
 import sys
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from _pytest._code.code import ExceptionRepr
 
 #
 # Helpers
@@ -17,24 +23,24 @@ class TAP:
     https://testanything.org/tap-specification.html
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.count = 0
 
-    def expect(self, num: int):
+    def expect(self, num: int) -> None:
         self.print(f"1..{num}")
 
-    def print(self, *args):
+    def print(self, *args: Any) -> None:
         print(*args, file=sys.__stdout__)
 
-    def ok(self, name: str):
+    def ok(self, name: str) -> None:
         self.count += 1
         self.print("ok", self.count, "-", name)
 
-    def skip(self, name: str, reason: str):
+    def skip(self, name: str, reason: str) -> None:
         self.count += 1
         self.print("ok", self.count, "-", name, "# skip", reason)
 
-    def fail(self, name: str, details: str):
+    def fail(self, name: str, details: str) -> None:
         self.count += 1
         self.print("not ok", self.count, "-", name)
 
@@ -54,11 +60,11 @@ class TestNotes:
     (setup/test/teardown), so this class is used to correlate them.
     """
 
-    skipped = False
-    skip_reason = None
+    skipped: bool = False
+    skip_reason: str | None = None
 
-    failed = False
-    details = ""
+    failed: bool = False
+    details: str | None = None
 
 
 # Register a custom key in the stash dictionary for keeping our TestNotes.
@@ -71,7 +77,7 @@ notes_key = pytest.StashKey[TestNotes]()
 
 
 @pytest.hookimpl(tryfirst=True)
-def pytest_configure(config):
+def pytest_configure(config: pytest.Config) -> None:
     """
     Hijacks the standard streams as soon as possible during pytest startup. The
     pytest-formatted output gets logged to file instead, and we'll use the
@@ -87,7 +93,9 @@ def pytest_configure(config):
 
 
 @pytest.hookimpl(trylast=True)
-def pytest_sessionfinish(session, exitstatus):
+def pytest_sessionfinish(
+    session: pytest.Session, exitstatus: int | pytest.ExitCode
+) -> None:
     """
     Suppresses nonzero exit codes due to failed tests. (In that case, we want
     Meson to report a failure count, not a generic ERROR.)
@@ -97,14 +105,16 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.hookimpl
-def pytest_collectreport(report):
+def pytest_collectreport(report: pytest.CollectReport) -> None:
     # Include collection failures directly in Meson error output.
     if report.failed:
         print(report.longreprtext, file=sys.__stderr__)
 
 
 @pytest.hookimpl
-def pytest_internalerror(excrepr, excinfo):
+def pytest_internalerror(
+    excrepr: ExceptionRepr, excinfo: pytest.ExceptionInfo[BaseException]
+) -> None:
     # Include internal errors directly in Meson error output.
     print(excrepr, file=sys.__stderr__)
 
@@ -119,16 +129,16 @@ def pytest_internalerror(excrepr, excinfo):
 #
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_collection(session):
+@pytest.hookimpl(wrapper=True)
+def pytest_collection(session: pytest.Session):
     """Reports the number of gathered tests after collection is finished."""
     result = yield
     tap.expect(session.testscollected)
     return result
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item, call):
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     """
     Annotates a test item with our TestNotes and grabs relevant information for
     reporting.
@@ -154,21 +164,24 @@ def pytest_runtest_makereport(item, call):
     elif report.failed:
         notes.failed = True
 
-        if not notes.details:
-            notes.details += "{:_^72}\n\n".format(f" {report.head_line} ")
+        # The first failing report (a test and its teardown can both fail)
+        # writes the header; later ones append to what is already there.
+        details = notes.details or "{:_^72}\n\n".format(f" {report.head_line} ")
 
         if report.when in ("setup", "teardown"):
-            notes.details += "\n{:_^72}\n\n".format(
+            details += "\n{:_^72}\n\n".format(
                 f" Error during {report.when} of {report.head_line} "
             )
 
-        notes.details += report.longreprtext + "\n"
+        details += report.longreprtext + "\n"
 
         # Include captured stdout/stderr/log in failure output
         for section_name, section_content in report.sections:
             if section_content.strip():
-                notes.details += "\n{:-^72}\n".format(f" {section_name} ")
-                notes.details += section_content + "\n"
+                details += "\n{:-^72}\n".format(f" {section_name} ")
+                details += section_content + "\n"
+
+        notes.details = details
 
     else:
         raise RuntimeError("pytest_runtest_makereport received unknown test status")
@@ -176,8 +189,8 @@ def pytest_runtest_makereport(item, call):
     return report
 
 
-@pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_protocol(item, nextitem):
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None):
     """
     Reports the TAP result for this test item using our gathered TestNotes.
     """
@@ -187,8 +200,11 @@ def pytest_runtest_protocol(item, nextitem):
     notes = item.stash[notes_key]
 
     if notes.failed:
+        # notes.failed implies the makereport hook populated notes.details.
+        assert notes.details is not None
         tap.fail(item.nodeid, notes.details)
     elif notes.skipped:
+        assert notes.skip_reason is not None
         tap.skip(item.nodeid, notes.skip_reason)
     else:
         tap.ok(item.nodeid)

@@ -22,3 +22,6 @@ minversion = "7.2"
 
 # Common test code can be found here.
 pythonpath = ["src/test/pytest"]
+
+# Load the shared fixtures plugin
+addopts = ["-p", "pypg.fixtures"]
