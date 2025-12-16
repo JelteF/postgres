@@ -1835,12 +1835,19 @@ pytest_enabled = false
 pytest_version = ''
 pytest_cmd = ['pytest']  # dummy, overwritten when pytest is found
 # We also configure the same PYTHONPATH in the pytest settings in
-# pyproject.toml, but pytest versions below 8.4 only actually use that
-# value after plugin loading. On lower versions pytest will throw an error even
-# when just running 'pytest --version'. So we need to configure it here too.
-# This won't help people manually running pytest outside of meson/make, but we
-# expect those to use a recent enough version of pytest anyway (and if not they
-# can manually configure PYTHONPATH too).
+# pyproject.toml, but pytest versions below 8.4 only apply that setting after
+# loading the plugins listed in its addopts. So on lower versions, any pytest
+# invocation from the source root (even just 'pytest --version') fails with an
+# import error for the 'pypg.fixtures' plugin, because it's only findable
+# through that not-yet-applied PYTHONPATH. So we need to configure PYTHONPATH
+# here too. This won't help people manually running pytest outside of
+# meson/make, but we expect those to use a recent enough version of pytest
+# anyway (and if not they can manually configure PYTHONPATH too).
+#
+# This PYTHONPATH requirement is also why we cannot use pytest.version()
+# below, instead of parsing the 'pytest --version' output ourselves: meson
+# provides no way to set env for its --version probe. And pytest.version()
+# would need meson >= 0.62 anyway which we don't require yet.
 pytest_env = {'PYTHONPATH': meson.project_source_root() / 'src' / 'test' / 'pytest'}
 
 pytestopt = get_option('pytest')
