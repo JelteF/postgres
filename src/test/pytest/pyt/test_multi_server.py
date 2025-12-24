@@ -26,6 +26,7 @@ def test_multiple_servers_basic(create_pg):
 
     # Each server should be listening on a different port
     assert node1.port != node2.port
+    assert False
 
 
 @pytest.fixture(scope="module")
