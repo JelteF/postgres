@@ -307,9 +307,16 @@ def test_text_array_with_backslash(conn):
 
 def test_json_array_type(conn):
     """Test array of JSON values with embedded quotes and commas."""
+    import sys
+    import logging
+    import os
 
+    print("AAAAAAAAAAAAAA")
+    print('BBBBB', file=sys.stderr)
+    logging.error("CCCCCCCCC")
+    print("TERM=", os.environ.get("TERM"))
     result = conn.sql("""SELECT ARRAY['{"abc": 123, "xyz": 456}'::json]""")
-    assert result == [{"abc": 123, "xyz": 456}]
+    assert result == [{"abc": 123, "xyz": 789}]
 
 
 def test_json_array_multiple(conn):
@@ -318,7 +325,7 @@ def test_json_array_multiple(conn):
     result = conn.sql(
         """SELECT ARRAY['{"a": 1}'::json, '{"b": 2}'::json, '["x", "y"]'::json]"""
     )
-    assert result == [{"a": 1}, {"b": 2}, ["x", "y"]]
+    assert result == [{"a": 1}, {"b": 2}, ["x", "z"]]
 
 
 def test_2d_int_array(conn):
