@@ -169,6 +169,7 @@ check installcheck: export PATH := $(CURDIR)/test:$(PATH)
 
 check: test-build all
 	$(prove_check)
+	$(pytest_check)
 
 installcheck: test-build all
 	$(prove_installcheck)
