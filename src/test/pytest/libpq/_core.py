@@ -64,6 +64,15 @@ class ExecStatus(enum.IntEnum):
     PGRES_PIPELINE_ABORTED = 11
 
 
+class PollingStatus(enum.IntEnum):
+    """PostgreSQL polling status codes from PQconnectPoll/PQcancelPoll."""
+
+    PGRES_POLLING_FAILED = 0
+    PGRES_POLLING_READING = 1
+    PGRES_POLLING_WRITING = 2
+    PGRES_POLLING_OK = 3
+
+
 class _PGconn(ctypes.Structure):
     pass
 
@@ -72,8 +81,18 @@ class _PGresult(ctypes.Structure):
     pass
 
 
+class _PGcancel(ctypes.Structure):
+    pass
+
+
+class _PGcancelConn(ctypes.Structure):
+    pass
+
+
 _PGconn_p = ctypes.POINTER(_PGconn)
 _PGresult_p = ctypes.POINTER(_PGresult)
+_PGcancel_p = ctypes.POINTER(_PGcancel)
+_PGcancelConn_p = ctypes.POINTER(_PGcancelConn)
 
 
 def load_libpq_handle(libdir, bindir):
@@ -146,6 +165,81 @@ def load_libpq_handle(libdir, bindir):
 
     lib.PQresultErrorField.restype = ctypes.c_char_p
     lib.PQresultErrorField.argtypes = [_PGresult_p, ctypes.c_int]
+
+    # Async query functions
+    lib.PQsendQueryParams.restype = ctypes.c_int
+    lib.PQsendQueryParams.argtypes = [
+        _PGconn_p,
+        ctypes.c_char_p,  # command
+        ctypes.c_int,  # nParams
+        ctypes.POINTER(ctypes.c_uint),  # paramTypes
+        ctypes.POINTER(ctypes.c_char_p),  # paramValues
+        ctypes.POINTER(ctypes.c_int),  # paramLengths
+        ctypes.POINTER(ctypes.c_int),  # paramFormats
+        ctypes.c_int,  # resultFormat
+    ]
+
+    lib.PQgetResult.restype = _PGresult_p
+    lib.PQgetResult.argtypes = [_PGconn_p]
+
+    lib.PQconsumeInput.restype = ctypes.c_int
+    lib.PQconsumeInput.argtypes = [_PGconn_p]
+
+    lib.PQisBusy.restype = ctypes.c_int
+    lib.PQisBusy.argtypes = [_PGconn_p]
+
+    lib.PQsetnonblocking.restype = ctypes.c_int
+    lib.PQsetnonblocking.argtypes = [_PGconn_p, ctypes.c_int]
+
+    lib.PQisnonblocking.restype = ctypes.c_int
+    lib.PQisnonblocking.argtypes = [_PGconn_p]
+
+    lib.PQbackendPID.restype = ctypes.c_int
+    lib.PQbackendPID.argtypes = [_PGconn_p]
+
+    lib.PQsocket.restype = ctypes.c_int
+    lib.PQsocket.argtypes = [_PGconn_p]
+
+    # Legacy cancel functions (PGcancel)
+    lib.PQgetCancel.restype = _PGcancel_p
+    lib.PQgetCancel.argtypes = [_PGconn_p]
+
+    lib.PQfreeCancel.restype = None
+    lib.PQfreeCancel.argtypes = [_PGcancel_p]
+
+    lib.PQcancel.restype = ctypes.c_int
+    lib.PQcancel.argtypes = [_PGcancel_p, ctypes.c_char_p, ctypes.c_int]
+
+    lib.PQrequestCancel.restype = ctypes.c_int
+    lib.PQrequestCancel.argtypes = [_PGconn_p]
+
+    # Modern cancel functions (PGcancelConn)
+    lib.PQcancelCreate.restype = _PGcancelConn_p
+    lib.PQcancelCreate.argtypes = [_PGconn_p]
+
+    lib.PQcancelBlocking.restype = ctypes.c_int
+    lib.PQcancelBlocking.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelStart.restype = ctypes.c_int
+    lib.PQcancelStart.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelPoll.restype = ctypes.c_int
+    lib.PQcancelPoll.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelSocket.restype = ctypes.c_int
+    lib.PQcancelSocket.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelStatus.restype = ctypes.c_int
+    lib.PQcancelStatus.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelErrorMessage.restype = ctypes.c_char_p
+    lib.PQcancelErrorMessage.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelReset.restype = None
+    lib.PQcancelReset.argtypes = [_PGcancelConn_p]
+
+    lib.PQcancelFinish.restype = None
+    lib.PQcancelFinish.argtypes = [_PGcancelConn_p]
 
     return lib
 
@@ -366,6 +460,91 @@ class PGresult(contextlib.AbstractContextManager):
         return results
 
 
+class PGcancel(contextlib.AbstractContextManager):
+    """Wraps a raw _PGcancel_p with a more friendly interface."""
+
+    def __init__(self, lib: ctypes.CDLL, cancel: _PGcancel_p):
+        self._lib = lib
+        self._cancel = cancel
+
+    def __exit__(self, *exc):
+        if self._cancel:
+            self._lib.PQfreeCancel(self._cancel)
+            self._cancel = None
+
+    def cancel(self) -> None:
+        """Send a cancel request. Raises LibpqError on failure."""
+        errbuf = ctypes.create_string_buffer(256)
+        if not self._lib.PQcancel(self._cancel, errbuf, len(errbuf)):
+            raise LibpqError(errbuf.value.decode())
+
+
+class PGcancelConn(contextlib.AbstractContextManager):
+    """Wraps a raw _PGcancelConn_p with a more friendly interface."""
+
+    def __init__(self, lib: ctypes.CDLL, cancel_conn: _PGcancelConn_p):
+        self._lib = lib
+        self._cancel_conn = cancel_conn
+
+    def __exit__(self, *exc):
+        if self._cancel_conn:
+            self._lib.PQcancelFinish(self._cancel_conn)
+            self._cancel_conn = None
+
+    def blocking(self) -> bool:
+        """Send a cancel request and block until complete. Returns True on success."""
+        return bool(self._lib.PQcancelBlocking(self._cancel_conn))
+
+    def start(self) -> bool:
+        """Start an asynchronous cancel request. Returns True on success."""
+        return bool(self._lib.PQcancelStart(self._cancel_conn))
+
+    def poll(self) -> PollingStatus:
+        """Poll the cancel connection. Returns the polling status."""
+        return PollingStatus(self._lib.PQcancelPoll(self._cancel_conn))
+
+    def socket(self) -> int:
+        """Get the socket file descriptor."""
+        return self._lib.PQcancelSocket(self._cancel_conn)
+
+    def status(self) -> ConnectionStatus:
+        """Get the cancel connection status."""
+        return ConnectionStatus(self._lib.PQcancelStatus(self._cancel_conn))
+
+    def error_message(self) -> str:
+        """Get the error message, if any."""
+        msg = self._lib.PQcancelErrorMessage(self._cancel_conn)
+        return msg.decode() if msg else ""
+
+    def reset(self) -> None:
+        """Reset the cancel connection for reuse."""
+        self._lib.PQcancelReset(self._cancel_conn)
+
+    def poll_until_ready(self, timeout: float = 3.0) -> None:
+        """
+        Poll the cancel connection until it completes.
+        Raises LibpqError on failure.
+        """
+        import select
+
+        while True:
+            poll_status = self.poll()
+
+            if poll_status == PollingStatus.PGRES_POLLING_OK:
+                return
+            if poll_status == PollingStatus.PGRES_POLLING_FAILED:
+                raise LibpqError(f"cancel failed: {self.error_message()}")
+
+            sock = self.socket()
+            if sock < 0:
+                raise LibpqError(f"invalid socket: {self.error_message()}")
+
+            if poll_status == PollingStatus.PGRES_POLLING_READING:
+                select.select([sock], [], [], timeout)
+            elif poll_status == PollingStatus.PGRES_POLLING_WRITING:
+                select.select([], [sock], [], timeout)
+
+
 class PGconn(contextlib.AbstractContextManager):
     """
     Wraps a raw _PGconn_p with a more friendly interface. This is just a
@@ -419,6 +598,99 @@ class PGconn(contextlib.AbstractContextManager):
             return simplify_query_results(results)
         else:
             res.raise_error()
+
+    def set_nonblocking(self, nonblocking: bool) -> None:
+        """Set the connection to nonblocking mode."""
+        if self._lib.PQsetnonblocking(self._handle, int(nonblocking)) != 0:
+            raise LibpqError(f"failed to set nonblocking mode: {self.error_message()}")
+
+    def is_nonblocking(self) -> bool:
+        """Check if the connection is in nonblocking mode."""
+        return bool(self._lib.PQisnonblocking(self._handle))
+
+    def backend_pid(self) -> int:
+        """Get the backend process ID."""
+        return self._lib.PQbackendPID(self._handle)
+
+    def socket(self) -> int:
+        """Get the socket file descriptor."""
+        return self._lib.PQsocket(self._handle)
+
+    def error_message(self) -> str:
+        """Get the error message, if any."""
+        msg = self._lib.PQerrorMessage(self._handle)
+        return msg.decode() if msg else ""
+
+    def send_query_params(
+        self, command: str, params: Optional[list] = None
+    ) -> bool:
+        """
+        Send a query with parameters asynchronously.
+        Returns True on success, False on failure.
+        """
+        if params is None:
+            params = []
+
+        nparams = len(params)
+
+        # Convert params to c_char_p array
+        if nparams > 0:
+            param_values = (ctypes.c_char_p * nparams)()
+            for i, p in enumerate(params):
+                if p is None:
+                    param_values[i] = None
+                else:
+                    param_values[i] = str(p).encode()
+        else:
+            param_values = None
+
+        result = self._lib.PQsendQueryParams(
+            self._handle,
+            command.encode(),
+            nparams,
+            None,  # paramTypes - let the server infer
+            param_values,
+            None,  # paramLengths
+            None,  # paramFormats
+            0,  # resultFormat - text
+        )
+        return bool(result)
+
+    def get_result(self) -> Optional[PGresult]:
+        """
+        Get the next result from an async query.
+        Returns None when there are no more results.
+        """
+        res = self._lib.PQgetResult(self._handle)
+        if not res:
+            return None
+        return self._stack.enter_context(PGresult(self._lib, res))
+
+    def consume_input(self) -> bool:
+        """Consume input from the server. Returns True on success."""
+        return bool(self._lib.PQconsumeInput(self._handle))
+
+    def is_busy(self) -> bool:
+        """Check if the connection is busy waiting for results."""
+        return bool(self._lib.PQisBusy(self._handle))
+
+    def get_cancel(self) -> PGcancel:
+        """Get a PGcancel object for this connection."""
+        cancel = self._lib.PQgetCancel(self._handle)
+        if not cancel:
+            raise LibpqError("failed to get cancel object")
+        return self._stack.enter_context(PGcancel(self._lib, cancel))
+
+    def request_cancel(self) -> bool:
+        """Request cancellation of the current query. Returns True on success."""
+        return bool(self._lib.PQrequestCancel(self._handle))
+
+    def cancel_create(self) -> PGcancelConn:
+        """Create a PGcancelConn object for this connection."""
+        cancel_conn = self._lib.PQcancelCreate(self._handle)
+        if not cancel_conn:
+            raise LibpqError("failed to create cancel connection")
+        return self._stack.enter_context(PGcancelConn(self._lib, cancel_conn))
 
 
 def connstr(opts: Dict[str, Any]) -> str:
