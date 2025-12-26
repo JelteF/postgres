@@ -150,8 +150,6 @@ tests += {
     'tests': [
       't/001_uri.pl',
       't/002_api.pl',
-      't/003_load_balance_host_list.pl',
-      't/004_load_balance_dns.pl',
       't/005_negotiate_encryption.pl',
       't/006_service.pl',
     ],
@@ -161,6 +159,11 @@ tests += {
       'with_krb_srvnam': 'postgres',
     },
     'deps': libpq_test_deps,
+  },
+  'pytest': {
+    'tests': [
+      'pyt/test_load_balance.py',
+    ],
   },
 }
 
