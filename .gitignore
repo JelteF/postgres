@@ -45,3 +45,5 @@ __pycache__/
 /Release/
 /tmp_install/
 /portlock/
+/.venv/
+/uv.lock

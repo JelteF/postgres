@@ -3870,7 +3870,13 @@ foreach test_dir : tests
       env.prepend('PATH', temp_install_bindir, test_dir['bd'], test_dir['bd'] / 'test')
       temp_install_datadir = '@0@@1@'.format(test_install_destdir, dir_prefix / dir_data)
       env.set('share_contrib_dir', temp_install_datadir / 'contrib')
-      env.prepend('PYTHONPATH', meson.project_source_root() / 'src' / 'test' / 'pytest' / 'plugins')
+      # We also configure the same PYTHONPATH in the pytest settings in
+      # pyproject.toml, but pytest versions below 8.4 only actually use that
+      # value after plugin loading. So we need to configure it here too. This
+      # won't help people manually running pytest outside of meson/make, but we
+      # expect those to use a recent enough version of pytest anyway (and if
+      # not they can manually configure PYTHONPATH too).
+      env.prepend('PYTHONPATH', meson.project_source_root() / 'src' / 'test' / 'pytest')
 
       foreach name, value : t.get('env', {})
         env.set(name, value)
