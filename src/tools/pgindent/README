@@ -35,6 +35,10 @@ DOING THE INDENT RUN BEFORE A NORMAL COMMIT:
 
 	src/tools/pgindent/pgindent .
 
+   To also format Perl files at the same time, add --perltidy:
+
+	src/tools/pgindent/pgindent --perltidy=perltidy .
+
    If any files generate errors, restore their original versions with
    "git checkout", and see below for cleanup ideas.
 
@@ -76,12 +80,12 @@ AT LEAST ONCE PER RELEASE CYCLE:
 
 2) Run pgindent as above.
 
-3) Indent the Perl code using perltidy:
+3) Indent the Perl code using perltidy (if not already done in step 2):
 
-	src/tools/pgindent/pgperltidy .
+	src/tools/pgindent/pgindent --perl-only .
 
    If you want to use some perltidy version that's not in your PATH,
-   first set the PERLTIDY environment variable to point to it.
+   use --perltidy=PATH or set the PERLTIDY environment variable.
 
 4) Reformat the bootstrap catalog data files:
 
@@ -166,6 +170,4 @@ Note that we do not exclude ecpg's header files from the run.  Some of them
 get copied verbatim into ecpg's output, meaning that ecpg's expected files
 may need to be updated to match.
 
-The perltidy run processes all *.pl and *.pm files, plus a few
-executable Perl scripts that are not named that way.  See the "find"
-rules in pgperltidy for details.
+When --perltidy is given, pgindent also processes *.pl and *.pm files.
