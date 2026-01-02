@@ -948,13 +948,17 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
 	static_assert(condition, errmessage)
 #define StaticAssertStmt(condition, errmessage) \
 	do { static_assert(condition, errmessage); } while(0)
-#ifdef HAVE_STATEMENT_EXPRESSIONS
+#ifdef __cplusplus
+/* C++11 lambdas provide a convenient way to use static_assert as an expression */
+#define StaticAssertExpr(condition, errmessage) \
+	((void) ([](){ static_assert(condition, errmessage); }(), 0))
+#elif defined(HAVE_STATEMENT_EXPRESSIONS)
 #define StaticAssertExpr(condition, errmessage) \
 	((void) ({ static_assert(condition, errmessage); true; }))
 #else
 #define StaticAssertExpr(condition, errmessage) \
 	((void) sizeof(struct { int static_assert_failure : (condition) ? 1 : -1; }))
-#endif							/* HAVE_STATEMENT_EXPRESSIONS */
+#endif
 
 
 /*

@@ -2185,6 +2185,10 @@ if cc.get_id() == 'msvc'
     '/w24777', # 'function' : format string 'string' requires an argument of type 'type1', but variadic argument number has type 'type2' [like -Wformat]
   ]
 
+  cxxflags_warn += [
+    '/wd4200', # nonstandard extension used: zero-sized array in struct/union
+  ]
+
   cppflags += [
     '/DWIN32',
     '/DWINDOWS',
