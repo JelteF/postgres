@@ -203,48 +203,11 @@ list_length(const List *l)
 
 /*
  * Convenience macros for building fixed-length lists
- *
- * C++ doesn't support compound literals, so we use inline functions instead.
  */
-#ifdef __cplusplus
-static inline ListCell
-list_make_ptr_cell(void *v)
-{
-	ListCell	c;
-
-	c.ptr_value = v;
-	return c;
-}
-static inline ListCell
-list_make_int_cell(int v)
-{
-	ListCell	c;
-
-	c.int_value = v;
-	return c;
-}
-static inline ListCell
-list_make_oid_cell(Oid v)
-{
-	ListCell	c;
-
-	c.oid_value = v;
-	return c;
-}
-static inline ListCell
-list_make_xid_cell(TransactionId v)
-{
-	ListCell	c;
-
-	c.xid_value = v;
-	return c;
-}
-#else
-#define list_make_ptr_cell(v)	((ListCell) {.ptr_value = (v)})
-#define list_make_int_cell(v)	((ListCell) {.int_value = (v)})
-#define list_make_oid_cell(v)	((ListCell) {.oid_value = (v)})
-#define list_make_xid_cell(v)	((ListCell) {.xid_value = (v)})
-#endif
+#define list_make_ptr_cell(v)	pg_compound_literal(ListCell, .ptr_value = (v))
+#define list_make_int_cell(v)	pg_compound_literal(ListCell, .int_value = (v))
+#define list_make_oid_cell(v)	pg_compound_literal(ListCell, .oid_value = (v))
+#define list_make_xid_cell(v)	pg_compound_literal(ListCell, .xid_value = (v))
 
 #define list_make1(x1) \
 	list_make1_impl(T_List, list_make_ptr_cell(x1))

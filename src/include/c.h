@@ -109,6 +109,18 @@
 #endif
 
 /*
+ * C++ has different syntax for compound literals than C.  Provide a macro
+ * that uses the right syntax for each language.
+ *
+ * Usage: pg_compound_literal(TypeName, .field = value, ...)
+ */
+#ifdef __cplusplus
+#define pg_compound_literal(type, ...) (type { __VA_ARGS__ })
+#else
+#define pg_compound_literal(type, ...) ((type) { __VA_ARGS__ })
+#endif
+
+/*
  * Attribute macros
  *
  * GCC: https://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html

@@ -7,13 +7,16 @@ if not add_languages('cpp', required: false, native: false)
   subdir_done()
 endif
 
-# MSVC needs C++20 for designated initializers used in PG_MODULE_MAGIC and
-# list_make macros. Also suppress C4200 warnings about flexible array members.
 cpp = meson.get_compiler('cpp')
-if cpp.get_id() == 'msvc'
-  test_cplusplusext_cpp_args = ['/std:c++20', '/wd4200']
-else
-  test_cplusplusext_cpp_args = []
+
+# MSVC requires C++20 for designated initializers used in PG_MODULE_MAGIC and
+# other macros. Skip if the compiler doesn't support them.
+if not cpp.compiles('''
+    struct Foo { int a; int b; };
+    Foo f = {.a = 1, .b = 2};
+    ''',
+    name: 'C++ designated initializers')
+  subdir_done()
 endif
 
 test_cplusplusext_sources = files(
@@ -28,7 +31,5 @@ endif
 
 test_cplusplusext = shared_module('test_cplusplusext',
   test_cplusplusext_sources,
-  kwargs: pg_test_mod_args + {
-    'cpp_args': pg_test_mod_args.get('cpp_args', []) + test_cplusplusext_cpp_args,
-  },
+  kwargs: pg_test_mod_args,
 )
