@@ -2321,7 +2321,7 @@
   boot_val => '""',
 },
 
-{ name => 'recovery_init_sync_method', type => 'enum', context => 'PGC_SIGHUP', group => 'ERROR_HANDLING_OPTIONS',
+{ name => 'recovery_init_sync_method', type => 'enum', context => 'PGC_SIGHUP', group => 'WAL_RECOVERY',
   short_desc => 'Sets the method for synchronizing the data directory before crash recovery.',
   variable => 'recovery_init_sync_method',
   boot_val => 'DATA_DIR_SYNC_METHOD_FSYNC',

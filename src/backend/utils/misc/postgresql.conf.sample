@@ -267,11 +267,12 @@
 #max_wal_size = 1GB
 #min_wal_size = 80MB
 
-# - Prefetching during recovery -
+# - Recovery -
 
-#recovery_prefetch = try        # prefetch pages referenced in the WAL?
-#wal_decode_buffer_size = 512kB # lookahead window used for prefetching
-                                # (change requires restart)
+#recovery_prefetch = try                # prefetch pages referenced in the WAL?
+#wal_decode_buffer_size = 512kB         # lookahead window used for prefetching
+                                        # (change requires restart)
+#recovery_init_sync_method = fsync      # fsync, syncfs (Linux 5.8+)
 
 # - Archiving -
 
@@ -868,7 +869,6 @@
 #data_sync_retry = off                  # retry or panic on failure to fsync
                                         # data?
                                         # (change requires restart)
-#recovery_init_sync_method = fsync      # fsync, syncfs (Linux 5.8+)
 
 
 #------------------------------------------------------------------------------
