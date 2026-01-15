@@ -1452,6 +1452,8 @@ reportErrorPosition(PQExpBuffer msg, const char *query, int loc, int encoding)
  * Entry: 'v' message type and length have already been consumed.
  * Exit: returns 0 if successfully consumed message.
  *		 returns 1 on failure. The error message is filled in.
+ *		 returns 2 if server proposed a newer version and we were using GREASE;
+ *		   caller should retry the connection with the latest supported version.
  */
 int
 pqGetNegotiateProtocolVersion3(PGconn *conn)
@@ -1464,6 +1466,21 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 
 	if (pqGetInt(&their_version, 4, conn) != 0)
 		goto eof;
+
+	/*
+	 * If the server responds with a version newer than what this libpq
+	 * supports, and we were using GREASE, retry with the latest supported
+	 * version. This can happen if a future server legitimately supports a
+	 * newer minor version than us. We don't try to parse the rest of the
+	 * message since we don't know what format a newer protocol version might
+	 * use. The GREASE checks for protocol extensions will still happen on the
+	 * retry.
+	 */
+	if (their_version > PG_PROTOCOL_LATEST && PG_PROTOCOL_IS_GREASE(conn->pversion))
+	{
+		conn->max_pversion = PG_PROTOCOL_LATEST;
+		return 2;
+	}
 
 	if (pqGetInt(&num, 4, conn) != 0)
 		goto eof;
@@ -1496,22 +1513,17 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 		goto failure;
 	}
 
-	/*
-	 * If the server responds with a version newer than what this libpq
-	 * supports, disconnect. This can happen if we sent a GREASE version and a
-	 * future server legitimately supports a newer minor version than us.
-	 */
+	if (num < 0)
+	{
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported negative number of unsupported parameters");
+		goto failure;
+	}
+
 	if (their_version > PG_PROTOCOL_LATEST)
 	{
 		libpq_append_conn_error(conn, "server proposed protocol version 3.%d, but libpq only supports up to 3.%d",
 								PG_PROTOCOL_MINOR(their_version),
 								PG_PROTOCOL_MINOR(PG_PROTOCOL_LATEST));
-		goto failure;
-	}
-
-	if (num < 0)
-	{
-		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported negative number of unsupported parameters");
 		goto failure;
 	}
 

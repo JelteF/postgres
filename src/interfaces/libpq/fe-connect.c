@@ -4196,10 +4196,27 @@ keep_going:						/* We will come back to here until there is
 						libpq_append_conn_error(conn, "received duplicate protocol negotiation message");
 						goto error_return;
 					}
-					if (pqGetNegotiateProtocolVersion3(conn))
 					{
-						/* pqGetNegotiateProtocolVersion3 set error already */
-						goto error_return;
+						int			rc = pqGetNegotiateProtocolVersion3(conn);
+
+						if (rc == 1)
+						{
+							/*
+							 * pqGetNegotiateProtocolVersion3 set error
+							 * already
+							 */
+							goto error_return;
+						}
+						if (rc == 2)
+						{
+							/*
+							 * Server proposed newer version than libpq
+							 * supports; retry with the latest supported
+							 * version.
+							 */
+							need_new_connection = true;
+							goto keep_going;
+						}
 					}
 					conn->pversion_negotiated = true;
 
