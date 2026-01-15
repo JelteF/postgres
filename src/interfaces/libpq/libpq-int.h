@@ -547,6 +547,9 @@ struct pg_conn
 	uint8	   *scram_server_key_binary;	/* binary SCRAM server key */
 	ProtocolVersion min_pversion;	/* protocol version to request */
 	ProtocolVersion max_pversion;	/* protocol version to request */
+	int			ngrease_params; /* number of GREASE parameters (0-5) */
+	int			grease_prefix[5];	/* which prefix to use for each param */
+	uint16		grease_params[5];	/* random IDs for GREASE parameter names */
 
 	/* Miscellaneous stuff */
 	int			be_pid;			/* PID of backend --- needed for cancels */

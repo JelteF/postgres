@@ -2142,12 +2142,45 @@ pqConnectOptions2(PGconn *conn)
 	else
 	{
 		/*
-		 * Default to the GREASE protocol version to test that servers
-		 * properly implement NegotiateProtocolVersion. The server will
-		 * automatically downgrade to a supported version. This will be
-		 * changed to a supported version before the PG19 release.
+		 * Default to a GREASE protocol version to test that servers properly
+		 * implement NegotiateProtocolVersion. The server will automatically
+		 * downgrade to a supported version. This will be changed to a
+		 * supported version before the PG19 release.
 		 */
-		conn->max_pversion = PG_PROTOCOL_GREASE;
+		conn->max_pversion = PG_PROTOCOL_GREASE_MAX;
+	}
+
+	/*
+	 * If using GREASE, randomize the version, the number of GREASE parameters
+	 * (0-5), and each parameter's ID. This prevents implementations from
+	 * accidentally depending on specific GREASE values.
+	 */
+	if (PG_PROTOCOL_IS_GREASE(conn->max_pversion))
+	{
+		int			grease_range;
+
+		libpq_prng_init(conn);
+		grease_range = PG_PROTOCOL_MINOR(PG_PROTOCOL_GREASE_MAX) -
+			PG_PROTOCOL_MINOR(PG_PROTOCOL_GREASE_MIN);
+		conn->max_pversion = PG_PROTOCOL(3,
+										 PG_PROTOCOL_MINOR(PG_PROTOCOL_GREASE_MIN) +
+										 pg_prng_uint64_range(&conn->prng_state, 0, grease_range));
+		conn->ngrease_params = pg_prng_uint64_range(&conn->prng_state, 0, 5);
+
+		/* Initialize prefix indices and shuffle them (Fisher-Yates) */
+		for (int g = 0; g < 5; g++)
+			conn->grease_prefix[g] = g;
+		for (int g = 4; g > 0; g--)
+		{
+			int			j = pg_prng_uint64_range(&conn->prng_state, 0, g);
+			int			tmp = conn->grease_prefix[g];
+
+			conn->grease_prefix[g] = conn->grease_prefix[j];
+			conn->grease_prefix[j] = tmp;
+		}
+
+		for (int g = 0; g < conn->ngrease_params; g++)
+			conn->grease_params[g] = (uint16) pg_prng_uint64_range(&conn->prng_state, 0, 0xFFFF);
 	}
 
 	if (conn->min_pversion > conn->max_pversion)
@@ -4383,10 +4416,11 @@ keep_going:						/* We will come back to here until there is
 					goto error_return;
 				}
 
-				if (conn->max_pversion == PG_PROTOCOL_GREASE &&
-					conn->pversion == PG_PROTOCOL_GREASE)
+				if (PG_PROTOCOL_IS_GREASE(conn->max_pversion) &&
+					PG_PROTOCOL_IS_GREASE(conn->pversion))
 				{
-					libpq_append_conn_error(conn, "server incorrectly accepted reserved GREASE protocol version 3.9999 without negotiation");
+					libpq_append_conn_error(conn, "server incorrectly accepted reserved GREASE protocol version 3.%d without negotiation",
+											PG_PROTOCOL_MINOR(conn->pversion));
 					goto error_return;
 				}
 
@@ -8338,6 +8372,16 @@ pqParseProtocolVersion(const char *value, ProtocolVersion *result, PGconn *conn,
 	if (strcmp(value, "3.2") == 0)
 	{
 		*result = PG_PROTOCOL(3, 2);
+		return true;
+	}
+
+	if (strcmp(value, "grease") == 0)
+	{
+		/*
+		 * Use a placeholder; the actual random version is selected later when
+		 * the PRNG is initialized.
+		 */
+		*result = PG_PROTOCOL_GREASE_MAX;
 		return true;
 	}
 

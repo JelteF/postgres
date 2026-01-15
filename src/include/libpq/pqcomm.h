@@ -105,13 +105,20 @@ is_unixsock_path(const char *path)
 #define PG_PROTOCOL_RESERVED_31		PG_PROTOCOL(3,1)
 
 /*
- * PG_PROTOCOL_GREASE is an intentionally unsupported protocol version used
- * for GREASE (Generate Random Extensions And Sustain Extensibility). This
- * helps ensure that servers properly implement protocol version negotiation
- * via NegotiateProtocolVersion. Version 3.9999 was chosen to be safely within
- * the valid range but unlikely to ever be implemented.
+ * GREASE (Generate Random Extensions And Sustain Extensibility) version range.
+ * These are intentionally unsupported protocol versions used to ensure servers
+ * properly implement protocol version negotiation via NegotiateProtocolVersion.
+ * The range 3.9990-3.9999 was chosen to be safely within the valid range but
+ * unlikely to ever be implemented. A random version from this range is selected
+ * at connection time to prevent implementations from accidentally depending on
+ * specific GREASE values.
  */
-#define PG_PROTOCOL_GREASE		PG_PROTOCOL(3,9999)
+#define PG_PROTOCOL_GREASE_MIN	PG_PROTOCOL(3,9990)
+#define PG_PROTOCOL_GREASE_MAX	PG_PROTOCOL(3,9999)
+
+/* Check if a protocol version is in the GREASE range */
+#define PG_PROTOCOL_IS_GREASE(v) \
+	((v) >= PG_PROTOCOL_GREASE_MIN && (v) <= PG_PROTOCOL_GREASE_MAX)
 
 /*
  * A client can send a cancel-current-operation request to the postmaster.

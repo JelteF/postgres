@@ -32,6 +32,20 @@
 #include "port/pg_bswap.h"
 
 /*
+ * GREASE parameter name prefixes. Each GREASE parameter uses a different
+ * prefix to prevent implementations from pattern-matching on a single prefix.
+ * The full parameter name is the prefix followed by a random 4-digit hex
+ * number, e.g. "_pq_.protocol_grease_a1b2".
+ */
+static const char *const grease_prefixes[5] = {
+	"_pq_.test_protocol_negotiation_",
+	"_pq_.negotiation_test_",
+	"_pq_.protocol_grease_",
+	"_pq_.grease_the_server_",
+	"_pq_.always_unknown_extension_"
+};
+
+/*
  * This macro lists the backend message types that could be "long" (more
  * than a couple of kilobytes).
  */
@@ -1444,8 +1458,9 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 {
 	int			their_version;
 	int			num;
-	bool		found_test_protocol_negotiation;
-	bool		expect_test_protocol_negotiation;
+	int			ngrease_found;
+	bool		grease_found[5] = {false};
+	bool		expect_grease;
 
 	if (pqGetInt(&their_version, 4, conn) != 0)
 		goto eof;
@@ -1473,10 +1488,24 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 		goto failure;
 	}
 
-	/* The GREASE protocol version is intentionally unsupported and reserved */
-	if (their_version == PG_PROTOCOL_GREASE)
+	/* GREASE protocol versions are intentionally unsupported and reserved */
+	if (PG_PROTOCOL_IS_GREASE(their_version))
 	{
-		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server claimed to support reserved GREASE protocol version 3.9999");
+		libpq_append_conn_error(conn, "received invalid protocol negotiation message: server claimed to support reserved GREASE protocol version 3.%d",
+								PG_PROTOCOL_MINOR(their_version));
+		goto failure;
+	}
+
+	/*
+	 * If the server responds with a version newer than what this libpq
+	 * supports, disconnect. This can happen if we sent a GREASE version and a
+	 * future server legitimately supports a newer minor version than us.
+	 */
+	if (their_version > PG_PROTOCOL_LATEST)
+	{
+		libpq_append_conn_error(conn, "server proposed protocol version 3.%d, but libpq only supports up to 3.%d",
+								PG_PROTOCOL_MINOR(their_version),
+								PG_PROTOCOL_MINOR(PG_PROTOCOL_LATEST));
 		goto failure;
 	}
 
@@ -1509,13 +1538,16 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 
 	/*
 	 * Check that all expected unsupported parameters are reported by the
-	 * server.
+	 * server. In GREASE mode, we expect all our GREASE parameters to be
+	 * reported as unsupported.
 	 */
-	found_test_protocol_negotiation = false;
-	expect_test_protocol_negotiation = (conn->max_pversion == PG_PROTOCOL_GREASE);
+	ngrease_found = 0;
+	expect_grease = PG_PROTOCOL_IS_GREASE(conn->max_pversion);
 
 	for (int i = 0; i < num; i++)
 	{
+		bool		matched = false;
+
 		if (pqGets(&conn->workBuffer, conn))
 		{
 			goto eof;
@@ -1526,12 +1558,31 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 			goto failure;
 		}
 
-		/* Check if this is the expected test parameter */
-		if (expect_test_protocol_negotiation && strcmp(conn->workBuffer.data, "_pq_.test_protocol_negotiation") == 0)
+		/* Check if this matches any of our expected GREASE parameters */
+		if (expect_grease)
 		{
-			found_test_protocol_negotiation = true;
+			for (int j = 0; j < conn->ngrease_params; j++)
+			{
+				char		expected_opt[32];
+
+				snprintf(expected_opt, sizeof(expected_opt), "%s%04x",
+						 grease_prefixes[conn->grease_prefix[j]], conn->grease_params[j]);
+				if (strcmp(conn->workBuffer.data, expected_opt) == 0)
+				{
+					if (grease_found[j])
+					{
+						libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported duplicate unsupported parameter (\"%s\")", conn->workBuffer.data);
+						goto failure;
+					}
+					grease_found[j] = true;
+					ngrease_found++;
+					matched = true;
+					break;
+				}
+			}
 		}
-		else
+
+		if (!matched)
 		{
 			libpq_append_conn_error(conn, "received invalid protocol negotiation message: server reported an unsupported parameter that was not requested (\"%s\")", conn->workBuffer.data);
 			goto failure;
@@ -1539,13 +1590,28 @@ pqGetNegotiateProtocolVersion3(PGconn *conn)
 	}
 
 	/*
-	 * If we requested the GREASE protocol version, the server must report
-	 * _pq_.test_protocol_negotiation as unsupported. This ensures
-	 * comprehensive NegotiateProtocolVersion implementation.
+	 * If we requested a GREASE protocol version, the server must report all
+	 * our GREASE options as unsupported. This ensures comprehensive
+	 * NegotiateProtocolVersion implementation.
 	 */
-	if (expect_test_protocol_negotiation && !found_test_protocol_negotiation)
+	if (expect_grease && ngrease_found != conn->ngrease_params)
 	{
-		libpq_append_conn_error(conn, "server did not report the unsupported `_pq_.test_protocol_negotiation` parameter in its protocol negotiation message");
+		PQExpBufferData missing;
+
+		initPQExpBuffer(&missing);
+		for (int j = 0; j < conn->ngrease_params; j++)
+		{
+			if (!grease_found[j])
+			{
+				if (missing.len > 0)
+					appendPQExpBufferStr(&missing, ", ");
+				appendPQExpBuffer(&missing, "%s%04x",
+								  grease_prefixes[conn->grease_prefix[j]], conn->grease_params[j]);
+			}
+		}
+		libpq_append_conn_error(conn, "server did not report unsupported GREASE parameter(s): %s",
+								missing.data);
+		termPQExpBuffer(&missing);
 		goto failure;
 	}
 
@@ -2497,12 +2563,23 @@ build_startup_packet(const PGconn *conn, char *packet,
 		ADD_STARTUP_OPTION("client_encoding", conn->client_encoding_initial);
 
 	/*
-	 * Add the test protocol negotiation option if we're using the GREASE
-	 * protocol version. This tests that servers properly report unsupported
-	 * protocol options in their NegotiateProtocolVersion response.
+	 * Add GREASE protocol options if we're using a GREASE protocol version.
+	 * This tests that servers properly report unsupported protocol options in
+	 * their NegotiateProtocolVersion response. Each option name includes a
+	 * random suffix to prevent implementations from depending on specific
+	 * GREASE values. The number of options (0-5) is also randomized.
 	 */
-	if (conn->pversion == PG_PROTOCOL_GREASE)
-		ADD_STARTUP_OPTION("_pq_.test_protocol_negotiation", "");
+	if (PG_PROTOCOL_IS_GREASE(conn->pversion))
+	{
+		for (int i = 0; i < conn->ngrease_params; i++)
+		{
+			char		grease_opt[32];
+
+			snprintf(grease_opt, sizeof(grease_opt), "%s%04x",
+					 grease_prefixes[conn->grease_prefix[i]], conn->grease_params[i]);
+			ADD_STARTUP_OPTION(grease_opt, "");
+		}
+	}
 
 	/* Add any environment-driven GUC settings needed */
 	for (next_eo = options; next_eo->envName; next_eo++)
