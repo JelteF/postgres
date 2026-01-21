@@ -585,6 +585,34 @@ if not cc.compiles(c11_test, name: 'C11')
   endif
 endif
 
+# Do we need an option to enable C++11?
+if have_cxx
+  cxx11_test = '''
+#if !defined __cplusplus || __cplusplus < 201103L
+# error "Compiler does not advertise C++11 conformance"
+#endif
+'''
+
+  if not cxx.compiles(cxx11_test, name: 'C++11')
+    have_cxx = false
+    if cxx.get_id() == 'msvc'
+      cxx11_test_args = ['/std:c++11']
+    else
+      cxx11_test_args = ['-std=gnu++11', '-std=c++11']
+    endif
+    foreach arg : cxx11_test_args
+      if cxx.compiles(cxx11_test, name: 'C++11 with @0@'.format(arg), args: [arg])
+        have_cxx = true
+        cxxflags += arg
+        break
+      endif
+    endforeach
+    if not have_cxx
+      warning('C++ compiler does not support C++11')
+    endif
+  endif
+endif
+
 
 postgres_inc = [include_directories(postgres_inc_d)]
 test_lib_d = postgres_lib_d
