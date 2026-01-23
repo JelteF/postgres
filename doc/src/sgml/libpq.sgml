@@ -2213,10 +2213,17 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
       <listitem>
        <para>
         Specifies the protocol version to request from the server.
-        During the PostgreSQL 19 beta period, the default is to use
-        <literal>3.9999</literal>, a GREASE (Generate Random Extensions And
-        Sustain Extensibility) value that tests proper protocol negotiation
-        implementation. If the server does not support the protocol version
+        During the PostgreSQL 19 beta period, the default is
+        <literal>grease</literal>, which requests a random protocol version in
+        the range 3.9990-3.9999 and includes 0-5 random GREASE startup
+        parameters. This tests that servers and middleware properly implement
+        protocol version negotiation. The default will be changed to
+        <literal>latest</literal> before PostgreSQL 19 is released, but the
+        <literal>grease</literal> option will remain available for testing.
+       </para>
+
+       <para>
+        If the server does not support the protocol version
         requested by the client, the connection is automatically downgraded to
         a lower minor protocol version that the server supports. After the
         connection attempt has completed you can use
@@ -2232,10 +2239,13 @@ postgresql://%2Fvar%2Flib%2Fpostgresql/dbname
 
        <para>
         The current supported values are
-        <literal>3.0</literal>, <literal>3.2</literal>,
-        and <literal>latest</literal>. The <literal>latest</literal> value is
-        equivalent to the latest protocol version supported by the libpq
-        version being used, which is currently <literal>3.2</literal>.
+        <literal>3.0</literal>,
+        <literal>3.2</literal>,
+        <literal>latest</literal>, and
+        <literal>grease</literal>.
+        The <literal>latest</literal> value is equivalent to the latest
+        protocol version supported by the libpq version being used, which is
+        currently <literal>3.2</literal>.
        </para>
       </listitem>
      </varlistentry>

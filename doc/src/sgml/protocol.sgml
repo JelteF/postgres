@@ -193,12 +193,13 @@
 
    <para>
     The current, latest version of the protocol is version 3.2. During the
-    PostgreSQL 19 beta period, libpq defaults to requesting protocol version
-    3.9999 to test that servers and middleware properly implement protocol
-    version negotiation. Servers that support negotiation will automatically
-    downgrade to version 3.2 or 3.0. For servers that don't support
-    negotiation, users can connect by explicitly setting
-    <literal>max_protocol_version=3.0</literal> in their connection string.
+    PostgreSQL 19 beta period, libpq defaults to requesting a random protocol
+    version in the range 3.9990-3.9999 (the GREASE range) to test that servers
+    and middleware properly implement protocol version negotiation. Servers
+    that support negotiation will automatically downgrade to version 3.2 or
+    3.0. For servers that don't support negotiation, users can connect by
+    explicitly setting <literal>max_protocol_version=3.0</literal> in their
+    connection string.
    </para>
 
    <para>
@@ -242,17 +243,17 @@
 
      <tbody>
       <row>
-      <entry>3.9999</entry>
+      <entry>3.9990-3.9999</entry>
       <entry>-</entry>
       <entry>GREASE (Generate Random Extensions And Sustain Extensibility)
-        version. This version number is intentionally reserved and will never
-        be implemented. During the PostgreSQL 19 beta period, libpq requests
-        this version by default to test that servers and middleware properly
-        implement protocol version negotiation via
+        version range. These version numbers are intentionally reserved and
+        will never be implemented. Clients can request a random version from
+        this range to test that servers and middleware properly implement
+        protocol version negotiation via
         <literal>NegotiateProtocolVersion</literal>. Servers should respond
         by downgrading to a supported version. This mechanism helps ensure
-        the ecosystem is ready for future protocol versions. libpq will revert
-        to defaulting to version 3.0 before the PostgreSQL 19 final release.
+        the ecosystem is ready for future protocol versions. libpq supports
+        this via <literal>max_protocol_version=grease</literal>.
       </entry>
       </row>
       <row>
@@ -319,20 +320,39 @@
 
      <tbody>
       <row>
-       <entry><literal>test_protocol_negotiation</literal></entry>
+       <entry><literal>test_protocol_negotiation_XXXX</literal></entry>
        <entry>-</entry>
        <entry>-</entry>
-       <entry>
-        A reserved protocol extension requested by libpq to test that servers
-        properly implement protocol version negotiation. When the client
-        requests a GREASE protocol version, this parameter is automatically
-        included in the startup packet too. Servers should report it as
-        unsupported in their <literal>NegotiateProtocolVersion</literal>
-        response. In GREASE mode the connection will fail if the server
-        doesn't report this parameter as unsupported, ensuring comprehensive
-        implementation of protocol negotiation. This parameter is reserved and
-        will never actually be implemented by a server.
+       <entry morerows="4">
+        Reserved GREASE (Generate Random Extensions And Sustain Extensibility)
+        protocol extensions. The XXXX can be replaced for any random hex
+        number. These protocol extensions will never be implemented by a
+        server, and they should thus report them as unsupported in their
+        <literal>NegotiateProtocolVersion</literal> response. Clients are free
+        to request them to ensure a comprehensive implementation of the
+        protocol negotiation. As an example libpq sends 0-5 of these parameters
+        when <literal>max_protocol_version=grease</literal>.
        </entry>
+      </row>
+      <row>
+       <entry><literal>negotiation_test_XXXX</literal></entry>
+       <entry>-</entry>
+       <entry>-</entry>
+      </row>
+      <row>
+       <entry><literal>protocol_grease_XXXX</literal></entry>
+       <entry>-</entry>
+       <entry>-</entry>
+      </row>
+      <row>
+       <entry><literal>grease_the_server_XXXX</literal></entry>
+       <entry>-</entry>
+       <entry>-</entry>
+      </row>
+      <row>
+       <entry><literal>always_unknown_extension_XXXX</literal></entry>
+       <entry>-</entry>
+       <entry>-</entry>
       </row>
      </tbody>
     </tgroup>
