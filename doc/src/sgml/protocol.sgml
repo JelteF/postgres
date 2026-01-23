@@ -224,7 +224,7 @@
    </para>
 
    <para>
-    <xref linkend="protocol-versions-table"/> shows the currently supported
+    <xref linkend="protocol-versions-table"/> shows the currently defined
     protocol versions.
    </para>
 
@@ -252,7 +252,7 @@
         <literal>NegotiateProtocolVersion</literal>. Servers should respond
         by downgrading to a supported version. This mechanism helps ensure
         the ecosystem is ready for future protocol versions. libpq will revert
-        to defaulting to version 3.2 before the PostgreSQL 19 final release.
+        to defaulting to version 3.0 before the PostgreSQL 19 final release.
       </entry>
       </row>
       <row>
@@ -283,6 +283,56 @@
       <entry>See previous releases of
       the <productname>PostgreSQL</productname> documentation for
       details</entry>
+      </row>
+     </tbody>
+    </tgroup>
+   </table>
+
+  </sect2>
+
+  <sect2 id="protocol-extensions">
+   <title>Protocol Extensions</title>
+
+   <para>
+    In addition to protocol version negotiation, the client can request
+    optional protocol extensions by including parameters in the startup message.
+    Protocol extension parameter names must be prefixed with
+    <literal>_pq_.</literal> to distinguish them from server parameters.
+    If the server does not recognize an extension, it will report it in the
+    NegotiateProtocolVersion message. <xref
+    linkend="protocol-extensions-table"/> shows the currently defined
+    protocol extensions.
+   </para>
+
+   <table id="protocol-extensions-table">
+    <title>Protocol Extensions</title>
+
+    <tgroup cols="4">
+     <thead>
+      <row>
+       <entry>Extension</entry>
+       <entry>Supported Values</entry>
+       <entry>Introduced In</entry>
+       <entry>Description</entry>
+      </row>
+     </thead>
+
+     <tbody>
+      <row>
+       <entry><literal>test_protocol_negotiation</literal></entry>
+       <entry>-</entry>
+       <entry>-</entry>
+       <entry>
+        A reserved protocol extension requested by libpq to test that servers
+        properly implement protocol version negotiation. When the client
+        requests a GREASE protocol version, this parameter is automatically
+        included in the startup packet too. Servers should report it as
+        unsupported in their <literal>NegotiateProtocolVersion</literal>
+        response. In GREASE mode the connection will fail if the server
+        doesn't report this parameter as unsupported, ensuring comprehensive
+        implementation of protocol negotiation. This parameter is reserved and
+        will never actually be implemented by a server.
+       </entry>
       </row>
      </tbody>
     </tgroup>
@@ -6164,29 +6214,12 @@ psql "dbname=postgres replication=database" -c "IDENTIFY_SYSTEM;"
             </para>
            </listitem>
           </varlistentry>
-          <varlistentry>
-           <term><literal>_pq_.test_protocol_negotiation</literal></term>
-           <listitem>
-            <para>
-             A reserved protocol extension requested by libpq during the
-             PostgreSQL 19 beta period to test that servers properly implement
-             protocol version negotiation. When the client requests the GREASE
-             protocol version (3.9999), this parameter is automatically
-             included in the startup packet too. Servers should report it as
-             unsupported in their <literal>NegotiateProtocolVersion</literal>
-             response. In GREASE mode the connection will fail if the server
-             doesn't report this parameter as unsupported, ensuring
-             comprehensive implementation of protocol negotiation. This
-             parameter is reserved and will never actually be implemented by a
-             server.
-            </para>
-           </listitem>
-          </varlistentry>
          </variablelist>
 
          In addition to the above, other parameters may be listed.
          Parameter names beginning with <literal>_pq_.</literal> are
-         reserved for use as protocol extensions, while others are
+         reserved for use as protocol extensions (see
+         <xref linkend="protocol-extensions"/>), while others are
          treated as run-time parameters to be set at backend start
          time.  Such settings will be applied during backend start
          (after parsing the command-line arguments if any) and will
