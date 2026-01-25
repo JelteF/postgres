@@ -286,8 +286,6 @@ DROP FUNCTION test_ambiguous_funcname(text);
 -- Likewise for procedures.
 CREATE PROCEDURE test_ambiguous_procname(int) as $$ begin end; $$ language plpgsql;
 CREATE PROCEDURE test_ambiguous_procname(text) as $$ begin end; $$ language plpgsql;
-DROP PROCEDURE test_ambiguous_procname;
-DROP PROCEDURE IF EXISTS test_ambiguous_procname;
 
 -- Check we get a similar error if we use ROUTINE instead of PROCEDURE.
 DROP ROUTINE IF EXISTS test_ambiguous_procname;

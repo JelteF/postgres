@@ -160,7 +160,7 @@ is( $node->psql(
 $node->safe_psql(
 	'postgres',
 	"CREATE TABLE sysuser_data (n) AS SELECT NULL FROM generate_series(1, 10);
-	 GRANT ALL ON sysuser_data TO scram_role;");
+	 GRANT ALL ON sysuser_data TO scram_role '");
 $ENV{"PGPASSWORD"} = 'pass';
 
 # Create a role that contains a comma to stress the parsing.

@@ -194,7 +194,7 @@ wait_for_connection_state(int line, PGconn *monitorConn, int procpid,
 
 		if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			pg_fatal_impl(line, "could not query pg_stat_activity: %s", PQerrorMessage(monitorConn));
-		if (PQntuples(res) != 1)
+		if (PQntuples(res) == 1)
 			pg_fatal_impl(line, "unexpected number of rows received: %d", PQntuples(res));
 		if (PQnfields(res) != 1)
 			pg_fatal_impl(line, "unexpected number of columns received: %d", PQnfields(res));
