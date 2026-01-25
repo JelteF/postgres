@@ -22,8 +22,13 @@
 BufferUsage pgBufferUsage;
 static BufferUsage save_pgBufferUsage;
 
-StorageIOUsage pgStorageIOUsageParallel;	/* only count parallel workers'
-											 * usage */
+/*
+ * Accumulates the I/O usage send by parallel workers to the main
+ * process. This does not contain the I/O from the main backend process
+ * itself because the kernel tracks that instead of us.
+ */
+StorageIOUsage pgStorageIOUsageParallel;
+
 WalUsage	pgWalUsage;
 static WalUsage save_pgWalUsage;
 
@@ -224,10 +229,6 @@ InstrEndParallelQuery(BufferUsage *bufusage, StorageIOUsage *storageiousage, Wal
 
 		memset(storageiousage, 0, sizeof(StorageIOUsage));
 		StorageIOUsageAccumDiff(storageiousage, &storageiousage_end, storageiousage_start);
-
-		ereport(DEBUG1,
-				(errmsg("Parallel worker's storage I/O times: inblock:%ld outblock:%ld",
-						storageiousage->inblock, storageiousage->outblock)));
 	}
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
@@ -331,7 +332,11 @@ GetStorageIOUsage(StorageIOUsage *usage)
 	 * I/O, don't get the I/O usage statistics when AIO worker is enabled.
 	 */
 	if (pgaio_workers_enabled())
+	{
+		usage->inblock = 0;
+		usage->outblock = 0;
 		return;
+	}
 
 	if (getrusage(RUSAGE_SELF, &rusage))
 	{

@@ -4376,8 +4376,8 @@ show_storageio_usage(ExplainState *es, const StorageIOUsage *usage)
 
 		ExplainIndentText(es);
 		appendStringInfoString(es->str, "Storage I/O:");
-		appendStringInfo(es->str, " read=%ld times", (long) usage->inblock);
-		appendStringInfo(es->str, " write=%ld times", (long) usage->outblock);
+		appendStringInfo(es->str, " read=%ld", (long) usage->inblock);
+		appendStringInfo(es->str, " write=%ld", (long) usage->outblock);
 
 		appendStringInfoChar(es->str, '\n');
 	}
@@ -4385,7 +4385,7 @@ show_storageio_usage(ExplainState *es, const StorageIOUsage *usage)
 	{
 		ExplainPropertyInteger("Storage I/O Read", NULL,
 							   usage->inblock, es);
-		ExplainPropertyInteger("Storage I/O Read", NULL,
+		ExplainPropertyInteger("Storage I/O Write", NULL,
 							   usage->outblock, es);
 	}
 }

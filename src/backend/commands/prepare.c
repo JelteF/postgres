@@ -648,12 +648,14 @@ ExplainExecuteQuery(ExecuteStmt *execstmt, IntoClause *into, ExplainState *es,
 		MemoryContextMemConsumed(planner_ctx, &mem_counters);
 	}
 
-	/* calc differences of buffer counters. */
+	/* calc differences of buffer and storage I/O counters. */
 	if (es->buffers)
 	{
 		memset(&bufusage, 0, sizeof(BufferUsage));
 		BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
+
 		GetStorageIOUsage(&storageio);
+		StorageIOUsageDiff(&storageio, &storageio_start);
 	}
 
 	plan_list = cplan->stmt_list;
