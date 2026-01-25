@@ -877,9 +877,10 @@
   </para>
 
   <para>
-   <acronym>WAL</acronym> files are stored in the directory
-   <filename>pg_wal</filename> under the data directory, as a set of
-   segment files, normally each 16 MB in size (but the size can be changed
+   <acronym>WAL</acronym> files are written to the directory
+   <filename>pg_wal</filename> under the data directory
+   (see <xref linkend="wal-internals-relocation"/>).
+   Each file, also called a segment file, is 16 MB in size (but the size can be changed
    by altering the <option>--wal-segsize</option> <application>initdb</application> option).  Each segment is
    divided into pages, normally 8 kB each (this size can be changed via the
    <option>--with-wal-blocksize</option> configure option).  The WAL record headers
@@ -889,14 +890,6 @@
    <filename>000000010000000000000001</filename>.  The numbers do not wrap,
    but it will take a very, very long time to exhaust the
    available stock of numbers.
-  </para>
-
-  <para>
-   It is advantageous if the WAL is located on a different disk from the
-   main database files.  This can be achieved by moving the
-   <filename>pg_wal</filename> directory to another location (while the server
-   is shut down, of course) and creating a symbolic link from the
-   original location in the main data directory to the new location.
   </para>
 
   <para>
@@ -937,6 +930,46 @@
    to read <filename>pg_control</filename> itself.  So while it is
    theoretically a weak spot, <filename>pg_control</filename> does not
    seem to be a problem in practice.
+  </para>
+ </sect1>
+
+ <sect1 id="wal-internals-relocation" xreflabel="WAL Directory Relocation">
+  <title>Relocating the <acronym>WAL</acronym> Directory</title>
+  <para>
+   The data directory of a <productname>PostgreSQL</productname> cluster always
+   contains an entry named <filename>pg_wal</filename>.  This is where
+   <acronym>WAL</acronym> files are written.  If this entry is a directory
+   then the files will be physically stored within the same filesystem as the
+   data directory.  However, the entry can be a symbolic link, in which case
+   the files will be stored in the filesystem location the link points to.
+  </para>
+  <para>
+   To create a symbolic link during the creation of a cluster, using either
+   <application><xref linkend="app-initdb"/></application> or
+   <application><xref linkend="app-pgbasebackup"/></application>, specify
+   the <option>--waldir</option> option.  On an existing, but not running,
+   cluster use operating system commands to move the contents of the
+   <filename>pg_wal</filename> directory to the new location, remove the
+   empty directory, and create the symbolic link named <filename>pg_wal</filename>
+   pointing to the new location.
+  </para>
+  <para>
+   One reason for relocating the <acronym>WAL</acronym> directory is to
+   ensure that even if the data directory runs out of space the writing of
+   <acronym>WAL</acronym> files can continue.  For this, the chosen location must
+   be on a different filesystem.  Similarly, the optimal filesystem
+   characteristics for the data directory, which involves considerable random
+   read and write <acronym>I/O</acronym>, are different than those for the
+   <acronym>WAL</acronym>, which mainly requires sequential write
+   <acronym>I/O</acronym>.  Another reason is to increase the effective
+   <acronym>I/O</acronym> capacity of the cluster by leveraging a separate
+   physical disk for the <acronym>WAL</acronym> files.
+  </para>
+  <para>
+   If the symbolic link does point to another filesystem, or for some other
+   reason involves a mount point on the filesystem the data directory is located
+   on, create a directory under the mount point and use that as the target of
+   the symbolic link.
   </para>
  </sect1>
 

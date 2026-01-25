@@ -324,16 +324,11 @@ PostgreSQL documentation
       <term><option>--waldir=<replaceable class="parameter">waldir</replaceable></option></term>
       <listitem>
        <para>
-        Sets the directory to write WAL (write-ahead log) files to.
-        By default WAL files will be placed in
-        the <filename>pg_wal</filename> subdirectory of the target
-        directory, but this option can be used to place them elsewhere.
-        <replaceable>waldir</replaceable> must be an absolute path.
-        As with the main target directory,
-        <replaceable>waldir</replaceable> need not exist already, but if
-        it does exist it must be empty.
-        This option can only be specified when
-        the backup is in plain format.
+        This option specifies the directory in which to store write-ahead log files.
+        See <xref linkend="wal-internals-relocation"/> for more information.
+        The specified path must be absolute. It will be created, including parents,
+        if missing.  Otherwise, the directory must be empty.
+        This option can only be specified when the backup is in plain format.
        </para>
       </listitem>
      </varlistentry>
