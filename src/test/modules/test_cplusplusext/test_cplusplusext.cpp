@@ -34,7 +34,7 @@ StaticAssertDecl(sizeof(int32) == 4, "int32 should be 4 bytes");
 extern "C" Datum
 test_cplusplus_add(PG_FUNCTION_ARGS)
 {
-	int32		a = PG_GETARG_INT32(0);
+	const int32		a = PG_GETARG_INT32(0);
 	int32		b = PG_GETARG_INT32(1);
 	RangeTblRef *node = makeNode(RangeTblRef);
 	RangeTblRef *copy = copyObject(node);
@@ -52,6 +52,10 @@ test_cplusplus_add(PG_FUNCTION_ARGS)
 
 	StaticAssertStmt(sizeof(int32) == 4, "int32 should be 4 bytes");
 	(void) StaticAssertExpr(sizeof(int64) == 8, "int64 should be 8 bytes");
+	StaticAssertVariableIsOfType(a, int32);
+	StaticAssertVariableIsOfType(b, int32);
+	StaticAssertVariableIsOfTypeMacro(a, int32);
+	StaticAssertVariableIsOfTypeMacro(b, int32);
 
 	list_free(list);
 	pfree(node);

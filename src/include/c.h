@@ -80,6 +80,12 @@
 #ifdef HAVE_XLOCALE_H
 #include <xlocale.h>
 #endif
+#ifdef __cplusplus
+extern "C++"
+{
+#include <type_traits>
+}
+#endif
 #ifdef ENABLE_NLS
 #include <libintl.h>
 #endif
@@ -444,6 +450,18 @@
 #define HAVE_TYPEOF 1
 #endif
 #endif
+
+/*
+ * pg_exprtype_unqual_is
+ *		Check if an expression when unqualified has a specific type.
+ */
+#if defined(__cplusplus)
+#define pg_exprtype_unqual_is(expr, type_) \
+	(std::is_same<std::remove_cv<decltype(expr)>::type, type_>::value)
+#else
+#define pg_exprtype_unqual_is(expr, type_) _Generic((expr), type_: 1, default: 0)
+#endif
+
 
 /*
  * CppAsString
@@ -1015,26 +1033,13 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
  * StaticAssertVariableIsOfType() can be used as a declaration.
  * StaticAssertVariableIsOfTypeMacro() is intended for use in macros, eg
  *		#define foo(x) (StaticAssertVariableIsOfTypeMacro(x, int), bar(x))
- *
- * If we don't have __builtin_types_compatible_p, we can still assert that
- * the types have the same size.  This is far from ideal (especially on 32-bit
- * platforms) but it provides at least some coverage.
  */
-#ifdef HAVE__BUILTIN_TYPES_COMPATIBLE_P
 #define StaticAssertVariableIsOfType(varname, typename) \
-	StaticAssertDecl(__builtin_types_compatible_p(typeof(varname), typename), \
+	StaticAssertDecl(pg_exprtype_unqual_is(varname, typename), \
 	CppAsString(varname) " does not have type " CppAsString(typename))
 #define StaticAssertVariableIsOfTypeMacro(varname, typename) \
-	(StaticAssertExpr(__builtin_types_compatible_p(typeof(varname), typename), \
+	(StaticAssertExpr(pg_exprtype_unqual_is(varname, typename), \
 	 CppAsString(varname) " does not have type " CppAsString(typename)))
-#else							/* !HAVE__BUILTIN_TYPES_COMPATIBLE_P */
-#define StaticAssertVariableIsOfType(varname, typename) \
-	StaticAssertDecl(sizeof(varname) == sizeof(typename), \
-	CppAsString(varname) " does not have type " CppAsString(typename))
-#define StaticAssertVariableIsOfTypeMacro(varname, typename) \
-	(StaticAssertExpr(sizeof(varname) == sizeof(typename), \
-	 CppAsString(varname) " does not have type " CppAsString(typename)))
-#endif							/* HAVE__BUILTIN_TYPES_COMPATIBLE_P */
 
 
 /* ----------------------------------------------------------------
