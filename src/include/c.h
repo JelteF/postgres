@@ -80,6 +80,12 @@
 #ifdef HAVE_XLOCALE_H
 #include <xlocale.h>
 #endif
+#ifdef __cplusplus
+extern "C++"
+{
+#include <type_traits>
+}
+#endif
 #ifdef ENABLE_NLS
 #include <libintl.h>
 #endif
@@ -443,7 +449,23 @@
 #ifndef HAVE_TYPEOF
 #define HAVE_TYPEOF 1
 #endif
+/*
+ * Provide __builtin_types_compatible_p for C++ by comparing types with
+ * std::is_same after stripping cv-qualifiers. The second branch handles
+ * GCC's special case where an incomplete array (e.g. int[]) is considered
+ * compatible with a complete array of the same element type (e.g. int[3]).
+ */
+#define __builtin_types_compatible_p(x, y) \
+	(std::is_same<std::remove_cv_t<x>, std::remove_cv_t<y>>::value || \
+	 (std::is_array<x>::value && std::is_array<y>::value && \
+	  (std::extent<x>::value == 0 || std::extent<y>::value == 0) && \
+	  std::is_same<std::remove_cv_t<std::remove_extent_t<x>>, \
+				   std::remove_cv_t<std::remove_extent_t<y>>>::value))
+#ifndef HAVE__BUILTIN_TYPES_COMPATIBLE_P
+#define HAVE__BUILTIN_TYPES_COMPATIBLE_P 1
 #endif
+#endif
+
 
 /*
  * CppAsString

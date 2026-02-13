@@ -34,11 +34,14 @@ StaticAssertDecl(sizeof(int32) == 4, "int32 should be 4 bytes");
 extern "C" Datum
 test_cplusplus_add(PG_FUNCTION_ARGS)
 {
-	int32		a = PG_GETARG_INT32(0);
+	const int32		a = PG_GETARG_INT32(0);
 	int32		b = PG_GETARG_INT32(1);
+	const char *p = "";
 	RangeTblRef *node = makeNode(RangeTblRef);
 	RangeTblRef *copy = copyObject(node);
 	List	   *list = list_make1(node);
+	const int32 int_array[3] = {0};
+	extern int32 incomplete_array[];
 
 	foreach_ptr(RangeTblRef, rtr, list)
 	{
@@ -52,6 +55,21 @@ test_cplusplus_add(PG_FUNCTION_ARGS)
 
 	StaticAssertStmt(sizeof(int32) == 4, "int32 should be 4 bytes");
 	(void) StaticAssertExpr(sizeof(int64) == 8, "int64 should be 8 bytes");
+	StaticAssertVariableIsOfType(a, int32);
+	StaticAssertVariableIsOfType(a, const int32);
+	StaticAssertVariableIsOfType(b, const int32);
+	StaticAssertVariableIsOfType(int_array, int32[3]);
+	StaticAssertVariableIsOfType(int_array, const int32[3]);
+	StaticAssertVariableIsOfType(p, const char *);
+	StaticAssertVariableIsOfTypeMacro(a, int32);
+	StaticAssertVariableIsOfTypeMacro(a, const int32);
+	StaticAssertVariableIsOfTypeMacro(b, int32);
+	StaticAssertVariableIsOfTypeMacro(int_array, int32[3]);
+	StaticAssertVariableIsOfTypeMacro(int_array, const int32[3]);
+	StaticAssertVariableIsOfTypeMacro(p, const char *);
+	/* incomplete array matches complete array type */
+	StaticAssertVariableIsOfType(incomplete_array, int32[3]);
+	StaticAssertVariableIsOfTypeMacro(incomplete_array, int32[3]);
 
 	list_free(list);
 	pfree(node);
