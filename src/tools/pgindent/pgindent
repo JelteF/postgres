@@ -13,7 +13,6 @@ use strict;
 use warnings FATAL => 'all';
 
 use Cwd qw(abs_path getcwd);
-use File::Find;
 use File::Spec;
 use File::Temp;
 use IO::Handle;
@@ -369,16 +368,43 @@ $filtered_typedefs_fh = load_typedefs();
 
 check_indent();
 
-my $wanted = sub {
-	my ($dev, $ino, $mode, $nlink, $uid, $gid);
-	(($dev, $ino, $mode, $nlink, $uid, $gid) = lstat($_))
-	  && -f _
-	  && /^.*\.[ch]\z/s
-	  && push(@files, $File::Find::name);
-};
+sub discover_files
+{
+	my @paths = @_;
+	my @discovered;
+
+	# Separate individual files from directories
+	my @dirs;
+	foreach my $path (@paths)
+	{
+		if (-f $path)
+		{
+			push(@discovered, $path);
+		}
+		elsif (-d $path)
+		{
+			push(@dirs, $path);
+		}
+		else
+		{
+			warn "Could not find $path";
+		}
+	}
+
+	# Use git ls-files for directories to avoid searching build trees etc.
+	if (@dirs)
+	{
+		my @git_files = `git ls-files -- @dirs`;
+		die "git ls-files error" if $?;
+		chomp(@git_files);
+		push(@discovered, grep { /\.[ch]$/ } @git_files);
+	}
+
+	return @discovered;
+}
 
 # any non-option arguments are files or directories to be processed
-File::Find::find({ wanted => $wanted }, @ARGV) if @ARGV;
+push(@files, discover_files(@ARGV)) if @ARGV;
 
 # commit file locations are relative to the source root
 chdir "$sourcedir/../../.." if @commits && $sourcedir;
