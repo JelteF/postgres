@@ -112,13 +112,33 @@ usage("Cannot use --commit with command line file list")
 # dir, then default location
 $typedefs_file ||= $ENV{PGTYPEDEFS};
 
-# get perltidy location: command line wins, then environment, then default.
-# --perltidy (with or without a path) and --perl-only all imply perltidy is
-# wanted, falling back to the PERLTIDY env var, then "perltidy" in PATH.
-my $perltidy = $perltidy_arg || $ENV{PERLTIDY}
-  || (defined($perltidy_arg) || $perl_only ? "perltidy" : undef);
+# get perltidy location: command line wins, then environment, then try to
+# find a get_perltidy-installed copy in the source tree, then fall back to
+# PATH.  --perltidy (with or without a path) and --perl-only all imply
+# perltidy is wanted.
+my $perltidy = $perltidy_arg || $ENV{PERLTIDY};
 
 my $sourcedir = locate_sourcedir();
+
+if (!$perltidy && (defined($perltidy_arg) || $perl_only) && $sourcedir)
+{
+	# Look for a get_perltidy-installed perltidy in the source tree.
+	my $candidate = "$sourcedir/perltidy/bin/perltidy";
+	if (-x $candidate)
+	{
+		$perltidy = $candidate;
+
+		# Local installs need PERL5LIB set so perltidy can find its
+		# modules.
+		my $libdir = "$sourcedir/perltidy/lib/perl5";
+		if (-d $libdir)
+		{
+			$ENV{PERL5LIB} =
+			  $ENV{PERL5LIB} ? "$libdir:$ENV{PERL5LIB}" : $libdir;
+		}
+	}
+}
+$perltidy ||= (defined($perltidy_arg) || $perl_only ? "perltidy" : undef);
 
 # get indent location: command line wins, then environment, then try to find
 # a compiled pg_bsd_indent in the source tree, then fall back to PATH.
