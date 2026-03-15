@@ -858,7 +858,7 @@ task:
     folder: ${CCACHE_DIR}
 
   setup_additional_packages_script: |
-    REM C:\msys64\usr\bin\pacman.exe -S --noconfirm ...
+    C:\msys64\usr\bin\pacman.exe -S --noconfirm mingw-w64-ucrt-x86_64-readline
 
   mingw_info_script: |
     %BASH% -c "where gcc"
