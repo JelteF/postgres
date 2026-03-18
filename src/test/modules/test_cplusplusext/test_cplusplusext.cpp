@@ -27,6 +27,23 @@ PG_FUNCTION_INFO_V1(test_cplusplus_add);
 
 StaticAssertDecl(sizeof(int32) == 4, "int32 should be 4 bytes");
 
+/* Same tests as in test_ext.c, but compiled with a C++ compiler to verify that
+ * the pg_expr_has_type_p macro works correctly in C++. */
+StaticAssertDecl(pg_expr_has_type_p((int32) 123, int32), "int32 expression should be int32");
+StaticAssertDecl(!pg_expr_has_type_p((int32) 123, int64), "int32 expression should not be int64");
+StaticAssertDecl(pg_expr_has_type_p(((char (*)[10]) nullptr)[0], char *),
+				 "array should decay into pointer");
+StaticAssertDecl(pg_expr_has_type_p((char (*)[10]) nullptr, char (*)[10]),
+				 "pointer to an aray should work if it has the same size");
+StaticAssertDecl(!pg_expr_has_type_p((char (*)[5]) nullptr, char (*)[10]),
+				 "pointer to an aray should not match if it does not have the same size");
+StaticAssertDecl(pg_expr_has_type_p((const int *) nullptr, const int *),
+				 "const pointers of same type should match");
+StaticAssertDecl(!pg_expr_has_type_p((const int *) nullptr, int *),
+				 "const pointer should not match non-const pointer");
+StaticAssertDecl(pg_expr_has_type_p((const int) 0, int),
+				 "top-level const should be stripped");
+
 /*
  * Simple function that returns the sum of two integers.  This verifies that
  * C++ extension modules can be loaded and called correctly at runtime.
