@@ -394,6 +394,23 @@ extern "C++"
 #endif
 
 /*
+ * pg_expr_has_type_p(expr, type) - Check if an expression has a specific type.
+ *
+ * The C implementation uses _Generic, which applies lvalue conversion to the
+ * controlling expression: arrays decay to pointers, functions decay to function
+ * pointers, and top-level cv-qualifiers are stripped. The C++ implementation
+ * uses std::decay to match this behavior. Note that only top-level qualifiers
+ * are stripped — pointee qualifiers are preserved (e.g. const int * stays
+ * const int *, but int *const becomes int *).
+ */
+#if defined(__cplusplus)
+#define pg_expr_has_type_p(expr, _type) \
+	std::is_same<typename std::decay<decltype(expr)>::type, _type>::value
+#else
+#define pg_expr_has_type_p(expr, type) _Generic((expr), type: 1, default: 0)
+#endif
+
+/*
  * pg_assume(expr) states that we assume `expr` to evaluate to true. In assert
  * enabled builds pg_assume() is turned into an assertion, in optimized builds
  * we try to clue the compiler into the fact that `expr` is true.
@@ -1052,26 +1069,28 @@ pg_noreturn extern void ExceptionalCondition(const char *conditionName,
  * StaticAssertVariableIsOfType() can be used as a declaration.
  * StaticAssertVariableIsOfTypeMacro() is intended for use in macros, eg
  *		#define foo(x) (StaticAssertVariableIsOfTypeMacro(x, int), bar(x))
- *
- * If we don't have __builtin_types_compatible_p, we can still assert that
- * the types have the same size.  This is far from ideal (especially on 32-bit
- * platforms) but it provides at least some coverage.
  */
-#ifdef HAVE__BUILTIN_TYPES_COMPATIBLE_P
+#if !defined(_MSC_VER) || _MSC_VER >= 1933
 #define StaticAssertVariableIsOfType(varname, typename) \
-	StaticAssertDecl(__builtin_types_compatible_p(typeof(varname), typename), \
+	StaticAssertDecl(pg_expr_has_type_p(varname, typename), \
 	CppAsString(varname) " does not have type " CppAsString(typename))
 #define StaticAssertVariableIsOfTypeMacro(varname, typename) \
-	(StaticAssertExpr(__builtin_types_compatible_p(typeof(varname), typename), \
+	(StaticAssertExpr(pg_expr_has_type_p(varname, typename), \
 	 CppAsString(varname) " does not have type " CppAsString(typename)))
-#else							/* !HAVE__BUILTIN_TYPES_COMPATIBLE_P */
+#else							/* _MSC_VER < 1933 */
+/*
+ * This compiler is buggy and fails to compile the previous variant; use a
+ * fallback implementation that asserts that the types have the same size.
+ * This is far from ideal (especially on 32-bit platforms) but it provides at
+ * least some coverage.
+ */
 #define StaticAssertVariableIsOfType(varname, typename) \
 	StaticAssertDecl(sizeof(varname) == sizeof(typename), \
 	CppAsString(varname) " does not have type " CppAsString(typename))
 #define StaticAssertVariableIsOfTypeMacro(varname, typename) \
 	(StaticAssertExpr(sizeof(varname) == sizeof(typename), \
 	 CppAsString(varname) " does not have type " CppAsString(typename)))
-#endif							/* HAVE__BUILTIN_TYPES_COMPATIBLE_P */
+#endif							/* _MSC_VER < 1933 */
 
 
 /* ----------------------------------------------------------------
