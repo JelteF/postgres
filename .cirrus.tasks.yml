@@ -797,6 +797,14 @@ task:
   setup_additional_packages_script: |
     REM choco install -y --no-progress ...
 
+  setup_ramdisk_script: |
+    choco install imdisk -y --no-progress
+    imdisk -a -s 4G -m R: -p "/fs:ntfs /q /y"
+    echo TMP=R:\tmp>> %CIRRUS_ENV%
+    echo TEMP=R:\tmp>> %CIRRUS_ENV%
+    mkdir R:\tmp
+    mkdir R:\testrun
+
   setup_hosts_file_script: |
     echo 127.0.0.1 pg-loadbalancetest >> c:\Windows\System32\Drivers\etc\hosts
     echo 127.0.0.2 pg-loadbalancetest >> c:\Windows\System32\Drivers\etc\hosts
@@ -811,6 +819,7 @@ task:
     vcvarsall x64
     ninja -C build %MBUILD_TARGET%
     ninja -C build -t missingdeps
+    mklink /j build\testrun R:\testrun
 
   check_world_script: |
     vcvarsall x64
@@ -860,6 +869,14 @@ task:
   setup_additional_packages_script: |
     REM C:\msys64\usr\bin\pacman.exe -S --noconfirm ...
 
+  setup_ramdisk_script: |
+    choco install imdisk -y --no-progress
+    imdisk -a -s 4G -m R: -p "/fs:ntfs /q /y"
+    echo TMP=R:\tmp>> %CIRRUS_ENV%
+    echo TEMP=R:\tmp>> %CIRRUS_ENV%
+    mkdir R:\tmp
+    mkdir R:\testrun
+
   mingw_info_script: |
     %BASH% -c "where gcc"
     %BASH% -c "gcc --version"
@@ -871,6 +888,7 @@ task:
 
   build_script: |
     %BASH% -c "ninja -C build ${MBUILD_TARGET}"
+    mklink /j build\testrun R:\testrun
 
   upload_caches: ccache
 
