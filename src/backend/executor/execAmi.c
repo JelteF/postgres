@@ -77,9 +77,15 @@ static bool IndexSupportsBackwardScan(Oid indexid);
 void
 ExecReScan(PlanState *node)
 {
-	/* If collecting timing stats, update them */
 	if (node->instrument)
-		InstrEndLoop(node->instrument);
+	{
+		/*
+		 * Rescan in some node types can take long enough to be worth
+		 * accounting for.
+		 */
+		if (node->instrument->running)
+			InstrStartNode(node->instrument);
+	}
 
 	/*
 	 * If we have changed parameters, propagate that info.
@@ -309,6 +315,15 @@ ExecReScan(PlanState *node)
 		bms_free(node->chgParam);
 		node->chgParam = NULL;
 	}
+
+	if (node->instrument)
+	{
+		if (node->instrument->running)
+			InstrStopNode(node->instrument, 0);
+
+		/* If collecting timing stats, update them */
+		InstrEndLoop(node->instrument);
+	}
 }
 
 /*
@@ -429,7 +444,7 @@ ExecSupportsMarkRestore(Path *pathnode)
 		case T_IndexOnlyScan:
 
 			/*
-			 * Not all index types support mark/restore.
+			 * Not all index types support restoring a mark
 			 */
 			return castNode(IndexPath, pathnode)->indexinfo->amcanmarkpos;
 

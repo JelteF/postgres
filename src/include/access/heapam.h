@@ -124,14 +124,54 @@ typedef struct IndexFetchHeapData
 	IndexFetchTableData xs_base;	/* AM independent part of the descriptor */
 
 	/*
-	 * Current heap buffer in scan, if any. NB: if xs_cbuf is not
-	 * InvalidBuffer, we hold a pin on that buffer.
+	 * Current heap buffer in scan (and its block number), if any.  NB: if
+	 * xs_blk is not InvalidBlockNumber, we hold a pin in xs_cbuf.
 	 */
 	Buffer		xs_cbuf;
+	BlockNumber xs_blk;
 
-	/* Current heap block's corresponding page in the visibility map */
-	Buffer		xs_vmbuffer;
+	/* For index-only scans that must access the visibility map */
+	Buffer		xs_vmbuffer;	/* visibility map buffer */
+	int			xs_vm_items;	/* # items to resolve visibility info for */
+	bool		xs_lastinblock; /* last TID on this block in current batch? */
+
+	/*
+	 * The read stream is allocated at the beginning of the scan and reset on
+	 * rescan or when the scan direction changes. The scan direction is saved
+	 * each time a new tuple is requested. If the scan direction changes from
+	 * one tuple to the next, the read stream releases all previously pinned
+	 * buffers and resets the prefetch block.
+	 */
+	bool		xs_paused;		/* paused until next batch is read? */
+	ScanDirection xs_read_stream_dir;	/* index scan direction */
+	BlockNumber xs_prefetch_block;	/* last block returned to xs_read_stream */
+	ReadStream *xs_read_stream; /* index I/O prefetching read stream */
+
 } IndexFetchHeapData;
+
+/*
+ * Per-batch data private to the heap table AM.
+ *
+ * Stored at a negative offset from the IndexScanBatch pointer, in the
+ * table AM opaque area of each batch allocation.
+ */
+typedef struct HeapBatchData
+{
+	uint8	   *visInfo;		/* per-item visibility flags, or NULL */
+} HeapBatchData;
+
+/*
+ * Per-item visibility flags stored in HeapBatchData.visInfo array
+ */
+#define HEAP_BATCH_VIS_CHECKED		0x01	/* checked item in VM? */
+#define HEAP_BATCH_VIS_ALL_VISIBLE	0x02	/* block is known all-visible? */
+
+/* Access the heap-private per-batch data from an IndexScanBatch pointer */
+static inline HeapBatchData *
+heap_batch_data(IndexScanBatch batch, IndexScanDesc scan)
+{
+	return (HeapBatchData *) ((char *) batch - scan->batch_table_offset);
+}
 
 /* Result codes for HeapTupleSatisfiesVacuum */
 typedef enum
