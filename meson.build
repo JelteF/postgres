@@ -647,29 +647,33 @@ if not cc.compiles(c11_test, name: 'C11')
 endif
 
 
-# Do we need an option to enable C++11?
-cxx11_test = '''
+# Do we need an option to enable C++11 and/or designated initializers? We need
+# designated initiliazers because we use them in many of our headers, including
+# in the PG_MODULE_MAGIC definition. Clang and gcc support designated
+# initializers in C++11 mode, but MSVC only supports them in C++20 mode.
+cxx_features_test = '''
 #if !defined __cplusplus || __cplusplus < 201103L
 # error "Compiler does not advertise C++11 conformance"
 #endif
+struct S { int x; } s = { .x = 1 };
 '''
 
-if have_cxx and not cxx.compiles(cxx11_test, name: 'C++11')
-  cxx11_ok = false
+if have_cxx and not cxx.compiles(cxx_features_test, name: 'C++11 with designated initializers')
+  cxx_features_ok = false
   if cxx.get_id() == 'msvc'
-    cxx11_test_args = ['/std:c++14']  # oldest version supported
+    cxx_features_test_args = ['/std:c++20']
   else
-    cxx11_test_args = ['-std=gnu++11', '-std=c++11']
+    cxx_features_test_args = ['-std=gnu++11', '-std=c++11', '-std=gnu++20', 'std=c++20']
   endif
-  foreach arg : cxx11_test_args
-    if cxx.compiles(cxx11_test, name: 'C++11 with @0@'.format(arg), args: [arg])
-      cxx11_ok = true
+  foreach arg : cxx_features_test_args
+    if cxx.compiles(cxx_features_test, name: 'C++11 with designated initializers with @0@'.format(arg), args: [arg])
+      cxx_features_ok = true
       cxxflags += arg
       break
     endif
   endforeach
-  if not cxx11_ok
-    error('C++ compiler does not support C++11')
+  if not cxx_features_ok
+    error('C++ compiler does not support C++11 with designated initializers')
   endif
 endif
 

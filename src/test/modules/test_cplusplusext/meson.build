@@ -4,11 +4,6 @@ if not have_cxx
   subdir_done()
 endif
 
-# Currently not supported, to be fixed.
-if cc.get_id() == 'msvc'
-  subdir_done()
-endif
-
 test_cplusplusext_sources = files(
   'test_cplusplusext.cpp',
 )

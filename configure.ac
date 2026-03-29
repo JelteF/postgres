@@ -398,17 +398,20 @@ AC_SUBST(have_cxx)
 
 if test "$have_cxx" = yes; then
 
-# Detect option needed for C++11
-AC_MSG_CHECKING([for $CXX option to accept ISO C++11])
+# Detect option needed for C++11 with designated initializers. We need
+# designated initializers because we use them in many of our headers, including
+# in the PG_MODULE_MAGIC definition.
+AC_MSG_CHECKING([for $CXX option to accept ISO C++11 with designated initializers])
 AC_CACHE_VAL([pgac_cv_prog_cxx_cxx11],
 [pgac_cv_prog_cxx_cxx11=no
 pgac_save_CXX=$CXX
 AC_LANG_PUSH([C++])
-for pgac_arg in '' '-std=gnu++11' '-std=c++11'; do
+for pgac_arg in '' '-std=gnu++11' '-std=c++11' '-std=gnu++20' '-std=c++20'; do
   CXX="$pgac_save_CXX $pgac_arg"
   AC_COMPILE_IFELSE([AC_LANG_SOURCE([[#if !defined __cplusplus || __cplusplus < 201103L
 # error "Compiler does not advertise C++11 conformance"
-#endif]])], [[pgac_cv_prog_cxx_cxx11=$pgac_arg]])
+#endif
+struct S { int x; } s = { .x = 1 };]])], [[pgac_cv_prog_cxx_cxx11=$pgac_arg]])
   test x"$pgac_cv_prog_cxx_cxx11" != x"no" && break
 done
 AC_LANG_POP([C++])
@@ -416,7 +419,7 @@ CXX=$pgac_save_CXX])
 
 if test x"$pgac_cv_prog_cxx_cxx11" = x"no"; then
   AC_MSG_RESULT([unsupported])
-  AC_MSG_WARN([C++ compiler "$CXX" does not support C++11])
+  AC_MSG_WARN([C++ compiler "$CXX" does not support C++11 with designated initializers])
   have_cxx=no
 elif test x"$pgac_cv_prog_cxx_cxx11" = x""; then
   AC_MSG_RESULT([none needed])

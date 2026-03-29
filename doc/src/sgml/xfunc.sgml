@@ -4027,6 +4027,11 @@ extern PgStat_Kind pgstat_register_kind(PgStat_Kind kind,
      <itemizedlist>
       <listitem>
        <para>
+         You need a C++ compiler that supports C++11 and designated
+         initializers (GCC and Clang support this in C++11 mode, but MSVC only
+         supports it in C++20 mode).
+       </para>
+       <para>
          All functions accessed by the backend must present a C interface
          to the backend;  these C functions can then call C++ functions.
          For example, <literal>extern "C"</literal> linkage is required for
