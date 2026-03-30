@@ -1,0 +1,22 @@
+pgcheck
+=======
+
+pgcheck is a unified tool for formatting and checking PostgreSQL's C
+and Perl code.  It consolidates the functionality of pgindent,
+pgperltidy, pgperlcritic, and pgperlsyncheck into a single script.
+The individual tool scripts still exist as thin wrappers around pgcheck.
+
+    src/tools/pgcheck/pgcheck
+
+By default pgcheck runs all operations.  You can select specific ones:
+
+	src/tools/pgcheck/pgcheck --pgindent .
+	src/tools/pgcheck/pgcheck --perltidy .
+	src/tools/pgcheck/pgcheck --perlcritic .
+	src/tools/pgcheck/pgcheck --perl-syncheck .
+	src/tools/pgcheck/pgcheck --pgindent --perltidy .
+
+Run pgcheck --help for the full list of options.
+
+See src/tools/pgindent/README for prerequisites and detailed usage
+instructions.
