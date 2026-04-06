@@ -3881,8 +3881,10 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         </indexterm>
         <function>pg_get_role_ddl</function>
         ( <parameter>role</parameter> <type>regrole</type>
-        <optional>, <literal>VARIADIC</literal> <parameter>options</parameter>
-        <type>text</type> </optional> )
+        <optional>, <parameter>pretty</parameter> <type>boolean</type>
+        <literal>DEFAULT false</literal> </optional>
+        <optional>, <parameter>memberships</parameter> <type>boolean</type>
+        <literal>DEFAULT true</literal> </optional> )
         <returnvalue>setof text</returnvalue>
        </para>
        <para>
@@ -3890,10 +3892,15 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         <command>ALTER ROLE ... SET</command> statements for the given role.
         Each statement is returned as a separate row.
         Password information is never included in the output.
-        The following options are supported: <literal>pretty</literal> (boolean)
-        for pretty-printed output and <literal>memberships</literal> (boolean,
-        default true) to include <command>GRANT</command> statements for
-        role memberships and their options.
+        If <parameter>pretty</parameter> is true, the output is formatted with
+        newlines and indentation.
+        If <parameter>memberships</parameter> is true (the default),
+        <command>GRANT</command> statements for role memberships and their
+        options are included.
+        For example:
+<programlisting>
+SELECT * FROM pg_get_role_ddl('myrole', memberships =&gt; false, pretty =&gt; true);
+</programlisting>
        </para></entry>
       </row>
       <row>
@@ -3903,15 +3910,19 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         </indexterm>
         <function>pg_get_tablespace_ddl</function>
         ( <parameter>tablespace</parameter> <type>oid</type>
-        <optional>, <literal>VARIADIC</literal> <parameter>options</parameter>
-        <type>text</type> </optional> )
+        <optional>, <parameter>pretty</parameter> <type>boolean</type>
+        <literal>DEFAULT false</literal> </optional>
+        <optional>, <parameter>owner</parameter> <type>boolean</type>
+        <literal>DEFAULT true</literal> </optional> )
         <returnvalue>setof text</returnvalue>
        </para>
        <para role="func_signature">
         <function>pg_get_tablespace_ddl</function>
         ( <parameter>tablespace</parameter> <type>name</type>
-        <optional>, <literal>VARIADIC</literal> <parameter>options</parameter>
-        <type>text</type> </optional> )
+        <optional>, <parameter>pretty</parameter> <type>boolean</type>
+        <literal>DEFAULT false</literal> </optional>
+        <optional>, <parameter>owner</parameter> <type>boolean</type>
+        <literal>DEFAULT true</literal> </optional> )
         <returnvalue>setof text</returnvalue>
        </para>
        <para>
@@ -3919,9 +3930,14 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         the specified tablespace (by OID or name).  If the tablespace has
         options set, an <command>ALTER TABLESPACE ... SET</command> statement
         is also returned.  Each statement is returned as a separate row.
-        The following options are supported: <literal>pretty</literal> (boolean)
-        for formatted output and <literal>owner</literal> (boolean) to include
-        <literal>OWNER</literal>.
+        If <parameter>pretty</parameter> is true, the output is formatted with
+        newlines and indentation.
+        If <parameter>owner</parameter> is true (the default), an
+        <literal>OWNER</literal> clause is included.
+        For example:
+<programlisting>
+SELECT * FROM pg_get_tablespace_ddl('pg_default', pretty =&gt; true);
+</programlisting>
        </para></entry>
       </row>
       <row>
@@ -3931,8 +3947,12 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         </indexterm>
         <function>pg_get_database_ddl</function>
         ( <parameter>database</parameter> <type>regdatabase</type>
-        <optional>, <literal>VARIADIC</literal> <parameter>options</parameter>
-        <type>text</type> </optional> )
+        <optional>, <parameter>pretty</parameter> <type>boolean</type>
+        <literal>DEFAULT false</literal> </optional>
+        <optional>, <parameter>owner</parameter> <type>boolean</type>
+        <literal>DEFAULT true</literal> </optional>
+        <optional>, <parameter>tablespace</parameter> <type>boolean</type>
+        <literal>DEFAULT true</literal> </optional> )
         <returnvalue>setof text</returnvalue>
        </para>
        <para>
@@ -3940,11 +3960,16 @@ acl      | {postgres=arwdDxtm/postgres,foo=r/postgres}
         specified database, followed by <command>ALTER DATABASE</command>
         statements for connection limit, template status, and configuration
         settings.  Each statement is returned as a separate row.
-        The following options are supported:
-        <literal>pretty</literal> (boolean) for formatted output,
-        <literal>owner</literal> (boolean) to include <literal>OWNER</literal>,
-        and <literal>tablespace</literal> (boolean) to include
-        <literal>TABLESPACE</literal>.
+        If <parameter>pretty</parameter> is true, the output is formatted with
+        newlines and indentation.
+        If <parameter>owner</parameter> is true (the default), an
+        <literal>OWNER</literal> clause is included.
+        If <parameter>tablespace</parameter> is true (the default), a
+        <literal>TABLESPACE</literal> clause is included.
+        For example:
+<programlisting>
+SELECT * FROM pg_get_database_ddl('mydb', pretty =&gt; true, tablespace =&gt; false);
+</programlisting>
        </para></entry>
       </row>
      </tbody>
