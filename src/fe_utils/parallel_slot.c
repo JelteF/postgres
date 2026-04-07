@@ -103,6 +103,9 @@ select_loop(int maxFd, fd_set *workerset)
 		*workerset = saveSet;
 		i = select(maxFd + 1, workerset, NULL, NULL, tvp);
 
+		if (CancelRequested)
+			return -1;
+
 #ifdef WIN32
 		if (i == SOCKET_ERROR)
 		{
@@ -115,7 +118,7 @@ select_loop(int maxFd, fd_set *workerset)
 
 		if (i < 0 && errno == EINTR)
 			continue;			/* ignore this */
-		if (i < 0 || CancelRequested)
+		if (i < 0)
 			return -1;			/* but not this */
 		if (i == 0)
 			continue;			/* timeout (Win32 only) */
@@ -197,8 +200,7 @@ wait_on_slots(ParallelSlotArray *sa)
 {
 	int			i;
 	fd_set		slotset;
-	int			maxFd = 0;
-	PGconn	   *cancelconn = NULL;
+	int			maxFd = -1;
 
 	/* We must reconstruct the fd_set for each call to select_loop */
 	FD_ZERO(&slotset);
@@ -219,10 +221,6 @@ wait_on_slots(ParallelSlotArray *sa)
 		if (sock < 0)
 			continue;
 
-		/* Keep track of the first valid connection we see. */
-		if (cancelconn == NULL)
-			cancelconn = sa->slots[i].connection;
-
 		FD_SET(sock, &slotset);
 		if (sock > maxFd)
 			maxFd = sock;
@@ -232,12 +230,10 @@ wait_on_slots(ParallelSlotArray *sa)
 	 * If we get this far with no valid connections, processing cannot
 	 * continue.
 	 */
-	if (cancelconn == NULL)
+	if (maxFd < 0)
 		return false;
 
-	SetCancelConn(cancelconn);
 	i = select_loop(maxFd, &slotset);
-	ResetCancelConn();
 
 	/* failure? */
 	if (i < 0)
