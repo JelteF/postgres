@@ -37,6 +37,14 @@ INIT
 		$krb5_bin_dir = '/usr/local/bin';
 		$krb5_sbin_dir = '/usr/local/sbin';
 	}
+	elsif ($^O eq 'netbsd')
+	{
+		# pkgsrc's mit-krb5 installs under /usr/pkg; the base system's
+		# /usr/bin/krb5-config is Heimdal, which the tap tests don't
+		# support, so pin to the pkgsrc layout explicitly.
+		$krb5_bin_dir = '/usr/pkg/bin';
+		$krb5_sbin_dir = '/usr/pkg/sbin';
+	}
 	elsif ($^O eq 'linux')
 	{
 		$krb5_sbin_dir = '/usr/sbin';

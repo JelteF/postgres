@@ -76,6 +76,16 @@ Return if io_uring is supported
 
 sub have_io_uring
 {
+	# Some environments (cloud VMs, GitHub Actions hosted runners, etc.)
+	# disable io_uring at the kernel level or block io_uring_setup at the
+	# seccomp/LSM layer. Build-time support is necessary but not sufficient.
+	# Allow CI to force-skip io_uring via an env var.
+	if ($ENV{PG_TEST_SKIP_IO_URING})
+	{
+		note "io_uring skipped via PG_TEST_SKIP_IO_URING";
+		return 0;
+	}
+
 	# To detect if io_uring is supported, we look at the error message for
 	# assigning an invalid value to an enum GUC, which lists all the valid
 	# options. We need to use -C to deal with running as administrator on
