@@ -286,6 +286,21 @@ class PostgresServer:
         with self.connect() as conn:
             return conn.sql(query)
 
+    def append_conf(self, *lines, filename="postgresql.conf"):
+        """Append config lines to a file in the data directory.
+
+        Each positional argument is one config line (without a trailing
+        newline). Passing no lines still ensures the file exists, which is handy
+        for signal files like ``standby.signal``.
+
+        Unlike reloading()/restarting(), this does not reload the server and is
+        not undone automatically; use it for configuration that must be present
+        before the server (re)starts.
+        """
+        with open(self.datadir / filename, "a") as f:
+            for line in lines:
+                f.write(line + "\n")
+
     def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
         """Run ``query`` repeatedly until it returns ``expected``.
 
