@@ -11,7 +11,7 @@ DATA = test_saslprep--1.0.sql
 
 REGRESS = test_saslprep
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
