@@ -26,9 +26,9 @@ tests += {
       'extension_options',
     ],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_auto_explain.pl',
+      'pyt/test_001_auto_explain.py',
     ],
   },
 }
