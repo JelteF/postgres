@@ -34,9 +34,9 @@ tests += {
       'pg_prewarm',
     ],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_basic.pl',
+      'pyt/test_001_basic.py',
     ],
   },
 }
