@@ -8,7 +8,7 @@ OBJS = \
 	$(WIN32RES) \
 	oid2name.o
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 PG_CPPFLAGS = -I$(libpq_srcdir)
 PG_LIBS_INTERNAL = $(libpq_pgport)
