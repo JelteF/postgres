@@ -11,6 +11,7 @@ import pytest
 
 from ._env import test_timeout_default
 from .util import capture
+from .proc import PgBin
 from .server import PostgresServer
 
 from libpq import load_libpq_handle, connect as libpq_connect
@@ -118,6 +119,16 @@ def libdir(pg_config):
     Returns the PostgreSQL lib directory using pg_config --libdir.
     """
     return pathlib.Path(capture(pg_config, "--libdir", silent=True))
+
+
+@pytest.fixture(scope="session")
+def pg_bin(bindir):
+    """
+    Returns a PgBin for running installed PostgreSQL programs from the test
+    bindir (see pypg.proc). Use this for tests that exercise client programs
+    directly rather than through a running server.
+    """
+    return PgBin(bindir)
 
 
 @pytest.fixture(scope="session")
