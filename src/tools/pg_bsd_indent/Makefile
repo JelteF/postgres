@@ -46,14 +46,14 @@ clean distclean:
 	rm -rf log/ tmp_check/
 
 check: pg_bsd_indent
-	$(prove_check)
+	$(pytest_check)
 
 installcheck:
-	$(prove_installcheck)
+	$(pytest_installcheck)
 
 # Provide this alternate test name to allow testing pg_bsd_indent
 # without building all of the surrounding Postgres installation.
 .PHONY: test
 
 test: pg_bsd_indent
-	$(prove_installcheck)
+	$(pytest_installcheck)
