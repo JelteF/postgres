@@ -12,7 +12,7 @@ import tempfile
 from collections import namedtuple
 from typing import Callable, Optional
 
-from .util import run
+from .util import run, wait_until
 from libpq import PGconn, connect as libpq_connect
 
 
@@ -286,6 +286,23 @@ class PostgresServer:
         with self.connect() as conn:
             return conn.sql(query)
 
+    def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
+        """Run ``query`` repeatedly until it returns ``expected``.
+
+        The comparison is against the simplified Python result of ``sql()`` (so
+        ``expected`` is ``True`` for a boolean ``t`` probe, an ``int`` for a
+        count, a tuple for a multi-column row, and so on) rather than psql text.
+        Returns the matching result, or raises ``TimeoutError`` once the timeout
+        (defaulting to the test's remaining timeout) is exhausted.
+        """
+        if timeout is None:
+            timeout = self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+        conn = self.connect(dbname=dbname)
+        for _ in wait_until(f"query never returned {expected!r}: {query}", timeout=timeout):
+            result = conn.sql(query)
+            if result == expected:
+                return result
+
     def pg_ctl(self, *args):
         """Run pg_ctl with the given arguments."""
         self._run(self._pg_ctl, "--pgdata", self.datadir, "--log", self.log, *args)
@@ -425,6 +442,18 @@ class PostgresServer:
         with open(self.log) as f:
             f.seek(offset)
             return f.read()
+
+    def wait_for_log(self, pattern, offset=0, timeout=None):
+        """Wait until the log written since ``offset`` matches ``pattern``.
+
+        Returns the log's end offset once the regex matches, so chained waits
+        can continue from there. Raises ``TimeoutError`` otherwise.
+        """
+        if timeout is None:
+            timeout = self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+        for _ in wait_until(f"log never matched {pattern!r}", timeout=timeout):
+            if re.search(pattern, self.log_since(offset)):
+                return self.current_log_position()
 
     @contextlib.contextmanager
     def log_contains(self, pattern, times=None):
