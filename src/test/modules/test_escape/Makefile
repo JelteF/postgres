@@ -10,7 +10,7 @@ PG_CPPFLAGS = -I$(libpq_srcdir)
 PG_LIBS_INTERNAL += -L$(top_builddir)/src/fe_utils -lpgfeutils $(libpq_pgport)
 
 NO_INSTALL = 1
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
