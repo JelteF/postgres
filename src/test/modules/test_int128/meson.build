@@ -24,9 +24,9 @@ tests += {
   'name': 'test_int128',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_test_int128.pl',
+      'pyt/test_001_test_int128.py',
     ],
     'deps': [test_int128],
   },
