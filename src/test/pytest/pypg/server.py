@@ -408,10 +408,22 @@ class PostgresServer:
 
     def log_content(self) -> str:
         """Return log content from the current context's start position."""
+        return self.log_since(self._log_start_pos)
+
+    def log_since(self, offset: int) -> str:
+        """Return log content written since the given byte offset.
+
+        Pair with current_log_position() to capture exactly the log a single
+        operation produces::
+
+            offset = pg.current_log_position()
+            conn.sql("...")
+            assert "..." in pg.log_since(offset)
+        """
         if not self.log.exists():
             return ""
         with open(self.log) as f:
-            f.seek(self._log_start_pos)
+            f.seek(offset)
             return f.read()
 
     @contextlib.contextmanager
