@@ -570,6 +570,26 @@ class PostgresServer:
         )
         return backup_path
 
+    def backup_fs_cold(self, backup_name="cold_backup"):
+        """Take a filesystem-level cold backup of this (stopped) server.
+
+        Copies the whole data directory, including WAL, into a per-server
+        backups directory and returns the path, suitable for ``from_backup``.
+        The server must be stopped, as no attempt is made to handle concurrent
+        writes; a node restored from such a backup enters crash recovery before
+        switching to archive recovery. Mirrors Perl's ``$node->backup_fs_cold``.
+        """
+        backup_path = self._backup_root / backup_name
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(
+            self.datadir,
+            backup_path,
+            ignore=shutil.ignore_patterns(
+                "postmaster.pid", "postmaster.opts", "postgresql.log"
+            ),
+        )
+        return backup_path
+
     def lsn(self, mode="write"):
         """Return a current WAL LSN of this server as a string.
 
