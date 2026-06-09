@@ -15,13 +15,13 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_001_base.py',
+      'pyt/test_004_restart.py',
     ],
   },
   'tap': {
     'tests': [
       't/002_standby.pl',
       't/003_standby_2.pl',
-      't/004_restart.pl',
     ],
   },
 }
