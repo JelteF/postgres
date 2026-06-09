@@ -13,9 +13,14 @@ import json
 import platform
 import os
 import uuid
+from collections import namedtuple
 from typing import Any, Callable, Dict, Optional
 
 from .errors import LibpqError
+
+
+# A LISTEN/NOTIFY notification, as returned by PGconn.notifies().
+Notify = namedtuple("Notify", ["channel", "pid", "payload"])
 
 
 # PG_DIAG field identifiers from postgres_ext.h
@@ -72,8 +77,21 @@ class _PGresult(ctypes.Structure):
     pass
 
 
+class _PGnotify(ctypes.Structure):
+    """Mirror of libpq's PGnotify (postgres_ext.h). Only the public fields are
+    used; ``next`` is libpq-internal and kept opaque."""
+
+    _fields_ = [
+        ("relname", ctypes.c_char_p),
+        ("be_pid", ctypes.c_int),
+        ("extra", ctypes.c_char_p),
+        ("next", ctypes.c_void_p),
+    ]
+
+
 _PGconn_p = ctypes.POINTER(_PGconn)
 _PGresult_p = ctypes.POINTER(_PGresult)
+_PGnotify_p = ctypes.POINTER(_PGnotify)
 
 
 def load_libpq_handle(libdir, bindir):
@@ -225,6 +243,14 @@ def load_libpq_handle(libdir, bindir):
 
     lib.PQfreemem.restype = None
     lib.PQfreemem.argtypes = [ctypes.c_void_p]
+
+    # LISTEN/NOTIFY: PQconsumeInput reads any data waiting on the socket into
+    # libpq's buffers; PQnotifies then pops queued notifications one at a time.
+    lib.PQconsumeInput.restype = ctypes.c_int
+    lib.PQconsumeInput.argtypes = [_PGconn_p]
+
+    lib.PQnotifies.restype = _PGnotify_p
+    lib.PQnotifies.argtypes = [_PGconn_p]
 
     return lib
 
@@ -505,6 +531,28 @@ class PGconn(contextlib.AbstractContextManager):
         - INSERT INTO ... -> None
         """
         return self._result_or_raise(self.exec(query))
+
+    def notifies(self):
+        """
+        Return and consume all pending LISTEN/NOTIFY notifications, each a
+        ``Notify(channel, pid, payload)``.
+
+        Input is consumed first (``PQconsumeInput``) so notifications already
+        waiting on the socket are picked up. A LISTENing session only receives
+        notifications once its transaction ends, so call this after the
+        relevant command — and poll, since they may arrive slightly after the
+        command's own result.
+        """
+        self._lib.PQconsumeInput(self._handle)
+        out = []
+        while True:
+            n = self._lib.PQnotifies(self._handle)
+            if not n:
+                break
+            c = n.contents
+            out.append(Notify(c.relname.decode(), c.be_pid, c.extra.decode()))
+            self._lib.PQfreemem(n)
+        return out
 
     def _result_or_raise(self, res):
         """Turn a PGresult into a simplified Python value, raising LibpqError
