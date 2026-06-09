@@ -59,16 +59,7 @@ tests += {
       'pyt/test_001_test_json_parser_incremental.py',
       'pyt/test_002_inline.py',
       'pyt/test_003_test_semantic.py',
-    ],
-    'deps': [
-      test_json_parser_incremental,
-      test_json_parser_incremental_shlib,
-      test_json_parser_perf,
-    ],
-  },
-  'tap': {
-    'tests': [
-      't/004_test_parser_perf.pl'
+      'pyt/test_004_test_parser_perf.py',
     ],
     'deps': [
       test_json_parser_incremental,
