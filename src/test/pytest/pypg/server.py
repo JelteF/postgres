@@ -9,6 +9,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import threading
 from collections import namedtuple
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable, Optional
@@ -754,6 +755,38 @@ class PostgresServer:
             dbname=dbname,
         )
         publisher.wait_for_catchup(subname)
+
+    @contextlib.contextmanager
+    def repeat_query(self, query, interval=0.1, dbname="postgres"):
+        """Context manager that runs ``query`` repeatedly in the background on
+        its own connection until the block exits, like psql's ``\\watch``.
+
+        Used to keep generating activity (e.g. transactions producing running
+        xact records) while the test does other work. Errors from a connection
+        torn down by a deliberate stop/restart are swallowed.
+        """
+        stop = threading.Event()
+        conn = self.connect(dbname=dbname)
+
+        def loop():
+            while not stop.is_set():
+                try:
+                    conn.sql(query)
+                except Exception:
+                    return
+                stop.wait(interval)
+
+        worker = threading.Thread(target=loop, daemon=True)
+        worker.start()
+        try:
+            yield
+        finally:
+            stop.set()
+            worker.join(timeout=10)
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def log_standby_snapshot(self, standby, slot_name):
         """Emit the ``xl_running_xacts`` record a standby's logical slot
