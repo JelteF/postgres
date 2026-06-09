@@ -6,6 +6,7 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_001_constraint_validation.py',
       'pyt/test_004_io_direct.py',
       'pyt/test_002_tablespace.py',
       'pyt/test_003_check_guc.py',
@@ -24,7 +25,6 @@ tests += {
        'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/001_constraint_validation.pl',
       't/010_index_concurrently_upsert.pl',
     ],
     # The injection points are cluster-wide, so disable installcheck
