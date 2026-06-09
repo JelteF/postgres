@@ -711,6 +711,35 @@ class PostgresServer:
         )
         self.poll_query_until(query, True)
 
+    def wait_for_slot_catchup(self, slot_name, mode="restart", target_lsn=None):
+        """Wait until a replication slot's ``<mode>_lsn`` reaches ``target_lsn``.
+
+        Polls pg_replication_slots on this server. ``mode`` is ``restart`` or
+        ``confirmed_flush``. Mirrors Perl's ``$node->wait_for_slot_catchup()``.
+        """
+        assert target_lsn is not None, "target lsn must be specified"
+        assert mode in ("restart", "confirmed_flush")
+        self.poll_query_until(
+            f"SELECT '{target_lsn}' <= {mode}_lsn "
+            f"FROM pg_catalog.pg_replication_slots WHERE slot_name = '{slot_name}'"
+        )
+
+    def wait_for_subscription_sync(self, publisher, subname, dbname="postgres"):
+        """Wait for a subscription's initial table sync to finish, then for the
+        subscriber to catch up to the publisher.
+
+        Called on the subscriber: polls pg_subscription_rel until every table is
+        synced (``r``/``s``), then waits for the publisher's walsender (named
+        after the subscription) to catch up. Mirrors Perl's
+        ``$node->wait_for_subscription_sync()``.
+        """
+        self.poll_query_until(
+            "SELECT count(1) = 0 FROM pg_subscription_rel "
+            "WHERE srsubstate NOT IN ('r', 's')",
+            dbname=dbname,
+        )
+        publisher.wait_for_catchup(subname)
+
     def background(self, dbname="postgres", **opts) -> BackgroundConnection:
         """Open a persistent background session against this server.
 
