@@ -45,11 +45,11 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_001_verify_heapam.py',
+      'pyt/test_002_cic.py',
     ],
   },
   'tap': {
     'tests': [
-      't/002_cic.pl',
       't/003_cic_2pc.pl',
       't/004_verify_nbtree_unique.pl',
       't/005_pitr.pl',
