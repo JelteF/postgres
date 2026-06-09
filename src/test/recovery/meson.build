@@ -9,6 +9,7 @@ tests += {
     'tests': [
       'pyt/test_002_archiving.py',
       'pyt/test_005_replay_delay.py',
+      'pyt/test_007_sync_rep.py',
       'pyt/test_008_fsm_truncation.py',
       'pyt/test_009_twophase.py',
       'pyt/test_012_subtransactions.py',
@@ -54,7 +55,6 @@ tests += {
       't/003_recovery_targets.pl',
       't/004_timeline_switch.pl',
       't/006_logical_decoding.pl',
-      't/007_sync_rep.pl',
       't/010_logical_decoding_timelines.pl',
       't/017_shm.pl',
       't/019_replslot_limit.pl',
