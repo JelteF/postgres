@@ -70,9 +70,9 @@ tests += {
     ],
     'regress_args': ['--no-locale'],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_extension_control_path.pl',
+      'pyt/test_001_extension_control_path.py',
     ],
   },
 }
