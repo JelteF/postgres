@@ -426,6 +426,18 @@ class PostgresServer:
         """
         self.pg_ctl("promote", "-w")
 
+    def enable_streaming(self, primary: "PostgresServer"):
+        """Reconfigure this (stopped) node to stream from ``primary`` as a
+        standby: set ``primary_conninfo`` and drop a ``standby.signal``. Mirrors
+        Perl's ``$node->enable_streaming``. Use it to re-attach a former primary
+        as a standby of a newly-promoted node (a role swap); call ``start()``
+        afterwards. The standby's ``application_name`` is this node's name so the
+        new primary can ``wait_for_catchup()`` on it by name.
+        """
+        conninfo = primary.connstr(application_name=self.name)
+        self.append_conf(f"primary_conninfo = '{conninfo}'")
+        self.append_conf(filename="standby.signal")
+
     def current_log_position(self):
         """Get the current end position of the log file."""
         if self.log.exists():
