@@ -46,12 +46,12 @@ tests += {
     'tests': [
       'pyt/test_002_cic.py',
       'pyt/test_003_cic_2pc.py',
+      'pyt/test_004_verify_nbtree_unique.py',
     ],
   },
   'tap': {
     'tests': [
       't/001_verify_heapam.pl',
-      't/004_verify_nbtree_unique.pl',
       't/005_pitr.pl',
       't/006_verify_gin.pl',
     ],
