@@ -11,6 +11,7 @@ tests += {
       'pyt/test_007_catcache_inval.py',
       'pyt/test_008_replslot_single_user.py',
       'pyt/test_009_log_temp_files.py',
+      'pyt/test_013_temp_obj_multisession.py',
     ],
   },
   'tap': {
@@ -25,7 +26,6 @@ tests += {
       't/010_index_concurrently_upsert.pl',
       't/011_lock_stats.pl',
       't/012_ddlutils.pl',
-      't/013_temp_obj_multisession.pl',
     ],
     # The injection points are cluster-wide, so disable installcheck
     'runningcheck': false,
