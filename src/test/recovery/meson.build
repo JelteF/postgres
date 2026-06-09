@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'tests': [
+      'pyt/test_002_archiving.py',
       'pyt/test_034_create_database.py',
     ],
   },
