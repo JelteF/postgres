@@ -8,6 +8,7 @@ tests += {
     'tests': [
       'pyt/test_002_tablespace.py',
       'pyt/test_003_check_guc.py',
+      'pyt/test_007_catcache_inval.py',
       'pyt/test_008_replslot_single_user.py',
       'pyt/test_009_log_temp_files.py',
     ],
@@ -21,7 +22,6 @@ tests += {
       't/004_io_direct.pl',
       't/005_timeouts.pl',
       't/006_signal_autovacuum.pl',
-      't/007_catcache_inval.pl',
       't/010_index_concurrently_upsert.pl',
       't/011_lock_stats.pl',
       't/012_ddlutils.pl',
