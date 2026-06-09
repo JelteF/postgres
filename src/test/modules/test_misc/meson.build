@@ -16,6 +16,7 @@ tests += {
       'pyt/test_013_temp_obj_multisession.py',
       'pyt/test_005_timeouts.py',
       'pyt/test_006_signal_autovacuum.py',
+      'pyt/test_012_ddlutils.py',
     ],
   },
   'tap': {
@@ -25,7 +26,6 @@ tests += {
     'tests': [
       't/001_constraint_validation.pl',
       't/010_index_concurrently_upsert.pl',
-      't/012_ddlutils.pl',
     ],
     # The injection points are cluster-wide, so disable installcheck
     'runningcheck': false,
