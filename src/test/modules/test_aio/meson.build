@@ -30,14 +30,7 @@ tests += {
       'pyt/test_001_aio.py',
       'pyt/test_002_io_workers.py',
       'pyt/test_003_initdb.py',
-    ],
-  },
-  'tap': {
-    'env': {
-       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
-    'tests': [
-      't/004_read_stream.pl',
+      'pyt/test_004_read_stream.py',
     ],
   },
 }
