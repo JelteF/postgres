@@ -452,9 +452,9 @@ class PostgresServer:
         """Run psql with the given arguments."""
         self._run(os.path.join(self._bindir, "psql"), "-w", *args)
 
-    def sql(self, query):
+    def sql(self, query, dbname="postgres"):
         """Execute a SQL query via libpq. Returns simplified results."""
-        with self.connect() as conn:
+        with self.connect(dbname=dbname) as conn:
             return conn.sql(query)
 
     def append_conf(self, *lines, filename="postgresql.conf"):
