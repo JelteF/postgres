@@ -71,12 +71,10 @@ def aio_node(request, create_pg_module):
     if method not in _supported_io_methods():
         pytest.skip(f"io_method {method} not supported by this build")
 
-    node = create_pg_module(f"rs_{method}")
-    # The Perl uses max_connections=8 to keep resource use low; allow more
-    # headroom here because poll_query_until() holds a connection open until
-    # teardown, and the foreign-IO tests poll repeatedly.
-    node.append_conf(*CONFIGURE, "max_connections = 20", f"io_method = {method}")
-    node.pg_ctl("restart")
+    node = create_pg_module(
+        f"rs_{method}",
+        conf={**CONFIGURE, "max_connections": 8, "io_method": method},
+    )
 
     assert node.sql("SHOW io_method") == method
     node.sql("CREATE EXTENSION test_aio")
