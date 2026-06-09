@@ -41,6 +41,7 @@ tests += {
       'pyt/test_047_checkpoint_physical_slot.py',
       'pyt/test_050_redo_segment_missing.py',
       'pyt/test_052_checkpoint_segment_missing.py',
+      'pyt/test_053_standby_login_event_trigger.py',
     ],
   },
   'tap': {
@@ -66,7 +67,6 @@ tests += {
       't/048_vacuum_horizon_floor.pl',
       't/049_wait_for_lsn.pl',
       't/051_effective_wal_level.pl',
-      't/053_standby_login_event_trigger.pl',
     ],
   },
 }
