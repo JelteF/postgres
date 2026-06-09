@@ -55,13 +55,17 @@ tests += {
   'name': 'pg_upgrade',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'tests': [
+      'pyt/test_001_basic.py',
+    ],
+  },
   'tap': {
     'env': {
       'with_icu': icu.found() ? 'yes' : 'no',
       'TEST_EXT_LIB': test_ext.full_path(),
     },
     'tests': [
-      't/001_basic.pl',
       't/002_pg_upgrade.pl',
       't/003_logical_slots.pl',
       't/004_subscription.pl',
