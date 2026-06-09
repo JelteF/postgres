@@ -28,14 +28,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_001_worker_spi.py',
-    ],
-  },
-  'tap': {
-    'env': {
-      'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
-    'tests': [
-      't/002_worker_terminate.pl'
+      'pyt/test_002_worker_terminate.py',
     ],
   },
 }
