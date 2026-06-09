@@ -36,14 +36,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_001_multixact.py',
-    ],
-  },
-  'tap': {
-    'env': {
-       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
-    'tests': [
-      't/002_multixact_wraparound.pl'
+      'pyt/test_002_multixact_wraparound.py',
     ],
   },
 }
