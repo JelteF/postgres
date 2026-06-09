@@ -555,6 +555,18 @@ class PostgresServer:
         )
         return backup_path
 
+    def advance_wal(self, num):
+        """Advance WAL by ``num`` segments.
+
+        Emits an empty logical message and forces a segment switch ``num``
+        times. ``pg_switch_wal()`` flushes WAL, so ``pg_logical_emit_message()``
+        is safe in non-transactional mode. Mirrors Perl's ``$node->advance_wal``.
+        """
+        with self.connect() as conn:
+            for _ in range(num):
+                conn.sql("SELECT pg_logical_emit_message(false, '', 'foo')")
+                conn.sql("SELECT pg_switch_wal()")
+
     def backup_fs_cold(self, backup_name="cold_backup"):
         """Take a filesystem-level cold backup of this (stopped) server.
 
