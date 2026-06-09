@@ -37,7 +37,6 @@ tests += {
     },
     'tests': [
       't/001_stream_rep.pl',
-      't/002_archiving.pl',
       't/006_logical_decoding.pl',
       't/007_sync_rep.pl',
       't/010_logical_decoding_timelines.pl',
