@@ -124,25 +124,17 @@ def test_shm(create_pg, pg_bin):
         (gnat.datadir / "postmaster.pid").unlink()
 
         # Reject ordinary startup: the live backend keeps the old shared memory
-        # segment attached. Retry, as the message may take a moment to appear.
+        # segment attached. Launch without waiting (-W) so pg_ctl doesn't block
+        # on its startup timeout for a postmaster that is meant to fail, and
+        # confirm the rejection via the log.
         offset = gnat.current_log_position()
-        for _ in range(10 * test_timeout_default()):
-            try:
-                gnat.start()
-                break
-            except subprocess.CalledProcessError:
-                pass
-            if PRE_EXISTING in gnat.log_since(offset):
-                break
-            time.sleep(0.1)
-        assert PRE_EXISTING in gnat.log_since(offset), (
-            "detected live backend via shared memory"
-        )
+        gnat.pg_ctl("start", "-W")
+        gnat.wait_for_log(PRE_EXISTING, offset)
 
         # Reject single-user startup for the same reason.
         r = pg_bin.run(
             "postgres", "--single", "-D", str(gnat.datadir), "template1",
-            input="", check=False,
+            input="", check=False, timeout=test_timeout_default(),
         )
         assert r.returncode != 0 and PRE_EXISTING in r.stderr, (
             "single-user mode detected live backend via shared memory"
@@ -152,10 +144,19 @@ def test_shm(create_pg, pg_bin):
         gnat.pg_ctl("kill", "QUIT", str(slow_pid))
     finally:
         try:
-            slow_future.result()
+            slow_future.result(timeout=test_timeout_default())
         except Exception:
             pass
         slow.close()
+
+    # Wait for the backend's process to actually exit (releasing the shmem)
+    # before retrying startup, so poll_start doesn't spin against a held segment.
+    for _ in range(10 * test_timeout_default()):
+        try:
+            os.kill(slow_pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
 
     _poll_start(gnat)
     gnat.stop()
