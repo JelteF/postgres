@@ -485,6 +485,21 @@ class PostgresServer:
             for line in lines:
                 f.write(line + "\n")
 
+    def adjust_conf(self, setting, value=None, filename="postgresql.conf"):
+        """Set ``setting`` to ``value`` in a config file, replacing any existing
+        (or commented-out) lines for it; if ``value`` is None, remove them.
+
+        Unlike append_conf this leaves a single clean line for the setting
+        rather than relying on later-line-wins. Mirrors Perl's
+        ``$node->adjust_conf``. Like append_conf it does not reload the server.
+        """
+        path = self.datadir / filename
+        pat = re.compile(rf"^\s*#?\s*{re.escape(setting)}\s*=")
+        lines = [ln for ln in path.read_text().splitlines() if not pat.match(ln)]
+        if value is not None:
+            lines.append(f"{setting} = {value}")
+        path.write_text("\n".join(lines) + "\n")
+
     def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
         """Run ``query`` repeatedly until it returns ``expected``.
 
