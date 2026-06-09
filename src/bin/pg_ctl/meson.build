@@ -24,12 +24,12 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_002_status.py',
+      'pyt/test_003_promote.py',
     ],
   },
   'tap': {
     'tests': [
       't/001_start_stop.pl',
-      't/003_promote.pl',
       't/004_logrotate.pl',
     ],
   },
