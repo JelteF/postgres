@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_003_check_guc.py',
+      'pyt/test_008_replslot_single_user.py',
     ],
   },
   'tap': {
@@ -20,7 +21,6 @@ tests += {
       't/005_timeouts.pl',
       't/006_signal_autovacuum.pl',
       't/007_catcache_inval.pl',
-      't/008_replslot_single_user.pl',
       't/009_log_temp_files.pl',
       't/010_index_concurrently_upsert.pl',
       't/011_lock_stats.pl',
