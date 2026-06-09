@@ -4,6 +4,12 @@ tests += {
   'name': 'recovery',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
+    'tests': [
+      'pyt/test_034_create_database.py',
+    ],
+  },
   'tap': {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'env': {
@@ -42,7 +48,6 @@ tests += {
       't/031_recovery_conflict.pl',
       't/032_relfilenode_reuse.pl',
       't/033_replay_tsp_drops.pl',
-      't/034_create_database.pl',
       't/035_standby_logical_decoding.pl',
       't/036_truncated_dropped.pl',
       't/037_invalid_database.pl',
