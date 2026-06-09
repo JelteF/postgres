@@ -641,6 +641,36 @@ class PostgresServer:
             page_offset = end_lsn % wal_block_size
         return end_lsn
 
+    def advance_wal_to_record_splitting_zone(self, wal_block_size):
+        """Advance WAL so close to the end of a page that an XLogRecordHeader
+        would not fit on it, returning the end LSN in bytes. Mirrors Perl's
+        ``$node->advance_wal_to_record_splitting_zone``."""
+        record_header_size = 24
+        end_lsn = self._get_insert_lsn()
+        page_offset = end_lsn % wal_block_size
+
+        # Get fairly close to the end of a page in big steps.
+        while page_offset <= wal_block_size - 512:
+            self.emit_wal(wal_block_size - page_offset - 256)
+            end_lsn = self._get_insert_lsn()
+            page_offset = end_lsn % wal_block_size
+
+        # Calibrate the message size so we can get closer 8 bytes at a time.
+        message_size = wal_block_size - 80
+        while page_offset <= wal_block_size - record_header_size:
+            self.emit_wal(message_size)
+            end_lsn = self._get_insert_lsn()
+            old_offset = page_offset
+            page_offset = end_lsn % wal_block_size
+            # Adjust the message size until it causes 8-byte changes in offset,
+            # enough to be able to split a record header.
+            delta = page_offset - old_offset
+            if delta > 8:
+                message_size -= 8
+            elif delta <= 0:
+                message_size += 8
+        return end_lsn
+
     def backup_fs_cold(self, backup_name="cold_backup"):
         """Take a filesystem-level cold backup of this (stopped) server.
 
