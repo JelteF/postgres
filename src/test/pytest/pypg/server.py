@@ -582,6 +582,42 @@ class PostgresServer:
                 conn.sql("SELECT pg_logical_emit_message(false, '', 'foo')")
                 conn.sql("SELECT pg_switch_wal()")
 
+    def _get_insert_lsn(self):
+        """Return the current insert LSN of this server, in bytes."""
+        return int(self.sql("SELECT pg_current_wal_insert_lsn() - '0/0'"))
+
+    def emit_wal(self, size):
+        """Emit a transactional logical message of ``size`` bytes and return the
+        resulting end LSN, in bytes. Mirrors Perl's ``$node->emit_wal``."""
+        return int(
+            self.sql(f"SELECT pg_logical_emit_message(true, '', repeat('a', {size})) - '0/0'")
+        )
+
+    def write_wal(self, tli, lsn, segment_size, data: bytes):
+        """Write ``data`` (bytes) into the WAL segment file at byte ``lsn`` on
+        timeline ``tli``, returning the segment path. Used to corrupt WAL on a
+        stopped server. Mirrors Perl's ``$node->write_wal``."""
+        segment = lsn // segment_size
+        offset = lsn % segment_size
+        path = pathlib.Path(self.datadir) / "pg_wal" / f"{tli:08X}{0:08X}{segment:08X}"
+        with open(path, "r+b") as f:
+            f.seek(offset)
+            f.write(data)
+        return path
+
+    def advance_wal_out_of_record_splitting_zone(self, wal_block_size):
+        """Advance WAL to a safe distance from the end of a page (enough to fit
+        a couple of small records), returning the end LSN in bytes. Mirrors
+        Perl's ``$node->advance_wal_out_of_record_splitting_zone``."""
+        page_threshold = wal_block_size // 4
+        end_lsn = self._get_insert_lsn()
+        page_offset = end_lsn % wal_block_size
+        while page_offset >= wal_block_size - page_threshold:
+            self.emit_wal(page_threshold)
+            end_lsn = self._get_insert_lsn()
+            page_offset = end_lsn % wal_block_size
+        return end_lsn
+
     def backup_fs_cold(self, backup_name="cold_backup"):
         """Take a filesystem-level cold backup of this (stopped) server.
 
