@@ -11,6 +11,7 @@ tests += {
       'pyt/test_003_recovery_targets.py',
       'pyt/test_004_timeline_switch.py',
       'pyt/test_005_replay_delay.py',
+      'pyt/test_006_logical_decoding.py',
       'pyt/test_007_sync_rep.py',
       'pyt/test_008_fsm_truncation.py',
       'pyt/test_009_twophase.py',
@@ -55,7 +56,6 @@ tests += {
     },
     'tests': [
       't/001_stream_rep.pl',
-      't/006_logical_decoding.pl',
       't/017_shm.pl',
       't/019_replslot_limit.pl',
       't/027_stream_regress.pl',
