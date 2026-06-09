@@ -52,6 +52,7 @@ tests += {
       'pyt/test_047_checkpoint_physical_slot.py',
       'pyt/test_048_vacuum_horizon_floor.py',
       'pyt/test_050_redo_segment_missing.py',
+      'pyt/test_051_effective_wal_level.py',
       'pyt/test_052_checkpoint_segment_missing.py',
       'pyt/test_053_standby_login_event_trigger.py',
     ],
@@ -66,7 +67,6 @@ tests += {
       't/035_standby_logical_decoding.pl',
       't/040_standby_failover_slots_sync.pl',
       't/049_wait_for_lsn.pl',
-      't/051_effective_wal_level.pl',
     ],
   },
 }
