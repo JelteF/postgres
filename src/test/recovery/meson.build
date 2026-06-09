@@ -22,6 +22,7 @@ tests += {
       'pyt/test_014_unlogged_reinit.py',
       'pyt/test_015_promotion_pages.py',
       'pyt/test_016_min_consistency.py',
+      'pyt/test_017_shm.py',
       'pyt/test_018_wal_optimize.py',
       'pyt/test_019_replslot_limit.py',
       'pyt/test_020_archive_status.py',
@@ -61,7 +62,6 @@ tests += {
        'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/017_shm.pl',
       't/027_stream_regress.pl',
       't/035_standby_logical_decoding.pl',
       't/040_standby_failover_slots_sync.pl',
