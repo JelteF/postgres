@@ -130,6 +130,9 @@ class PostgresServer:
         hostaddr: Optional[str] = None,
         port: Optional[int] = None,
         initdb_opts: Optional[list] = None,
+        from_backup: Optional[pathlib.Path] = None,
+        streaming_primary: Optional["PostgresServer"] = None,
+        allows_streaming: bool = False,
     ):
         """
         Initialize a PostgreSQL server instance. Call start() to actually
@@ -148,6 +151,19 @@ class PostgresServer:
                 ["--locale=C", "--encoding=LATIN1"]). When provided the fast
                 INITDB_TEMPLATE copy is bypassed and a real initdb is run, since
                 the template was created with the default locale/encoding.
+            from_backup: Path to a base backup (as produced by
+                ``PostgresServer.backup()``) to copy into the data directory
+                instead of running initdb. Use this to build a standby or a
+                point-in-time-recovery node.
+            streaming_primary: When building from a backup, the upstream server
+                to stream WAL from. Sets ``primary_conninfo`` and creates a
+                ``standby.signal`` file so the node starts as a streaming
+                standby. Its ``application_name`` is this node's name, so the
+                primary can ``wait_for_catchup()`` on it by name.
+            allows_streaming: Configure this server to act as a replication
+                primary (``wal_log_hints`` plus generous ``max_wal_senders`` /
+                ``max_replication_slots``). The defaults already permit basic
+                streaming; this mirrors Perl's ``init(allows_streaming => 1)``.
         """
 
         if hostaddr is None and port is not None:
@@ -162,6 +178,8 @@ class PostgresServer:
         self._pg_ctl = bindir / "pg_ctl"
         self.log = datadir / "postgresql.log"
         self._log_start_pos = 0
+        # Where base backups taken from this server are written.
+        self._backup_root = pathlib.Path(datadir).parent / f"{name}_backups"
 
         # ExitStack for cleanup callbacks
         self._cleanup_stack = contextlib.ExitStack()
@@ -169,10 +187,17 @@ class PostgresServer:
         # Determine whether to use Unix sockets
         use_unix_sockets = platform.system() != "Windows" and hostaddr is None
 
+        # A backup-based node copies the backup into place rather than running
+        # initdb. The backup carries the primary's config; the conf appended
+        # below (port, sockets, ...) overrides it since later entries win.
+        if from_backup is not None:
+            shutil.copytree(from_backup, datadir)
+            os.chmod(datadir, 0o700)
         # Use INITDB_TEMPLATE if available (much faster than running initdb),
         # unless caller-supplied initdb options require a real initdb.
-        initdb_template = os.environ.get("INITDB_TEMPLATE")
-        if not initdb_opts and initdb_template and os.path.isdir(initdb_template):
+        elif (initdb_template := os.environ.get("INITDB_TEMPLATE")) and (
+            not initdb_opts and os.path.isdir(initdb_template)
+        ):
             shutil.copytree(initdb_template, datadir)
         else:
             if platform.system() == "Windows":
@@ -247,6 +272,28 @@ class PostgresServer:
             print("fsync = off", file=f)
             print("datestyle = 'ISO'", file=f)
             print("timezone = 'UTC'", file=f)
+
+        # Replication-primary settings, mirroring init(allows_streaming => 1).
+        # wal_level/max_wal_senders/hot_standby already default to streaming-
+        # capable values; wal_log_hints (off by default) is the one that
+        # matters for pg_rewind-style tests.
+        if allows_streaming:
+            self.append_conf(
+                "wal_level = replica",
+                "max_wal_senders = 10",
+                "max_replication_slots = 10",
+                "wal_log_hints = on",
+                "hot_standby = on",
+                "max_wal_size = 128MB",
+            )
+
+        # Configure streaming replication from the primary, mirroring Perl's
+        # enable_streaming(): set primary_conninfo and drop a standby.signal so
+        # the node comes up as a streaming standby.
+        if streaming_primary is not None:
+            conninfo = streaming_primary.connstr(application_name=self.name)
+            self.append_conf(f"primary_conninfo = '{conninfo}'")
+            self.append_conf(filename="standby.signal")
 
         # Between closing of the socket, s, and server start, we're racing
         # against anything that wants to open up ephemeral ports, so try not to
@@ -363,6 +410,71 @@ class PostgresServer:
             "PGDATABASE": "postgres",
             "PGDATA": str(self.datadir),
         }
+
+    def connstr(self, dbname="postgres", **opts):
+        """Return a libpq connection string pointing at this server.
+
+        Extra keyword options (e.g. ``application_name``) are appended. Used
+        for ``primary_conninfo`` on standbys and by replication clients.
+        """
+        parts = [f"host={self.host}", f"port={self.port}", f"dbname={dbname}"]
+        parts += [f"{k}={v}" for k, v in opts.items()]
+        return " ".join(parts)
+
+    def backup(self, backup_name="my_backup", backup_options=None):
+        """Take a base backup of this (running) server with pg_basebackup.
+
+        The backup is written under a per-server backups directory and the path
+        is returned, suitable for passing as ``from_backup`` when creating a
+        standby. Mirrors Perl's ``$node->backup()``.
+        """
+        backup_path = self._backup_root / backup_name
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        run(
+            self._bindir / "pg_basebackup",
+            "--no-sync",
+            "--pgdata", backup_path,
+            "--host", self.host,
+            "--port", str(self.port),
+            "--checkpoint", "fast",
+            *(backup_options or []),
+        )
+        return backup_path
+
+    def lsn(self, mode="write"):
+        """Return a current WAL LSN of this server as a string.
+
+        ``mode`` selects the function: ``insert``/``flush``/``write`` on a
+        primary, ``receive``/``replay`` on a standby. Mirrors ``$node->lsn()``.
+        """
+        funcs = {
+            "insert": "pg_current_wal_insert_lsn()",
+            "flush": "pg_current_wal_flush_lsn()",
+            "write": "pg_current_wal_lsn()",
+            "receive": "pg_last_wal_receive_lsn()",
+            "replay": "pg_last_wal_replay_lsn()",
+        }
+        return self.sql(f"SELECT {funcs[mode]}")
+
+    def wait_for_catchup(self, standby_name, mode="replay", target_lsn=None):
+        """Wait until a streaming standby has caught up to ``target_lsn``.
+
+        Polls pg_stat_replication on this (upstream) server until the standby's
+        ``<mode>_lsn`` has reached ``target_lsn`` (the upstream's current write
+        LSN by default) while in the ``streaming`` state. ``standby_name`` is
+        matched against ``application_name`` (or the default ``walreceiver``).
+        Mirrors Perl's ``$node->wait_for_catchup()``.
+        """
+        if isinstance(standby_name, PostgresServer):
+            standby_name = standby_name.name
+        if target_lsn is None:
+            target_lsn = self.lsn("write")
+        query = (
+            f"SELECT '{target_lsn}' <= {mode}_lsn AND state = 'streaming' "
+            "FROM pg_catalog.pg_stat_replication "
+            f"WHERE application_name IN ('{standby_name}', 'walreceiver')"
+        )
+        self.poll_query_until(query, True)
 
     def _run(self, cmd, *args, addenv: Optional[dict] = None):
         """Run a command with PG* environment variables set."""
