@@ -2,7 +2,7 @@
 
 PGFILEDESC = "test_autovacuum - test code for autovacuum"
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 EXTRA_INSTALL = src/test/modules/injection_points
 
