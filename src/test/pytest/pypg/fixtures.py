@@ -255,7 +255,7 @@ def create_pg(request, bindir, sockdir, libpq_handle, tmp_check, remaining_timeo
     """
     servers = []
 
-    def _create(name=None, **kwargs):
+    def _create(name=None, start=True, **kwargs):
         if name is None:
             count = len(servers) + 1
             name = f"pg{count}"
@@ -265,7 +265,11 @@ def create_pg(request, bindir, sockdir, libpq_handle, tmp_check, remaining_timeo
         servers.append(server)
         _record_server_for_log_reporting(request, server)
         server.set_timeout(remaining_timeout)
-        server.start()
+        # Pass start=False when the test must touch the data directory before
+        # startup (e.g. drop an extra signal file) or expects startup to fail;
+        # call server.start() yourself afterwards.
+        if start:
+            server.start()
         return server
 
     yield _create
@@ -306,7 +310,7 @@ def create_pg_module(
             return [create_pg_module() for _ in range(3)]
     """
 
-    def _create(name=None, **kwargs):
+    def _create(name=None, start=True, **kwargs):
         if name is None:
             count = len(_module_scoped_servers) + 1
             name = f"pg{count}"
@@ -315,7 +319,8 @@ def create_pg_module(
         _module_scoped_servers.append(server)
         _record_server_for_log_reporting(request, server)
         server.set_timeout(remaining_timeout_module)
-        server.start()
+        if start:
+            server.start()
         return server
 
     yield _create
