@@ -154,6 +154,12 @@ class BackgroundConnection:
         ``PostgresServer.sql()`` but on the persistent connection."""
         return self.asql(query).result()
 
+    def notifies(self):
+        """Return and consume pending LISTEN/NOTIFY notifications on this
+        session (see ``PGconn.notifies``). Runs on the session's worker thread
+        so it serializes with its queries."""
+        return self._executor.submit(self._conn.notifies).result()
+
     def quit(self):
         """End the session cleanly, like Perl's ``$session->quit``: wait for
         any in-flight query, then disconnect. Disconnecting runs the backend's
