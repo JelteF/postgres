@@ -147,7 +147,86 @@ def load_libpq_handle(libdir, bindir):
     lib.PQresultErrorField.restype = ctypes.c_char_p
     lib.PQresultErrorField.argtypes = [_PGresult_p, ctypes.c_int]
 
+    #
+    # Extended-protocol entry points. These are the libpq functions that psql's
+    # \bind / \parse / \bind_named meta-commands are built on, so tests can drive
+    # the extended protocol directly instead of shelling out to psql.
+    #
+    _char_pp = ctypes.POINTER(ctypes.c_char_p)
+
+    # PQexecParams: unnamed Parse/Bind/Execute (psql `<query> \bind <params> \g`).
+    lib.PQexecParams.restype = _PGresult_p
+    lib.PQexecParams.argtypes = [
+        _PGconn_p,
+        ctypes.c_char_p,  # command
+        ctypes.c_int,  # nParams
+        ctypes.c_void_p,  # paramTypes
+        _char_pp,  # paramValues
+        ctypes.c_void_p,  # paramLengths
+        ctypes.c_void_p,  # paramFormats
+        ctypes.c_int,  # resultFormat
+    ]
+
+    # PQprepare: Parse a named statement (psql `<query> \parse <name>`).
+    lib.PQprepare.restype = _PGresult_p
+    lib.PQprepare.argtypes = [
+        _PGconn_p,
+        ctypes.c_char_p,  # stmtName
+        ctypes.c_char_p,  # query
+        ctypes.c_int,  # nParams
+        ctypes.c_void_p,  # paramTypes
+    ]
+
+    # PQexecPrepared: Bind/Execute a named statement (psql `\bind_named <name> ...`).
+    lib.PQexecPrepared.restype = _PGresult_p
+    lib.PQexecPrepared.argtypes = [
+        _PGconn_p,
+        ctypes.c_char_p,  # stmtName
+        ctypes.c_int,  # nParams
+        _char_pp,  # paramValues
+        ctypes.c_void_p,  # paramLengths
+        ctypes.c_void_p,  # paramFormats
+        ctypes.c_int,  # resultFormat
+    ]
+
+    # Pipeline mode (psql `\startpipeline` / `\sendpipeline` / `\endpipeline`).
+    lib.PQenterPipelineMode.restype = ctypes.c_int
+    lib.PQenterPipelineMode.argtypes = [_PGconn_p]
+
+    lib.PQexitPipelineMode.restype = ctypes.c_int
+    lib.PQexitPipelineMode.argtypes = [_PGconn_p]
+
+    lib.PQpipelineSync.restype = ctypes.c_int
+    lib.PQpipelineSync.argtypes = [_PGconn_p]
+
+    lib.PQsendQueryParams.restype = ctypes.c_int
+    lib.PQsendQueryParams.argtypes = [
+        _PGconn_p,
+        ctypes.c_char_p,  # command
+        ctypes.c_int,  # nParams
+        ctypes.c_void_p,  # paramTypes
+        _char_pp,  # paramValues
+        ctypes.c_void_p,  # paramLengths
+        ctypes.c_void_p,  # paramFormats
+        ctypes.c_int,  # resultFormat
+    ]
+
+    lib.PQgetResult.restype = _PGresult_p
+    lib.PQgetResult.argtypes = [_PGconn_p]
+
     return lib
+
+
+def _build_params(params):
+    """Build the (nParams, paramValues) pair libpq's extended-protocol
+    functions expect from a tuple of Python parameter values. Values are
+    passed in text format; ``None`` becomes a SQL NULL."""
+    if not params:
+        return 0, None
+    arr = (ctypes.c_char_p * len(params))()
+    for i, p in enumerate(params):
+        arr[i] = None if p is None else str(p).encode()
+    return len(params), arr
 
 
 # PostgreSQL type OIDs and conversion system
@@ -406,18 +485,113 @@ class PGconn(contextlib.AbstractContextManager):
         - CREATE TABLE ... -> None
         - INSERT INTO ... -> None
         """
-        res = self.exec(query)
-        status = res.status()
+        return self._result_or_raise(self.exec(query))
 
-        if status == ExecStatus.PGRES_FATAL_ERROR:
-            res.raise_error()
-        elif status == ExecStatus.PGRES_COMMAND_OK:
+    def _result_or_raise(self, res):
+        """Turn a PGresult into a simplified Python value, raising LibpqError
+        on any error status. Shared by sql() and the extended-protocol helpers."""
+        status = res.status()
+        if status == ExecStatus.PGRES_COMMAND_OK:
             return None
-        elif status == ExecStatus.PGRES_TUPLES_OK:
-            results = res.fetch_all()
-            return simplify_query_results(results)
-        else:
-            res.raise_error()
+        if status == ExecStatus.PGRES_TUPLES_OK:
+            return simplify_query_results(res.fetch_all())
+        res.raise_error()
+
+    def exec_params(self, query: str, *params):
+        """
+        Run ``query`` through the extended protocol, binding ``params`` to its
+        ``$1, $2, ...`` placeholders in text format (an unnamed Parse/Bind/
+        Execute). This is the libpq equivalent of psql's
+        ``<query> \\bind <params> \\g``. Raises on error, otherwise returns the
+        simplified results like sql().
+        """
+        nparams, values = _build_params(params)
+        res = self._lib.PQexecParams(
+            self._handle, query.encode(), nparams, None, values, None, None, 0
+        )
+        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
+
+    def prepare(self, name: str, query: str):
+        """
+        Parse ``query`` into a named prepared statement. This is the libpq
+        equivalent of psql's ``<query> \\parse <name>``. Execute it afterwards
+        with exec_prepared().
+        """
+        res = self._lib.PQprepare(
+            self._handle, name.encode(), query.encode(), 0, None
+        )
+        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
+
+    def exec_prepared(self, name: str, *params):
+        """
+        Bind ``params`` to a previously prepare()d statement and execute it.
+        This is the libpq equivalent of psql's
+        ``\\bind_named <name> <params> \\g``.
+        """
+        nparams, values = _build_params(params)
+        res = self._lib.PQexecPrepared(
+            self._handle, name.encode(), nparams, values, None, None, 0
+        )
+        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
+
+    @contextlib.contextmanager
+    def pipeline(self):
+        """
+        Enter libpq pipeline mode for the duration of the ``with`` block, the
+        equivalent of psql's ``\\startpipeline`` ... ``\\endpipeline``. Use the
+        yielded object to queue commands (see Pipeline). On a clean exit a Sync
+        is sent and every queued result is drained so the connection is left
+        ready for further queries.
+        """
+        if not self._lib.PQenterPipelineMode(self._handle):
+            raise LibpqError(self._lib.PQerrorMessage(self._handle).decode())
+
+        yield Pipeline(self)
+
+        # \endpipeline: Sync, then consume results until the sync point. In
+        # pipeline mode PQgetResult returns a NULL between each command's
+        # results, so we keep going until the PGRES_PIPELINE_SYNC marker.
+        if not self._lib.PQpipelineSync(self._handle):
+            raise LibpqError(self._lib.PQerrorMessage(self._handle).decode())
+        while True:
+            res = self._lib.PQgetResult(self._handle)
+            if not res:
+                continue
+            status = ExecStatus(self._lib.PQresultStatus(res))
+            self._lib.PQclear(res)
+            if status == ExecStatus.PGRES_PIPELINE_SYNC:
+                break
+        self._lib.PQexitPipelineMode(self._handle)
+
+
+class Pipeline:
+    """
+    Queues commands onto a connection that is in libpq pipeline mode. Obtained
+    from ``PGconn.pipeline()``; results are drained when that context exits.
+    """
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def send_query_params(self, query: str, *params):
+        """
+        Queue an extended-protocol query binding ``params`` in text format, the
+        equivalent of psql's ``<query> \\bind <params> \\sendpipeline``.
+        """
+        nparams, values = _build_params(params)
+        ok = self._conn._lib.PQsendQueryParams(
+            self._conn._handle, query.encode(), nparams, None, values, None, None, 0
+        )
+        if not ok:
+            raise LibpqError(self._conn._lib.PQerrorMessage(self._conn._handle).decode())
+
+    def send_query(self, query: str):
+        """
+        Queue a parameterless query. psql sends bare ``;``-terminated queries
+        inside a pipeline this same way (PQsendQueryParams with no params),
+        rather than as a simple-protocol query.
+        """
+        self.send_query_params(query)
 
 
 def connstr(opts: Dict[str, Any]) -> str:
