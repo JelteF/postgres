@@ -6,6 +6,7 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_004_io_direct.py',
       'pyt/test_002_tablespace.py',
       'pyt/test_003_check_guc.py',
       'pyt/test_007_catcache_inval.py',
@@ -21,7 +22,6 @@ tests += {
     },
     'tests': [
       't/001_constraint_validation.pl',
-      't/004_io_direct.pl',
       't/005_timeouts.pl',
       't/006_signal_autovacuum.pl',
       't/010_index_concurrently_upsert.pl',
