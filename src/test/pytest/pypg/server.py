@@ -154,9 +154,18 @@ class BackgroundConnection:
         ``PostgresServer.sql()`` but on the persistent connection."""
         return self.asql(query).result()
 
+    def quit(self):
+        """End the session cleanly, like Perl's ``$session->quit``: wait for
+        any in-flight query, then disconnect. Disconnecting runs the backend's
+        session-exit cleanup, so this is also how a test deliberately triggers
+        that cleanup (e.g. to drop the session's temp objects)."""
+        self._executor.shutdown(wait=True)
+        self._conn.close()
+
     def close(self):
-        """Shut the session down: drop the worker thread and let the
-        connection close with its owning server's cleanup."""
+        """Shut the session down without waiting (teardown path): drop the
+        worker thread and let the connection close with its owning server's
+        cleanup."""
         self._executor.shutdown(wait=False, cancel_futures=True)
 
 
