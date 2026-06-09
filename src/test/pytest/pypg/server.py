@@ -740,6 +740,50 @@ class PostgresServer:
         )
         publisher.wait_for_catchup(subname)
 
+    def log_standby_snapshot(self, standby, slot_name):
+        """Emit the ``xl_running_xacts`` record a standby's logical slot
+        creation is waiting for.
+
+        Called on the primary: waits until the standby slot's ``restart_lsn`` is
+        determined, then runs ``pg_log_standby_snapshot()``. Mirrors Perl's
+        ``$primary->log_standby_snapshot()``.
+        """
+        standby.poll_query_until(
+            "SELECT restart_lsn IS NOT NULL FROM pg_catalog.pg_replication_slots "
+            f"WHERE slot_name = '{slot_name}'"
+        )
+        self.sql("SELECT pg_log_standby_snapshot()")
+
+    def create_logical_slot_on_standby(self, primary, slot_name, dbname="postgres"):
+        """Create a logical replication slot on this standby.
+
+        Logical slot creation on a standby blocks until an ``xl_running_xacts``
+        record arrives, so it is driven from a background ``pg_recvlogical
+        --create-slot`` while the primary is asked to log a standby snapshot.
+        Mirrors Perl's ``$standby->create_logical_slot_on_standby()``.
+        """
+        recv = subprocess.Popen(
+            [
+                str(self._bindir / "pg_recvlogical"),
+                "--dbname", self.connstr(dbname),
+                "--plugin", "test_decoding",
+                "--slot", slot_name,
+                "--create-slot",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        # Arrange for the xl_running_xacts record pg_recvlogical waits for.
+        primary.log_standby_snapshot(self, slot_name)
+        recv.wait()
+        assert (
+            self.sql(
+                "SELECT slot_type FROM pg_catalog.pg_replication_slots "
+                f"WHERE slot_name = '{slot_name}'"
+            )
+            == "logical"
+        ), f"{slot_name} on standby created"
+
     def background(self, dbname="postgres", **opts) -> BackgroundConnection:
         """Open a persistent background session against this server.
 
