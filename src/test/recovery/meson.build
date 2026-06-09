@@ -39,6 +39,7 @@ tests += {
       'pyt/test_032_relfilenode_reuse.py',
       'pyt/test_033_replay_tsp_drops.py',
       'pyt/test_034_create_database.py',
+      'pyt/test_035_standby_logical_decoding.py',
       'pyt/test_036_truncated_dropped.py',
       'pyt/test_037_invalid_database.py',
       'pyt/test_038_save_logical_slots_shutdown.py',
@@ -65,7 +66,6 @@ tests += {
     },
     'tests': [
       't/027_stream_regress.pl',
-      't/035_standby_logical_decoding.pl',
       't/040_standby_failover_slots_sync.pl',
     ],
   },
