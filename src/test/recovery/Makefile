@@ -26,6 +26,7 @@ export REGRESS_SHLIB
 
 check:
 	$(prove_check)
+	$(pytest_check)
 
 installcheck:
 	$(prove_installcheck)
