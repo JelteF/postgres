@@ -56,6 +56,23 @@ def skip_unless_test_extras(*keys: str):
         pytest.skip(_test_extra_skip_reason(*keys))
 
 
+def skip_unless_injection_points(node):
+    """Skip the current test unless the server build supports injection points.
+
+    The ``injection_points`` test extension is only built and installed when
+    the server was configured with ``--enable-injection-points``
+    (``-Dinjection_points``), so its presence in ``pg_available_extensions`` is
+    a reliable runtime signal. Mirrors the Perl tests' combined
+    ``enable_injection_points`` / ``check_extension`` gate.
+    """
+    available = node.sql(
+        "SELECT count(*) > 0 FROM pg_available_extensions "
+        "WHERE name = 'injection_points'"
+    )
+    if not available:
+        pytest.skip("injection points not supported by this build")
+
+
 def test_timeout_default() -> int:
     """
     Returns the value of the PG_TEST_TIMEOUT_DEFAULT environment variable, in
