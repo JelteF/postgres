@@ -214,6 +214,18 @@ def load_libpq_handle(libdir, bindir):
     lib.PQgetResult.restype = _PGresult_p
     lib.PQgetResult.argtypes = [_PGconn_p]
 
+    # COPY ... TO STDOUT support: PQexec returns a PGRES_COPY_OUT result and the
+    # rows (and any error raised while reading them) are then streamed out.
+    lib.PQgetCopyData.restype = ctypes.c_int
+    lib.PQgetCopyData.argtypes = [
+        _PGconn_p,
+        ctypes.POINTER(ctypes.c_char_p),
+        ctypes.c_int,
+    ]
+
+    lib.PQfreemem.restype = None
+    lib.PQfreemem.argtypes = [ctypes.c_void_p]
+
     return lib
 
 
@@ -461,8 +473,15 @@ class PGconn(contextlib.AbstractContextManager):
         self._stack = stack
 
     def __exit__(self, *exc):
-        self._lib.PQfinish(self._handle)
-        self._handle = None
+        self.close()
+
+    def close(self):
+        """Close the connection (PQfinish). Idempotent, so it is safe to close
+        early — e.g. to disconnect a session deliberately — even though the
+        owning ExitStack will also close it at teardown."""
+        if self._handle is not None:
+            self._lib.PQfinish(self._handle)
+            self._handle = None
 
     def exec(self, query: str):
         """
@@ -495,6 +514,20 @@ class PGconn(contextlib.AbstractContextManager):
             return None
         if status == ExecStatus.PGRES_TUPLES_OK:
             return simplify_query_results(res.fetch_all())
+        if status == ExecStatus.PGRES_COPY_OUT:
+            # Drain the COPY OUT stream. The rows are discarded, but draining
+            # is what surfaces an error raised mid-copy (e.g. a permission or
+            # buffer-access failure): PQgetCopyData returns -2 and the real
+            # result then comes from PQgetResult.
+            buf = ctypes.c_char_p()
+            while self._lib.PQgetCopyData(self._handle, ctypes.byref(buf), 0) > 0:
+                if buf:
+                    self._lib.PQfreemem(buf)
+                buf = ctypes.c_char_p()
+            final = self._lib.PQgetResult(self._handle)
+            return self._result_or_raise(
+                self._stack.enter_context(PGresult(self._lib, final))
+            )
         res.raise_error()
 
     def exec_params(self, query: str, *params):
