@@ -3,7 +3,7 @@
 EXTRA_INSTALL = contrib/pageinspect contrib/pg_walinspect
 
 ISOLATION = summarization-and-inprogress-insertion
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

@@ -12,11 +12,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_01_workitems.py',
-    ],
-  },
-  'tap': {
-    'tests': [
-      't/02_wal_consistency.pl',
+      'pyt/test_02_wal_consistency.py',
     ],
   },
 }
