@@ -129,6 +129,7 @@ class PostgresServer:
         *,
         hostaddr: Optional[str] = None,
         port: Optional[int] = None,
+        initdb_opts: Optional[list] = None,
     ):
         """
         Initialize a PostgreSQL server instance. Call start() to actually
@@ -143,6 +144,10 @@ class PostgresServer:
             hostaddr: If provided, use this specific address (e.g., "127.0.0.2")
             port: If provided, use this port instead of finding a free one,
                 is currently only allowed if hostaddr is also provided
+            initdb_opts: Extra arguments to pass to initdb (e.g.
+                ["--locale=C", "--encoding=LATIN1"]). When provided the fast
+                INITDB_TEMPLATE copy is bypassed and a real initdb is run, since
+                the template was created with the default locale/encoding.
         """
 
         if hostaddr is None and port is not None:
@@ -164,9 +169,10 @@ class PostgresServer:
         # Determine whether to use Unix sockets
         use_unix_sockets = platform.system() != "Windows" and hostaddr is None
 
-        # Use INITDB_TEMPLATE if available (much faster than running initdb)
+        # Use INITDB_TEMPLATE if available (much faster than running initdb),
+        # unless caller-supplied initdb options require a real initdb.
         initdb_template = os.environ.get("INITDB_TEMPLATE")
-        if initdb_template and os.path.isdir(initdb_template):
+        if not initdb_opts and initdb_template and os.path.isdir(initdb_template):
             shutil.copytree(initdb_template, datadir)
         else:
             if platform.system() == "Windows":
@@ -180,6 +186,7 @@ class PostgresServer:
                 auth_method,
                 "--pgdata",
                 self.datadir,
+                *(initdb_opts or []),
             )
 
         # Figure out a port to listen on. Attempt to reserve both IPv4 and IPv6
@@ -322,17 +329,25 @@ class PostgresServer:
         """Run pg_ctl with the given arguments."""
         self._run(self._pg_ctl, "--pgdata", self.datadir, "--log", self.log, *args)
 
+    def connection_env(self):
+        """Return the PG* environment variables that point a client program at
+        this server.
+
+        Use this to run an installed client program (createdb, vacuumdb, ...)
+        against this server while capturing its output, e.g. via
+        ``pg_bin.run(name, ..., server=pg)``.
+        """
+        return {
+            "PGHOST": str(self.host),
+            "PGPORT": str(self.port),
+            "PGDATABASE": "postgres",
+            "PGDATA": str(self.datadir),
+        }
+
     def _run(self, cmd, *args, addenv: Optional[dict] = None):
         """Run a command with PG* environment variables set."""
         subenv = dict(os.environ)
-        subenv.update(
-            {
-                "PGHOST": str(self.host),
-                "PGPORT": str(self.port),
-                "PGDATABASE": "postgres",
-                "PGDATA": str(self.datadir),
-            }
-        )
+        subenv.update(self.connection_env())
         if addenv:
             subenv.update(addenv)
         run(cmd, *args, env=subenv)
