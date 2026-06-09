@@ -17,17 +17,8 @@ tests += {
       'pyt/test_013_temp_obj_multisession.py',
       'pyt/test_005_timeouts.py',
       'pyt/test_006_signal_autovacuum.py',
+      'pyt/test_010_index_concurrently_upsert.py',
       'pyt/test_012_ddlutils.py',
     ],
-  },
-  'tap': {
-    'env': {
-       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
-    'tests': [
-      't/010_index_concurrently_upsert.pl',
-    ],
-    # The injection points are cluster-wide, so disable installcheck
-    'runningcheck': false,
   },
 }
