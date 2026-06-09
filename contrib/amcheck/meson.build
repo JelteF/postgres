@@ -44,6 +44,7 @@ tests += {
   },
   'pytest': {
     'tests': [
+      'pyt/test_001_verify_heapam.py',
       'pyt/test_002_cic.py',
       'pyt/test_003_cic_2pc.py',
       'pyt/test_004_verify_nbtree_unique.py',
@@ -52,7 +53,6 @@ tests += {
   },
   'tap': {
     'tests': [
-      't/001_verify_heapam.pl',
       't/005_pitr.pl',
     ],
   },
