@@ -719,7 +719,12 @@ class PostgresServer:
         if isinstance(standby_name, PostgresServer):
             standby_name = standby_name.name
         if target_lsn is None:
-            target_lsn = self.lsn("write")
+            # On a standby (e.g. a standby acting as a publisher) the write LSN
+            # isn't available; use the replay LSN, like Perl's wait_for_catchup.
+            if self.sql("SELECT pg_is_in_recovery()"):
+                target_lsn = self.lsn("replay")
+            else:
+                target_lsn = self.lsn("write")
         query = (
             f"SELECT '{target_lsn}' <= {mode}_lsn AND state = 'streaming' "
             "FROM pg_catalog.pg_stat_replication "
