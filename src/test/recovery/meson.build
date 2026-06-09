@@ -8,6 +8,7 @@ tests += {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'tests': [
       'pyt/test_002_archiving.py',
+      'pyt/test_023_pitr_prepared_xact.py',
       'pyt/test_024_archive_recovery.py',
       'pyt/test_034_create_database.py',
       'pyt/test_045_archive_restartpoint.py',
@@ -39,7 +40,6 @@ tests += {
       't/020_archive_status.pl',
       't/021_row_visibility.pl',
       't/022_crash_temp_files.pl',
-      't/023_pitr_prepared_xact.pl',
       't/025_stuck_on_old_timeline.pl',
       't/026_overwrite_contrecord.pl',
       't/027_stream_regress.pl',
