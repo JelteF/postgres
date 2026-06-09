@@ -73,9 +73,9 @@ tests += {
     # see above
     'runningcheck': false,
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_repl_stats.pl',
+      'pyt/test_001_repl_stats.py',
     ],
   },
 }
