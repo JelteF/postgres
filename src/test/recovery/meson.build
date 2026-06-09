@@ -29,6 +29,7 @@ tests += {
       'pyt/test_036_truncated_dropped.py',
       'pyt/test_041_checkpoint_at_promote.py',
       'pyt/test_045_archive_restartpoint.py',
+      'pyt/test_052_checkpoint_segment_missing.py',
     ],
   },
   'tap': {
@@ -65,7 +66,6 @@ tests += {
       't/049_wait_for_lsn.pl',
       't/050_redo_segment_missing.pl',
       't/051_effective_wal_level.pl',
-      't/052_checkpoint_segment_missing.pl',
       't/053_standby_login_event_trigger.pl',
     ],
   },
