@@ -51,6 +51,7 @@ tests += {
       'pyt/test_046_checkpoint_logical_slot.py',
       'pyt/test_047_checkpoint_physical_slot.py',
       'pyt/test_048_vacuum_horizon_floor.py',
+      'pyt/test_049_wait_for_lsn.py',
       'pyt/test_050_redo_segment_missing.py',
       'pyt/test_051_effective_wal_level.py',
       'pyt/test_052_checkpoint_segment_missing.py',
@@ -66,7 +67,6 @@ tests += {
       't/027_stream_regress.pl',
       't/035_standby_logical_decoding.pl',
       't/040_standby_failover_slots_sync.pl',
-      't/049_wait_for_lsn.pl',
     ],
   },
 }
