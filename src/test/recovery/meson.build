@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'tests': [
+      'pyt/test_002_archiving.py',
       'pyt/test_034_create_database.py',
     ],
   },
@@ -17,7 +18,6 @@ tests += {
     },
     'tests': [
       't/001_stream_rep.pl',
-      't/002_archiving.pl',
       't/003_recovery_targets.pl',
       't/004_timeline_switch.pl',
       't/005_replay_delay.pl',
