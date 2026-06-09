@@ -65,21 +65,28 @@ tests += {
   'name': 'scripts',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'env': {'with_icu': icu.found() ? 'yes' : 'no'},
     'tests': [
-      't/010_clusterdb.pl',
-      't/011_clusterdb_all.pl',
-      't/020_createdb.pl',
-      't/040_createuser.pl',
-      't/050_dropdb.pl',
-      't/070_dropuser.pl',
-      't/080_pg_isready.pl',
-      't/090_reindexdb.pl',
-      't/091_reindexdb_all.pl',
-      't/100_vacuumdb.pl',
-      't/101_vacuumdb_all.pl',
-      't/102_vacuumdb_stages.pl',
+      'pyt/test_010_clusterdb.py',
+      'pyt/test_011_clusterdb_all.py',
+      'pyt/test_020_createdb.py',
+      'pyt/test_040_createuser.py',
+      'pyt/test_050_dropdb.py',
+      'pyt/test_070_dropuser.py',
+      'pyt/test_080_pg_isready.py',
+      'pyt/test_090_reindexdb.py',
+      'pyt/test_091_reindexdb_all.py',
+      'pyt/test_100_vacuumdb.py',
+      'pyt/test_101_vacuumdb_all.py',
+      'pyt/test_102_vacuumdb_stages.py',
+    ],
+  },
+  'tap': {
+    # 200_connstr exercises a LATIN1-encoded cluster with database names made
+    # of raw non-UTF8 byte sequences, which the pytest framework cannot yet
+    # set up; keep it as a Perl TAP test for now.
+    'tests': [
       't/200_connstr.pl',
     ],
   },
