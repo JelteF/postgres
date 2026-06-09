@@ -197,7 +197,7 @@ class PostgresServer:
         allows_streaming: bool = False,
         archiving: bool = False,
         restoring: Optional["PostgresServer"] = None,
-        restoring_standby: bool = False,
+        restoring_standby: bool = True,
         conf: Optional[list] = None,
     ):
         """
@@ -235,10 +235,13 @@ class PostgresServer:
                 ``archive_dir``). Mirrors Perl's ``enable_archiving``.
             restoring: When building from a backup, the upstream server whose
                 ``archive_dir`` to restore WAL from (sets ``restore_command``).
-                By default a ``recovery.signal`` is dropped so the node performs
-                archive recovery and promotes (point-in-time recovery); pass
-                ``restoring_standby=True`` for a ``standby.signal`` instead.
-                Mirrors Perl's ``init_from_backup(..., has_restoring => 1)``.
+                Mirrors Perl's ``init_from_backup(..., has_restoring => 1)``,
+                which defaults ``standby => 1``, so by default a
+                ``standby.signal`` is dropped (the node keeps replaying archived
+                WAL as a standby). Pass ``restoring_standby=False`` for a
+                ``recovery.signal`` instead (archive recovery that promotes when
+                WAL runs out). Either way, setting a recovery target via ``conf``
+                with ``recovery_target_action = promote`` performs PITR.
             restoring_standby: See ``restoring``.
             conf: Extra postgresql.conf lines to append before the first start.
                 Use for settings that must be present at startup, such as a
@@ -389,9 +392,9 @@ class PostgresServer:
             )
 
         # Restore WAL from an upstream server's archive, mirroring Perl's
-        # enable_restoring(). A recovery.signal makes the node perform archive
-        # recovery and promote (point-in-time recovery); a standby.signal keeps
-        # it a standby replaying the archive.
+        # enable_restoring(). A standby.signal keeps the node replaying the
+        # archive as a standby (the init_from_backup default); a recovery.signal
+        # makes it perform archive recovery and promote when WAL runs out.
         if restoring is not None:
             self.append_conf(
                 f"""restore_command = 'cp "{restoring.archive_dir}/%f" "%p"'"""
@@ -416,6 +419,12 @@ class PostgresServer:
         # Read the PID file to get the postmaster PID
         with open(os.path.join(self.datadir, "postmaster.pid")) as f:
             self.pid = int(f.readline().strip())
+
+    def promote(self):
+        """Promote a standby/recovery node to a primary, waiting for the
+        promotion to finish (pg_ctl promote -w). Mirrors Perl's ``$node->promote``.
+        """
+        self.pg_ctl("promote", "-w")
 
     def current_log_position(self):
         """Get the current end position of the log file."""
