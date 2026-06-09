@@ -195,6 +195,10 @@ class PostgresServer:
         from_backup: Optional[pathlib.Path] = None,
         streaming_primary: Optional["PostgresServer"] = None,
         allows_streaming: bool = False,
+        archiving: bool = False,
+        restoring: Optional["PostgresServer"] = None,
+        restoring_standby: bool = False,
+        conf: Optional[list] = None,
     ):
         """
         Initialize a PostgreSQL server instance. Call start() to actually
@@ -226,6 +230,20 @@ class PostgresServer:
                 primary (``wal_log_hints`` plus generous ``max_wal_senders`` /
                 ``max_replication_slots``). The defaults already permit basic
                 streaming; this mirrors Perl's ``init(allows_streaming => 1)``.
+            archiving: Enable WAL archiving (``archive_mode = on`` plus an
+                ``archive_command`` that copies segments into this server's
+                ``archive_dir``). Mirrors Perl's ``enable_archiving``.
+            restoring: When building from a backup, the upstream server whose
+                ``archive_dir`` to restore WAL from (sets ``restore_command``).
+                By default a ``recovery.signal`` is dropped so the node performs
+                archive recovery and promotes (point-in-time recovery); pass
+                ``restoring_standby=True`` for a ``standby.signal`` instead.
+                Mirrors Perl's ``init_from_backup(..., has_restoring => 1)``.
+            restoring_standby: See ``restoring``.
+            conf: Extra postgresql.conf lines to append before the first start.
+                Use for settings that must be present at startup, such as a
+                point-in-time recovery target (``recovery_target_lsn`` etc.),
+                since ``create_pg`` starts the server immediately.
         """
 
         if hostaddr is None and port is not None:
@@ -242,6 +260,9 @@ class PostgresServer:
         self._log_start_pos = 0
         # Where base backups taken from this server are written.
         self._backup_root = pathlib.Path(datadir).parent / f"{name}_backups"
+        # Where archived WAL segments are written (when archiving is enabled),
+        # and the source a restoring node reads from.
+        self.archive_dir = pathlib.Path(datadir).parent / f"{name}_archive"
 
         # ExitStack for cleanup callbacks
         self._cleanup_stack = contextlib.ExitStack()
@@ -356,6 +377,31 @@ class PostgresServer:
             conninfo = streaming_primary.connstr(application_name=self.name)
             self.append_conf(f"primary_conninfo = '{conninfo}'")
             self.append_conf(filename="standby.signal")
+
+        # Enable WAL archiving, mirroring Perl's enable_archiving(). archive_mode
+        # is a postmaster GUC, so this must be configured before the first start.
+        if archiving:
+            os.makedirs(self.archive_dir, exist_ok=True)
+            self.append_conf(
+                "archive_mode = on",
+                f"""archive_command = 'cp "%p" "{self.archive_dir}/%f"'""",
+                "wal_level = replica",
+            )
+
+        # Restore WAL from an upstream server's archive, mirroring Perl's
+        # enable_restoring(). A recovery.signal makes the node perform archive
+        # recovery and promote (point-in-time recovery); a standby.signal keeps
+        # it a standby replaying the archive.
+        if restoring is not None:
+            self.append_conf(
+                f"""restore_command = 'cp "{restoring.archive_dir}/%f" "%p"'"""
+            )
+            signal = "standby.signal" if restoring_standby else "recovery.signal"
+            self.append_conf(filename=signal)
+
+        # Caller-supplied startup config (e.g. a recovery target).
+        if conf:
+            self.append_conf(*conf)
 
         # Between closing of the socket, s, and server start, we're racing
         # against anything that wants to open up ephemeral ports, so try not to
