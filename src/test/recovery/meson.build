@@ -8,6 +8,7 @@ tests += {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'tests': [
       'pyt/test_002_archiving.py',
+      'pyt/test_003_recovery_targets.py',
       'pyt/test_004_timeline_switch.py',
       'pyt/test_005_replay_delay.py',
       'pyt/test_008_fsm_truncation.py',
@@ -27,7 +28,6 @@ tests += {
     'tests': [
       't/001_stream_rep.pl',
       't/002_archiving.pl',
-      't/003_recovery_targets.pl',
       't/006_logical_decoding.pl',
       't/007_sync_rep.pl',
       't/009_twophase.pl',
