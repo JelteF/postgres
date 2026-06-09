@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'test_kwargs': {'priority': 40}, # recovery tests are slow, start early
     'tests': [
+      'pyt/test_001_stream_rep.py',
       'pyt/test_002_archiving.py',
       'pyt/test_003_recovery_targets.py',
       'pyt/test_004_timeline_switch.py',
@@ -57,7 +58,6 @@ tests += {
        'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/001_stream_rep.pl',
       't/017_shm.pl',
       't/019_replslot_limit.pl',
       't/027_stream_regress.pl',
