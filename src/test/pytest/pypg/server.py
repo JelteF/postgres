@@ -13,7 +13,7 @@ from collections import namedtuple
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable, Optional
 
-from .util import run, wait_until
+from .util import capture, run, wait_until
 from libpq import PGconn, connect as libpq_connect
 
 
@@ -554,6 +554,29 @@ class PostgresServer:
             *(backup_options or []),
         )
         return backup_path
+
+    def pg_recvlogical_upto(self, slot_name, endpos, *, dbname="postgres",
+                            timeout=None, options=None):
+        """Stream a logical slot's changes up to ``endpos`` with pg_recvlogical.
+
+        Runs ``pg_recvlogical --start`` (which confirms the changes it reads,
+        advancing the slot) and returns its stdout as text with the trailing
+        newline stripped. ``options`` is a dict of plugin output options, each
+        passed as ``--option name=value``. Mirrors Perl's
+        ``$node->pg_recvlogical_upto``.
+        """
+        args = [
+            self._bindir / "pg_recvlogical",
+            "--slot", slot_name,
+            "--dbname", self.connstr(dbname),
+            "--endpos", endpos,
+            "--file", "-",
+            "--no-loop", "--start",
+        ]
+        for k, v in (options or {}).items():
+            args.append("--option")
+            args.append(f"{k}={v}")
+        return capture(*args, timeout=timeout)
 
     def advance_wal(self, num):
         """Advance WAL by ``num`` segments.
