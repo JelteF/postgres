@@ -550,6 +550,23 @@ class PostgresServer:
             True,
         )
 
+    def wait_for_injection_point(self, name):
+        """Wait until some backend is parked at the named injection point.
+
+        Polls pg_stat_activity for a backend whose wait event is the injection
+        point (``wait_event_type = 'InjectionPoint'``). Use after dispatching a
+        query with ``BackgroundConnection.asql()`` that is expected to block on
+        a point attached in ``'wait'`` mode. Mirrors Perl's
+        ``wait_for_injection_point()``. Unlike ``wait_for_event()`` it does not
+        constrain the backend type, so it also catches background workers
+        (autovacuum, checkpointer, ...) parked at the point.
+        """
+        self.poll_query_until(
+            "SELECT count(*) > 0 FROM pg_stat_activity "
+            f"WHERE wait_event_type = 'InjectionPoint' AND wait_event = '{name}'",
+            True,
+        )
+
     def _run(self, cmd, *args, addenv: Optional[dict] = None):
         """Run a command with PG* environment variables set."""
         subenv = dict(os.environ)
