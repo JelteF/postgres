@@ -16,7 +16,7 @@ PGFILEDESC = "bloom access method - signature file based index"
 
 REGRESS = bloom
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
