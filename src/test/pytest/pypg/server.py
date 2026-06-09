@@ -428,11 +428,16 @@ class PostgresServer:
         """
         if timeout is None:
             timeout = self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
-        conn = self.connect(dbname=dbname)
-        for _ in wait_until(f"query never returned {expected!r}: {query}", timeout=timeout):
-            result = conn.sql(query)
-            if result == expected:
-                return result
+        # Close the polling connection on return rather than leaking it until
+        # teardown; a lingering connection to ``dbname`` would otherwise block
+        # e.g. CREATE DATABASE WITH TEMPLATE on that database.
+        with self.connect(dbname=dbname) as conn:
+            for _ in wait_until(
+                f"query never returned {expected!r}: {query}", timeout=timeout
+            ):
+                result = conn.sql(query)
+                if result == expected:
+                    return result
 
     def pg_ctl(self, *args):
         """Run pg_ctl with the given arguments."""
