@@ -9,6 +9,7 @@ tests += {
     'tests': [
       'pyt/test_002_archiving.py',
       'pyt/test_005_replay_delay.py',
+      'pyt/test_008_fsm_truncation.py',
       'pyt/test_013_crash_restart.py',
       'pyt/test_014_unlogged_reinit.py',
       'pyt/test_023_pitr_prepared_xact.py',
@@ -28,7 +29,6 @@ tests += {
       't/004_timeline_switch.pl',
       't/006_logical_decoding.pl',
       't/007_sync_rep.pl',
-      't/008_fsm_truncation.pl',
       't/009_twophase.pl',
       't/010_logical_decoding_timelines.pl',
       't/012_subtransactions.pl',
