@@ -14,6 +14,7 @@ tests += {
       'pyt/test_007_sync_rep.py',
       'pyt/test_008_fsm_truncation.py',
       'pyt/test_009_twophase.py',
+      'pyt/test_010_logical_decoding_timelines.py',
       'pyt/test_012_subtransactions.py',
       'pyt/test_013_crash_restart.py',
       'pyt/test_014_unlogged_reinit.py',
@@ -55,7 +56,6 @@ tests += {
     'tests': [
       't/001_stream_rep.pl',
       't/006_logical_decoding.pl',
-      't/010_logical_decoding_timelines.pl',
       't/017_shm.pl',
       't/019_replslot_limit.pl',
       't/027_stream_regress.pl',
