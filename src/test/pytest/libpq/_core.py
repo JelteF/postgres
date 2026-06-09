@@ -13,10 +13,30 @@ import json
 import platform
 import os
 import uuid
+import warnings
 from collections import namedtuple
 from typing import Any, Callable, Dict, Optional
 
 from .errors import LibpqError
+
+
+class PostgresMessage(UserWarning):
+    """Base category for server messages surfaced over libpq as Python warnings.
+
+    A message the server sends outside of an error result (a NOTICE, WARNING,
+    INFO, ... — what psql prints to stderr) is reported as a Python warning, so
+    tests can assert on it with ``pytest.warns(..., match=...)``. WARNING and
+    NOTICE map to the subclasses below; any other level (INFO, LOG, DEBUG, ...)
+    is reported as this base category directly.
+    """
+
+
+class PostgresNotice(PostgresMessage):
+    """A NOTICE message reported by the server over libpq."""
+
+
+class PostgresWarning(PostgresMessage):
+    """A WARNING message reported by the server over libpq."""
 
 
 # A LISTEN/NOTIFY notification, as returned by PGconn.notifies().
@@ -92,6 +112,9 @@ class _PGnotify(ctypes.Structure):
 _PGconn_p = ctypes.POINTER(_PGconn)
 _PGresult_p = ctypes.POINTER(_PGresult)
 _PGnotify_p = ctypes.POINTER(_PGnotify)
+
+# Signature of a libpq notice receiver: void (*)(void *arg, const PGresult *res).
+_NOTICE_RECEIVER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _PGresult_p)
 
 
 def load_libpq_handle(libdir, bindir):
@@ -251,6 +274,13 @@ def load_libpq_handle(libdir, bindir):
 
     lib.PQnotifies.restype = _PGnotify_p
     lib.PQnotifies.argtypes = [_PGconn_p]
+
+    # Notice/warning capture. The default behaviour prints to stderr; we install
+    # a receiver (which, unlike a processor, gets the full PGresult so we can
+    # read the non-localized severity) and turn each message into a Python
+    # warning, so tests can assert on what psql shows on stderr.
+    lib.PQsetNoticeReceiver.restype = ctypes.c_void_p
+    lib.PQsetNoticeReceiver.argtypes = [_PGconn_p, _NOTICE_RECEIVER, ctypes.c_void_p]
 
     return lib
 
@@ -497,6 +527,25 @@ class PGconn(contextlib.AbstractContextManager):
         self._lib = lib
         self._handle = handle
         self._stack = stack
+
+        # Surface NOTICE/WARNING messages (what psql writes to stderr) as Python
+        # warnings instead of letting libpq print them, so tests can assert on
+        # them with pytest.warns(PostgresWarning/PostgresNotice, ...). The
+        # callback object must be kept alive for as long as the connection, or
+        # ctypes will free it and libpq will call into freed memory.
+        self._notice_cb = _NOTICE_RECEIVER(self._receive_notice)
+        self._lib.PQsetNoticeReceiver(self._handle, self._notice_cb, None)
+
+    def _receive_notice(self, _arg, res):
+        severity = self._lib.PQresultErrorField(res, int(DiagField.SEVERITY_NONLOCALIZED))
+        message = self._lib.PQresultErrorMessage(res)
+        # WARNING and NOTICE get their own categories; anything else (INFO, LOG,
+        # DEBUG, ...) falls back to the PostgresMessage base.
+        category = {
+            b"WARNING": PostgresWarning,
+            b"NOTICE": PostgresNotice,
+        }.get(severity, PostgresMessage)
+        warnings.warn(message.decode().rstrip("\n"), category)
 
     def __exit__(self, *exc):
         self.close()
