@@ -27,14 +27,10 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_001_emergency_vacuum.py',
+      'pyt/test_002_limits.py',
+      'pyt/test_003_wraparounds.py',
       'pyt/test_004_notify_freeze.py',
-    ],
-  },
-  'tap': {
-    'tests': [
-      't/001_emergency_vacuum.pl',
-      't/002_limits.pl',
-      't/003_wraparounds.pl',
     ],
   },
 }
