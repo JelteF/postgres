@@ -9,9 +9,13 @@ tests += {
       'summarization-and-inprogress-insertion',
     ],
   },
+  'pytest': {
+    'tests': [
+      'pyt/test_01_workitems.py',
+    ],
+  },
   'tap': {
     'tests': [
-      't/01_workitems.pl',
       't/02_wal_consistency.pl',
     ],
   },
