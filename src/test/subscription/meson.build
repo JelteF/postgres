@@ -16,6 +16,7 @@ tests += {
       'pyt/test_010_truncate.py',
       'pyt/test_011_generated.py',
       'pyt/test_012_collation.py',
+      'pyt/test_013_partition.py',
       'pyt/test_014_binary.py',
       'pyt/test_016_stream_subxact.py',
       'pyt/test_017_stream_ddl.py',
@@ -44,7 +45,6 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/013_partition.pl',
       't/015_stream.pl',
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
