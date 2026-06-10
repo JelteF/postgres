@@ -10,6 +10,7 @@ tests += {
       'pyt/test_002_saslprep.py',
       'pyt/test_003_peer.py',
       'pyt/test_004_file_inclusion.py',
+      'pyt/test_006_login_trigger.py',
       'pyt/test_007_pre_auth.py',
     ],
   },
@@ -19,7 +20,6 @@ tests += {
     },
     'tests': [
       't/005_sspi.pl',
-      't/006_login_trigger.pl',
     ],
   },
 }
