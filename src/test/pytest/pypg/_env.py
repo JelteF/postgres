@@ -56,6 +56,32 @@ def skip_unless_test_extras(*keys: str):
         pytest.skip(_test_extra_skip_reason(*keys))
 
 
+_pg_config_h_cache = {}
+
+
+def check_pg_config(line: str) -> bool:
+    """Return True if a line starting with ``line`` appears in the server's
+    ``pg_config.h``.
+
+    Mirrors Perl's ``PostgreSQL::Test::Utils::check_pg_config``; used to detect
+    optional build features at runtime (e.g. ``#define USE_OPENSSL 1`` or
+    ``#define HAVE_X509_GET_SIGNATURE_INFO 1``).
+    """
+    pg_config = os.environ.get("PG_CONFIG", "pg_config")
+    if pg_config not in _pg_config_h_cache:
+        import subprocess
+
+        includedir = subprocess.run(
+            [pg_config, "--includedir-server"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        with open(os.path.join(includedir, "pg_config.h")) as f:
+            _pg_config_h_cache[pg_config] = f.read().splitlines()
+    return any(ln.startswith(line) for ln in _pg_config_h_cache[pg_config])
+
+
 def skip_unless_injection_points(node):
     """Skip the current test unless the server build supports injection points.
 

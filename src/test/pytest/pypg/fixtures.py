@@ -226,6 +226,19 @@ def pg(request, pg_server_module, remaining_timeout):
 
 
 @pytest.fixture
+def ssl_server(tmp_path):
+    """Returns an SSLServer helper for configuring a cluster for the SSL tests.
+
+    Client keys are staged under a per-test temporary directory. Pair with a
+    TCP node, e.g. ``create_pg("primary", hostaddr="127.0.0.1")``, since
+    ``hostssl`` requires TCP.
+    """
+    from .ssl import SSLServer
+
+    return SSLServer(tmp_path / "ssl_keys")
+
+
+@pytest.fixture
 def conn(pg):
     """
     Returns a connected PGconn instance to the test PostgreSQL server.
