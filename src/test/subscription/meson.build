@@ -11,6 +11,7 @@ tests += {
       'pyt/test_006_rewrite.py',
       'pyt/test_008_diff_schema.py',
       'pyt/test_009_matviews.py',
+      'pyt/test_019_stream_subxact_ddl_abort.py',
     ],
   },
   'tap': {
@@ -23,6 +24,7 @@ tests += {
       't/002_types.pl',
       't/004_sync.pl',
       't/007_ddl.pl',
+      't/008_diff_schema.pl',
       't/010_truncate.pl',
       't/011_generated.pl',
       't/012_collation.pl',
@@ -32,7 +34,6 @@ tests += {
       't/016_stream_subxact.pl',
       't/017_stream_ddl.pl',
       't/018_stream_subxact_abort.pl',
-      't/019_stream_subxact_ddl_abort.pl',
       't/020_messages.pl',
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
