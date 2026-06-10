@@ -327,7 +327,15 @@ def test_effective_wal_level(create_pg):
     finally:
         with pytest.raises(LibpqError):
             create_future.result()
-        creating.close()
+        creating.quit()
+
+    # The canceled session's local injection point is only detached once its
+    # backend has processed the disconnect, which happens asynchronously. Wait
+    # for the detach before re-attaching the same point below.
+    primary.poll_query_until(
+        "SELECT count(*) = 0 FROM injection_points_list() "
+        "WHERE point_name = 'logical-decoding-activation'"
+    )
 
     # Test concurrent activation processes where one is interrupted. One
     # session again stops in the middle of the activation process.
@@ -362,4 +370,4 @@ def test_effective_wal_level(create_pg):
     finally:
         with pytest.raises(LibpqError, match="canceling statement due to user request"):
             create_future.result()
-        creating.close()
+        creating.quit()
