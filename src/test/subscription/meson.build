@@ -10,6 +10,7 @@ tests += {
       'pyt/test_004_sync.py',
       'pyt/test_005_encoding.py',
       'pyt/test_006_rewrite.py',
+      'pyt/test_007_ddl.py',
       'pyt/test_008_diff_schema.py',
       'pyt/test_009_matviews.py',
       'pyt/test_010_truncate.py',
@@ -29,7 +30,6 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/007_ddl.pl',
       't/008_diff_schema.pl',
       't/013_partition.pl',
       't/014_binary.pl',
