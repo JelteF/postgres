@@ -8,8 +8,19 @@ INHERIT of the owner role, not just SET ROLE), and with run_as_owner=false it
 runs as the table owner.
 """
 
+from pypg._env import test_timeout_default
+
 
 def test_run_as_table_owner(create_pg):
+    # Many sequential catchup waits; give each node a fresh full timeout per
+    # poll rather than a single shared per-test deadline.
+    _create_pg = create_pg
+
+    def create_pg(name, **kwargs):
+        node = _create_pg(name, **kwargs)
+        node.set_timeout(test_timeout_default)
+        return node
+
     publisher = create_pg("publisher", allows_streaming="logical")
     subscriber = create_pg("subscriber")
     connstr = publisher.connstr()
