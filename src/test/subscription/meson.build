@@ -6,6 +6,7 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_003_constraints.py',
       'pyt/test_005_encoding.py',
       'pyt/test_006_rewrite.py',
       'pyt/test_009_matviews.py',
@@ -19,7 +20,6 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/003_constraints.pl',
       't/004_sync.pl',
       't/007_ddl.pl',
       't/008_diff_schema.pl',
