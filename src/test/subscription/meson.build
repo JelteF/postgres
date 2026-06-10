@@ -6,6 +6,7 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_001_rep_changes.py',
       'pyt/test_003_constraints.py',
       'pyt/test_004_sync.py',
       'pyt/test_005_encoding.py',
@@ -43,7 +44,6 @@ tests += {
       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/001_rep_changes.pl',
       't/002_types.pl',
       't/015_stream.pl',
       't/021_twophase.pl',
