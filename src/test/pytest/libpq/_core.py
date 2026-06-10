@@ -134,10 +134,17 @@ def load_libpq_handle(libdir, bindir):
         assert False, f"the libpq fixture must be updated for {system}"
 
     if system == "Windows":
-        # On Windows, libpq.dll is confusingly in bindir, not libdir. And we
-        # need to add this directory the the search path.
+        # On Windows, libpq.dll is confusingly in bindir, not libdir.
+        #
+        # libpq.dll pulls in dependent DLLs (OpenSSL, zstd, ...) that live in
+        # bindir or other directories on PATH. ctypes' default load uses
+        # LOAD_LIBRARY_SEARCH_DEFAULT_DIRS, which does not search PATH, so those
+        # dependencies are not found. winmode=0 selects the standard,
+        # PATH-inclusive DLL search instead -- the same way the client
+        # executables resolve these DLLs (the test environment puts the
+        # install's bin directory on PATH).
         libpq_path = os.path.join(bindir, name)
-        lib = ctypes.CDLL(libpq_path)
+        lib = ctypes.CDLL(libpq_path, winmode=0)
     else:
         libpq_path = os.path.join(libdir, name)
         lib = ctypes.CDLL(libpq_path)
