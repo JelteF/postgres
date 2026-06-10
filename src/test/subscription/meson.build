@@ -31,6 +31,7 @@ tests += {
       'pyt/test_028_row_filter.py',
       'pyt/test_031_column_list.py',
       'pyt/test_032_subscribe_use_index.py',
+      'pyt/test_026_stats.py',
     ],
   },
   'tap': {
@@ -46,7 +47,6 @@ tests += {
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
       't/023_twophase_stream.pl',
-      't/026_stats.pl',
       't/027_nosuperuser.pl',
       't/029_on_error.pl',
       't/030_origin.pl',
