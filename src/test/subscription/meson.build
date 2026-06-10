@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_001_rep_changes.py',
+      'pyt/test_002_types.py',
       'pyt/test_003_constraints.py',
       'pyt/test_004_sync.py',
       'pyt/test_005_encoding.py',
@@ -52,7 +53,6 @@ tests += {
       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/002_types.pl',
     ],
   },
 }
