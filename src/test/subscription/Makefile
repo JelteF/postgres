@@ -20,10 +20,10 @@ export with_icu
 export enable_injection_points
 
 check:
-	$(prove_check)
+	$(pytest_check)
 
 installcheck:
-	$(prove_installcheck)
+	$(pytest_installcheck)
 
 clean distclean:
 	rm -rf tmp_check

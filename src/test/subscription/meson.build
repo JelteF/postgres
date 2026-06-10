@@ -28,6 +28,7 @@ tests += {
       'pyt/test_025_rep_changes_for_schema.py',
       'pyt/test_033_run_as_table_owner.py',
       'pyt/test_034_temporal.py',
+      'pyt/test_035_conflicts.py',
       'pyt/test_036_sequences.py',
       'pyt/test_037_except.py',
       'pyt/test_028_row_filter.py',
@@ -50,7 +51,6 @@ tests += {
     'tests': [
       't/002_types.pl',
       't/027_nosuperuser.pl',
-      't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
       't/100_bugs.pl',
     ],
