@@ -1,6 +1,6 @@
 # src/test/modules/test_misc/Makefile
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 EXTRA_INSTALL=src/test/modules/injection_points \
 	contrib/test_decoding
