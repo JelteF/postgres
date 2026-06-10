@@ -34,6 +34,7 @@ tests += {
       'pyt/test_026_stats.py',
       'pyt/test_030_origin.py',
       'pyt/test_029_on_error.py',
+      'pyt/test_013_partition.py',
     ],
   },
   'tap': {
@@ -44,7 +45,6 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/013_partition.pl',
       't/015_stream.pl',
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
