@@ -32,6 +32,7 @@ tests += {
       'pyt/test_031_column_list.py',
       'pyt/test_032_subscribe_use_index.py',
       'pyt/test_026_stats.py',
+      'pyt/test_030_origin.py',
     ],
   },
   'tap': {
@@ -49,7 +50,6 @@ tests += {
       't/023_twophase_stream.pl',
       't/027_nosuperuser.pl',
       't/029_on_error.pl',
-      't/030_origin.pl',
       't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
       't/100_bugs.pl',
