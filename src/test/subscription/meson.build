@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_005_encoding.py',
+      'pyt/test_006_rewrite.py',
     ],
   },
   'tap': {
@@ -19,7 +20,6 @@ tests += {
       't/002_types.pl',
       't/003_constraints.pl',
       't/004_sync.pl',
-      't/006_rewrite.pl',
       't/007_ddl.pl',
       't/008_diff_schema.pl',
       't/009_matviews.pl',
