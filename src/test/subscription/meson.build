@@ -24,6 +24,7 @@ tests += {
       'pyt/test_018_stream_subxact_abort.py',
       'pyt/test_019_stream_subxact_ddl_abort.py',
       'pyt/test_020_messages.py',
+      'pyt/test_021_twophase.py',
       'pyt/test_024_add_drop_pub.py',
       'pyt/test_025_rep_changes_for_schema.py',
       'pyt/test_026_stats.py',
@@ -46,7 +47,6 @@ tests += {
     'tests': [
       't/002_types.pl',
       't/015_stream.pl',
-      't/021_twophase.pl',
       't/022_twophase_cascade.pl',
       't/023_twophase_stream.pl',
       't/027_nosuperuser.pl',
