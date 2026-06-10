@@ -8,6 +8,7 @@ tests += {
     'tests': [
       'pyt/test_001_password.py',
       'pyt/test_002_saslprep.py',
+      'pyt/test_003_peer.py',
       'pyt/test_007_pre_auth.py',
     ],
   },
@@ -16,7 +17,6 @@ tests += {
        'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
     },
     'tests': [
-      't/003_peer.pl',
       't/004_file_inclusion.pl',
       't/005_sspi.pl',
       't/006_login_trigger.pl',
