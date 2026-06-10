@@ -12,7 +12,7 @@ PGFILEDESC = "pg_prewarm - preload relation data into system buffer cache"
 
 REGRESS = pg_prewarm
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
