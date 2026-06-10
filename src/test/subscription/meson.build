@@ -14,6 +14,7 @@ tests += {
       'pyt/test_010_truncate.py',
       'pyt/test_012_collation.py',
       'pyt/test_019_stream_subxact_ddl_abort.py',
+      'pyt/test_020_messages.py',
     ],
   },
   'tap': {
@@ -34,7 +35,6 @@ tests += {
       't/016_stream_subxact.pl',
       't/017_stream_ddl.pl',
       't/018_stream_subxact_abort.pl',
-      't/020_messages.pl',
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
       't/023_twophase_stream.pl',
