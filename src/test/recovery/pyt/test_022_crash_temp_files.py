@@ -10,11 +10,18 @@ the server is back; with it ``off`` the file survives the crash-restart and is
 only removed by a clean restart.
 """
 
+import sys
+
 import pytest
 
 from libpq import LibpqError
 from pypg._env import test_timeout_default
 from pypg.util import wait_until
+
+# The Perl test skips on Windows ("tests hang on Windows"); do the same.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="tests hang on Windows"
+)
 
 # A session whose backend (or whose peer backend) was killed by a crash fails
 # with one of these libpq/server messages.

@@ -12,6 +12,7 @@ slot synchronization runs on a standby whose walreceiver has been SIGSTOPped.
 import os
 import re
 import signal
+import sys
 import time
 
 from pypg._env import test_timeout_default
@@ -95,6 +96,14 @@ def test_walsnd_shutdown_timeout(create_pg):
     )
 
     sub_session.sql("ABORT")
+
+    # The final scenario stalls physical replication by SIGSTOPping the
+    # standby's walreceiver, which isn't portable to Windows. The Perl test
+    # bails out here on Windows, so it is skipped there.
+    if sys.platform == "win32":
+        sub_session.quit()
+        return
+
     publisher.start()
 
     # --- both physical and logical replication stalled, slot sync on standby -
