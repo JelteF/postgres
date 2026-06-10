@@ -29,6 +29,7 @@ tests += {
       'pyt/test_034_temporal.py',
       'pyt/test_036_sequences.py',
       'pyt/test_037_except.py',
+      'pyt/test_028_row_filter.py',
     ],
   },
   'tap': {
@@ -46,7 +47,6 @@ tests += {
       't/023_twophase_stream.pl',
       't/026_stats.pl',
       't/027_nosuperuser.pl',
-      't/028_row_filter.pl',
       't/029_on_error.pl',
       't/030_origin.pl',
       't/032_subscribe_use_index.pl',
