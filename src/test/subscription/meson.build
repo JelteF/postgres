@@ -39,6 +39,7 @@ tests += {
       'pyt/test_021_twophase.py',
       'pyt/test_022_twophase_cascade.py',
       'pyt/test_023_twophase_stream.py',
+      'pyt/test_100_bugs.py',
     ],
   },
   'tap': {
@@ -52,7 +53,6 @@ tests += {
       't/027_nosuperuser.pl',
       't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
-      't/100_bugs.pl',
     ],
   },
 }
