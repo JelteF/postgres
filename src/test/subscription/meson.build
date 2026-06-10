@@ -29,6 +29,7 @@ tests += {
       'pyt/test_036_sequences.py',
       'pyt/test_037_except.py',
       'pyt/test_028_row_filter.py',
+      'pyt/test_031_column_list.py',
     ],
   },
   'tap': {
@@ -48,7 +49,6 @@ tests += {
       't/027_nosuperuser.pl',
       't/029_on_error.pl',
       't/030_origin.pl',
-      't/031_column_list.pl',
       't/032_subscribe_use_index.pl',
       't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
