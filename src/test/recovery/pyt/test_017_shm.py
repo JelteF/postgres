@@ -10,6 +10,7 @@ previous postmaster is still attached to the old shared memory segment.
 """
 
 import ctypes
+import ctypes.util
 import os
 import signal
 import subprocess
@@ -20,16 +21,24 @@ import pytest
 
 from pypg._env import test_timeout_default
 
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="SysV shared memory not supported by this platform",
+)
+
 # SysV shared memory via libc, mirroring Perl's IPC::SharedMem.
 IPC_CREAT = 0o1000
 IPC_EXCL = 0o2000
 IPC_RMID = 0
 
-_libc = ctypes.CDLL("libc.so.6", use_errno=True)
-_libc.shmget.restype = ctypes.c_int
-_libc.shmget.argtypes = [ctypes.c_int, ctypes.c_size_t, ctypes.c_int]
-_libc.shmctl.restype = ctypes.c_int
-_libc.shmctl.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
+if sys.platform != "win32":
+    # find_library gives the right name on macOS and the BSDs; the fallback
+    # covers Linux systems where it needs a toolchain that isn't installed.
+    _libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
+    _libc.shmget.restype = ctypes.c_int
+    _libc.shmget.argtypes = [ctypes.c_int, ctypes.c_size_t, ctypes.c_int]
+    _libc.shmctl.restype = ctypes.c_int
+    _libc.shmctl.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_void_p]
 
 PRE_EXISTING = "pre-existing shared memory block"
 
@@ -69,9 +78,6 @@ def _poll_start(node):
 
 
 def test_shm(create_pg, pg_bin):
-    if sys.platform == "win32":
-        pytest.skip("SysV shared memory not supported by this platform")
-
     gnat = create_pg("gnat", start=False)
 
     # Create a shmem segment that conflicts with gnat's first choice of shmem

@@ -12,6 +12,7 @@ column behaves for physical and logical slots.
 import os
 import re
 import signal
+import sys
 
 
 def test_replslot_limit(create_pg):
@@ -186,6 +187,12 @@ def test_replslot_limit(create_pg):
     )
     primary2.stop()
     standby2.stop()
+
+    # The remaining scenarios rely on SIGSTOP/SIGCONT to freeze the walsender
+    # and walreceiver, which isn't portable to Windows. The Perl test bails out
+    # here on Windows, so the inactive_since checks below are skipped there too.
+    if sys.platform == "win32":
+        return
 
     # Get a slot terminated while its walsender is active, by freezing the
     # walsender with SIGSTOP so the slot stays active but stops advancing.
