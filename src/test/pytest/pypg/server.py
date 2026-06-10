@@ -18,6 +18,26 @@ from .util import capture, run, wait_until
 from libpq import PGconn, connect as libpq_connect
 
 
+def _copy_command(archive_dir, dest):
+    """Build an archive_command/restore_command that copies a WAL segment.
+
+    With ``dest=False`` the segment (``%p``) is copied into ``archive_dir``
+    (archive_command); with ``dest=True`` it is copied out of ``archive_dir``
+    into ``%p`` (restore_command).
+
+    Mirrors Perl's enable_archiving()/enable_restoring(): on Windows use cmd's
+    ``copy`` with backslash paths (postgres hands ``%p``/``%f`` to the command
+    as backslash paths, which a Unix ``cp`` would mangle), doubling the
+    backslashes so the path survives archive_command processing.
+    """
+    if platform.system() == "Windows":
+        path = str(archive_dir).replace("\\", "\\\\")
+        archived = f'{path}\\\\%f'
+        return f'copy "{archived}" "%p"' if dest else f'copy "%p" "{archived}"'
+    archived = f"{archive_dir}/%f"
+    return f'cp "{archived}" "%p"' if dest else f'cp "%p" "{archived}"'
+
+
 class FileBackup(contextlib.AbstractContextManager):
     """
     A context manager which backs up a file's contents, restoring them on exit.
@@ -388,7 +408,7 @@ class PostgresServer:
             os.makedirs(self.archive_dir, exist_ok=True)
             self.append_conf(
                 "archive_mode = on",
-                f"""archive_command = 'cp "%p" "{self.archive_dir}/%f"'""",
+                f"archive_command = '{_copy_command(self.archive_dir, dest=False)}'",
                 "wal_level = replica",
             )
 
@@ -398,7 +418,7 @@ class PostgresServer:
         # makes it perform archive recovery and promote when WAL runs out.
         if restoring is not None:
             self.append_conf(
-                f"""restore_command = 'cp "{restoring.archive_dir}/%f" "%p"'"""
+                f"restore_command = '{_copy_command(restoring.archive_dir, dest=True)}'"
             )
             signal = "standby.signal" if restoring_standby else "recovery.signal"
             self.append_conf(filename=signal)
