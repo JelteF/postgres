@@ -18,6 +18,7 @@ tests += {
       'pyt/test_011_generated.py',
       'pyt/test_012_collation.py',
       'pyt/test_014_binary.py',
+      'pyt/test_015_stream.py',
       'pyt/test_016_stream_subxact.py',
       'pyt/test_017_stream_ddl.py',
       'pyt/test_018_stream_subxact_abort.py',
@@ -48,7 +49,6 @@ tests += {
     },
     'tests': [
       't/002_types.pl',
-      't/015_stream.pl',
       't/027_nosuperuser.pl',
       't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
