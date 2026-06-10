@@ -6,9 +6,12 @@ tests += {
   'bd': meson.current_build_dir(),
   'pytest': {
     'tests': [
+      'pyt/test_003_constraints.py',
       'pyt/test_005_encoding.py',
       'pyt/test_006_rewrite.py',
+      'pyt/test_008_diff_schema.py',
       'pyt/test_009_matviews.py',
+      'pyt/test_019_stream_subxact_ddl_abort.py',
     ],
   },
   'tap': {
@@ -19,7 +22,6 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/003_constraints.pl',
       't/004_sync.pl',
       't/007_ddl.pl',
       't/008_diff_schema.pl',
@@ -32,7 +34,6 @@ tests += {
       't/016_stream_subxact.pl',
       't/017_stream_ddl.pl',
       't/018_stream_subxact_abort.pl',
-      't/019_stream_subxact_ddl_abort.pl',
       't/020_messages.pl',
       't/021_twophase.pl',
       't/022_twophase_cascade.pl',
