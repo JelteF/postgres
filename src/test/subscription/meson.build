@@ -4,6 +4,13 @@ tests += {
   'name': 'subscription',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'tests': [
+      'pyt/test_005_encoding.py',
+      'pyt/test_006_rewrite.py',
+      'pyt/test_009_matviews.py',
+    ],
+  },
   'tap': {
     'env': {
       'with_icu': icu.found() ? 'yes' : 'no',
@@ -14,11 +21,8 @@ tests += {
       't/002_types.pl',
       't/003_constraints.pl',
       't/004_sync.pl',
-      't/005_encoding.pl',
-      't/006_rewrite.pl',
       't/007_ddl.pl',
       't/008_diff_schema.pl',
-      't/009_matviews.pl',
       't/010_truncate.pl',
       't/011_generated.pl',
       't/012_collation.pl',
