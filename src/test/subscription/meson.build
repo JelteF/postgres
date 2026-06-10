@@ -24,6 +24,7 @@ tests += {
       'pyt/test_020_messages.py',
       'pyt/test_024_add_drop_pub.py',
       'pyt/test_025_rep_changes_for_schema.py',
+      'pyt/test_037_except.py',
     ],
   },
   'tap': {
@@ -50,7 +51,6 @@ tests += {
       't/034_temporal.pl',
       't/035_conflicts.pl',
       't/036_sequences.pl',
-      't/037_except.pl',
       't/038_walsnd_shutdown_timeout.pl',
       't/100_bugs.pl',
     ],
