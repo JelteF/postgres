@@ -14,6 +14,8 @@ tests += {
       'pyt/test_010_truncate.py',
       'pyt/test_012_collation.py',
       'pyt/test_019_stream_subxact_ddl_abort.py',
+      'pyt/test_020_messages.py',
+      'pyt/test_024_add_drop_pub.py',
     ],
   },
   'tap': {
