@@ -13,7 +13,7 @@ PGFILEDESC = "test_custom_stats - custom pgstats"
 DATA = test_custom_var_stats--1.0.sql \
        test_custom_fixed_stats--1.0.sql
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
