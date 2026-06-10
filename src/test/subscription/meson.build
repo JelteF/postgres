@@ -26,6 +26,7 @@ tests += {
       'pyt/test_020_messages.py',
       'pyt/test_021_twophase.py',
       'pyt/test_022_twophase_cascade.py',
+      'pyt/test_023_twophase_stream.py',
       'pyt/test_024_add_drop_pub.py',
       'pyt/test_025_rep_changes_for_schema.py',
       'pyt/test_026_stats.py',
@@ -48,7 +49,6 @@ tests += {
     'tests': [
       't/002_types.pl',
       't/015_stream.pl',
-      't/023_twophase_stream.pl',
       't/027_nosuperuser.pl',
       't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
