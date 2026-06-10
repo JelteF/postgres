@@ -745,21 +745,22 @@ class PostgresServer:
             f"FROM pg_catalog.pg_replication_slots WHERE slot_name = '{slot_name}'"
         )
 
-    def wait_for_subscription_sync(self, publisher, subname, dbname="postgres"):
+    def wait_for_subscription_sync(self, publisher=None, subname=None, dbname="postgres"):
         """Wait for a subscription's initial table sync to finish, then for the
         subscriber to catch up to the publisher.
 
         Called on the subscriber: polls pg_subscription_rel until every table is
-        synced (``r``/``s``), then waits for the publisher's walsender (named
-        after the subscription) to catch up. Mirrors Perl's
-        ``$node->wait_for_subscription_sync()``.
+        synced (``r``/``s``). If ``publisher`` and ``subname`` are given, also
+        waits for the publisher's walsender (named after the subscription) to
+        catch up. Mirrors Perl's ``$node->wait_for_subscription_sync()``.
         """
         self.poll_query_until(
             "SELECT count(1) = 0 FROM pg_subscription_rel "
             "WHERE srsubstate NOT IN ('r', 's')",
             dbname=dbname,
         )
-        publisher.wait_for_catchup(subname)
+        if publisher is not None and subname is not None:
+            publisher.wait_for_catchup(subname)
 
     @contextlib.contextmanager
     def repeat_query(self, query, interval=0.1, dbname="postgres"):
