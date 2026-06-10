@@ -81,8 +81,13 @@ def test_crash_temp_files(create_pg):
 
         with pytest.raises(LibpqError, match=DIED):
             killme_insert.result()
+        # Wait for killme2 to report failure too, which also confirms the
+        # postmaster has noticed its dead child and begun the restart cycle. A
+        # plain "SELECT 1" would race the postmaster: if killme2's backend has
+        # not been terminated yet the query just succeeds. Like the Perl test,
+        # run a sleep that gets interrupted when the backend is terminated.
         with pytest.raises(LibpqError, match=DIED):
-            killme2.sql("SELECT 1")
+            killme2.sql(f"SELECT pg_sleep({test_timeout_default()})")
 
         wait_for_reconnect(node)
 
