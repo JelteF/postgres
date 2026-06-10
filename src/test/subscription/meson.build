@@ -36,6 +36,7 @@ tests += {
       'pyt/test_031_column_list.py',
       'pyt/test_032_subscribe_use_index.py',
       'pyt/test_026_stats.py',
+      'pyt/test_027_nosuperuser.py',
       'pyt/test_030_origin.py',
       'pyt/test_029_on_error.py',
       'pyt/test_013_partition.py',
@@ -52,7 +53,6 @@ tests += {
     },
     'tests': [
       't/002_types.pl',
-      't/027_nosuperuser.pl',
     ],
   },
 }
