@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_003_constraints.py',
+      'pyt/test_004_sync.py',
       'pyt/test_005_encoding.py',
       'pyt/test_006_rewrite.py',
       'pyt/test_008_diff_schema.py',
@@ -14,6 +15,7 @@ tests += {
       'pyt/test_010_truncate.py',
       'pyt/test_011_generated.py',
       'pyt/test_012_collation.py',
+      'pyt/test_017_stream_ddl.py',
       'pyt/test_019_stream_subxact_ddl_abort.py',
       'pyt/test_020_messages.py',
       'pyt/test_024_add_drop_pub.py',
@@ -27,14 +29,12 @@ tests += {
     'tests': [
       't/001_rep_changes.pl',
       't/002_types.pl',
-      't/004_sync.pl',
       't/007_ddl.pl',
       't/008_diff_schema.pl',
       't/013_partition.pl',
       't/014_binary.pl',
       't/015_stream.pl',
       't/016_stream_subxact.pl',
-      't/017_stream_ddl.pl',
       't/018_stream_subxact_abort.pl',
       't/020_messages.pl',
       't/021_twophase.pl',
