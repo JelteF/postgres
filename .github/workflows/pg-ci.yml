@@ -650,6 +650,10 @@ jobs:
       - *ccache_restore_branch_step
       - *linux_prepare_workspace_step
 
+      # The pytest suites load the asan-instrumented libpq into an
+      # uninstrumented python via dlopen(), which the asan runtime refuses
+      # unless it's the very first library in the process. The pytest-asan
+      # wrapper LD_PRELOADs the runtime to make that so.
       - name: Configure
         shell: *su_postgres_shell
         run: |
@@ -658,6 +662,7 @@ jobs:
             -Duuid=e2fs \
             --buildtype=debug \
             -Dllvm=enabled \
+            -DPYTEST="$(pwd)/src/tools/ci/pytest-asan" \
             build
 
       - name: Build
@@ -963,7 +968,7 @@ jobs:
         run: |
           # meson is not preinstalled on windows-2022. Install via pip
           echo ::group::pip
-          python -m pip install --upgrade meson
+          python -m pip install --upgrade meson pytest
           if (!$?) { throw 'cmdfail' }
           echo ::endgroup::
 
@@ -1101,6 +1106,7 @@ jobs:
             ${MINGW_PACKAGE_PREFIX}-meson \
             ${MINGW_PACKAGE_PREFIX}-perl \
             ${MINGW_PACKAGE_PREFIX}-pkgconf \
+            ${MINGW_PACKAGE_PREFIX}-python-pytest \
             ${MINGW_PACKAGE_PREFIX}-readline \
             ${MINGW_PACKAGE_PREFIX}-zlib \
             ${MINGW_PACKAGE_PREFIX}-zstd
