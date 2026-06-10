@@ -512,6 +512,16 @@ class PostgresServer:
         hba.write_text(f"local {database} {role}\\\n {method}\n")
         self.pg_ctl("reload")
 
+    def reset_ident(self, map_name, system_user, pg_user):
+        """Replace pg_ident.conf with a single user-name-map entry and reload.
+
+        Mirrors the ``reset_pg_ident`` helper in the peer authentication TAP
+        test.
+        """
+        ident = self.datadir / "pg_ident.conf"
+        ident.write_text(f"{map_name} {system_user} {pg_user}\n")
+        self.pg_ctl("reload")
+
     def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
         """Run ``query`` repeatedly until it returns ``expected``.
 
