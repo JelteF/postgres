@@ -200,7 +200,14 @@ def test_standby_logical_decoding(create_pg, pg_bin):
         xid_horizon = primary.sql(
             "SELECT pg_snapshot_xmin(pg_current_snapshot())::text::bigint", dbname="testdb"
         )
-        primary.sql(sql, dbname="testdb")
+        # Run each statement in its own transaction. The Perl test passes this
+        # as a multi-statement string to psql, which autocommits each statement
+        # separately. Going through one sql() call would instead wrap them in a
+        # single implicit transaction (PQexec), so e.g. a CREATE+DROP would
+        # share one xid and the removed catalog rows (xmin == xmax) would never
+        # conflict with a slot whose catalog_xmin equals that xid.
+        for statement in filter(str.strip, sql.split(";")):
+            primary.sql(statement, dbname="testdb")
         primary.poll_query_until(
             "SELECT (pg_snapshot_xmin(pg_current_snapshot())::text::bigint "
             f"- {xid_horizon}) > 0",
