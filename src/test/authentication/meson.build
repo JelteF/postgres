@@ -8,6 +8,7 @@ tests += {
     'tests': [
       'pyt/test_001_password.py',
       'pyt/test_002_saslprep.py',
+      'pyt/test_007_pre_auth.py',
     ],
   },
   'tap': {
@@ -19,7 +20,6 @@ tests += {
       't/004_file_inclusion.pl',
       't/005_sspi.pl',
       't/006_login_trigger.pl',
-      't/007_pre_auth.pl',
     ],
   },
 }
