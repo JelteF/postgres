@@ -38,6 +38,7 @@ tests += {
       'pyt/test_032_subscribe_use_index.py',
       'pyt/test_033_run_as_table_owner.py',
       'pyt/test_034_temporal.py',
+      'pyt/test_035_conflicts.py',
       'pyt/test_036_sequences.py',
       'pyt/test_037_except.py',
     ],
@@ -50,7 +51,6 @@ tests += {
     'tests': [
       't/002_types.pl',
       't/027_nosuperuser.pl',
-      't/035_conflicts.pl',
       't/038_walsnd_shutdown_timeout.pl',
       't/100_bugs.pl',
     ],
