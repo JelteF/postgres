@@ -500,6 +500,18 @@ class PostgresServer:
             lines.append(f"{setting} = {value}")
         path.write_text("\n".join(lines) + "\n")
 
+    def reset_hba(self, database, role, method):
+        """Replace pg_hba.conf with a single local rule and reload the server.
+
+        Mirrors the ``reset_pg_hba`` helper duplicated across the authentication
+        TAP tests. The rule is written across a continuation line, which also
+        exercises pg_hba.conf continuation-line parsing just like the Perl
+        original did.
+        """
+        hba = self.datadir / "pg_hba.conf"
+        hba.write_text(f"local {database} {role}\\\n {method}\n")
+        self.pg_ctl("reload")
+
     def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
         """Run ``query`` repeatedly until it returns ``expected``.
 
