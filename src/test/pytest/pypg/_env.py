@@ -8,6 +8,46 @@ import pytest
 logger = logging.getLogger(__name__)
 
 
+# libpq reads many PG* environment variables as connection defaults. A stray
+# value would override the connection parameters the framework sets explicitly
+# -- most notably the GitHub-hosted Windows runners preset PGUSER=postgres (and
+# friends) for their bundled PostgreSQL service, which made every connection try
+# to log in as "postgres", a role the test clusters do not have. Clear them up
+# front, mirroring what PostgreSQL::Test::Utils does for the Perl TAP tests.
+_LIBPQ_ENV_VARS = (
+    "PGAPPNAME",
+    "PGCLIENTENCODING",
+    "PGCONNECT_TIMEOUT",
+    "PGDATA",
+    "PGDATABASE",
+    "PGGSSENCMODE",
+    "PGHOST",
+    "PGHOSTADDR",
+    "PGOPTIONS",
+    "PGPASSFILE",
+    "PGPASSWORD",
+    "PGPORT",
+    "PGREQUIREPEER",
+    "PGREQUIRESSL",
+    "PGSERVICE",
+    "PGSERVICEFILE",
+    "PGSSLCERT",
+    "PGSSLCRL",
+    "PGSSLCRLDIR",
+    "PGSSLKEY",
+    "PGSSLMODE",
+    "PGSSLROOTCERT",
+    "PGTARGETSESSIONATTRS",
+    "PGUSER",
+)
+
+
+def clean_libpq_environment():
+    """Remove inherited libpq connection environment variables (see above)."""
+    for var in _LIBPQ_ENV_VARS:
+        os.environ.pop(var, None)
+
+
 def _test_extra_skip_reason(*keys: str) -> str:
     return "requires {} to be set in PG_TEST_EXTRA".format(", ".join(keys))
 
