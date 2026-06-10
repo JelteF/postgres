@@ -7,6 +7,7 @@ tests += {
   'pytest': {
     'tests': [
       'pyt/test_002_scram.py',
+      'pyt/test_003_sslinfo.py',
     ],
   },
   'tap': {
@@ -16,7 +17,6 @@ tests += {
     },
     'tests': [
       't/001_ssltests.pl',
-      't/003_sslinfo.pl',
       't/004_sni.pl',
     ],
   },
