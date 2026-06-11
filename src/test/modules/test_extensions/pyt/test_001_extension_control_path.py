@@ -34,9 +34,15 @@ def _create_extension(ext_dir, name, directory=None):
     )
 
 
-def test_extension_control_path(create_pg, tmp_path):
-    ext_dir = tmp_path / "ext1"
-    ext_dir2 = tmp_path / "ext2"
+def test_extension_control_path(create_pg):
+    node = create_pg("ext_control_path")
+
+    # The server reads the extension control directories, so they must live
+    # under the test data tree the CI grants ACLs on (not pytest's tmp_path
+    # under the system temp directory), or the privilege-dropped Windows
+    # postmaster reports the extensions as "not available".
+    ext_dir = node.datadir.parent / "ext1"
+    ext_dir2 = node.datadir.parent / "ext2"
     (ext_dir / "extension").mkdir(parents=True)
     (ext_dir2 / "extension").mkdir(parents=True)
 
@@ -60,7 +66,6 @@ def test_extension_control_path(create_pg, tmp_path):
     (ext_dir / ext_name2).mkdir()
     _create_extension(ext_dir, ext_name2, directory=ext_name2)
 
-    node = create_pg("ext_control_path")
     control_path = f"$system{sep}{_conf(ext_dir)}{sep}{_conf(ext_dir2)}"
     node.append_conf(f"extension_control_path = '{control_path}'")
     node.pg_ctl("restart")
