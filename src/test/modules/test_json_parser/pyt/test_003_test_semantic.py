@@ -34,7 +34,10 @@ def test_semantic(exe):
     )
     assert r.stderr == "", "no error output"
 
-    # The program's stdout matches tiny.out verbatim. (The Perl test appends a
-    # newline only because its run_command chomps the trailing one from the
-    # captured output; subprocess preserves it.)
-    assert r.stdout == TINY_OUT.read_text(), "no output diff"
+    # The program's stdout matches tiny.out. Compare line by line so the
+    # comparison ignores line-ending differences (the program's stdout is
+    # CRLF-terminated on Windows), mirroring the Perl test's
+    # ``diff --strip-trailing-cr``. Read the expected file as UTF-8 to match the
+    # subprocess decoding rather than the platform's locale encoding.
+    expected = TINY_OUT.read_text(encoding="utf-8")
+    assert r.stdout.splitlines() == expected.splitlines(), "no output diff"
