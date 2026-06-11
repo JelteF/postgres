@@ -78,7 +78,10 @@ def test_low_level_backup(create_pg, tmp_path):
 
     # Recover with backup_label restored and the primary's archive: recovery
     # uses the correct redo location and the canary is present.
-    with open(backup_dir / "backup_label", "w") as f:
+    # Write with newline="" so the exact "\n" line endings from pg_backup_stop()
+    # are preserved; on Windows text mode would translate them to "\r\n", which
+    # the server rejects as "invalid data in file backup_label".
+    with open(backup_dir / "backup_label", "w", newline="") as f:
         f.write(backup_label)
 
     replica_success = create_pg(
