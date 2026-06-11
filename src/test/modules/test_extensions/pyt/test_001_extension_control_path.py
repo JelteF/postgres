@@ -38,6 +38,12 @@ def test_extension_control_path(create_pg, tmp_path):
     (ext_dir / "extension").mkdir(parents=True)
     (ext_dir2 / "extension").mkdir(parents=True)
 
+    # Embed forward-slash paths in the GUC and catalog comparisons: PostgreSQL
+    # accepts them on Windows and returns them verbatim, whereas backslashes are
+    # mangled as escape sequences when the config file value is parsed.
+    ext_dir_s = ext_dir.as_posix()
+    ext_dir2_s = ext_dir2.as_posix()
+
     ext_name = "test_custom_ext_paths"
     _create_extension(ext_dir, ext_name)
     _create_extension(ext_dir2, ext_name)
@@ -47,7 +53,7 @@ def test_extension_control_path(create_pg, tmp_path):
     _create_extension(ext_dir, ext_name2, directory=ext_name2)
 
     node = create_pg("ext_control_path")
-    control_path = f"$system:{ext_dir}:{ext_dir2}"
+    control_path = f"$system:{ext_dir_s}:{ext_dir2_s}"
     node.append_conf(f"extension_control_path = '{control_path}'")
     node.pg_ctl("restart")
 
@@ -65,14 +71,14 @@ def test_extension_control_path(create_pg, tmp_path):
             node.sql(
                 f"SELECT location FROM pg_available_extensions WHERE name = '{name}'"
             )
-            == f"{ext_dir}/extension"
+            == f"{ext_dir_s}/extension"
         )
         assert (
             node.sql(
                 "SELECT location FROM pg_available_extension_versions "
                 f"WHERE name = '{name}'"
             )
-            == f"{ext_dir}/extension"
+            == f"{ext_dir_s}/extension"
         )
 
     # A non-superuser cannot read the extension location.

@@ -9,15 +9,28 @@ history file reaches the archive but before any WAL does, so all WAL must be
 streamed rather than restored.
 """
 
+import sys
+
 
 def test_stuck_on_old_timeline(create_pg):
     primary = create_pg("primary", allows_streaming=True, archiving=True)
 
     # Archive only history files, never WAL segments. No real archive_command
-    # behaves this way; it forces the cascading standby to stream all WAL.
+    # behaves this way; it forces the cascading standby to stream all WAL. A
+    # shell ``case`` statement isn't portable to Windows (cmd.exe), so use a
+    # small Python helper invoked from the archive_command, mirroring the Perl
+    # test's cp_history_files script. Forward-slash paths keep the config-file
+    # parser from mangling backslashes as escape sequences.
+    helper = primary.datadir.parent / "cp_history_files.py"
+    helper.write_text(
+        "import shutil, sys\n"
+        "src, dst = sys.argv[1], sys.argv[2]\n"
+        "if src.endswith('.history'):\n"
+        "    shutil.copyfile(src, dst)\n"
+    )
+    python = sys.executable.replace("\\", "/")
     archive_cmd = (
-        f'case "%f" in *.history) cp "%p" "{primary.archive_dir}/%f" ;; '
-        f"*) exit 0 ;; esac"
+        f'"{python}" "{helper.as_posix()}" "%p" "{primary.archive_dir.as_posix()}/%f"'
     )
     pconn = primary.connect()
     pconn.sql(f"ALTER SYSTEM SET archive_command = '{archive_cmd}'")
