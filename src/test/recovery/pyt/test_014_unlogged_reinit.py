@@ -12,7 +12,7 @@ ALTER SEQUENCE / TRUNCATE RESTART IDENTITY.
 import pathlib
 
 
-def test_unlogged_reinit(create_pg, tmp_path):
+def test_unlogged_reinit(create_pg):
     node = create_pg("main")
     pgdata = pathlib.Path(node.datadir)
     conn = node.connect()
@@ -33,8 +33,12 @@ def test_unlogged_reinit(create_pg, tmp_path):
     assert conn.sql("SELECT nextval('seq_unlogged')") == 1, "sequence nextval"
     assert conn.sql("SELECT nextval('seq_unlogged')") == 2, "sequence nextval again"
 
-    # An unlogged table in a user tablespace.
-    ts_dir = tmp_path / "ts1"
+    # An unlogged table in a user tablespace. Put the tablespace directory
+    # under the data directory's parent rather than pytest's tmp_path: on
+    # Windows the (privilege-dropped) postmaster must be able to set
+    # permissions on it, and the CI grants the needed ACLs on the test tree
+    # but not on the system temp directory.
+    ts_dir = node.datadir.parent / "ts1"
     ts_dir.mkdir()
     conn.sql(f"CREATE TABLESPACE ts1 LOCATION '{ts_dir}'")
     conn.sql("CREATE UNLOGGED TABLE ts1_unlogged (id int) TABLESPACE ts1")

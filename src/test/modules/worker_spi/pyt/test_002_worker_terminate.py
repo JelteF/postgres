@@ -13,9 +13,8 @@ import pypg
 from libpq import LibpqError
 
 
-def test_worker_terminate(create_pg, tmp_path):
-    node = create_pg("worker_terminate")
-    skip_unless_injection_points(node)
+@pypg.require_injection_points()
+def test_worker_terminate(create_pg):
     # A large naptime gives slow machines room to process the interrupt
     # requests sent by the database commands below.
     node = create_pg(
@@ -89,7 +88,11 @@ def test_worker_terminate(create_pg, tmp_path):
     pid = launch("testdb", 2, "true")
     run_interruptible("ALTER DATABASE testdb RENAME TO renameddb", pid)
 
-    tablespace = tmp_path / "test_tablespace"
+    # Put the tablespace directory under the data directory's parent rather
+    # than pytest's tmp_path: on Windows the (privilege-dropped) postmaster
+    # must be able to set permissions on it, and the CI grants the needed ACLs
+    # on the test tree but not on the system temp directory.
+    tablespace = node.datadir.parent / "test_tablespace"
     tablespace.mkdir()
     node.sql(f"CREATE TABLESPACE test_tablespace LOCATION '{tablespace}'")
 
