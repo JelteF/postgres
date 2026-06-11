@@ -10,13 +10,19 @@ unless the build supports ICU.
 
 import pytest
 
+from pypg import check_pg_config
+
 
 def test_collation(create_pg):
+    # Gate on the build-time flag rather than the presence of ICU collations in
+    # the catalog: a build without ICU support can still report ICU collations
+    # (so the catalog check is unreliable), but CREATE COLLATION ... icu errors
+    # out with "ICU is not supported in this build".
+    if not check_pg_config("#define USE_ICU 1"):
+        pytest.skip("ICU not supported by this build")
     publisher = create_pg(
         "publisher", allows_streaming="logical", initdb_opts=["--locale=C", "--encoding=UTF8"]
     )
-    if not publisher.sql("SELECT count(*) > 0 FROM pg_collation WHERE collprovider = 'i'"):
-        pytest.skip("ICU not supported by this build")
     subscriber = create_pg("subscriber", initdb_opts=["--locale=C", "--encoding=UTF8"])
 
     subscriber.sql(
