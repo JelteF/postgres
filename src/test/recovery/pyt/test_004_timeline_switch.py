@@ -34,9 +34,6 @@ def test_timeline_switch(create_pg):
     connstr_1 = standby_1.connstr()
     standby_2.append_conf(f"primary_conninfo='{connstr_1} password={secret}'")
 
-    # A new log file is not used as it is in Perl, so capture the log position
-    # before the restart and only inspect what is written afterwards.
-    offset = standby_2.current_log_position()
     standby_2.pg_ctl("restart")
     standby_2_conn = standby_2.connect()  # the restart invalidated any connection
 
@@ -44,6 +41,12 @@ def test_timeline_switch(create_pg):
     # PID so we can confirm it survives the timeline switch.
     standby_2.poll_query_until("SELECT EXISTS(SELECT 1 FROM pg_stat_wal_receiver)")
     wr_pid_before = standby_2_conn.sql("SELECT pid FROM pg_stat_wal_receiver")
+
+    # Perl uses a fresh log file across the restart; capture the log position
+    # only now (after the restart and walreceiver reconnect) so the check below
+    # inspects just the timeline switch, not the restart's own shutdown -- the
+    # latter can legitimately terminate the walreceiver.
+    offset = standby_2.current_log_position()
 
     standby_1_conn.sql("INSERT INTO tab_int VALUES (generate_series(1001,2000))")
     standby_1.wait_for_catchup(standby_2)
