@@ -93,8 +93,11 @@ def test_basic(create_pg, pg_bin, tmp_path):
         "shell command for backup is not configured", r.stderr
     ), "fails if basebackup_to_shell.command is not set"
 
-    # Configure the command and reload.
-    backup_path = tmp_path / "backup"
+    # Configure the command and reload. The shell command runs as the
+    # (privilege-dropped on Windows) backend, which must be able to write the
+    # backup file, so put it under the test data tree the CI grants ACLs on
+    # rather than pytest's tmp_path under the system temp directory.
+    backup_path = node.datadir.parent / "backup"
     backup_path.mkdir()
     node.append_conf(
         f"basebackup_to_shell.command={_shell_command(gzip, backup_path, '%f')}"
