@@ -10,6 +10,7 @@ target-detail placeholder, and enforces basebackup_to_shell.required_role.
 
 import os
 import re
+import sys
 
 import pytest
 
@@ -59,6 +60,21 @@ def _verify_backup(pg_bin, prefix, backup_dir, tar, tmp_path, name):
     )
 
 
+def _shell_command(gzip, backup_path, pattern):
+    """Build a basebackup_to_shell.command that gzips a segment to a file.
+
+    Mirrors the Perl test's Windows handling: the value is parsed by the config
+    file reader, which processes backslash escapes, so on Windows the gzip path
+    uses forward slashes and the destination path's backslashes are doubled to
+    survive that parsing.
+    """
+    if sys.platform == "win32":
+        gzip = gzip.replace("\\", "/")
+        dest = str(backup_path).replace("\\", "\\\\")
+        return f'\'"{gzip}" --fast > "{dest}\\\\{pattern}.gz"\''
+    return f'\'"{gzip}" --fast > "{backup_path}/{pattern}.gz"\''
+
+
 def test_basic(create_pg, pg_bin, tmp_path):
     gzip = os.environ.get("GZIP_PROGRAM")
     if not gzip:
@@ -81,7 +97,7 @@ def test_basic(create_pg, pg_bin, tmp_path):
     backup_path = tmp_path / "backup"
     backup_path.mkdir()
     node.append_conf(
-        f"""basebackup_to_shell.command='"{gzip}" --fast > "{backup_path}/%f.gz"'"""
+        f"basebackup_to_shell.command={_shell_command(gzip, backup_path, '%f')}"
     )
     node.pg_ctl("reload")
 
@@ -100,7 +116,7 @@ def test_basic(create_pg, pg_bin, tmp_path):
 
     # Reconfigure to require a detail (%d) and restrict to a role.
     node.append_conf(
-        f"""basebackup_to_shell.command='"{gzip}" --fast > "{backup_path}/%d.%f.gz"'"""
+        f"basebackup_to_shell.command={_shell_command(gzip, backup_path, '%d.%f')}"
     )
     node.append_conf("basebackup_to_shell.required_role='trustworthy'")
     node.pg_ctl("reload")
