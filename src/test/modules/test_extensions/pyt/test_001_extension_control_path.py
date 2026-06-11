@@ -7,6 +7,8 @@ are reported with the right location, the location is hidden from
 non-superusers, and $system extensions remain visible.
 """
 
+import sys
+
 import pytest
 
 from libpq import LibpqError
@@ -38,11 +40,17 @@ def test_extension_control_path(create_pg, tmp_path):
     (ext_dir / "extension").mkdir(parents=True)
     (ext_dir2 / "extension").mkdir(parents=True)
 
-    # Embed forward-slash paths in the GUC and catalog comparisons: PostgreSQL
-    # accepts them on Windows and returns them verbatim, whereas backslashes are
-    # mangled as escape sequences when the config file value is parsed.
+    # extension_control_path uses ';' as its list separator on Windows (':'
+    # elsewhere, where it would clash with the drive-letter colon). The config
+    # file parser also processes backslash escapes, so the directories'
+    # backslashes are doubled in the value written to the file and SHOW then
+    # reports them singly. pg_available_extensions.location is canonicalized to
+    # forward slashes.
+    sep = ";" if sys.platform == "win32" else ":"
     ext_dir_s = ext_dir.as_posix()
-    ext_dir2_s = ext_dir2.as_posix()
+
+    def _conf(p):
+        return str(p).replace("\\", "\\\\") if sys.platform == "win32" else str(p)
 
     ext_name = "test_custom_ext_paths"
     _create_extension(ext_dir, ext_name)
@@ -53,13 +61,13 @@ def test_extension_control_path(create_pg, tmp_path):
     _create_extension(ext_dir, ext_name2, directory=ext_name2)
 
     node = create_pg("ext_control_path")
-    control_path = f"$system:{ext_dir_s}:{ext_dir2_s}"
+    control_path = f"$system{sep}{_conf(ext_dir)}{sep}{_conf(ext_dir2)}"
     node.append_conf(f"extension_control_path = '{control_path}'")
     node.pg_ctl("restart")
 
     node.sql("CREATE USER user01")
 
-    assert node.sql("SHOW extension_control_path") == control_path
+    assert node.sql("SHOW extension_control_path") == f"$system{sep}{ext_dir}{sep}{ext_dir2}"
 
     node.sql(f"CREATE EXTENSION {ext_name}")
     node.sql(f"CREATE EXTENSION {ext_name2}")
