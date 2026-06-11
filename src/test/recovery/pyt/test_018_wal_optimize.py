@@ -36,13 +36,13 @@ def check_orphan_relfilenodes(conn, datadir, test_name):
 
 
 @pytest.mark.parametrize("wal_level", ["minimal", "replica"])
-def test_wal_optimize(create_pg, tmp_path, wal_level):
-    conf = [
-        f"wal_level = {wal_level}",
-        "max_prepared_transactions = 1",
-        "wal_log_hints = on",
-        "wal_skip_threshold = 0",
-    ]
+def test_wal_optimize(create_pg, wal_level):
+    conf = {
+        "wal_level": wal_level,
+        "max_prepared_transactions": 1,
+        "wal_log_hints": True,
+        "wal_skip_threshold": 0,
+    }
     # wal_level = minimal requires no WAL senders.
     if wal_level == "minimal":
         conf["max_wal_senders"] = 0
@@ -55,8 +55,11 @@ def test_wal_optimize(create_pg, tmp_path, wal_level):
     tablespace_dir = node.datadir.parent / f"tablespace_other_{wal_level}"
     tablespace_dir.mkdir()
 
-    # A data file for COPY in several cases below.
-    copy_file = tmp_path / "copy_data.txt"
+    # A data file for COPY in several cases below. Server-side COPY reads it as
+    # the (privilege-dropped on Windows) backend, so it must live under the test
+    # data tree the CI grants ACLs on, not pytest's tmp_path under the system
+    # temp directory.
+    copy_file = node.datadir.parent / f"copy_data_{wal_level}.txt"
     copy_file.write_text("20000,30000\n20001,30001\n20002,30002\n")
 
     conn = node.connect()
