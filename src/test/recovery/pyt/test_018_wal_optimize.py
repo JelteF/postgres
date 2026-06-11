@@ -48,7 +48,11 @@ def test_wal_optimize(create_pg, tmp_path, wal_level):
         conf.append("max_wal_senders = 0")
     node = create_pg(f"node_{wal_level}", conf=conf)
 
-    tablespace_dir = tmp_path / "tablespace_other"
+    # Put the tablespace directory under the data directory's parent rather
+    # than pytest's tmp_path: on Windows the (privilege-dropped) postmaster
+    # must be able to set permissions on it, and the CI grants the needed ACLs
+    # on the test tree but not on the system temp directory.
+    tablespace_dir = node.datadir.parent / f"tablespace_other_{wal_level}"
     tablespace_dir.mkdir()
 
     # A data file for COPY in several cases below.
