@@ -15,9 +15,17 @@ This test can only run with Unix-domain sockets (the framework already uses
 them on non-Windows platforms).
 """
 
+import sys
+
 import pytest
 
 from libpq import LibpqError
+
+# These tests authenticate over Unix-domain sockets, which the framework only
+# uses on non-Windows platforms.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="requires Unix-domain sockets"
+)
 
 
 def check_login(pg, role, password, ok):

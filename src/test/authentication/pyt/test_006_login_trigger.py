@@ -18,6 +18,15 @@ them on non-Windows platforms).
 """
 
 import re
+import sys
+
+import pytest
+
+# This test connects over Unix-domain sockets, which the framework only uses on
+# non-Windows platforms.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="requires Unix-domain sockets"
+)
 
 
 def test_login_trigger(create_pg, pg_bin):

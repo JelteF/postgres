@@ -17,6 +17,16 @@ them on non-Windows platforms).
 """
 
 import os
+import sys
+
+import pytest
+
+# The included rules are ``local`` (Unix-socket) entries, and the catalog query
+# connects over the same socket; the framework only uses Unix-domain sockets on
+# non-Windows platforms.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="requires Unix-domain sockets"
+)
 
 
 def test_file_inclusion(create_pg, pg_bin):
