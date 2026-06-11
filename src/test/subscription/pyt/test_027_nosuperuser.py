@@ -12,10 +12,19 @@ restarts when the owner's superuser is revoked, and that a non-superuser
 subscription owner must supply a password in the connection string.
 """
 
+import sys
+
 from libpq import LibpqError
 from pypg._env import test_timeout_default
 
 import pytest
+
+# The password sub-test requires md5 over a Unix-domain socket connection
+# (a "local" pg_hba rule), which the framework only uses on non-Windows
+# platforms.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="requires Unix-domain sockets"
+)
 
 CANNOT_SET_ROLE = r'(?is)ERROR: ( [A-Z0-9]+:)? role "regress_admin" cannot SET ROLE to "regress_alice"'
 RLS_FORCED = (

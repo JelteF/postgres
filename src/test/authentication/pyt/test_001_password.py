@@ -29,10 +29,17 @@ A few client-only differences from the Perl original:
 
 import datetime
 import re
+import sys
 
 import pytest
 
 from libpq import LibpqError
+
+# These tests authenticate over Unix-domain sockets, which the framework only
+# uses on non-Windows platforms.
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="requires Unix-domain sockets"
+)
 
 
 def _check_log(pg, offset, like=(), unlike=()):

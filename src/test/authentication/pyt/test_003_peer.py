@@ -14,10 +14,17 @@ non-Windows platforms).
 """
 
 import re
+import sys
 
 import pytest
 
 from libpq import LibpqError
+
+# Peer authentication uses the Unix-domain socket's peer credentials and is not
+# available on Windows (getpeereid is absent there).
+pytestmark = pytest.mark.skipif(
+    sys.platform == "win32", reason="peer authentication is not supported on Windows"
+)
 
 
 def test_peer(create_pg):
