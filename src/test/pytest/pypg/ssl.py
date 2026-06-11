@@ -52,12 +52,18 @@ class SSLServer:
 
     def cert(self, name):
         """Absolute path to a file in the certificate source directory, for use
-        as ``sslcert``/``sslrootcert``/``sslcrl`` in a connection string."""
-        return str(self.ssldir / name)
+        as ``sslcert``/``sslrootcert``/``sslcrl`` in a connection string.
+
+        Returned with forward slashes: these paths are embedded in libpq
+        connection strings, whose parser treats backslashes as escapes, so a
+        Windows path would otherwise be mangled. PostgreSQL accepts
+        forward-slash paths on Windows."""
+        return (self.ssldir / name).as_posix()
 
     def sslkey(self, name):
-        """Absolute path to the permissions-corrected copy of a client key."""
-        return self._keys[name]
+        """Absolute path (forward slashes; see :meth:`cert`) to the
+        permissions-corrected copy of a client key."""
+        return pathlib.Path(self._keys[name]).as_posix()
 
     def _install_certs(self, pgdata):
         """Install server certs/keys, CA certs and CRLs into the data directory,
