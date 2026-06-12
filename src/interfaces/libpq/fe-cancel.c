@@ -56,6 +56,48 @@ struct pg_cancel
 
 
 /*
+ *		PQsetCancelPending
+ *
+ * Set a flag to request cancellation of the current query.  The actual
+ * cancel request is driven by the next blocking libpq call (e.g. PQexec).
+ *
+ * This function is async-signal-safe on Unix (it only does a sig_atomic_t
+ * store and a write() to a pipe, both of which are async-signal-safe).
+ * On Windows, the console control handler runs on a separate thread, so
+ * it is thread-safe rather than signal-safe.  The caller must ensure the
+ * PGconn is not freed concurrently on Windows (e.g. using a
+ * CRITICAL_SECTION).
+ *
+ * Returns 1 on success, 0 if conn is NULL.
+ */
+int
+PQsetCancelPending(PGconn *conn)
+{
+	if (!conn)
+		return 0;
+
+	conn->cancel_pending = 1;
+
+	/*
+	 * Write a byte to the wakeup pipe to interrupt any blocked
+	 * poll()/select() in pqSocketCheck().  On Unix this is write() which is
+	 * async-signal-safe.  On Windows this is send() which is thread-safe. The
+	 * pipe is non-blocking, so this won't block even if the pipe buffer is
+	 * full (which would mean a wakeup is already pending).
+	 */
+	if (conn->cancel_wakeup[1] != PGINVALID_SOCKET)
+	{
+#ifdef WIN32
+		send(conn->cancel_wakeup[1], "x", 1, 0);
+#else
+		(void) write(conn->cancel_wakeup[1], "x", 1);
+#endif
+	}
+
+	return 1;
+}
+
+/*
  *		PQcancelCreate
  *
  * Create and return a PGcancelConn, which can be used to securely cancel a

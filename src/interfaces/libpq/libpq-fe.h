@@ -402,6 +402,15 @@ extern PGcancel *PQgetCancel(PGconn *conn);
 /* free a cancel structure */
 extern void PQfreeCancel(PGcancel *cancel);
 
+/*
+ * Set a flag to request cancellation of the current query.  The actual
+ * cancel is driven by the next blocking libpq call (e.g. PQexec).  This
+ * function is async-signal-safe on Unix and safe to call from a console
+ * control handler thread on Windows.  On Windows, the caller must ensure
+ * the PGconn is not freed concurrently (e.g. using a CRITICAL_SECTION).
+ */
+extern int	PQsetCancelPending(PGconn *conn);
+
 /* deprecated version of PQcancelBlocking, but one which is signal-safe */
 extern int	PQcancel(PGcancel *cancel, char *errbuf, int errbufsize);
 

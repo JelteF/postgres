@@ -555,6 +555,15 @@ struct pg_conn
 	int			be_pid;			/* PID of backend --- needed for cancels */
 	int			be_cancel_key_len;
 	uint8	   *be_cancel_key;	/* query cancellation key */
+
+	/*
+	 * Support for PQsetCancelPending, which allows signal handlers to request
+	 * query cancellation that gets driven by the next blocking libpq call.
+	 */
+	volatile sig_atomic_t cancel_pending;	/* set by PQsetCancelPending */
+	PGcancelConn *cancel_conn;	/* in-flight cancel connection, or NULL */
+	bool		cancel_sent;	/* true once cancel completed or failed */
+	pgsocket	cancel_wakeup[2];	/* pipe/socketpair to wake blocked poll */
 	pgParameterStatus *pstatus; /* ParameterStatus data */
 	int			client_encoding;	/* encoding id */
 	bool		std_strings;	/* standard_conforming_strings */

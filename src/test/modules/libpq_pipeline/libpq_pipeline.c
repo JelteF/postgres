@@ -15,6 +15,7 @@
 
 #include "postgres_fe.h"
 
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/time.h>
 
@@ -455,6 +456,87 @@ test_cancel(PGconn *conn)
 
 	fprintf(stderr, "ok\n");
 }
+
+#ifndef WIN32
+
+/*
+ * PGconn to be canceled by the signal handler.  Stored in a global variable
+ * so the signal handler can access it.
+ */
+static PGconn *cancel_pending_conn = NULL;
+
+static void
+cancel_pending_sigalrm_handler(SIGNAL_ARGS)
+{
+	PQsetCancelPending(cancel_pending_conn);
+}
+
+/*
+ * Test PQsetCancelPending: the cancel flag is set from a SIGALRM handler
+ * while PQexec is blocked, and the cancel gets driven automatically.
+ */
+static void
+test_cancel_pending(PGconn *conn)
+{
+	PGresult   *res;
+	PGconn	   *monitorConn;
+
+	fprintf(stderr, "test PQsetCancelPending... ");
+
+	monitorConn = copy_connection(conn);
+
+	cancel_pending_conn = conn;
+
+	/*
+	 * Install a SIGALRM handler that calls PQsetCancelPending, and schedule
+	 * it to fire shortly.  We use send_cancellable_query to ensure the query
+	 * is actually running before we set up the alarm, then we use the
+	 * blocking PQgetResult to wait for the result.
+	 */
+	pqsignal(SIGALRM, cancel_pending_sigalrm_handler);
+
+	/*
+	 * Use PQsendQuery + wait_for_connection_state + alarm + PQgetResult so
+	 * that we know the query is running when the alarm fires.
+	 */
+	send_cancellable_query(conn, monitorConn);
+
+	/* Schedule SIGALRM to fire in 1 second */
+	alarm(1);
+
+	/*
+	 * PQgetResult will block waiting for the server response.  The SIGALRM
+	 * will interrupt the blocked poll(), the handler sets the cancel_pending
+	 * flag (and writes to the wakeup pipe), and PQgetResult drives the cancel
+	 * connection automatically.
+	 */
+	res = PQgetResult(conn);
+	if (res == NULL)
+		pg_fatal("PQgetResult returned NULL");
+
+	if (PQresultStatus(res) != PGRES_FATAL_ERROR)
+		pg_fatal("expected PGRES_FATAL_ERROR, got %s",
+				 PQresStatus(PQresultStatus(res)));
+	if (strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), "57014") != 0)
+		pg_fatal("expected SQLSTATE 57014 (query_canceled), got %s",
+				 PQresultErrorField(res, PG_DIAG_SQLSTATE));
+	PQclear(res);
+
+	/* Drain any remaining results */
+	while ((res = PQgetResult(conn)) != NULL)
+		PQclear(res);
+
+	/* Disable the alarm in case it hasn't fired yet */
+	alarm(0);
+	pqsignal(SIGALRM, SIG_DFL);
+	cancel_pending_conn = NULL;
+
+	PQfinish(monitorConn);
+
+	fprintf(stderr, "ok\n");
+}
+
+#endif							/* !WIN32 */
 
 static void
 test_disallowed_in_pipeline(PGconn *conn)
@@ -2117,6 +2199,9 @@ static void
 print_test_list(void)
 {
 	printf("cancel\n");
+#ifndef WIN32
+	printf("cancel_pending\n");
+#endif
 	printf("disallowed_in_pipeline\n");
 	printf("multi_pipelines\n");
 	printf("nosync\n");
@@ -2223,6 +2308,10 @@ main(int argc, char **argv)
 
 	if (strcmp(testname, "cancel") == 0)
 		test_cancel(conn);
+#ifndef WIN32
+	else if (strcmp(testname, "cancel_pending") == 0)
+		test_cancel_pending(conn);
+#endif
 	else if (strcmp(testname, "disallowed_in_pipeline") == 0)
 		test_disallowed_in_pipeline(conn);
 	else if (strcmp(testname, "multi_pipelines") == 0)

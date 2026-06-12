@@ -4984,6 +4984,100 @@ internal_ping(PGconn *conn)
 
 
 /*
+ * pqCreateCancelWakeup
+ *	 - create the wakeup pipe used by PQsetCancelPending to interrupt
+ *	   a blocked poll()/select() call.
+ *
+ * On Unix we use pipe(), on Windows we create a loopback TCP socket pair
+ * since Windows pipe handles don't work with select().
+ *
+ * Returns true on success, false on failure.  Failure is non-fatal: cancel
+ * requests will still work via EINTR on Unix, but on Windows the blocked
+ * poll won't be interrupted until it times out.
+ */
+static bool
+pqCreateCancelWakeup(PGconn *conn)
+{
+#ifdef WIN32
+	pgsocket	s,
+				tmp_sock;
+	struct sockaddr_in serv_addr;
+	int			len = sizeof(serv_addr);
+
+	conn->cancel_wakeup[0] = PGINVALID_SOCKET;
+	conn->cancel_wakeup[1] = PGINVALID_SOCKET;
+
+	if ((s = socket(AF_INET, SOCK_STREAM, 0)) == PGINVALID_SOCKET)
+		return false;
+
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = pg_hton16(0);
+	serv_addr.sin_addr.s_addr = pg_hton32(INADDR_LOOPBACK);
+	if (bind(s, (SOCKADDR *) &serv_addr, len) == SOCKET_ERROR ||
+		listen(s, 1) == SOCKET_ERROR ||
+		getsockname(s, (SOCKADDR *) &serv_addr, &len) == SOCKET_ERROR)
+	{
+		closesocket(s);
+		return false;
+	}
+
+	conn->cancel_wakeup[1] = socket(AF_INET, SOCK_STREAM, 0);
+	if (conn->cancel_wakeup[1] == PGINVALID_SOCKET)
+	{
+		closesocket(s);
+		return false;
+	}
+
+	if (connect(conn->cancel_wakeup[1], (SOCKADDR *) &serv_addr, len) == SOCKET_ERROR)
+	{
+		closesocket(conn->cancel_wakeup[1]);
+		conn->cancel_wakeup[1] = PGINVALID_SOCKET;
+		closesocket(s);
+		return false;
+	}
+
+	conn->cancel_wakeup[0] = accept(s, (SOCKADDR *) &serv_addr, &len);
+	closesocket(s);
+	if (conn->cancel_wakeup[0] == PGINVALID_SOCKET)
+	{
+		closesocket(conn->cancel_wakeup[1]);
+		conn->cancel_wakeup[1] = PGINVALID_SOCKET;
+		return false;
+	}
+
+	return true;
+#else
+	int			pipefd[2];
+
+	if (pipe(pipefd) < 0)
+		return false;
+
+	/* Set both ends non-blocking */
+	if (fcntl(pipefd[0], F_SETFL, O_NONBLOCK) < 0 ||
+		fcntl(pipefd[1], F_SETFL, O_NONBLOCK) < 0)
+	{
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return false;
+	}
+
+	/* Set close-on-exec to avoid leaking fds to child processes */
+	if (fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) < 0 ||
+		fcntl(pipefd[1], F_SETFD, FD_CLOEXEC) < 0)
+	{
+		close(pipefd[0]);
+		close(pipefd[1]);
+		return false;
+	}
+
+	conn->cancel_wakeup[0] = pipefd[0];
+	conn->cancel_wakeup[1] = pipefd[1];
+	return true;
+#endif
+}
+
+/*
  * pqMakeEmptyPGconn
  *	 - create a PGconn data structure with (as yet) no interesting data
  */
@@ -5042,6 +5136,9 @@ pqMakeEmptyPGconn(void)
 	conn->show_context = PQSHOW_CONTEXT_ERRORS;
 	conn->sock = PGINVALID_SOCKET;
 	conn->altsock = PGINVALID_SOCKET;
+	conn->cancel_wakeup[0] = PGINVALID_SOCKET;
+	conn->cancel_wakeup[1] = PGINVALID_SOCKET;
+	pqCreateCancelWakeup(conn);
 	conn->Pfdebug = NULL;
 
 	/*
@@ -5173,6 +5270,18 @@ freePGconn(PGconn *conn)
 	free(conn->scram_server_key_binary);
 	/* if this is a cancel connection, be_cancel_key may still be allocated */
 	free(conn->be_cancel_key);
+
+	/* Close the cancel wakeup pipe */
+	if (conn->cancel_wakeup[0] != PGINVALID_SOCKET)
+	{
+#ifdef WIN32
+		closesocket(conn->cancel_wakeup[0]);
+		closesocket(conn->cancel_wakeup[1]);
+#else
+		close(conn->cancel_wakeup[0]);
+		close(conn->cancel_wakeup[1]);
+#endif
+	}
 	free(conn->inBuffer);
 	free(conn->outBuffer);
 	free(conn->rowBuf);
@@ -5333,6 +5442,15 @@ pqClosePGconn(PGconn *conn)
 	pqClearOAuthToken(conn);
 	pqClearAsyncResult(conn);	/* deallocate result */
 	pqClearConnErrorState(conn);
+
+	/* Clean up any in-flight cancel connection */
+	if (conn->cancel_conn)
+	{
+		PQcancelFinish(conn->cancel_conn);
+		conn->cancel_conn = NULL;
+	}
+	conn->cancel_pending = 0;
+	conn->cancel_sent = false;
 
 	/*
 	 * Release addrinfo, but since cancel requests never change their addrinfo

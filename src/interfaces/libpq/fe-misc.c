@@ -1071,6 +1071,165 @@ pqWriteReady(PGconn *conn)
 }
 
 /*
+ * pqSocketPollCancellable
+ *	 Poll a socket alongside the cancel wakeup pipe.  If the wakeup pipe
+ *	 becomes readable (because PQsetCancelPending wrote to it), drain it
+ *	 and return 1 as if the main socket were ready.  This causes the caller
+ *	 to return to the PQgetResult blocking loop where the cancel gets driven.
+ *
+ * Returns >0 if the socket or wakeup pipe is ready, 0 on timeout, -1 on error.
+ */
+static int
+pqSocketPollCancellable(PGconn *conn, pgsocket sock,
+						int forRead, int forWrite,
+						pg_usec_time_t end_time)
+{
+	int			result;
+
+	for (;;)
+	{
+#ifdef HAVE_POLL
+		struct pollfd fds[2];
+		int			nfds = 0;
+		int			timeout_ms;
+
+		if (!forRead && !forWrite)
+			return 0;
+
+		fds[0].fd = sock;
+		fds[0].events = POLLERR;
+		fds[0].revents = 0;
+		if (forRead)
+			fds[0].events |= POLLIN;
+		if (forWrite)
+			fds[0].events |= POLLOUT;
+		nfds = 1;
+
+		/* Add the cancel wakeup pipe */
+		fds[1].fd = conn->cancel_wakeup[0];
+		fds[1].events = POLLIN;
+		fds[1].revents = 0;
+		nfds = 2;
+
+		if (end_time == -1)
+			timeout_ms = -1;
+		else if (end_time == 0)
+			timeout_ms = 0;
+		else
+		{
+			pg_usec_time_t now = PQgetCurrentTimeUSec();
+
+			if (end_time > now)
+				timeout_ms = (end_time - now) / 1000;
+			else
+				timeout_ms = 0;
+		}
+
+		result = poll(fds, nfds, timeout_ms);
+		if (result < 0)
+		{
+			if (SOCK_ERRNO == EINTR)
+			{
+				if (conn->cancel_pending)
+					return 1;
+				continue;		/* retry */
+			}
+			return result;
+		}
+
+		/* If the wakeup pipe fired, drain it and return ready */
+		if (fds[1].revents & POLLIN)
+		{
+			char		buf[64];
+
+			while (recv(conn->cancel_wakeup[0], buf, sizeof(buf), 0) > 0)
+				 /* drain */ ;
+			return 1;
+		}
+
+		return result;
+
+#else							/* !HAVE_POLL */
+		fd_set		input_mask;
+		fd_set		output_mask;
+		fd_set		except_mask;
+		struct timeval timeout;
+		struct timeval *ptr_timeout;
+		int			maxfd;
+
+		if (!forRead && !forWrite)
+			return 0;
+
+		FD_ZERO(&input_mask);
+		FD_ZERO(&output_mask);
+		FD_ZERO(&except_mask);
+		if (forRead)
+			FD_SET(sock, &input_mask);
+		if (forWrite)
+			FD_SET(sock, &output_mask);
+		FD_SET(sock, &except_mask);
+
+		/* Add the cancel wakeup pipe */
+		FD_SET(conn->cancel_wakeup[0], &input_mask);
+
+		maxfd = (int) sock;
+		if ((int) conn->cancel_wakeup[0] > maxfd)
+			maxfd = (int) conn->cancel_wakeup[0];
+
+		if (end_time == -1)
+			ptr_timeout = NULL;
+		else if (end_time == 0)
+		{
+			timeout.tv_sec = 0;
+			timeout.tv_usec = 0;
+			ptr_timeout = &timeout;
+		}
+		else
+		{
+			pg_usec_time_t now = PQgetCurrentTimeUSec();
+
+			if (end_time > now)
+			{
+				timeout.tv_sec = (end_time - now) / 1000000;
+				timeout.tv_usec = (end_time - now) % 1000000;
+			}
+			else
+			{
+				timeout.tv_sec = 0;
+				timeout.tv_usec = 0;
+			}
+			ptr_timeout = &timeout;
+		}
+
+		result = select(maxfd + 1, &input_mask, &output_mask,
+						&except_mask, ptr_timeout);
+		if (result < 0)
+		{
+			if (SOCK_ERRNO == EINTR)
+			{
+				if (conn->cancel_pending)
+					return 1;
+				continue;		/* retry */
+			}
+			return result;
+		}
+
+		/* If the wakeup pipe fired, drain it and return ready */
+		if (FD_ISSET(conn->cancel_wakeup[0], &input_mask))
+		{
+			char		buf[64];
+
+			while (recv(conn->cancel_wakeup[0], buf, sizeof(buf), 0) > 0)
+				 /* drain */ ;
+			return 1;
+		}
+
+		return result;
+#endif							/* HAVE_POLL */
+	}
+}
+
+/*
  * Checks a socket, using poll or select, for data to be read, written,
  * or both.  Returns >0 if one or more conditions are met, 0 if it timed
  * out, -1 if an error occurred.
@@ -1109,12 +1268,25 @@ pqSocketCheck(PGconn *conn, int forRead, int forWrite, pg_usec_time_t end_time)
 #endif
 	}
 
-	/* We will retry as long as we get EINTR */
-	do
-		result = PQsocketPoll(sock, forRead, forWrite, end_time);
-	while (result < 0 && SOCK_ERRNO == EINTR);
+	/*
+	 * If a cancel wakeup pipe is available, include it in the poll set so
+	 * that PQsetCancelPending() can interrupt a blocked wait.  Otherwise fall
+	 * back to checking the cancel_pending flag on EINTR.
+	 */
+	if (conn->cancel_wakeup[0] != PGINVALID_SOCKET)
+	{
+		result = pqSocketPollCancellable(conn, sock, forRead, forWrite,
+										 end_time);
+	}
+	else
+	{
+		do
+		{
+			result = PQsocketPoll(sock, forRead, forWrite, end_time);
+		} while (result < 0 && SOCK_ERRNO == EINTR && !conn->cancel_pending);
+	}
 
-	if (result < 0)
+	if (result < 0 && SOCK_ERRNO != EINTR)
 	{
 		char		sebuf[PG_STRERROR_R_BUFLEN];
 
