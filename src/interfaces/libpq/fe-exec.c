@@ -22,6 +22,11 @@
 #include "win32.h"
 #else
 #include <unistd.h>
+#include <sys/select.h>
+#endif
+
+#ifdef HAVE_POLL_H
+#include <poll.h>
 #endif
 
 #include "common/int.h"
@@ -2065,6 +2070,143 @@ PQisBusy(PGconn *conn)
 }
 
 /*
+ * pqHandleCancelRequest
+ *	  If cancel_pending is set and we haven't already sent a cancel,
+ *	  create a PGcancelConn and start the cancel request.
+ */
+static void
+pqHandleCancelRequest(PGconn *conn)
+{
+	if (!conn->cancel_pending || conn->cancel_conn != NULL || conn->cancel_sent)
+		return;
+
+	conn->cancel_pending = 0;
+
+	conn->cancel_conn = PQcancelCreate(conn);
+	if (conn->cancel_conn == NULL)
+	{
+		conn->cancel_sent = true;	/* don't retry */
+		return;
+	}
+
+	if (!PQcancelStart(conn->cancel_conn))
+	{
+		PQcancelFinish(conn->cancel_conn);
+		conn->cancel_conn = NULL;
+		conn->cancel_sent = true;	/* don't retry */
+	}
+}
+
+/*
+ * pqFinishCancelRequest
+ *	  Clean up any in-flight cancel connection after the blocking loop exits.
+ */
+static void
+pqFinishCancelRequest(PGconn *conn)
+{
+	if (conn->cancel_conn)
+	{
+		PQcancelFinish(conn->cancel_conn);
+		conn->cancel_conn = NULL;
+	}
+	conn->cancel_sent = false;
+}
+
+/*
+ * pqDriveCancelAndWait
+ *	  Drive an in-flight cancel connection while also waiting for data on
+ *	  the main connection.  We poll both fds so that (a) the cancel handshake
+ *	  makes progress and (b) we keep reading server responses on the main
+ *	  connection (the query might finish on its own, or the server will send
+ *	  the cancel error).
+ *
+ * Returns 0 on success (either fd is ready), -1 on error.
+ */
+static int
+pqDriveCancelAndWait(PGconn *conn)
+{
+	PGcancelConn *cancelConn = conn->cancel_conn;
+	PostgresPollingStatusType cpoll;
+
+	/* Drive the cancel state machine one step */
+	cpoll = PQcancelPoll(cancelConn);
+
+	if (cpoll == PGRES_POLLING_OK || cpoll == PGRES_POLLING_FAILED)
+	{
+		/* Cancel is done (success or failure), clean up */
+		PQcancelFinish(cancelConn);
+		conn->cancel_conn = NULL;
+		conn->cancel_sent = true;
+
+		/* Fall through to a normal wait on the main connection */
+		return pqWait(true, false, conn);
+	}
+
+	/*
+	 * Poll both the main connection (always for reading) and the cancel
+	 * connection (for reading or writing depending on cancel state).
+	 */
+	for (;;)
+	{
+		int			result;
+
+#ifdef HAVE_POLL
+		struct pollfd fds[2];
+		int			nfds = 2;
+
+		fds[0].fd = conn->sock;
+		fds[0].events = POLLIN | POLLERR;
+		fds[0].revents = 0;
+
+		fds[1].fd = PQcancelSocket(cancelConn);
+		fds[1].events = POLLERR;
+		fds[1].revents = 0;
+		if (cpoll == PGRES_POLLING_READING)
+			fds[1].events |= POLLIN;
+		if (cpoll == PGRES_POLLING_WRITING)
+			fds[1].events |= POLLOUT;
+
+		result = poll(fds, nfds, -1);
+#else							/* !HAVE_POLL */
+		fd_set		input_mask;
+		fd_set		output_mask;
+		fd_set		except_mask;
+		int			maxfd;
+		pgsocket	cancel_sock = PQcancelSocket(cancelConn);
+
+		FD_ZERO(&input_mask);
+		FD_ZERO(&output_mask);
+		FD_ZERO(&except_mask);
+
+		/* Main connection: always wait for read */
+		FD_SET(conn->sock, &input_mask);
+		FD_SET(conn->sock, &except_mask);
+
+		/* Cancel connection: read or write per state */
+		if (cpoll == PGRES_POLLING_READING)
+			FD_SET(cancel_sock, &input_mask);
+		if (cpoll == PGRES_POLLING_WRITING)
+			FD_SET(cancel_sock, &output_mask);
+		FD_SET(cancel_sock, &except_mask);
+
+		maxfd = Max((int) conn->sock, (int) cancel_sock);
+
+		result = select(maxfd + 1, &input_mask, &output_mask,
+						&except_mask, NULL);
+#endif							/* HAVE_POLL */
+
+		if (result < 0)
+		{
+			if (SOCK_ERRNO == EINTR)
+				continue;		/* retry */
+			return -1;
+		}
+
+		return 0;
+	}
+}
+
+/*
  * PQgetResult
  *	  Get the next PGresult produced by a query.  Returns NULL if no
  *	  query work remains or an error has occurred (e.g. out of
@@ -2092,6 +2234,13 @@ PQgetResult(PGconn *conn)
 		int			flushResult;
 
 		/*
+		 * Check if a cancel has been requested via PQsetCancelPending().  If
+		 * so, start an asynchronous cancel request that we'll drive alongside
+		 * the main connection.
+		 */
+		pqHandleCancelRequest(conn);
+
+		/*
 		 * If data remains unsent, send it.  Else we might be waiting for the
 		 * result of a command the backend hasn't even got yet.
 		 */
@@ -2110,15 +2259,40 @@ PQgetResult(PGconn *conn)
 		 * should be read-ready, either with the last server data or with an
 		 * EOF indication.  We expect therefore that this won't result in any
 		 * undue delay in reporting a previous write failure.)
+		 *
+		 * If a cancel connection is in-flight, we poll both the main
+		 * connection and the cancel connection simultaneously so the cancel
+		 * handshake can make progress.
 		 */
-		if (flushResult ||
-			pqWait(true, false, conn) ||
-			pqReadData(conn) < 0)
+		if (flushResult)
 		{
-			/* Report the error saved by pqWait or pqReadData */
 			pqSaveErrorResult(conn);
 			conn->asyncStatus = PGASYNC_IDLE;
+			pqFinishCancelRequest(conn);
 			return pqPrepareAsyncResult(conn);
+		}
+
+		if (conn->cancel_conn != NULL)
+		{
+			if (pqDriveCancelAndWait(conn) < 0 ||
+				pqReadData(conn) < 0)
+			{
+				pqSaveErrorResult(conn);
+				conn->asyncStatus = PGASYNC_IDLE;
+				pqFinishCancelRequest(conn);
+				return pqPrepareAsyncResult(conn);
+			}
+		}
+		else
+		{
+			if (pqWait(true, false, conn) ||
+				pqReadData(conn) < 0)
+			{
+				pqSaveErrorResult(conn);
+				conn->asyncStatus = PGASYNC_IDLE;
+				pqFinishCancelRequest(conn);
+				return pqPrepareAsyncResult(conn);
+			}
 		}
 
 		/* Parse it. */
@@ -2132,9 +2306,13 @@ PQgetResult(PGconn *conn)
 		{
 			pqSaveWriteError(conn);
 			conn->asyncStatus = PGASYNC_IDLE;
+			pqFinishCancelRequest(conn);
 			return pqPrepareAsyncResult(conn);
 		}
 	}
+
+	/* Clean up any in-flight cancel request now that the query is done */
+	pqFinishCancelRequest(conn);
 
 	/* Return the appropriate thing. */
 	switch (conn->asyncStatus)
