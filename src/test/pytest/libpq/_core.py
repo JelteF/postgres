@@ -237,28 +237,6 @@ def load_libpq_handle(libdir, bindir):
         ctypes.c_int,  # resultFormat
     ]
 
-    # Pipeline mode (psql `\startpipeline` / `\sendpipeline` / `\endpipeline`).
-    lib.PQenterPipelineMode.restype = ctypes.c_int
-    lib.PQenterPipelineMode.argtypes = [_PGconn_p]
-
-    lib.PQexitPipelineMode.restype = ctypes.c_int
-    lib.PQexitPipelineMode.argtypes = [_PGconn_p]
-
-    lib.PQpipelineSync.restype = ctypes.c_int
-    lib.PQpipelineSync.argtypes = [_PGconn_p]
-
-    lib.PQsendQueryParams.restype = ctypes.c_int
-    lib.PQsendQueryParams.argtypes = [
-        _PGconn_p,
-        ctypes.c_char_p,  # command
-        ctypes.c_int,  # nParams
-        ctypes.c_void_p,  # paramTypes
-        _char_pp,  # paramValues
-        ctypes.c_void_p,  # paramLengths
-        ctypes.c_void_p,  # paramFormats
-        ctypes.c_int,  # resultFormat
-    ]
-
     lib.PQgetResult.restype = _PGresult_p
     lib.PQgetResult.argtypes = [_PGconn_p]
 
@@ -670,65 +648,6 @@ class PGconn(contextlib.AbstractContextManager):
             self._handle, name.encode(), nparams, values, None, None, 0
         )
         return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
-
-    @contextlib.contextmanager
-    def pipeline(self):
-        """
-        Enter libpq pipeline mode for the duration of the ``with`` block, the
-        equivalent of psql's ``\\startpipeline`` ... ``\\endpipeline``. Use the
-        yielded object to queue commands (see Pipeline). On a clean exit a Sync
-        is sent and every queued result is drained so the connection is left
-        ready for further queries.
-        """
-        if not self._lib.PQenterPipelineMode(self._handle):
-            raise LibpqError(self._lib.PQerrorMessage(self._handle).decode())
-
-        yield Pipeline(self)
-
-        # \endpipeline: Sync, then consume results until the sync point. In
-        # pipeline mode PQgetResult returns a NULL between each command's
-        # results, so we keep going until the PGRES_PIPELINE_SYNC marker.
-        if not self._lib.PQpipelineSync(self._handle):
-            raise LibpqError(self._lib.PQerrorMessage(self._handle).decode())
-        while True:
-            res = self._lib.PQgetResult(self._handle)
-            if not res:
-                continue
-            status = ExecStatus(self._lib.PQresultStatus(res))
-            self._lib.PQclear(res)
-            if status == ExecStatus.PGRES_PIPELINE_SYNC:
-                break
-        self._lib.PQexitPipelineMode(self._handle)
-
-
-class Pipeline:
-    """
-    Queues commands onto a connection that is in libpq pipeline mode. Obtained
-    from ``PGconn.pipeline()``; results are drained when that context exits.
-    """
-
-    def __init__(self, conn):
-        self._conn = conn
-
-    def send_query_params(self, query: str, *params):
-        """
-        Queue an extended-protocol query binding ``params`` in text format, the
-        equivalent of psql's ``<query> \\bind <params> \\sendpipeline``.
-        """
-        nparams, values = _build_params(params)
-        ok = self._conn._lib.PQsendQueryParams(
-            self._conn._handle, query.encode(), nparams, None, values, None, None, 0
-        )
-        if not ok:
-            raise LibpqError(self._conn._lib.PQerrorMessage(self._conn._handle).decode())
-
-    def send_query(self, query: str):
-        """
-        Queue a parameterless query. psql sends bare ``;``-terminated queries
-        inside a pipeline this same way (PQsendQueryParams with no params),
-        rather than as a simple-protocol query.
-        """
-        self.send_query_params(query)
 
 
 def connstr(opts: Dict[str, Any]) -> str:
