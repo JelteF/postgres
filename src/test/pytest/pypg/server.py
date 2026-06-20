@@ -32,107 +32,10 @@ def _copy_command(archive_dir, dest):
     """
     if platform.system() == "Windows":
         path = str(archive_dir).replace("\\", "\\\\")
-        archived = f'{path}\\\\%f'
+        archived = f"{path}\\\\%f"
         return f'copy "{archived}" "%p"' if dest else f'copy "%p" "{archived}"'
     archived = f"{archive_dir}/%f"
     return f'cp "{archived}" "%p"' if dest else f'cp "%p" "{archived}"'
-
-
-class FileBackup(contextlib.AbstractContextManager):
-    """
-    A context manager which backs up a file's contents, restoring them on exit.
-    """
-
-    def __init__(self, file: pathlib.Path):
-        super().__init__()
-
-        self._file = file
-
-    def __enter__(self):
-        with tempfile.NamedTemporaryFile(
-            prefix=self._file.name, dir=self._file.parent, delete=False
-        ) as f:
-            self._backup = pathlib.Path(f.name)
-
-        shutil.copyfile(self._file, self._backup)
-
-        return self
-
-    def __exit__(self, *exc):
-        # Swap the backup and the original file, so that the modified contents
-        # can still be inspected in case of failure.
-        tmp = self._backup.parent / (self._backup.name + ".tmp")
-
-        shutil.copyfile(self._file, tmp)
-        shutil.copyfile(self._backup, self._file)
-        shutil.move(tmp, self._backup)
-
-
-class HBA(FileBackup):
-    """
-    Backs up a server's HBA configuration and provides means for temporarily
-    editing it.
-    """
-
-    def __init__(self, datadir: pathlib.Path):
-        super().__init__(datadir / "pg_hba.conf")
-
-    def prepend(self, *lines):
-        """
-        Temporarily prepends lines to the server's pg_hba.conf.
-
-        As sugar for aligning HBA columns in the tests, each line can be either
-        a string or a list of strings. List elements will be joined by single
-        spaces before they are written to file.
-        """
-        with open(self._file, "r") as f:
-            prior_data = f.read()
-
-        with open(self._file, "w") as f:
-            for line in lines:
-                if isinstance(line, list):
-                    print(*line, file=f)
-                else:
-                    print(line, file=f)
-
-            f.write(prior_data)
-
-
-class Config(FileBackup):
-    """
-    Backs up a server's postgresql.conf and provides means for temporarily
-    editing it.
-    """
-
-    def __init__(self, datadir: pathlib.Path):
-        super().__init__(datadir / "postgresql.conf")
-
-    def set(self, **gucs):
-        """
-        Temporarily appends GUC settings to the server's postgresql.conf.
-        """
-
-        with open(self._file, "a") as f:
-            print(file=f)
-
-            for n, v in gucs.items():
-                v = str(v)
-
-                # Quote and escape the value for postgresql.conf single-quoted
-                # strings. This is doing the reversee of DeescapeQuotedString.
-                v = v.replace("\\", "\\\\")
-                v = v.replace("'", "''")
-                v = v.replace("\n", "\\n")
-                v = v.replace("\r", "\\r")
-                v = v.replace("\t", "\\t")
-                v = v.replace("\b", "\\b")
-                v = v.replace("\f", "\\f")
-                v = "'{}'".format(v)
-
-                print(n, "=", v, file=f)
-
-
-Backup = namedtuple("Backup", "conf, hba")
 
 
 class BackgroundConnection:
@@ -552,7 +455,9 @@ class PostgresServer:
         (defaulting to the test's remaining timeout) is exhausted.
         """
         if timeout is None:
-            timeout = self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+            timeout = (
+                self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+            )
         # Close the polling connection on return rather than leaking it until
         # teardown; a lingering connection to ``dbname`` would otherwise block
         # e.g. CREATE DATABASE WITH TEMPLATE on that database.
@@ -605,16 +510,21 @@ class PostgresServer:
         run(
             self._bindir / "pg_basebackup",
             "--no-sync",
-            "--pgdata", backup_path,
-            "--host", self.host,
-            "--port", str(self.port),
-            "--checkpoint", "fast",
+            "--pgdata",
+            backup_path,
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+            "--checkpoint",
+            "fast",
             *(backup_options or []),
         )
         return backup_path
 
-    def pg_recvlogical_upto(self, slot_name, endpos, *, dbname="postgres",
-                            timeout=None, options=None):
+    def pg_recvlogical_upto(
+        self, slot_name, endpos, *, dbname="postgres", timeout=None, options=None
+    ):
         """Stream a logical slot's changes up to ``endpos`` with pg_recvlogical.
 
         Runs ``pg_recvlogical --start`` (which confirms the changes it reads,
@@ -625,11 +535,16 @@ class PostgresServer:
         """
         args = [
             self._bindir / "pg_recvlogical",
-            "--slot", slot_name,
-            "--dbname", self.connstr(dbname),
-            "--endpos", endpos,
-            "--file", "-",
-            "--no-loop", "--start",
+            "--slot",
+            slot_name,
+            "--dbname",
+            self.connstr(dbname),
+            "--endpos",
+            endpos,
+            "--file",
+            "-",
+            "--no-loop",
+            "--start",
         ]
         for k, v in (options or {}).items():
             args.append("--option")
@@ -656,7 +571,9 @@ class PostgresServer:
         """Emit a transactional logical message of ``size`` bytes and return the
         resulting end LSN, in bytes. Mirrors Perl's ``$node->emit_wal``."""
         return int(
-            self.sql(f"SELECT pg_logical_emit_message(true, '', repeat('a', {size})) - '0/0'")
+            self.sql(
+                f"SELECT pg_logical_emit_message(true, '', repeat('a', {size})) - '0/0'"
+            )
         )
 
     def write_wal(self, tli, lsn, segment_size, data: bytes):
@@ -787,7 +704,9 @@ class PostgresServer:
             f"FROM pg_catalog.pg_replication_slots WHERE slot_name = '{slot_name}'"
         )
 
-    def wait_for_subscription_sync(self, publisher=None, subname=None, dbname="postgres"):
+    def wait_for_subscription_sync(
+        self, publisher=None, subname=None, dbname="postgres"
+    ):
         """Wait for a subscription's initial table sync to finish, then for the
         subscriber to catch up to the publisher.
 
@@ -861,9 +780,12 @@ class PostgresServer:
         recv = subprocess.Popen(
             [
                 str(self._bindir / "pg_recvlogical"),
-                "--dbname", self.connstr(dbname),
-                "--plugin", "test_decoding",
-                "--slot", slot_name,
+                "--dbname",
+                self.connstr(dbname),
+                "--plugin",
+                "test_decoding",
+                "--slot",
+                slot_name,
                 "--create-slot",
             ],
             stdout=subprocess.PIPE,
@@ -953,58 +875,6 @@ class PostgresServer:
         return dbmap
 
     @contextlib.contextmanager
-    def reloading(self):
-        """
-        Provides a context manager for making configuration changes.
-
-        If the context suite finishes successfully, the configuration will
-        be reloaded via pg_ctl. On teardown, the configuration changes will
-        be unwound, and the server will be signaled to reload again.
-
-        The context target contains the following attributes which can be
-        used to configure the server:
-        - .conf: modifies postgresql.conf
-        - .hba: modifies pg_hba.conf
-
-        For example:
-
-            with pg_server_session.reloading() as s:
-                s.conf.set(log_connections="on")
-                s.hba.prepend("local all all trust")
-        """
-        # Push a reload onto the stack before making any other
-        # unwindable changes. That way the order of operations will be
-        #
-        #  # test
-        #   - config change 1
-        #   - config change 2
-        #   - reload
-        #  # teardown
-        #   - undo config change 2
-        #   - undo config change 1
-        #   - reload
-        #
-        self._cleanup_stack.callback(self.pg_ctl, "reload")
-        yield self._backup_configuration()
-
-        # Now actually reload
-        self.pg_ctl("reload")
-
-    @contextlib.contextmanager
-    def restarting(self):
-        """Like .reloading(), but with a full server restart."""
-        self._cleanup_stack.callback(self.pg_ctl, "restart")
-        yield self._backup_configuration()
-        self.pg_ctl("restart")
-
-    def _backup_configuration(self):
-        # Wrap the existing HBA and configuration with FileBackups.
-        return Backup(
-            hba=self._cleanup_stack.enter_context(HBA(self.datadir)),
-            conf=self._cleanup_stack.enter_context(Config(self.datadir)),
-        )
-
-    @contextlib.contextmanager
     def subcontext(self):
         """
         Create a new cleanup context for per-test isolation.
@@ -1060,7 +930,9 @@ class PostgresServer:
         can continue from there. Raises ``TimeoutError`` otherwise.
         """
         if timeout is None:
-            timeout = self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+            timeout = (
+                self._remaining_timeout_fn() if self._remaining_timeout_fn else 180
+            )
         for _ in wait_until(f"log never matched {pattern!r}", timeout=timeout):
             if re.search(pattern, self.log_since(offset)):
                 return self.current_log_position()
