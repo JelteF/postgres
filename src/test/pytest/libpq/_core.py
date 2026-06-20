@@ -675,7 +675,10 @@ def connstr(opts: Dict[str, Any]) -> str:
             v = v.replace("\\", "\\\\")
             v = v.replace("'", "\\'")
 
-            if " " in v:
+            # libpq ends an unquoted value at the first whitespace of any kind
+            # (not just a space), so wrap in single quotes whenever the value
+            # contains any whitespace.
+            if any(c.isspace() for c in v):
                 v = f"'{v}'"
 
         settings.append(f"{k}={v}")

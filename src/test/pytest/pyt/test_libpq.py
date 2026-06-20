@@ -20,6 +20,8 @@ from libpq import connstr, LibpqError
         (dict(port=5432, dbname="postgres"), "port=5432 dbname=postgres"),
         (dict(host=""), "host=''"),
         (dict(host=" "), r"host=' '"),
+        (dict(host="a\tb"), "host='a\tb'"),
+        (dict(host="a\nb"), "host='a\nb'"),
         (dict(keyword="'"), r"keyword=\'"),
         (dict(keyword=" \\' "), r"keyword=' \\\' '"),
     ],

@@ -15,7 +15,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable, Optional
 
 from .util import capture, run, wait_until
-from libpq import PGconn, connect as libpq_connect
+from libpq import PGconn, connect as libpq_connect, connstr as libpq_connstr
 
 
 def _copy_command(archive_dir, dest):
@@ -501,9 +501,9 @@ class PostgresServer:
         Extra keyword options (e.g. ``application_name``) are appended. Used
         for ``primary_conninfo`` on standbys and by replication clients.
         """
-        parts = [f"host={self.host}", f"port={self.port}", f"dbname={dbname}"]
-        parts += [f"{k}={v}" for k, v in opts.items()]
-        return " ".join(parts)
+        return libpq_connstr(
+            {"host": self.host, "port": self.port, "dbname": dbname, **opts}
+        )
 
     def backup(self, backup_name="my_backup", backup_options=None):
         """Take a base backup of this (running) server with pg_basebackup.
