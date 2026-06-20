@@ -8,6 +8,8 @@ import uuid
 
 import pytest
 
+from libpq import LibpqError
+
 
 def test_single_cell_int(conn):
     """Single cell integer query returns just the value."""
@@ -57,6 +59,28 @@ def test_single_row_multiple_columns(conn):
     assert isinstance(result, tuple)
 
 
+def test_query_with_params(conn):
+    """Values bound to $1, $2, ... placeholders come back round-tripped and
+    typed by the casts on the placeholders."""
+
+    result = conn.sql("SELECT $1::int, $2::text, $3::bool", 42, "hello", True)
+    assert result == (42, "hello", True)
+
+
+def test_param_is_not_interpolated(conn):
+    """A bound parameter is data, never SQL: a value full of quotes and a
+    semicolon comes straight back instead of being parsed as part of the query."""
+
+    injection = "'; DROP TABLE foo; --"
+    assert conn.sql("SELECT $1::text", injection) == injection
+
+
+def test_null_param(conn):
+    """A Python None binds as SQL NULL."""
+
+    assert conn.sql("SELECT $1::int", None) is None
+
+
 def test_single_column_multiple_rows(conn):
     """Single column with multiple rows returns a list of values."""
 
@@ -82,23 +106,17 @@ def test_empty_result(conn):
 
 
 def test_query_error_handling(conn):
-    """Query errors raise RuntimeError with actual error message."""
+    """Query errors raise LibpqError carrying the server's error message."""
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(LibpqError, match='relation "nonexistent_table" does not exist'):
         conn.sql("SELECT * FROM nonexistent_table")
-
-    error_msg = str(exc_info.value)
-    assert "nonexistent_table" in error_msg or "does not exist" in error_msg
 
 
 def test_division_by_zero_error(conn):
-    """Division by zero raises RuntimeError."""
+    """Division by zero raises LibpqError."""
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(LibpqError, match="division by zero"):
         conn.sql("SELECT 1/0")
-
-    error_msg = str(exc_info.value)
-    assert "division by zero" in error_msg.lower()
 
 
 def test_simple_exec_create_table(conn):
@@ -122,6 +140,35 @@ def test_simple_exec_insert(conn):
     # Verify data was inserted
     count = conn.sql("SELECT COUNT(*) FROM test_table")
     assert count == 2
+
+
+def test_sql_batch(conn):
+    """sql_batch runs several statements in one simple-protocol message and
+    returns the result of the last one."""
+
+    rows = conn.sql_batch(
+        "CREATE TEMP TABLE batch (id int, name text)",
+        "INSERT INTO batch VALUES (1, 'Alice'), (2, 'Bob')",
+        "SELECT * FROM batch ORDER BY id",
+    )
+    assert rows == [(1, "Alice"), (2, "Bob")]
+
+
+def test_sql_batch_required_for_multiple_statements(conn):
+    """The extended protocol (sql()) rejects multiple statements; sql_batch,
+    on the simple protocol, accepts them."""
+
+    with pytest.raises(LibpqError, match="cannot insert multiple commands"):
+        conn.sql("SELECT 1; SELECT 2")
+
+    assert conn.sql_batch("SELECT 1", "SELECT 2") == 2
+
+
+def test_sql_batch_raises_on_failing_statement(conn):
+    """A failure anywhere in the batch aborts it and raises."""
+
+    with pytest.raises(LibpqError, match="division by zero"):
+        conn.sql_batch("SELECT 1", "SELECT 1/0")
 
 
 def test_type_conversion_mixed(conn):
@@ -267,9 +314,9 @@ def test_mixed_types_with_arrays(conn):
 
 
 def test_uuid_type(conn):
-    """Test UUID type conversion."""
+    """Test UUID type conversion, binding the value as a query parameter."""
     test_uuid = "550e8400-e29b-41d4-a716-446655440000"
-    result = conn.sql(f"SELECT '{test_uuid}'::uuid")
+    result = conn.sql("SELECT $1::uuid", test_uuid)
     assert result == uuid.UUID(test_uuid)
     assert isinstance(result, uuid.UUID)
 

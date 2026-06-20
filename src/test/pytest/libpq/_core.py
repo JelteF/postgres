@@ -550,9 +550,17 @@ class PGconn(contextlib.AbstractContextManager):
         res = self._lib.PQexec(self._handle, query.encode())
         return self._stack.enter_context(PGresult(self._lib, res))
 
-    def sql(self, query: str):
+    def sql(self, query: str, *params):
         """
-        Executes a query and raises an exception if it fails.
+        Runs ``query`` through the extended query protocol (an unnamed Parse/
+        Bind/Execute), the same path real client drivers use, and raises an
+        exception if it fails. Any ``params`` are bound to the query's
+        ``$1, $2, ...`` placeholders in text format, the libpq equivalent of
+        psql's ``<query> \\bind <params> \\g``.
+
+        Because this is the extended protocol, ``query`` must be a single
+        statement; for a batch of ``;``-separated statements use sql_batch().
+
         Returns the query results with automatic type conversion and simplification.
         For commands that don't return data (INSERT, UPDATE, etc.), returns None.
 
@@ -564,7 +572,23 @@ class PGconn(contextlib.AbstractContextManager):
         - CREATE TABLE ... -> None
         - INSERT INTO ... -> None
         """
-        return self._result_or_raise(self.exec(query))
+        nparams, values = _build_params(params)
+        res = self._lib.PQexecParams(
+            self._handle, query.encode(), nparams, None, values, None, None, 0
+        )
+        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
+
+    def sql_batch(self, *queries: str):
+        """
+        Runs one or more ``queries`` through the simple query protocol (a single
+        PQexec), the equivalent of psql's plain ``\\g``. The queries are sent as
+        one ``;``-separated batch in a single message — useful for multi-statement
+        setup that the extended protocol (and therefore sql()) cannot express.
+
+        Raises on the first failing statement; otherwise returns the simplified
+        result of the *last* statement (PQexec only reports the final result).
+        """
+        return self._result_or_raise(self.exec(";".join(queries)))
 
     def notifies(self):
         """
@@ -611,20 +635,6 @@ class PGconn(contextlib.AbstractContextManager):
                 self._stack.enter_context(PGresult(self._lib, final))
             )
         res.raise_error()
-
-    def exec_params(self, query: str, *params):
-        """
-        Run ``query`` through the extended protocol, binding ``params`` to its
-        ``$1, $2, ...`` placeholders in text format (an unnamed Parse/Bind/
-        Execute). This is the libpq equivalent of psql's
-        ``<query> \\bind <params> \\g``. Raises on error, otherwise returns the
-        simplified results like sql().
-        """
-        nparams, values = _build_params(params)
-        res = self._lib.PQexecParams(
-            self._handle, query.encode(), nparams, None, values, None, None, 0
-        )
-        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
 
     def prepare(self, name: str, query: str):
         """

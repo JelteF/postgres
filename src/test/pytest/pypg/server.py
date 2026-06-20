@@ -66,17 +66,17 @@ class BackgroundConnection:
         self._conn = conn
         self._executor = ThreadPoolExecutor(max_workers=1)
 
-    def asql(self, query) -> Future:
+    def asql(self, query, *params) -> Future:
         """Dispatch ``query`` on the session and return a running Future.
 
         Resolve it with ``.result()`` (which re-raises any ``LibpqError``).
         """
-        return self._executor.submit(self._conn.sql, query)
+        return self._executor.submit(self._conn.sql, query, *params)
 
-    def sql(self, query):
+    def sql(self, query, *params):
         """Run ``query`` on the session and return its result, like
         ``PostgresServer.sql()`` but on the persistent connection."""
-        return self.asql(query).result()
+        return self.asql(query, *params).result()
 
     def notifies(self):
         """Return and consume pending LISTEN/NOTIFY notifications on this
@@ -388,10 +388,17 @@ class PostgresServer:
         """Run psql with the given arguments."""
         self._run(os.path.join(self._bindir, "psql"), "-w", *args)
 
-    def sql(self, query, dbname="postgres"):
+    def sql(self, query, *params, dbname="postgres"):
         """Execute a SQL query via libpq. Returns simplified results."""
         with self.connect(dbname=dbname) as conn:
-            return conn.sql(query)
+            return conn.sql(query, *params)
+
+    def sql_batch(self, *queries, dbname="postgres"):
+        """Run a ``;``-separated batch of statements via the simple query
+        protocol (see ``PGconn.sql_batch``). Returns the last statement's
+        simplified result."""
+        with self.connect(dbname=dbname) as conn:
+            return conn.sql_batch(*queries)
 
     def append_conf(self, *lines, filename="postgresql.conf"):
         """Append config lines to a file in the data directory.
