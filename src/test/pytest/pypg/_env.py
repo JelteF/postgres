@@ -1,9 +1,13 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+import functools
 import logging
 import os
+import pathlib
 
 import pytest
+
+from .util import capture
 
 logger = logging.getLogger(__name__)
 
@@ -96,21 +100,54 @@ def skip_unless_test_extras(*keys: str):
         pytest.skip(_test_extra_skip_reason(*keys))
 
 
-def skip_unless_injection_points(node):
-    """Skip the current test unless the server build supports injection points.
+_INJECTION_POINTS_SKIP_REASON = "injection points not supported by this build"
 
-    The ``injection_points`` test extension is only built and installed when
-    the server was configured with ``--enable-injection-points``
-    (``-Dinjection_points``), so its presence in ``pg_available_extensions`` is
-    a reliable runtime signal. Mirrors the Perl tests' combined
-    ``enable_injection_points`` / ``check_extension`` gate.
+
+@functools.cache
+def _injection_points_supported() -> bool:
+    """Return whether the server build supports injection points.
+
+    The ``injection_points`` test extension is built and installed only when
+    the server was configured with injection point support
+    (``-Dinjection_points=true`` / ``--enable-injection-points``), so its
+    control file is present in the extension directory exactly when the
+    feature is available -- the same signal ``pg_available_extensions`` (and
+    the Perl tests' ``check_extension``) rely on. We look at the filesystem
+    rather than querying ``pg_available_extensions`` so the check needs only
+    an install (a ``pg_config``), not a running node, and can therefore be
+    used as a collection-time decorator. The control file is preferred over
+    the shared library because its name is platform independent.
     """
-    available = node.sql(
-        "SELECT count(*) > 0 FROM pg_available_extensions "
-        "WHERE name = 'injection_points'"
+    pg_config = os.environ.get("PG_CONFIG", "pg_config")
+    sharedir = pathlib.Path(capture(pg_config, "--sharedir", silent=True))
+    return (sharedir / "extension" / "injection_points.control").exists()
+
+
+def require_injection_points():
+    """Skip the decorated test/class/module unless the build supports
+    injection points.
+
+        @pypg.require_injection_points()
+        def test_some_injection_point():
+            ...
+
+    or, for an entire module::
+
+        pytestmark = pypg.require_injection_points()
+    """
+    return pytest.mark.skipif(
+        not _injection_points_supported(),
+        reason=_INJECTION_POINTS_SKIP_REASON,
     )
-    if not available:
-        pytest.skip("injection points not supported by this build")
+
+
+def skip_unless_injection_points():
+    """Skip the current test/fixture unless the build supports injection
+    points. Use this inside fixtures where decorators can't be used; prefer
+    the ``require_injection_points()`` decorator otherwise.
+    """
+    if not _injection_points_supported():
+        pytest.skip(_INJECTION_POINTS_SKIP_REASON)
 
 
 def test_timeout_default() -> int:

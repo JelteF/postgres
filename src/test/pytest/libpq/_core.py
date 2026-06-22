@@ -746,19 +746,29 @@ class PGconn(contextlib.AbstractContextManager):
         if status == ExecStatus.PGRES_TUPLES_OK:
             return simplify_query_results(res.fetch_all())
         if status == ExecStatus.PGRES_COPY_OUT:
-            # Drain the COPY OUT stream. The rows are discarded, but draining
-            # is what surfaces an error raised mid-copy (e.g. a permission or
+            # Drain the COPY OUT stream, collecting the rows. Draining is also
+            # what surfaces an error raised mid-copy (e.g. a permission or
             # buffer-access failure): PQgetCopyData returns -2 and the real
-            # result then comes from PQgetResult.
+            # result then comes from PQgetResult, so we resolve that result
+            # (raising on error) before handing back the copied bytes. The
+            # bytes are returned undecoded since COPY can stream binary data.
+            chunks = []
             buf = ctypes.c_char_p()
-            while self._lib.PQgetCopyData(self._handle, ctypes.byref(buf), 0) > 0:
-                if buf:
-                    self._lib.PQfreemem(buf)
+            while True:
+                # Each call hands back one row in a freshly malloc'd buffer and
+                # returns its length; read exactly that many bytes since COPY
+                # data is not guaranteed to be NUL-terminated.
+                n = self._lib.PQgetCopyData(self._handle, ctypes.byref(buf), 0)
+                if n <= 0:
+                    break
+                chunks.append(ctypes.string_at(buf, n))
+                self._lib.PQfreemem(buf)
                 buf = ctypes.c_char_p()
             final = self._lib.PQgetResult(self._handle)
-            return self._result_or_raise(
+            self._result_or_raise(
                 self._stack.enter_context(PGresult(self._lib, final))
             )
+            return b"".join(chunks)
         res.raise_error()
 
     def prepare(self, name: str, query: str):

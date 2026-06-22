@@ -2,6 +2,7 @@
 
 from ._env import (
     clean_libpq_environment,
+    require_injection_points,
     require_test_extras,
     skip_unless_injection_points,
     skip_unless_test_extras,
@@ -13,6 +14,7 @@ from .server import PostgresServer
 clean_libpq_environment()
 
 __all__ = [
+    "require_injection_points",
     "require_test_extras",
     "skip_unless_injection_points",
     "skip_unless_test_extras",

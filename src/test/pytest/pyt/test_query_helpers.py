@@ -81,6 +81,13 @@ def test_null_param(conn):
     assert conn.sql("SELECT $1::int", None) is None
 
 
+def test_copy_to_stdout_returns_bytes(conn):
+    """A COPY ... TO STDOUT comes back as the raw bytes of the copy stream."""
+
+    result = conn.sql_batch("COPY (SELECT generate_series(1, 3)) TO STDOUT")
+    assert result == b"1\n2\n3\n"
+
+
 def test_single_column_multiple_rows(conn):
     """Single column with multiple rows returns a list of values."""
 
