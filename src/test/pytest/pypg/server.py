@@ -18,24 +18,26 @@ from .util import capture, run, wait_until
 from libpq import PGconn, connect as libpq_connect, connstr as libpq_connstr
 
 
-def _copy_command(archive_dir, dest):
-    """Build an archive_command/restore_command that copies a WAL segment.
+def _escape_conf_value(value) -> str:
+    """Quote and escape ``value`` as a postgresql.conf single-quoted string.
 
-    With ``dest=False`` the segment (``%p``) is copied into ``archive_dir``
-    (archive_command); with ``dest=True`` it is copied out of ``archive_dir``
-    into ``%p`` (restore_command).
-
-    Mirrors Perl's enable_archiving()/enable_restoring(): on Windows use cmd's
-    ``copy`` with backslash paths (postgres hands ``%p``/``%f`` to the command
-    as backslash paths, which a Unix ``cp`` would mangle), doubling the
-    backslashes so the path survives archive_command processing.
+    This is the inverse of the server's DeescapeQuotedString(), so the value
+    round-trips back to exactly ``str(value)`` after the conf parser reads it —
+    letting callers pass arbitrary GUC values (a conninfo string with embedded
+    quotes, a path with spaces, ...) without escaping them by hand. A ``bool``
+    becomes ``on``/``off`` so boolean GUCs can be set with ``True``/``False``.
     """
-    if platform.system() == "Windows":
-        path = str(archive_dir).replace("\\", "\\\\")
-        archived = f"{path}\\\\%f"
-        return f'copy "{archived}" "%p"' if dest else f'copy "%p" "{archived}"'
-    archived = f"{archive_dir}/%f"
-    return f'cp "{archived}" "%p"' if dest else f'cp "%p" "{archived}"'
+    if isinstance(value, bool):
+        value = "on" if value else "off"
+    value = str(value)
+    value = value.replace("\\", "\\\\")
+    value = value.replace("'", "''")
+    value = value.replace("\n", "\\n")
+    value = value.replace("\r", "\\r")
+    value = value.replace("\t", "\\t")
+    value = value.replace("\b", "\\b")
+    value = value.replace("\f", "\\f")
+    return f"'{value}'"
 
 
 class BackgroundConnection:
@@ -122,7 +124,7 @@ class PostgresServer:
         archiving: bool = False,
         restoring: Optional["PostgresServer"] = None,
         restoring_standby: bool = True,
-        conf: Optional[list] = None,
+        conf: Optional[dict] = None,
     ):
         """
         Initialize a PostgreSQL server instance. Call start() to actually
@@ -167,8 +169,10 @@ class PostgresServer:
                 WAL runs out). Either way, setting a recovery target via ``conf``
                 with ``recovery_target_action = promote`` performs PITR.
             restoring_standby: See ``restoring``.
-            conf: Extra postgresql.conf lines to append before the first start.
-                Use for settings that must be present at startup, such as a
+            conf: Extra GUC settings (a ``{name: value}`` dict) to append to
+                postgresql.conf before the first start, applied via
+                ``append_conf`` so values are escaped automatically. Use for
+                settings that must be present at startup, such as a
                 point-in-time recovery target (``recovery_target_lsn`` etc.),
                 since ``create_pg`` starts the server immediately.
         """
@@ -289,30 +293,35 @@ class PostgresServer:
         # matters for pg_rewind-style tests.
         if allows_streaming:
             self.append_conf(
-                "wal_level = replica",
-                "max_wal_senders = 10",
-                "max_replication_slots = 10",
-                "wal_log_hints = on",
-                "hot_standby = on",
-                "max_wal_size = 128MB",
+                wal_level="replica",
+                max_wal_senders=10,
+                max_replication_slots=10,
+                wal_log_hints=True,
+                hot_standby=True,
+                max_wal_size="128MB",
             )
+        if platform.system() == "Windows":
+            copy_cmd = "copy"
+        else:
+            copy_cmd = "cp"
 
         # Configure streaming replication from the primary, mirroring Perl's
         # enable_streaming(): set primary_conninfo and drop a standby.signal so
         # the node comes up as a streaming standby.
         if streaming_primary is not None:
             conninfo = streaming_primary.connstr(application_name=self.name)
-            self.append_conf(f"primary_conninfo = '{conninfo}'")
-            self.append_conf(filename="standby.signal")
+            self.append_conf(primary_conninfo=conninfo)
+            (self.datadir / "standby.signal").touch()
 
         # Enable WAL archiving, mirroring Perl's enable_archiving(). archive_mode
         # is a postmaster GUC, so this must be configured before the first start.
         if archiving:
             os.makedirs(self.archive_dir, exist_ok=True)
+            archive_target = os.path.join(self.archive_dir, "%f")
             self.append_conf(
-                "archive_mode = on",
-                f"archive_command = '{_copy_command(self.archive_dir, dest=False)}'",
-                "wal_level = replica",
+                archive_mode=True,
+                archive_command=f'{copy_cmd} "%p" "{archive_target}"',
+                wal_level="replica",
             )
 
         # Restore WAL from an upstream server's archive, mirroring Perl's
@@ -320,15 +329,16 @@ class PostgresServer:
         # archive as a standby (the init_from_backup default); a recovery.signal
         # makes it perform archive recovery and promote when WAL runs out.
         if restoring is not None:
+            archive_source = os.path.join(self.archive_dir, "%f")
             self.append_conf(
-                f"restore_command = '{_copy_command(restoring.archive_dir, dest=True)}'"
+                restore_command=f'{copy_cmd} "{archive_source}" "%p"',
             )
             signal = "standby.signal" if restoring_standby else "recovery.signal"
-            self.append_conf(filename=signal)
+            (self.datadir / signal).touch()
 
         # Caller-supplied startup config (e.g. a recovery target).
         if conf:
-            self.append_conf(*conf)
+            self.append_conf(**conf)
 
         # Between closing of the socket, s, and server start, we're racing
         # against anything that wants to open up ephemeral ports, so try not to
@@ -359,7 +369,7 @@ class PostgresServer:
         new primary can ``wait_for_catchup()`` on it by name.
         """
         conninfo = primary.connstr(application_name=self.name)
-        self.append_conf(f"primary_conninfo = '{conninfo}'")
+        self.append_conf(primary_conninfo=conninfo)
         self.append_conf(filename="standby.signal")
 
     def current_log_position(self):
@@ -400,20 +410,21 @@ class PostgresServer:
         with self.connect(dbname=dbname) as conn:
             return conn.sql_batch(*queries)
 
-    def append_conf(self, *lines, filename="postgresql.conf"):
-        """Append config lines to a file in the data directory.
+    def append_conf(self, **gucs):
+        """Append GUC settings to postgresql.conf.
 
-        Each positional argument is one config line (without a trailing
-        newline). Passing no lines still ensures the file exists, which is handy
-        for signal files like ``standby.signal``.
+        Each keyword is written as ``name = 'value'`` with the value escaped for
+        a postgresql.conf single-quoted string, so callers never have to quote
+        or escape values themselves — e.g.
+        ``append_conf(primary_conninfo=conninfo, work_mem="4MB")``.
 
         Unlike reloading()/restarting(), this does not reload the server and is
         not undone automatically; use it for configuration that must be present
         before the server (re)starts.
         """
-        with open(self.datadir / filename, "a") as f:
-            for line in lines:
-                f.write(line + "\n")
+        with open(self.datadir / "postgresql.conf", "a") as f:
+            for name, value in gucs.items():
+                f.write(f"{name} = {_escape_conf_value(value)}\n")
 
     def adjust_conf(self, setting, value=None, filename="postgresql.conf"):
         """Set ``setting`` to ``value`` in a config file, replacing any existing
@@ -452,14 +463,18 @@ class PostgresServer:
         ident.write_text(f"{map_name} {system_user} {pg_user}\n")
         self.pg_ctl("reload")
 
-    def poll_query_until(self, query, expected=True, dbname="postgres", timeout=None):
+    def poll_query_until(
+        self, query, *params, expected=True, dbname="postgres", timeout=None
+    ):
         """Run ``query`` repeatedly until it returns ``expected``.
 
-        The comparison is against the simplified Python result of ``sql()`` (so
-        ``expected`` is ``True`` for a boolean ``t`` probe, an ``int`` for a
-        count, a tuple for a multi-column row, and so on) rather than psql text.
-        Returns the matching result, or raises ``TimeoutError`` once the timeout
-        (defaulting to the test's remaining timeout) is exhausted.
+        Any positional ``params`` after ``query`` are bound to its
+        ``$1, $2, ...`` placeholders, like ``sql()``. The comparison is against
+        the simplified Python result of ``sql()`` (so ``expected`` is ``True``
+        for a boolean ``t`` probe, an ``int`` for a count, a tuple for a
+        multi-column row, and so on) rather than psql text. Returns the matching
+        result, or raises ``TimeoutError`` once the timeout (defaulting to the
+        test's remaining timeout) is exhausted.
         """
         if timeout is None:
             timeout = (
@@ -472,7 +487,7 @@ class PostgresServer:
             for _ in wait_until(
                 f"query never returned {expected!r}: {query}", timeout=timeout
             ):
-                result = conn.sql(query)
+                result = conn.sql(query, *params)
                 if result == expected:
                     return result
 
@@ -679,8 +694,8 @@ class PostgresServer:
         Polls pg_stat_replication on this (upstream) server until the standby's
         ``<mode>_lsn`` has reached ``target_lsn`` (the upstream's current write
         LSN by default) while in the ``streaming`` state. ``standby_name`` is
-        matched against ``application_name`` (or the default ``walreceiver``).
-        Mirrors Perl's ``$node->wait_for_catchup()``.
+        matched against the standby's ``application_name``, which the streaming
+        helpers set to the node name. Mirrors Perl's ``$node->wait_for_catchup()``.
         """
         if isinstance(standby_name, PostgresServer):
             standby_name = standby_name.name
@@ -691,12 +706,14 @@ class PostgresServer:
                 target_lsn = self.lsn("replay")
             else:
                 target_lsn = self.lsn("write")
+        # mode names a pg_stat_replication LSN column (sent/write/flush/replay),
+        # so it is interpolated as an identifier; the values are bound as params.
         query = (
-            f"SELECT '{target_lsn}' <= {mode}_lsn AND state = 'streaming' "
+            f"SELECT $1 <= {mode}_lsn AND state = 'streaming' "
             "FROM pg_catalog.pg_stat_replication "
-            f"WHERE application_name IN ('{standby_name}', 'walreceiver')"
+            "WHERE application_name = $2"
         )
-        self.poll_query_until(query, True)
+        self.poll_query_until(query, target_lsn, standby_name)
 
     def wait_for_slot_catchup(self, slot_name, mode="restart", target_lsn=None):
         """Wait until a replication slot's ``<mode>_lsn`` reaches ``target_lsn``.
@@ -832,8 +849,9 @@ class PostgresServer:
         """
         self.poll_query_until(
             "SELECT count(*) > 0 FROM pg_stat_activity "
-            f"WHERE backend_type = '{backend_type}' AND wait_event = '{wait_event}'",
-            True,
+            "WHERE backend_type = $1 AND wait_event = $2",
+            backend_type,
+            wait_event,
         )
 
     def wait_for_injection_point(self, name):
@@ -849,8 +867,8 @@ class PostgresServer:
         """
         self.poll_query_until(
             "SELECT count(*) > 0 FROM pg_stat_activity "
-            f"WHERE wait_event_type = 'InjectionPoint' AND wait_event = '{name}'",
-            True,
+            "WHERE wait_event_type = 'InjectionPoint' AND wait_event = $1",
+            name,
         )
 
     def _run(self, cmd, *args, addenv: Optional[dict] = None):
