@@ -15,6 +15,7 @@ import os
 import uuid
 import warnings
 from collections import namedtuple
+from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional
 
 from .errors import LibpqError
@@ -497,6 +498,32 @@ class PGresult(contextlib.AbstractContextManager):
         return results
 
 
+class _MustConsumeFuture(Future):
+    """The Future returned by ``PGconn.background_sql()``.
+
+    A plain ``concurrent.futures.Future`` silently drops an exception that
+    nobody retrieves — unlike ``asyncio`` it does not even warn — which would
+    let a background query fail unnoticed. Python has no ``[[nodiscard]]`` /
+    ``warn_unused_result`` to require otherwise, so this subclass records
+    whether its outcome was consumed (via ``result()``/``exception()``).
+    ``PGconn.close()`` raises if a query's result was never consumed, turning a
+    forgotten ``.result()`` into a visible test failure instead of a silent
+    pass.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.consumed = False
+
+    def result(self, timeout=None):
+        self.consumed = True
+        return super().result(timeout)
+
+    def exception(self, timeout=None):
+        self.consumed = True
+        return super().exception(timeout)
+
+
 class PGconn(contextlib.AbstractContextManager):
     """
     Wraps a raw _PGconn_p with a more friendly interface. This is just a
@@ -512,6 +539,13 @@ class PGconn(contextlib.AbstractContextManager):
         self._lib = lib
         self._handle = handle
         self._stack = stack
+
+        # background_sql() machinery. A single libpq connection must never be
+        # driven by two threads at once, so background queries run on one
+        # worker thread (created lazily on first use) and only one may be in
+        # flight at a time. ``_pending`` is that query's future, if any.
+        self._executor: Optional[ThreadPoolExecutor] = None
+        self._pending: Optional[_MustConsumeFuture] = None
 
         # Surface NOTICE/WARNING messages (what psql writes to stderr) as Python
         # warnings instead of letting libpq print them, so tests can assert on
@@ -533,12 +567,32 @@ class PGconn(contextlib.AbstractContextManager):
         warnings.warn(message.decode().rstrip("\n"), category)
 
     def __exit__(self, *exc):
+        # If we're being closed while another exception is already propagating,
+        # that exception is the real failure: abandon any pending background
+        # query and release resources without raising close()'s own "result
+        # never consumed" (or "still in flight") error on top of it.
+        if exc[0] is not None:
+            self._pending = None
         self.close()
 
     def close(self):
         """Close the connection (PQfinish). Idempotent, so it is safe to close
         early — e.g. to disconnect a session deliberately — even though the
-        owning ExitStack will also close it at teardown."""
+        owning ExitStack will also close it at teardown.
+
+        Like every other query method this first runs _check_pending(), so
+        closing a connection with an unconsumed background_sql() raises
+        RuntimeError: consume its future (call .result()) before closing. Once
+        that guard passes the future has been consumed, so the worker thread
+        has finished and joining it (rather than cancelling) before PQfinish
+        never races libpq."""
+
+        self._check_pending()
+
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+
         if self._handle is not None:
             self._lib.PQfinish(self._handle)
             self._handle = None
@@ -547,6 +601,7 @@ class PGconn(contextlib.AbstractContextManager):
         """
         Executes a query via PQexec() and returns a PGresult.
         """
+        self._check_pending()
         res = self._lib.PQexec(self._handle, query.encode())
         return self._stack.enter_context(PGresult(self._lib, res))
 
@@ -572,11 +627,80 @@ class PGconn(contextlib.AbstractContextManager):
         - CREATE TABLE ... -> None
         - INSERT INTO ... -> None
         """
+        self._check_pending()
+        return self._sql_impl(query, *params)
+
+    def _sql_impl(self, query, *params):
+        """The actual PQexecParams call behind sql()/background_sql(). Runs on
+        the caller's thread for sql() and on the worker thread for
+        background_sql(); _check_pending() guarantees only one of those touches
+        the connection at a time."""
         nparams, values = _build_params(params)
         res = self._lib.PQexecParams(
             self._handle, query.encode(), nparams, None, values, None, None, 0
         )
-        return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
+        return self._result_or_raise(
+            self._stack.enter_context(PGresult(self._lib, res))
+        )
+
+    def _check_pending(self):
+        """Guard run before anything else touches the connection. A
+        background_sql() future must be consumed — its result()/exception()
+        retrieved — before the connection is reused; until then this raises.
+
+        While the query is still running the connection is genuinely busy: a
+        real session can't run two queries at once, and a second libpq call
+        would race the worker thread. Once it has finished but its result is
+        still uncollected, raising forces the caller to deal with the outcome
+        here (including any error) rather than letting it silently leak past
+        the next query. Either way the fix is the same: call .result() on the
+        future. Once the future has been consumed, forget it."""
+        if self._pending is not None:
+            if not self._pending.consumed:
+                if self._pending.done():
+                    raise RuntimeError(
+                        "the previous background_sql() result was never "
+                        "consumed; call .result() on its future before "
+                        "issuing another query"
+                    )
+                raise RuntimeError(
+                    "connection is busy with an unresolved background_sql(); "
+                    "call .result() on its future before issuing another query"
+                )
+            self._pending = None
+
+    def background_sql(self, query, *params) -> Future:
+        """Dispatch a query that is expected to *block* — on a lock, an
+        injection point, or anything else that won't return promptly — and
+        return a Future that is already running. The test can carry on (e.g.
+        confirm the wait with ``PostgresServer.wait_for_event()``, then release
+        it) and call ``.result()`` on the future to collect the outcome once it
+        unblocks; ``.result()`` re-raises any LibpqError.
+
+        This is the replacement for Perl's ``background_psql``. Unlike Perl it
+        does not spawn a psql subprocess: the query runs on a worker thread
+        over this same connection, so the session state it builds up (open
+        transactions, held locks, session-local settings) is visible to later
+        sql()/background_sql() calls on this connection, just like a real
+        session. Only one background query at a time: its future must be
+        consumed (call .result()) before another query runs on this
+        connection, or _check_pending() raises."""
+        self._check_pending()
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=1)
+        fut = _MustConsumeFuture()
+
+        def run():
+            if not fut.set_running_or_notify_cancel():
+                return
+            try:
+                fut.set_result(self._sql_impl(query, *params))
+            except BaseException as e:  # noqa: BLE001 - hand every error to the future
+                fut.set_exception(e)
+
+        self._executor.submit(run)
+        self._pending = fut
+        return fut
 
     def sql_batch(self, *queries: str):
         """
@@ -601,6 +725,7 @@ class PGconn(contextlib.AbstractContextManager):
         relevant command — and poll, since they may arrive slightly after the
         command's own result.
         """
+        self._check_pending()
         self._lib.PQconsumeInput(self._handle)
         out = []
         while True:
@@ -642,6 +767,7 @@ class PGconn(contextlib.AbstractContextManager):
         equivalent of psql's ``<query> \\parse <name>``. Execute it afterwards
         with exec_prepared().
         """
+        self._check_pending()
         res = self._lib.PQprepare(
             self._handle, name.encode(), query.encode(), 0, None
         )
@@ -653,6 +779,7 @@ class PGconn(contextlib.AbstractContextManager):
         This is the libpq equivalent of psql's
         ``\\bind_named <name> <params> \\g``.
         """
+        self._check_pending()
         nparams, values = _build_params(params)
         res = self._lib.PQexecPrepared(
             self._handle, name.encode(), nparams, values, None, None, 0

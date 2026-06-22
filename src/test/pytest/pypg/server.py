@@ -11,7 +11,6 @@ import subprocess
 import tempfile
 import threading
 from collections import namedtuple
-from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable, Optional
 
 from .util import capture, run, wait_until
@@ -38,67 +37,6 @@ def _escape_conf_value(value) -> str:
     value = value.replace("\b", "\\b")
     value = value.replace("\f", "\\f")
     return f"'{value}'"
-
-
-class BackgroundConnection:
-    """A persistent libpq session that can run queries in the background.
-
-    This is the pytest replacement for Perl's ``background_psql``. Like a
-    background psql process it keeps a single connection open, so session state
-    (open transactions, held locks, session-local settings) persists across
-    calls. Obtain one from ``PostgresServer.background()``.
-
-    ``sql()`` runs a query to completion, just like ``PostgresServer.sql()``
-    but on the held connection (Perl's ``query_safe``). ``asql()`` dispatches a
-    query that is expected to *block* — on a lock or an injection point — and
-    returns a :class:`concurrent.futures.Future` that is already running, so
-    the test can carry on (e.g. observe the wait with ``wait_for_event()``,
-    then release it) and call ``.result()`` on the future to collect the
-    outcome once it unblocks.
-
-    A future is returned rather than a coroutine on purpose: the query starts
-    immediately and runs concurrently, instead of only running once awaited.
-
-    All queries run on a single worker thread, so they serialize on the one
-    connection: calling ``sql()``/``asql()`` while a previous ``asql()`` is
-    still blocked will queue behind it, exactly as a real session would.
-    """
-
-    def __init__(self, conn):
-        self._conn = conn
-        self._executor = ThreadPoolExecutor(max_workers=1)
-
-    def asql(self, query, *params) -> Future:
-        """Dispatch ``query`` on the session and return a running Future.
-
-        Resolve it with ``.result()`` (which re-raises any ``LibpqError``).
-        """
-        return self._executor.submit(self._conn.sql, query, *params)
-
-    def sql(self, query, *params):
-        """Run ``query`` on the session and return its result, like
-        ``PostgresServer.sql()`` but on the persistent connection."""
-        return self.asql(query, *params).result()
-
-    def notifies(self):
-        """Return and consume pending LISTEN/NOTIFY notifications on this
-        session (see ``PGconn.notifies``). Runs on the session's worker thread
-        so it serializes with its queries."""
-        return self._executor.submit(self._conn.notifies).result()
-
-    def quit(self):
-        """End the session cleanly, like Perl's ``$session->quit``: wait for
-        any in-flight query, then disconnect. Disconnecting runs the backend's
-        session-exit cleanup, so this is also how a test deliberately triggers
-        that cleanup (e.g. to drop the session's temp objects)."""
-        self._executor.shutdown(wait=True)
-        self._conn.close()
-
-    def close(self):
-        """Shut the session down without waiting (teardown path): drop the
-        worker thread and let the connection close with its owning server's
-        cleanup."""
-        self._executor.shutdown(wait=False, cancel_futures=True)
 
 
 class PostgresServer:
@@ -826,25 +764,12 @@ class PostgresServer:
             == "logical"
         ), f"{slot_name} on standby created"
 
-    def background(self, dbname="postgres", **opts) -> BackgroundConnection:
-        """Open a persistent background session against this server.
-
-        Returns a :class:`BackgroundConnection` (the replacement for Perl's
-        ``background_psql``) that holds its connection open until the server is
-        cleaned up, so it can keep a transaction or lock alive across steps and
-        dispatch blocking queries with ``asql()``.
-        """
-        conn = self.connect(dbname=dbname, **opts)
-        bg = BackgroundConnection(conn)
-        self._cleanup_stack.callback(bg.close)
-        return bg
-
     def wait_for_event(self, backend_type, wait_event):
         """Wait until some backend is parked on a given wait event.
 
         Polls pg_stat_activity until a backend of ``backend_type`` reports
         ``wait_event``. Use it after dispatching a blocking query with
-        ``BackgroundConnection.asql()`` to confirm it has reached the expected
+        ``PGconn.background_sql()`` to confirm it has reached the expected
         wait point. Mirrors Perl's ``wait_for_event()``.
         """
         self.poll_query_until(
@@ -859,7 +784,7 @@ class PostgresServer:
 
         Polls pg_stat_activity for a backend whose wait event is the injection
         point (``wait_event_type = 'InjectionPoint'``). Use after dispatching a
-        query with ``BackgroundConnection.asql()`` that is expected to block on
+        query with ``PGconn.background_sql()`` that is expected to block on
         a point attached in ``'wait'`` mode. Mirrors Perl's
         ``wait_for_injection_point()``. Unlike ``wait_for_event()`` it does not
         constrain the backend type, so it also catches background workers
