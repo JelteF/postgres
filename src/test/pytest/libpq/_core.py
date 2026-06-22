@@ -18,6 +18,8 @@ from collections import namedtuple
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional
 
+from pgtools import bindir, libdir
+
 from .errors import LibpqError
 
 
@@ -118,7 +120,7 @@ _PGnotify_p = ctypes.POINTER(_PGnotify)
 _NOTICE_RECEIVER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _PGresult_p)
 
 
-def load_libpq_handle(libdir, bindir):
+def load_libpq_handle():
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
@@ -144,10 +146,10 @@ def load_libpq_handle(libdir, bindir):
         # PATH-inclusive DLL search instead -- the same way the client
         # executables resolve these DLLs (the test environment puts the
         # install's bin directory on PATH).
-        libpq_path = os.path.join(bindir, name)
+        libpq_path = os.path.join(bindir(), name)
         lib = ctypes.CDLL(libpq_path, winmode=0)
     else:
-        libpq_path = os.path.join(libdir, name)
+        libpq_path = os.path.join(libdir(), name)
         lib = ctypes.CDLL(libpq_path)
 
     #

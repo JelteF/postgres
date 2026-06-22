@@ -13,6 +13,7 @@ import threading
 from collections import namedtuple
 from typing import Callable, Optional
 
+from pgtools import bindir
 from .util import capture, run, wait_until
 from libpq import PGconn, connect as libpq_connect, connstr as libpq_connstr
 
@@ -48,7 +49,6 @@ class PostgresServer:
     def __init__(
         self,
         name,
-        bindir,
         datadir,
         sockdir,
         libpq_handle,
@@ -70,7 +70,6 @@ class PostgresServer:
 
         Args:
             name: The name of this server instance (for logging purposes)
-            bindir: Path to PostgreSQL bin directory
             datadir: Path to data directory for this server
             sockdir: Path to directory for Unix sockets
             libpq_handle: ctypes handle to libpq
@@ -123,8 +122,7 @@ class PostgresServer:
         self.sockdir = sockdir
         self.libpq_handle = libpq_handle
         self._remaining_timeout_fn: Optional[Callable[[], float]] = None
-        self._bindir = bindir
-        self._pg_ctl = bindir / "pg_ctl"
+        self._pg_ctl = bindir() / "pg_ctl"
         self.log = datadir / "postgresql.log"
         self._log_start_pos = 0
         # Where base backups taken from this server are written.
@@ -157,7 +155,7 @@ class PostgresServer:
             else:
                 auth_method = "peer"
             run(
-                bindir / "initdb",
+                bindir() / "initdb",
                 "--no-sync",
                 "--auth",
                 auth_method,
@@ -334,7 +332,7 @@ class PostgresServer:
 
     def psql(self, *args):
         """Run psql with the given arguments."""
-        self._run(os.path.join(self._bindir, "psql"), "-w", *args)
+        self._run(os.path.join(bindir(), "psql"), "-w", *args)
 
     def sql(self, query, *params, dbname="postgres"):
         """Execute a SQL query via libpq. Returns simplified results."""
@@ -468,7 +466,7 @@ class PostgresServer:
         backup_path = self._backup_root / backup_name
         backup_path.parent.mkdir(parents=True, exist_ok=True)
         run(
-            self._bindir / "pg_basebackup",
+            bindir() / "pg_basebackup",
             "--no-sync",
             "--pgdata",
             backup_path,
@@ -494,7 +492,7 @@ class PostgresServer:
         ``$node->pg_recvlogical_upto``.
         """
         args = [
-            self._bindir / "pg_recvlogical",
+            bindir() / "pg_recvlogical",
             "--slot",
             slot_name,
             "--dbname",
@@ -741,7 +739,7 @@ class PostgresServer:
         """
         recv = subprocess.Popen(
             [
-                str(self._bindir / "pg_recvlogical"),
+                str(bindir() / "pg_recvlogical"),
                 "--dbname",
                 self.connstr(dbname),
                 "--plugin",

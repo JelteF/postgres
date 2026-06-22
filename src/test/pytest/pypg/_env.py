@@ -3,11 +3,10 @@
 import functools
 import logging
 import os
-import pathlib
 
 import pytest
 
-from .util import capture
+from pgtools import sharedir
 
 logger = logging.getLogger(__name__)
 
@@ -118,9 +117,7 @@ def _injection_points_supported() -> bool:
     used as a collection-time decorator. The control file is preferred over
     the shared library because its name is platform independent.
     """
-    pg_config = os.environ.get("PG_CONFIG", "pg_config")
-    sharedir = pathlib.Path(capture(pg_config, "--sharedir", silent=True))
-    return (sharedir / "extension" / "injection_points.control").exists()
+    return (sharedir() / "extension" / "injection_points.control").exists()
 
 
 def require_injection_points():

@@ -10,7 +10,6 @@ from typing import List
 import pytest
 
 from ._env import test_timeout_default
-from .util import capture
 from .server import PostgresServer
 
 from libpq import load_libpq_handle, connect as libpq_connect
@@ -59,13 +58,13 @@ def remaining_timeout_module():
 
 
 @pytest.fixture(scope="session")
-def libpq_handle(libdir, bindir):
+def libpq_handle():
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
     """
     try:
-        return load_libpq_handle(libdir, bindir)
+        return load_libpq_handle()
     except OSError as e:
         if "wrong ELF class" in str(e):
             # This happens in CI when trying to lead a 32-bit libpq library
@@ -93,31 +92,6 @@ def connect(libpq_handle, remaining_timeout):
             return libpq_connect(libpq_handle, stack, remaining_timeout, **opts)
 
         yield _connect
-
-
-@pytest.fixture(scope="session")
-def pg_config():
-    """
-    Returns the path to pg_config. Uses PG_CONFIG environment variable if set,
-    otherwise uses 'pg_config' from PATH.
-    """
-    return os.environ.get("PG_CONFIG", "pg_config")
-
-
-@pytest.fixture(scope="session")
-def bindir(pg_config):
-    """
-    Returns the PostgreSQL bin directory using pg_config --bindir.
-    """
-    return pathlib.Path(capture(pg_config, "--bindir", silent=True))
-
-
-@pytest.fixture(scope="session")
-def libdir(pg_config):
-    """
-    Returns the PostgreSQL lib directory using pg_config --libdir.
-    """
-    return pathlib.Path(capture(pg_config, "--libdir", silent=True))
 
 
 @pytest.fixture(scope="session")
@@ -160,7 +134,7 @@ def sockdir():
 
 
 @pytest.fixture(scope="session")
-def pg_server_global(request, bindir, datadir, sockdir, libpq_handle):
+def pg_server_global(request, datadir, sockdir, libpq_handle):
     """
     Starts a running Postgres server listening on localhost. The HBA initially
     allows only local UNIX connections from the same user.
@@ -168,7 +142,7 @@ def pg_server_global(request, bindir, datadir, sockdir, libpq_handle):
     Returns a PostgresServer instance with methods for server management, configuration,
     and creating test databases/users.
     """
-    server = PostgresServer("default", bindir, datadir, sockdir, libpq_handle)
+    server = PostgresServer("default", datadir, sockdir, libpq_handle)
     try:
         server.start()
     except Exception:
@@ -229,7 +203,7 @@ def conn(pg):
 
 
 @pytest.fixture
-def create_pg(request, bindir, sockdir, libpq_handle, tmp_check, remaining_timeout):
+def create_pg(request, sockdir, libpq_handle, tmp_check, remaining_timeout):
     """
     Factory fixture to create additional PostgreSQL servers (per-test scope).
 
@@ -250,7 +224,7 @@ def create_pg(request, bindir, sockdir, libpq_handle, tmp_check, remaining_timeo
             name = f"pg{count}"
 
         datadir = tmp_check / f"pgdata_{name}"
-        server = PostgresServer(name, bindir, datadir, sockdir, libpq_handle, **kwargs)
+        server = PostgresServer(name, datadir, sockdir, libpq_handle, **kwargs)
         servers.append(server)
         _record_server_for_log_reporting(request, server)
         server.set_timeout(remaining_timeout)
@@ -277,7 +251,6 @@ def _module_scoped_servers():
 @pytest.fixture(scope="module")
 def create_pg_module(
     request,
-    bindir,
     sockdir,
     libpq_handle,
     tmp_check,
@@ -304,7 +277,7 @@ def create_pg_module(
             count = len(_module_scoped_servers) + 1
             name = f"pg{count}"
         datadir = tmp_check / f"pgdata_{name}"
-        server = PostgresServer(name, bindir, datadir, sockdir, libpq_handle, **kwargs)
+        server = PostgresServer(name, datadir, sockdir, libpq_handle, **kwargs)
         _module_scoped_servers.append(server)
         _record_server_for_log_reporting(request, server)
         server.set_timeout(remaining_timeout_module)
