@@ -52,3 +52,8 @@ def libdir() -> pathlib.Path:
 def sharedir() -> pathlib.Path:
     """PostgreSQL share directory (``pg_config --sharedir``)."""
     return _config_path("--sharedir")
+
+
+def includedir_server() -> pathlib.Path:
+    """PostgreSQL server include directory (``pg_config --includedir-server``)."""
+    return _config_path("--includedir-server")

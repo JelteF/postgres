@@ -1,6 +1,7 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
 from ._env import (
+    check_pg_config,
     clean_libpq_environment,
     require_injection_points,
     require_test_extras,
@@ -14,6 +15,7 @@ from .server import PostgresServer
 clean_libpq_environment()
 
 __all__ = [
+    "check_pg_config",
     "require_injection_points",
     "require_test_extras",
     "skip_unless_injection_points",

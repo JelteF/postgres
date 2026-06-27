@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from pgtools import sharedir
+from pgtools import includedir_server, sharedir
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +145,30 @@ def skip_unless_injection_points():
     """
     if not _injection_points_supported():
         pytest.skip(_INJECTION_POINTS_SKIP_REASON)
+
+
+@functools.cache
+def _pg_config_h_lines() -> tuple:
+    """Return the lines of the server build's ``pg_config.h``, stripped.
+
+    Read once and cached, since the build under test does not change during a
+    session.
+    """
+    path = includedir_server() / "pg_config.h"
+    return tuple(line.strip() for line in path.read_text().splitlines())
+
+
+def check_pg_config(line: str) -> bool:
+    """Return whether the server build's ``pg_config.h`` contains a line that
+    starts with ``line``.
+
+    Use it to gate tests on build-time feature macros (mirroring the Perl tests'
+    ``check_pg_config``), e.g.::
+
+        if not check_pg_config("#define USE_ICU 1"):
+            pytest.skip("ICU not supported by this build")
+    """
+    return any(candidate.startswith(line) for candidate in _pg_config_h_lines())
 
 
 def test_timeout_default() -> int:
