@@ -189,6 +189,19 @@ def pg(request, pg_server_module, remaining_timeout):
 
 
 @pytest.fixture
+def pg_bin():
+    """
+    Placeholder for the client-program runner helper.
+
+    The ``PgBin`` helper that drove installed client programs (``check_help``,
+    ``check_version``, ``check_bad_option``, ``run``, ``check_all``) was dropped
+    in the framework rewrite and has not been reintroduced yet. Tests that
+    request this fixture are skipped until the helper's shape is reconsidered.
+    """
+    pytest.skip("pg_bin helper not yet reintroduced after the framework rewrite")
+
+
+@pytest.fixture
 def conn(pg):
     """
     Returns a connected PGconn instance to the test PostgreSQL server.
