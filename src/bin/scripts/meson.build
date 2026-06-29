@@ -68,7 +68,6 @@ tests += {
   'tap': {
     'env': {'with_icu': icu.found() ? 'yes' : 'no'},
     'tests': [
-      't/080_pg_isready.pl',
       't/090_reindexdb.pl',
       't/091_reindexdb_all.pl',
       't/100_vacuumdb.pl',
@@ -86,6 +85,7 @@ tests += {
       'pyt/test_040_createuser.py',
       'pyt/test_050_dropdb.py',
       'pyt/test_070_dropuser.py',
+      'pyt/test_080_pg_isready.py',
     ],
   },
 }
