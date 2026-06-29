@@ -25,15 +25,12 @@ tests += {
   'name': 'test_aio',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
-    'env': {
-       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
+  'pytest': {
     'tests': [
-      't/001_aio.pl',
-      't/002_io_workers.pl',
-      't/003_initdb.pl',
-      't/004_read_stream.pl',
+      'pyt/test_001_aio.py',
+      'pyt/test_002_io_workers.py',
+      'pyt/test_003_initdb.py',
+      'pyt/test_004_read_stream.py',
     ],
   },
 }

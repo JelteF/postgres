@@ -42,14 +42,14 @@ tests += {
       'check_heap',
     ],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_verify_heapam.pl',
-      't/002_cic.pl',
-      't/003_cic_2pc.pl',
-      't/004_verify_nbtree_unique.pl',
-      't/005_pitr.pl',
-      't/006_verify_gin.pl',
+      'pyt/test_001_verify_heapam.py',
+      'pyt/test_002_cic.py',
+      'pyt/test_003_cic_2pc.py',
+      'pyt/test_004_verify_nbtree_unique.py',
+      'pyt/test_005_pitr.py',
+      'pyt/test_006_verify_gin.py',
     ],
   },
 }

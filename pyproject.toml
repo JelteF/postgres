@@ -1,0 +1,24 @@
+[project]
+name = "postgresql-hackers-tooling"
+version = "0.1.0"
+description = "Pytest infrastructure for PostgreSQL"
+requires-python = ">=3.6"
+dependencies = [
+    # pytest 7.0 was the last version which supported Python 3.6, but the BSDs
+    # have started putting 8.x into ports, so we support both. (pytest 8 can be
+    # used throughout once we drop support for Python 3.7.)
+    "pytest >= 7.0, < 10",
+
+    # Any other dependencies are effectively optional (added below). We import
+    # these libraries using pytest.importorskip(). So tests will be skipped if
+    # they are not available.
+]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+
+# Common test code can be found here.
+pythonpath = ["src/test/pytest"]
+
+# Load the shared fixtures plugin
+addopts = ["-p", "pypg.fixtures"]

@@ -12,12 +12,12 @@ tests += {
     # which typical runningcheck users do not have (e.g. buildfarm clients).
     'runningcheck': false,
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_base.pl',
-      't/002_standby.pl',
-      't/003_standby_2.pl',
-      't/004_restart.pl',
+      'pyt/test_001_base.py',
+      'pyt/test_002_standby.py',
+      'pyt/test_003_standby_2.py',
+      'pyt/test_004_restart.py',
     ],
   },
 }

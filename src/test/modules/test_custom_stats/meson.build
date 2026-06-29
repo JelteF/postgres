@@ -46,9 +46,9 @@ tests += {
   'name': 'test_custom_stats',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_custom_stats.pl',
+      'pyt/test_001_custom_stats.py',
     ],
     'runningcheck': false,
   },
