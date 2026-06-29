@@ -14,7 +14,7 @@ import subprocess
 
 import pytest
 
-from pypg.bins import createdb, vacuumdb, reindexdb, clusterdb
+from pypg.bins import vacuumdb, reindexdb, clusterdb
 from pypg.paths import bindir
 
 # These byte sequences aren't valid UTF-8. Mirror the Perl test's environment:
@@ -65,7 +65,18 @@ def node(create_pg_module):
         # contain bytes createdb rejects (e.g. dbname1 includes a newline and a
         # carriage return), and the point of the test is only that the --all
         # utilities cope with whichever databases do get created.
-        subprocess.run([str(bindir() / "createdb"), dbname], env=env, check=False)
+        try:
+            subprocess.run(
+                [str(bindir() / "createdb"), dbname], env=env, check=False
+            )
+        except UnicodeError:
+            # A Windows command line is Unicode, so Python decodes each argv
+            # element as UTF-8 before spawning and a name with non-UTF-8 bytes
+            # (dbname2-4) cannot be passed at all. Skip it there, exactly as
+            # Perl's createdb fails to create these names on Windows; dbname1
+            # (ASCII) and CamelCase still get created, so the --all utilities
+            # are still exercised over an unusual name (dbname1 contains '=').
+            pass
     return server
 
 
