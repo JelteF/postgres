@@ -68,7 +68,6 @@ tests += {
   'tap': {
     'env': {'with_icu': icu.found() ? 'yes' : 'no'},
     'tests': [
-      't/010_clusterdb.pl',
       't/011_clusterdb_all.pl',
       't/020_createdb.pl',
       't/040_createuser.pl',
@@ -81,6 +80,12 @@ tests += {
       't/101_vacuumdb_all.pl',
       't/102_vacuumdb_stages.pl',
       't/200_connstr.pl',
+    ],
+  },
+  'pytest': {
+    'env': {'with_icu': icu.found() ? 'yes' : 'no'},
+    'tests': [
+      'pyt/test_010_clusterdb.py',
     ],
   },
 }
