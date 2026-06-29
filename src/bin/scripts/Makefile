@@ -64,7 +64,7 @@ clean distclean:
 export with_icu
 
 check:
-	$(prove_check)
+	$(pytest_check)
 
 installcheck:
-	$(prove_installcheck)
+	$(pytest_installcheck)
