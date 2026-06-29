@@ -65,12 +65,6 @@ tests += {
   'name': 'scripts',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
-    'env': {'with_icu': icu.found() ? 'yes' : 'no'},
-    'tests': [
-      't/200_connstr.pl',
-    ],
-  },
   'pytest': {
     'env': {'with_icu': icu.found() ? 'yes' : 'no'},
     'tests': [
@@ -86,6 +80,7 @@ tests += {
       'pyt/test_100_vacuumdb.py',
       'pyt/test_101_vacuumdb_all.py',
       'pyt/test_102_vacuumdb_stages.py',
+      'pyt/test_200_connstr.py',
     ],
   },
 }
