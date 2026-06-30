@@ -4,6 +4,8 @@
 Core libpq functionality - ctypes bindings and connection handling.
 """
 
+from __future__ import annotations
+
 import contextlib
 import ctypes
 import datetime
@@ -14,9 +16,8 @@ import platform
 import os
 import uuid
 import warnings
-from collections import namedtuple
 from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, NamedTuple, NoReturn
 
 from .errors import LibpqError, PostgresDiagnostics
 
@@ -45,7 +46,10 @@ class PostgresWarning(PostgresMessage):
 
 
 # A LISTEN/NOTIFY notification, as returned by PGconn.notifies().
-Notify = namedtuple("Notify", ["channel", "pid", "payload"])
+class Notify(NamedTuple):
+    channel: str
+    pid: int
+    payload: str
 
 
 # PG_DIAG field identifiers from postgres_ext.h
@@ -70,7 +74,9 @@ class DiagField(enum.IntEnum):
     SOURCE_FUNCTION = ord("R")
 
 
-def _extract_diag_fields(lib: ctypes.CDLL, res) -> Dict[str, Any]:
+def _extract_diag_fields(
+    lib: ctypes.CDLL, res: ctypes._Pointer[_PGresult]
+) -> dict[str, Any]:
     """Pull the PostgreSQL diagnostic fields off a raw result handle into the
     keyword arguments shared by LibpqError and PostgresMessage.
 
@@ -78,7 +84,7 @@ def _extract_diag_fields(lib: ctypes.CDLL, res) -> Dict[str, Any]:
     wrapper) and the notice receiver callback (which is handed the raw handle).
     """
 
-    def field(diag: DiagField) -> Optional[str]:
+    def field(diag: DiagField) -> str | None:
         val = lib.PQresultErrorField(res, int(diag))
         return val.decode() if val else None
 
@@ -151,7 +157,9 @@ _PGnotify_p = ctypes.POINTER(_PGnotify)
 _NOTICE_RECEIVER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _PGresult_p)
 
 
-def load_libpq_handle(bindir, libdir):
+def load_libpq_handle(
+    bindir: str | os.PathLike[str], libdir: str | os.PathLike[str]
+) -> ctypes.CDLL:
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
@@ -309,7 +317,7 @@ def load_libpq_handle(bindir, libdir):
     return lib
 
 
-def _build_params(params):
+def _build_params(params: tuple[Any, ...]) -> tuple[int, Any]:
     """Build the (nParams, paramValues) pair libpq's extended-protocol
     functions expect from a tuple of Python parameter values. Values are
     passed in text format; ``None`` becomes a SQL NULL."""
@@ -323,8 +331,8 @@ def _build_params(params):
 
 # PostgreSQL type OIDs and conversion system
 # Type registry - maps OID to converter function
-_type_converters: Dict[int, Callable[[str], Any]] = {}
-_array_to_elem_map: Dict[int, int] = {}
+_type_converters: dict[int, Callable[[str], Any]] = {}
+_array_to_elem_map: dict[int, int] = {}
 
 
 def register_type_info(
@@ -341,9 +349,9 @@ def register_type_info(
         _array_to_elem_map[array_oid] = oid
 
 
-def _parse_array(value: str, elem_oid: int):
+def _parse_array(value: str, elem_oid: int) -> list[Any]:
     """Parse PostgreSQL array syntax into nested Python lists."""
-    stack: list[list] = []
+    stack: list[list[Any]] = []
     current_element: list[str] = []
     in_quotes = False
     was_quoted = False
@@ -428,7 +436,7 @@ def _convert_pg_value(value: str, type_oid: int) -> Any:
     return value
 
 
-def simplify_query_results(results) -> Any:
+def simplify_query_results(results: list[tuple[Any, ...]]) -> Any:
     """
     Simplify the results of a query so that the caller doesn't have to unpack
     lists and tuples of length 1.
@@ -452,23 +460,24 @@ def simplify_query_results(results) -> Any:
 class PGresult(contextlib.AbstractContextManager):
     """Wraps a raw _PGresult_p with a more friendly interface."""
 
-    def __init__(self, lib: ctypes.CDLL, res: "ctypes._Pointer[_PGresult]"):
+    def __init__(self, lib: ctypes.CDLL, res: ctypes._Pointer[_PGresult]):
         self._lib = lib
-        self._res = res
+        # Cleared to None by __exit__ once the result has been freed.
+        self._res: ctypes._Pointer[_PGresult] | None = res
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: object) -> None:
         self._lib.PQclear(self._res)
         self._res = None
 
     def status(self) -> ExecStatus:
         return ExecStatus(self._lib.PQresultStatus(self._res))
 
-    def error_message(self):
+    def error_message(self) -> str:
         """Returns the error message associated with this result."""
         msg = self._lib.PQresultErrorMessage(self._res)
         return msg.decode() if msg else ""
 
-    def raise_error(self) -> None:
+    def raise_error(self) -> NoReturn:
         """
         Raises LibpqError with diagnostic information from the result.
         """
@@ -478,7 +487,7 @@ class PGresult(contextlib.AbstractContextManager):
         fields = _extract_diag_fields(self._lib, self._res)
         raise LibpqError(fields["primary"] or self.error_message(), **fields)
 
-    def fetch_all(self):
+    def fetch_all(self) -> list[tuple[Any, ...]]:
         """
         Fetch all rows and convert to Python types.
         Returns a list of tuples, with values converted based on their PostgreSQL type.
@@ -516,15 +525,15 @@ class _MustConsumeFuture(Future):
     pass.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.consumed = False
 
-    def result(self, timeout=None):
+    def result(self, timeout: float | None = None) -> Any:
         self.consumed = True
         return super().result(timeout)
 
-    def exception(self, timeout=None):
+    def exception(self, timeout: float | None = None) -> BaseException | None:
         self.consumed = True
         return super().exception(timeout)
 
@@ -538,19 +547,20 @@ class PGconn(contextlib.AbstractContextManager):
     def __init__(
         self,
         lib: ctypes.CDLL,
-        handle: "ctypes._Pointer[_PGconn]",
+        handle: ctypes._Pointer[_PGconn],
         stack: contextlib.ExitStack,
     ):
         self._lib = lib
-        self._handle = handle
+        # Cleared to None by close() once the connection has been finished.
+        self._handle: ctypes._Pointer[_PGconn] | None = handle
         self._stack = stack
 
         # background_sql() machinery. A single libpq connection must never be
         # driven by two threads at once, so background queries run on one
         # worker thread (created lazily on first use) and only one may be in
         # flight at a time. ``_pending`` is that query's future, if any.
-        self._executor: Optional[ThreadPoolExecutor] = None
-        self._pending: Optional[_MustConsumeFuture] = None
+        self._executor: ThreadPoolExecutor | None = None
+        self._pending: _MustConsumeFuture | None = None
 
         # Surface NOTICE/WARNING messages (what psql writes to stderr) as Python
         # warnings instead of letting libpq print them, so tests can assert on
@@ -560,7 +570,9 @@ class PGconn(contextlib.AbstractContextManager):
         self._notice_cb = _NOTICE_RECEIVER(self._receive_notice)
         self._lib.PQsetNoticeReceiver(self._handle, self._notice_cb, None)
 
-    def _receive_notice(self, _arg, res):
+    def _receive_notice(
+        self, _arg: int | None, res: ctypes._Pointer[_PGresult]
+    ) -> None:
         severity = self._lib.PQresultErrorField(res, int(DiagField.SEVERITY_NONLOCALIZED))
         message = self._lib.PQresultErrorMessage(res)
         # WARNING and NOTICE get their own categories; anything else (INFO, LOG,
@@ -576,7 +588,7 @@ class PGconn(contextlib.AbstractContextManager):
         fields = _extract_diag_fields(self._lib, res)
         warnings.warn(category(message.decode().rstrip("\n"), **fields))
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: object) -> None:
         # If we're being closed while another exception is already propagating,
         # that exception is the real failure: abandon any pending background
         # query and release resources without raising close()'s own "result
@@ -585,7 +597,7 @@ class PGconn(contextlib.AbstractContextManager):
             self._pending = None
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Close the connection (PQfinish). Idempotent, so it is safe to close
         early — e.g. to disconnect a session deliberately — even though the
         owning ExitStack will also close it at teardown.
@@ -607,7 +619,7 @@ class PGconn(contextlib.AbstractContextManager):
             self._lib.PQfinish(self._handle)
             self._handle = None
 
-    def exec(self, query: str):
+    def exec(self, query: str) -> PGresult:
         """
         Executes a query via PQexec() and returns a PGresult.
         """
@@ -615,7 +627,7 @@ class PGconn(contextlib.AbstractContextManager):
         res = self._lib.PQexec(self._handle, query.encode())
         return self._stack.enter_context(PGresult(self._lib, res))
 
-    def sql(self, query: str, *params):
+    def sql(self, query: str, *params: Any) -> Any:
         """
         Runs ``query`` through the extended query protocol (an unnamed Parse/
         Bind/Execute), the same path real client drivers use, and raises an
@@ -640,7 +652,7 @@ class PGconn(contextlib.AbstractContextManager):
         self._check_pending()
         return self._sql_impl(query, *params)
 
-    def _sql_impl(self, query, *params):
+    def _sql_impl(self, query: str, *params: Any) -> Any:
         """The actual PQexecParams call behind sql()/background_sql(). Runs on
         the caller's thread for sql() and on the worker thread for
         background_sql(); _check_pending() guarantees only one of those touches
@@ -653,7 +665,7 @@ class PGconn(contextlib.AbstractContextManager):
             self._stack.enter_context(PGresult(self._lib, res))
         )
 
-    def _check_pending(self):
+    def _check_pending(self) -> None:
         """Guard run before anything else touches the connection. A
         background_sql() future must be consumed — its result()/exception()
         retrieved — before the connection is reused; until then this raises.
@@ -665,21 +677,25 @@ class PGconn(contextlib.AbstractContextManager):
         here (including any error) rather than letting it silently leak past
         the next query. Either way the fix is the same: call .result() on the
         future. Once the future has been consumed, forget it."""
-        if self._pending is not None:
-            if not self._pending.consumed:
-                if self._pending.done():
-                    raise RuntimeError(
-                        "the previous background_sql() result was never "
-                        "consumed; call .result() on its future before "
-                        "issuing another query"
-                    )
-                raise RuntimeError(
-                    "connection is busy with an unresolved background_sql(); "
-                    "call .result() on its future before issuing another query"
-                )
-            self._pending = None
+        if self._pending is None:
+            return
 
-    def background_sql(self, query, *params) -> Future:
+        if self._pending.consumed:
+            self._pending = None
+            return
+
+        if self._pending.done():
+            raise RuntimeError(
+                "the previous background_sql() result was never "
+                "consumed; call .result() on its future before "
+                "issuing another query"
+            )
+        raise RuntimeError(
+            "connection is busy with an unresolved background_sql(); "
+            "call .result() on its future before issuing another query"
+        )
+
+    def background_sql(self, query: str, *params: Any) -> Future[Any]:
         """Dispatch a query that is expected to *block* — on a lock, an
         injection point, or anything else that won't return promptly — and
         return a Future that is already running. The test can carry on (e.g.
@@ -712,7 +728,7 @@ class PGconn(contextlib.AbstractContextManager):
         self._pending = fut
         return fut
 
-    def sql_batch(self, *queries: str):
+    def sql_batch(self, *queries: str) -> Any:
         """
         Runs one or more ``queries`` through the simple query protocol (a single
         PQexec), the equivalent of psql's plain ``\\g``. The queries are sent as
@@ -724,7 +740,7 @@ class PGconn(contextlib.AbstractContextManager):
         """
         return self._result_or_raise(self.exec(";".join(queries)))
 
-    def notifies(self):
+    def notifies(self) -> list[Notify]:
         """
         Return and consume all pending LISTEN/NOTIFY notifications, each a
         ``Notify(channel, pid, payload)``.
@@ -747,7 +763,7 @@ class PGconn(contextlib.AbstractContextManager):
             self._lib.PQfreemem(n)
         return out
 
-    def _result_or_raise(self, res):
+    def _result_or_raise(self, res: PGresult) -> Any:
         """Turn a PGresult into a simplified Python value, raising LibpqError
         on any error status. Shared by sql() and the extended-protocol helpers."""
         status = res.status()
@@ -781,7 +797,7 @@ class PGconn(contextlib.AbstractContextManager):
             return b"".join(chunks)
         res.raise_error()
 
-    def prepare(self, name: str, query: str):
+    def prepare(self, name: str, query: str) -> Any:
         """
         Parse ``query`` into a named prepared statement. This is the libpq
         equivalent of psql's ``<query> \\parse <name>``. Execute it afterwards
@@ -793,7 +809,7 @@ class PGconn(contextlib.AbstractContextManager):
         )
         return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
 
-    def exec_prepared(self, name: str, *params):
+    def exec_prepared(self, name: str, *params: Any) -> Any:
         """
         Bind ``params`` to a previously prepare()d statement and execute it.
         This is the libpq equivalent of psql's
@@ -807,12 +823,12 @@ class PGconn(contextlib.AbstractContextManager):
         return self._result_or_raise(self._stack.enter_context(PGresult(self._lib, res)))
 
 
-def connstr(opts: Dict[str, Any]) -> str:
+def connstr(opts: dict[str, Any]) -> str:
     """
     Flattens the provided options into a libpq connection string. Values
     are converted to str and quoted/escaped as necessary.
     """
-    settings = []
+    settings: list[str] = []
 
     for k, v in opts.items():
         v = str(v)
@@ -836,7 +852,7 @@ def connstr(opts: Dict[str, Any]) -> str:
 def connect(
     libpq_handle: ctypes.CDLL,
     stack: contextlib.ExitStack,
-    **opts,
+    **opts: Any,
 ) -> PGconn:
     """
     Connects to a server, using the given connection options, and

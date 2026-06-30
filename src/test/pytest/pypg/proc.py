@@ -15,11 +15,19 @@ server. Instances come from :mod:`pypg.bins`, not constructed directly::
     state = pg_controldata.capture(pg.datadir)  # capture stdout
 """
 
+from __future__ import annotations
+
 import os
+import pathlib
 import re
 import subprocess
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
 from . import paths, util
+
+if TYPE_CHECKING:
+    from .server import PostgresServer
 
 
 class PgBin:
@@ -30,14 +38,14 @@ class PgBin:
     ``.path`` is read.
     """
 
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"PgBin({self.name!r})"
 
     @property
-    def path(self):
+    def path(self) -> pathlib.Path:
         """The resolved executable path (``bindir() / name``).
 
         A property rather than an ``__init__`` assignment so that merely
@@ -46,7 +54,12 @@ class PgBin:
         lazily on first use and is cached by :mod:`pypg.paths`."""
         return paths.bindir() / self.name
 
-    def _apply_env(self, server, addenv, kwargs):
+    def _apply_env(
+        self,
+        server: PostgresServer | None,
+        addenv: dict[str, str] | None,
+        kwargs: dict[str, Any],
+    ) -> None:
         """Layer a server's PG* connection variables and/or ``addenv`` onto the
         environment the program will run with (mirrors Perl ``$node->command_*``)."""
         if server is None and addenv is None:
@@ -59,21 +72,39 @@ class PgBin:
             env.update(addenv)
         kwargs["env"] = env
 
-    def __call__(self, *args, server=None, addenv=None, **kwargs):
+    def __call__(
+        self,
+        *args: object,
+        server: PostgresServer | None = None,
+        addenv: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[Any]:
         """Run the program. Like :func:`pypg.util.run`: output is not captured
         (it streams) and a nonzero exit raises unless ``check=False``. Pass
         ``server=`` to run against a :class:`PostgresServer`."""
         self._apply_env(server, addenv, kwargs)
         return util.run(self.path, *args, **kwargs)
 
-    def capture(self, *args, server=None, addenv=None, **kwargs):
+    def capture(
+        self,
+        *args: object,
+        server: PostgresServer | None = None,
+        addenv: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> str:
         """Run the program and return its stdout as text (trailing newline
         stripped), like :func:`pypg.util.capture`. Raises on a nonzero exit
         unless ``check=False``."""
         self._apply_env(server, addenv, kwargs)
         return util.capture(self.path, *args, **kwargs)
 
-    def _capture_both(self, *args, server=None, addenv=None, **kwargs):
+    def _capture_both(
+        self,
+        *args: object,
+        server: PostgresServer | None = None,
+        addenv: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
         """Run capturing both stdout and stderr as text (``check=False``),
         returning the CompletedProcess. Backs the ``check_*`` helpers."""
         self._apply_env(server, addenv, kwargs)
@@ -87,7 +118,7 @@ class PgBin:
             **kwargs,
         )
 
-    def check_standard_options(self):
+    def check_standard_options(self) -> None:
         """Assert the conventions every client program must satisfy.
 
         ``--help`` and ``--version`` exit 0 writing only to stdout (and --help
@@ -116,7 +147,15 @@ class PgBin:
         assert r.returncode != 0, "expected nonzero exit for an invalid option"
         assert r.stderr != "", "expected an error message on stderr"
 
-    def check_all(self, *args, exit_code=0, stdout=(), stderr=(), server=None, **kwargs):
+    def check_all(
+        self,
+        *args: object,
+        exit_code: int = 0,
+        stdout: str | Sequence[str] = (),
+        stderr: str | Sequence[str] = (),
+        server: PostgresServer | None = None,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
         """Run the program and assert its exit code and output, like the Perl
         ``command_checks_all``.
 

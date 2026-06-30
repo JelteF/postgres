@@ -4,7 +4,7 @@
 Exception classes for libpq errors.
 """
 
-from typing import Optional
+from __future__ import annotations
 
 
 class PostgresDiagnostics(Exception):
@@ -23,35 +23,35 @@ class PostgresDiagnostics(Exception):
     exception/warning argument as usual.
     """
 
-    sqlstate: Optional[str]
-    severity: Optional[str]
-    primary: Optional[str]
-    detail: Optional[str]
-    hint: Optional[str]
-    schema_name: Optional[str]
-    table_name: Optional[str]
-    column_name: Optional[str]
-    datatype_name: Optional[str]
-    constraint_name: Optional[str]
-    position: Optional[int]
-    context: Optional[str]
+    sqlstate: str | None
+    severity: str | None
+    primary: str | None
+    detail: str | None
+    hint: str | None
+    schema_name: str | None
+    table_name: str | None
+    column_name: str | None
+    datatype_name: str | None
+    constraint_name: str | None
+    position: int | None
+    context: str | None
 
     def __init__(
         self,
         message: str,
         *,
-        sqlstate: Optional[str] = None,
-        severity: Optional[str] = None,
-        primary: Optional[str] = None,
-        detail: Optional[str] = None,
-        hint: Optional[str] = None,
-        schema_name: Optional[str] = None,
-        table_name: Optional[str] = None,
-        column_name: Optional[str] = None,
-        datatype_name: Optional[str] = None,
-        constraint_name: Optional[str] = None,
-        position: Optional[int] = None,
-        context: Optional[str] = None,
+        sqlstate: str | None = None,
+        severity: str | None = None,
+        primary: str | None = None,
+        detail: str | None = None,
+        hint: str | None = None,
+        schema_name: str | None = None,
+        table_name: str | None = None,
+        column_name: str | None = None,
+        datatype_name: str | None = None,
+        constraint_name: str | None = None,
+        position: int | None = None,
+        context: str | None = None,
     ):
         super().__init__(message)
         self.sqlstate = sqlstate
@@ -68,7 +68,7 @@ class PostgresDiagnostics(Exception):
         self.context = context
 
     @property
-    def sqlstate_class(self) -> Optional[str]:
+    def sqlstate_class(self) -> str | None:
         """Returns the 2-character SQLSTATE class."""
         if self.sqlstate and len(self.sqlstate) >= 2:
             return self.sqlstate[:2]

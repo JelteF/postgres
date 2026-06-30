@@ -1,10 +1,14 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
 import os
 import contextlib
+import ctypes
 import pathlib
 import tempfile
-from typing import List
+from collections.abc import Callable, Iterator
+from typing import Any, List
 
 import pytest
 
@@ -12,14 +16,16 @@ from ._env import test_timeout_default
 from .paths import bindir, libdir
 from .server import PostgresServer
 
-from libpq import load_libpq_handle, connect as libpq_connect
+from libpq import PGconn, load_libpq_handle, connect as libpq_connect
 
 
 # Stash key for tracking servers for log reporting.
 _servers_key = pytest.StashKey[List[PostgresServer]]()
 
 
-def _record_server_for_log_reporting(request, server):
+def _record_server_for_log_reporting(
+    request: pytest.FixtureRequest, server: PostgresServer
+) -> None:
     """Record a server for log reporting on test failure."""
     if _servers_key not in request.node.stash:
         request.node.stash[_servers_key] = []
@@ -27,7 +33,7 @@ def _record_server_for_log_reporting(request, server):
 
 
 @pytest.fixture(scope="session")
-def libpq_handle():
+def libpq_handle() -> ctypes.CDLL:
     """
     Loads a ctypes handle for libpq. Some common function prototypes are
     initialized for general use.
@@ -47,7 +53,7 @@ def libpq_handle():
 
 
 @pytest.fixture
-def connect(libpq_handle):
+def connect(libpq_handle: ctypes.CDLL) -> Iterator[Callable[..., PGconn]]:
     """
     Returns a function to connect to PostgreSQL via libpq.
 
@@ -61,7 +67,7 @@ def connect(libpq_handle):
     """
     with contextlib.ExitStack() as stack:
 
-        def _connect(**opts):
+        def _connect(**opts: object) -> PGconn:
             opts.setdefault("connect_timeout", test_timeout_default())
             return libpq_connect(libpq_handle, stack, **opts)
 
@@ -69,7 +75,7 @@ def connect(libpq_handle):
 
 
 @pytest.fixture(scope="module")
-def tmp_check(tmp_path_factory) -> pathlib.Path:
+def tmp_check(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     """
     Returns the tmp_check directory that should be used for the tests. If
     TESTDATADIR is provided, that will be used; otherwise a new temporary
@@ -91,7 +97,7 @@ def tmp_check(tmp_path_factory) -> pathlib.Path:
 
 
 @pytest.fixture(scope="module")
-def datadir(tmp_check):
+def datadir(tmp_check: pathlib.Path) -> pathlib.Path:
     """
     Returns the data directory to use for the pg fixture. Unique per module via
     the module-scoped tmp_check.
@@ -101,7 +107,7 @@ def datadir(tmp_check):
 
 
 @pytest.fixture(scope="module")
-def sockdir():
+def sockdir() -> Iterator[pathlib.Path]:
     """
     Returns the directory name to use as the server's unix_socket_directories
     setting. Local client connections use this as the PGHOST.
@@ -115,7 +121,12 @@ def sockdir():
 
 
 @pytest.fixture(scope="module")
-def pg_server_module(request, datadir, sockdir, libpq_handle):
+def pg_server_module(
+    request: pytest.FixtureRequest,
+    datadir: pathlib.Path,
+    sockdir: pathlib.Path,
+    libpq_handle: ctypes.CDLL,
+) -> Iterator[PostgresServer]:
     """
     Starts a running Postgres server for the test module, listening on
     localhost. The HBA initially allows only local UNIX connections from the
@@ -151,7 +162,9 @@ def pg_server_module(request, datadir, sockdir, libpq_handle):
 
 
 @pytest.fixture
-def pg(request, pg_server_module):
+def pg(
+    request: pytest.FixtureRequest, pg_server_module: PostgresServer
+) -> Iterator[PostgresServer]:
     """
     Per-test server context. Use this fixture to make changes to the server
     which will be rolled back at the end of the test (e.g., creating test
@@ -166,7 +179,7 @@ def pg(request, pg_server_module):
 
 
 @pytest.fixture
-def conn(pg):
+def conn(pg: PostgresServer) -> PGconn:
     """
     Returns a connected PGconn instance to the test PostgreSQL server.
     The connection is automatically cleaned up at the end of the test.
@@ -180,7 +193,12 @@ def conn(pg):
 
 
 @pytest.fixture
-def create_pg(request, sockdir, libpq_handle, tmp_check):
+def create_pg(
+    request: pytest.FixtureRequest,
+    sockdir: pathlib.Path,
+    libpq_handle: ctypes.CDLL,
+    tmp_check: pathlib.Path,
+) -> Iterator[Callable[..., PostgresServer]]:
     """
     Factory fixture to create additional PostgreSQL servers (per-test scope).
 
@@ -193,9 +211,11 @@ def create_pg(request, sockdir, libpq_handle, tmp_check):
             node2 = create_pg()
             node3 = create_pg()
     """
-    servers = []
+    servers: list[PostgresServer] = []
 
-    def _create(name=None, start=True, **kwargs):
+    def _create(
+        name: str | None = None, start: bool = True, **kwargs: Any
+    ) -> PostgresServer:
         if name is None:
             count = len(servers) + 1
             name = f"pg{count}"
@@ -219,19 +239,19 @@ def create_pg(request, sockdir, libpq_handle, tmp_check):
 
 
 @pytest.fixture(scope="module")
-def _module_scoped_servers():
+def _module_scoped_servers() -> list[PostgresServer]:
     """Session-scoped list to track servers created by create_pg_module."""
     return []
 
 
 @pytest.fixture(scope="module")
 def create_pg_module(
-    request,
-    sockdir,
-    libpq_handle,
-    tmp_check,
-    _module_scoped_servers,
-):
+    request: pytest.FixtureRequest,
+    sockdir: pathlib.Path,
+    libpq_handle: ctypes.CDLL,
+    tmp_check: pathlib.Path,
+    _module_scoped_servers: list[PostgresServer],
+) -> Iterator[Callable[..., PostgresServer]]:
     """
     Factory fixture to create additional PostgreSQL servers (module scope).
 
@@ -247,7 +267,9 @@ def create_pg_module(
             return [create_pg_module() for _ in range(3)]
     """
 
-    def _create(name=None, start=True, **kwargs):
+    def _create(
+        name: str | None = None, start: bool = True, **kwargs: Any
+    ) -> PostgresServer:
         if name is None:
             count = len(_module_scoped_servers) + 1
             name = f"pg{count}"
@@ -267,7 +289,9 @@ def create_pg_module(
 
 
 @pytest.fixture(autouse=True)
-def _start_module_server_tests(_module_scoped_servers):
+def _start_module_server_tests(
+    _module_scoped_servers: list[PostgresServer],
+) -> Iterator[None]:
     """Opens a per-test subcontext on all module-scoped servers for this test.
 
     It's hard to reliably detect whether a test uses a module-scoped server or
@@ -282,7 +306,7 @@ def _start_module_server_tests(_module_scoped_servers):
 
 
 @pytest.hookimpl(hookwrapper=True, trylast=True)
-def pytest_runtest_makereport(item, call):
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     """
     Adds PostgreSQL server logs to the test report sections.
     """

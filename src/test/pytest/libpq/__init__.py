@@ -6,6 +6,8 @@ libpq testing utilities - ctypes bindings and helpers for PostgreSQL's libpq lib
 This module provides Python wrappers around libpq for use in pytest tests.
 """
 
+from __future__ import annotations
+
 from . import errors
 from .errors import LibpqError
 from ._core import (
