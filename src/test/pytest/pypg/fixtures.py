@@ -305,13 +305,12 @@ def _start_module_server_tests(
         yield
 
 
-@pytest.hookimpl(hookwrapper=True, trylast=True)
+@pytest.hookimpl(wrapper=True, trylast=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     """
     Adds PostgreSQL server logs to the test report sections.
     """
-    outcome = yield
-    report = outcome.get_result()
+    report = yield
 
     session_servers = item.session.stash.get(_servers_key, [])
 
@@ -330,3 +329,5 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
                 section_title += f" ({server.name})"
             report.sections.append((section_title, content))
         server.reset_log_position()
+
+    return report

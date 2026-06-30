@@ -129,15 +129,15 @@ def pytest_internalerror(
 #
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(wrapper=True)
 def pytest_collection(session: pytest.Session):
     """Reports the number of gathered tests after collection is finished."""
-    res = yield
+    result = yield
     tap.expect(session.testscollected)
-    return res
+    return result
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(wrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     """
     Annotates a test item with our TestNotes and grabs relevant information for
@@ -148,13 +148,12 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     see the details for both.) We instead combine all the information for use by
     our pytest_runtest_protocol wrapper later on.
     """
-    res = yield
+    report = yield
 
     if notes_key not in item.stash:
         item.stash[notes_key] = TestNotes()
     notes = item.stash[notes_key]
 
-    report = res.get_result()
     if report.passed:
         pass  # no annotation needed
 
@@ -187,15 +186,15 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     else:
         raise RuntimeError("pytest_runtest_makereport received unknown test status")
 
-    return res
+    return report
 
 
-@pytest.hookimpl(hookwrapper=True)
+@pytest.hookimpl(wrapper=True)
 def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None):
     """
     Reports the TAP result for this test item using our gathered TestNotes.
     """
-    res = yield
+    result = yield
 
     assert notes_key in item.stash, "pgtap didn't annotate a test item?"
     notes = item.stash[notes_key]
@@ -210,4 +209,4 @@ def pytest_runtest_protocol(item: pytest.Item, nextitem: pytest.Item | None):
     else:
         tap.ok(item.nodeid)
 
-    return res
+    return result
