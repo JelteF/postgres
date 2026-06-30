@@ -1,6 +1,9 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
 import contextlib
+import ctypes
 import os
 import pathlib
 import platform
@@ -8,10 +11,9 @@ import re
 import shutil
 import socket
 import subprocess
-import tempfile
 import threading
-from collections import namedtuple
-from typing import Optional
+from collections.abc import Generator
+from typing import Any
 
 from . import bins
 from ._env import test_timeout_default
@@ -19,7 +21,7 @@ from .util import shell_path, wait_until
 from libpq import PGconn, connect as libpq_connect, connstr as libpq_connstr
 
 
-def _escape_conf_value(value) -> str:
+def _escape_conf_value(value: object) -> str:
     """Quote and escape ``value`` as a postgresql.conf single-quoted string.
 
     This is the inverse of the server's DeescapeQuotedString(), so the value
@@ -52,13 +54,13 @@ class FileBackup(contextlib.AbstractContextManager):
 
     def __init__(self, path: pathlib.Path):
         self._path = path
-        self._contents: Optional[str] = None
+        self._contents: str | None = None
 
-    def __enter__(self):
+    def __enter__(self) -> FileBackup:
         self._contents = self._path.read_text()
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: object) -> None:
         assert self._contents is not None  # set by __enter__
         self._path.write_text(self._contents)
 
@@ -71,21 +73,21 @@ class PostgresServer:
 
     def __init__(
         self,
-        name,
-        datadir,
-        sockdir,
-        libpq_handle,
+        name: str,
+        datadir: pathlib.Path,
+        sockdir: pathlib.Path,
+        libpq_handle: ctypes.CDLL,
         *,
-        hostaddr: Optional[str] = None,
-        port: Optional[int] = None,
-        initdb_opts: Optional[list] = None,
-        from_backup: Optional[pathlib.Path] = None,
-        streaming_primary: Optional["PostgresServer"] = None,
-        allows_streaming=False,
+        hostaddr: str | None = None,
+        port: int | None = None,
+        initdb_opts: list[str] | None = None,
+        from_backup: pathlib.Path | None = None,
+        streaming_primary: PostgresServer | None = None,
+        allows_streaming: bool | str = False,
         archiving: bool = False,
-        restoring: Optional["PostgresServer"] = None,
+        restoring: PostgresServer | None = None,
         restoring_standby: bool = True,
-        conf: Optional[dict] = None,
+        conf: dict[str, Any] | None = None,
     ):
         """
         Initialize a PostgreSQL server instance. Call start() to actually
@@ -167,7 +169,7 @@ class PostgresServer:
         self._conf_snapshotted = False
         # None until the test applies an edit; then "reload" or "restart" (the
         # strongest apply the test did), which is how the edit is reverted.
-        self._conf_restore_mode: Optional[str] = None
+        self._conf_restore_mode: str | None = None
 
         # Determine whether to use Unix sockets
         use_unix_sockets = platform.system() != "Windows" and hostaddr is None
@@ -320,22 +322,22 @@ class PostgresServer:
 
         temp_sock.close()
 
-    def start(self):
+    def start(self) -> None:
         """Start the server using pg_ctl."""
         self.pg_ctl("start")
         self.pid = self._read_postmaster_pid()
 
-    def _read_postmaster_pid(self):
+    def _read_postmaster_pid(self) -> int:
         """Read the postmaster PID from the server's postmaster.pid file."""
         with open(self.datadir / "postmaster.pid") as f:
             return int(f.readline().strip())
 
-    def is_running(self):
+    def is_running(self) -> bool:
         """Whether the postmaster looks to be running, based on the presence of
         its postmaster.pid file (pg_ctl removes it on a clean stop)."""
         return (self.datadir / "postmaster.pid").exists()
 
-    def reload(self):
+    def reload(self) -> None:
         """Reload postgresql.conf and pg_hba.conf via ``pg_ctl reload`` (SIGHUP).
 
         Only settings that can change at SIGHUP take effect; postmaster-level
@@ -354,7 +356,7 @@ class PostgresServer:
         ):
             self._conf_restore_mode = "reload"
 
-    def restart(self, mode="fast"):
+    def restart(self, mode: str = "fast") -> None:
         """Restart the server via ``pg_ctl restart`` and refresh the postmaster
         PID.
 
@@ -368,13 +370,13 @@ class PostgresServer:
         if self._track_conf_changes and self._conf_snapshotted:
             self._conf_restore_mode = "restart"
 
-    def promote(self):
+    def promote(self) -> None:
         """Promote a standby/recovery node to a primary, waiting for the
         promotion to finish (pg_ctl promote -w). Mirrors Perl's ``$node->promote``.
         """
         self.pg_ctl("promote", "-w")
 
-    def enable_streaming(self, primary: "PostgresServer"):
+    def enable_streaming(self, primary: PostgresServer) -> None:
         """Reconfigure this (stopped) node to stream from ``primary`` as a
         standby: set ``primary_conninfo`` and drop a ``standby.signal``. Mirrors
         Perl's ``$node->enable_streaming``. Use it to re-attach a former primary
@@ -386,18 +388,18 @@ class PostgresServer:
         self.append_conf(primary_conninfo=conninfo)
         (self.datadir / "standby.signal").touch()
 
-    def current_log_position(self):
+    def current_log_position(self) -> int:
         """Get the current end position of the log file."""
         if self.log.exists():
             return self.log.stat().st_size
         return 0
 
-    def reset_log_position(self):
+    def reset_log_position(self) -> None:
         """Mark current log position as start for log_content()."""
         self._log_start_pos = self.current_log_position()
 
     @contextlib.contextmanager
-    def start_new_test(self):
+    def start_new_test(self) -> Generator[PostgresServer, None, None]:
         """
         Prepare server for a new test.
 
@@ -421,11 +423,11 @@ class PostgresServer:
                 # it runs (via restart()) does not re-escalate the mode.
                 self._track_conf_changes = False
 
-    def psql(self, *args):
+    def psql(self, *args: object) -> None:
         """Run psql with the given arguments."""
         bins.psql("-w", *args, server=self)
 
-    def sql(self, query, *params, **connection_opts):
+    def sql(self, query: str, *params: Any, **connection_opts: Any) -> Any:
         """Execute a SQL query via libpq. Returns simplified results.
 
         Any keyword arguments are passed through to ``connect()`` as connection
@@ -435,7 +437,7 @@ class PostgresServer:
         with self.connect(**connection_opts) as conn:
             return conn.sql(query, *params)
 
-    def sql_batch(self, *queries, **connection_opts):
+    def sql_batch(self, *queries: str, **connection_opts: Any) -> Any:
         """Run a ``;``-separated batch of statements via the simple query
         protocol (see ``PGconn.sql_batch``). Returns the last statement's
         simplified result.
@@ -446,7 +448,7 @@ class PostgresServer:
         with self.connect(**connection_opts) as conn:
             return conn.sql_batch(*queries)
 
-    def append_conf(self, **gucs):
+    def append_conf(self, **gucs: object) -> None:
         """Append GUC settings to postgresql.conf.
 
         Each keyword is written as ``name = 'value'`` with the value escaped for
@@ -459,7 +461,12 @@ class PostgresServer:
             for name, value in gucs.items():
                 f.write(f"{name} = {_escape_conf_value(value)}\n")
 
-    def adjust_conf(self, setting, value=None, filename="postgresql.conf"):
+    def adjust_conf(
+        self,
+        setting: str,
+        value: object = None,
+        filename: str = "postgresql.conf",
+    ) -> None:
         """Set ``setting`` to ``value`` in a config file, replacing any existing
         (or commented-out) lines for it; if ``value`` is None, remove them.
 
@@ -477,7 +484,7 @@ class PostgresServer:
             lines.append(f"{setting} = {_escape_conf_value(value)}")
         path.write_text("\n".join(lines) + "\n")
 
-    def _config_files(self):
+    def _config_files(self) -> list[pathlib.Path]:
         """The config files that are rolled back between tests."""
         return [
             self.datadir / name
@@ -489,7 +496,7 @@ class PostgresServer:
             )
         ]
 
-    def _snapshot_conf_if_needed(self):
+    def _snapshot_conf_if_needed(self) -> None:
         """Back up every config file before the first config edit of a test, so
         the edits can be rolled back when the test finishes.
 
@@ -513,7 +520,7 @@ class PostgresServer:
         for path in self._config_files():
             self._cleanup_stack.enter_context(FileBackup(path))
 
-    def _reapply_conf(self):
+    def _reapply_conf(self) -> None:
         """Bring the server to a running state with the config files just
         restored by the FileBackups in effect. Runs as the last step of a test
         that edited config; see _snapshot_conf_if_needed.
@@ -533,7 +540,7 @@ class PostgresServer:
         # leaves it consistent with the live config, and there is nothing to
         # signal.
 
-    def reset_hba(self, database, role, method):
+    def reset_hba(self, database: str, role: str, method: str) -> None:
         """Replace pg_hba.conf with a single local rule and reload the server.
 
         Mirrors the ``reset_pg_hba`` helper duplicated across the authentication
@@ -546,7 +553,7 @@ class PostgresServer:
         hba.write_text(f"local {database} {role}\\\n {method}\n")
         self.reload()
 
-    def reset_ident(self, map_name, system_user, pg_user):
+    def reset_ident(self, map_name: str, system_user: str, pg_user: str) -> None:
         """Replace pg_ident.conf with a single user-name-map entry and reload.
 
         Mirrors the ``reset_pg_ident`` helper in the peer authentication TAP
@@ -558,8 +565,13 @@ class PostgresServer:
         self.reload()
 
     def poll_query_until(
-        self, query, *params, expected=True, dbname="postgres", timeout=None
-    ):
+        self,
+        query: str,
+        *params: Any,
+        expected: Any = True,
+        dbname: str = "postgres",
+        timeout: float | None = None,
+    ) -> Any:
         """Run ``query`` repeatedly until it returns ``expected``.
 
         Any positional ``params`` after ``query`` are bound to its
@@ -583,11 +595,11 @@ class PostgresServer:
                 if result == expected:
                     return result
 
-    def pg_ctl(self, *args):
+    def pg_ctl(self, *args: object) -> None:
         """Run pg_ctl with the given arguments."""
         bins.pg_ctl("--pgdata", self.datadir, "--log", self.log, *args, server=self)
 
-    def connection_env(self):
+    def connection_env(self) -> dict[str, str]:
         """Return the PG* environment variables that point a client program at
         this server.
 
@@ -602,7 +614,7 @@ class PostgresServer:
             "PGDATA": str(self.datadir),
         }
 
-    def connstr(self, *, dbname="postgres", **opts):
+    def connstr(self, *, dbname: str = "postgres", **opts: object) -> str:
         """Return a libpq connection string pointing at this server.
 
         Extra keyword options (e.g. ``application_name``) are appended. Used
@@ -612,7 +624,11 @@ class PostgresServer:
             {"host": self.host, "port": self.port, "dbname": dbname, **opts}
         )
 
-    def backup(self, backup_name="my_backup", backup_options=None):
+    def backup(
+        self,
+        backup_name: str = "my_backup",
+        backup_options: list[str] | None = None,
+    ) -> pathlib.Path:
         """Take a base backup of this (running) server with pg_basebackup.
 
         The backup is written under a per-server backups directory and the path
@@ -636,8 +652,14 @@ class PostgresServer:
         return backup_path
 
     def pg_recvlogical_upto(
-        self, slot_name, endpos, *, dbname="postgres", timeout=None, options=None
-    ):
+        self,
+        slot_name: str,
+        endpos: str,
+        *,
+        dbname: str = "postgres",
+        timeout: float | None = None,
+        options: dict[str, str] | None = None,
+    ) -> str:
         """Stream a logical slot's changes up to ``endpos`` with pg_recvlogical.
 
         Runs ``pg_recvlogical --start`` (which confirms the changes it reads,
@@ -663,7 +685,7 @@ class PostgresServer:
             args.append(f"{k}={v}")
         return bins.pg_recvlogical.capture(*args, timeout=timeout)
 
-    def advance_wal(self, num):
+    def advance_wal(self, num: int) -> None:
         """Advance WAL by ``num`` segments.
 
         Emits an empty logical message and forces a segment switch ``num``
@@ -675,11 +697,11 @@ class PostgresServer:
                 conn.sql("SELECT pg_logical_emit_message(false, '', 'foo')")
                 conn.sql("SELECT pg_switch_wal()")
 
-    def _get_insert_lsn(self):
+    def _get_insert_lsn(self) -> int:
         """Return the current insert LSN of this server, in bytes."""
         return int(self.sql("SELECT pg_current_wal_insert_lsn() - '0/0'"))
 
-    def emit_wal(self, size):
+    def emit_wal(self, size: int) -> int:
         """Emit a transactional logical message of ``size`` bytes and return the
         resulting end LSN, in bytes. Mirrors Perl's ``$node->emit_wal``."""
         return int(
@@ -689,7 +711,9 @@ class PostgresServer:
             )
         )
 
-    def write_wal(self, tli, lsn, segment_size, data: bytes):
+    def write_wal(
+        self, tli: int, lsn: int, segment_size: int, data: bytes
+    ) -> pathlib.Path:
         """Write ``data`` (bytes) into the WAL segment file at byte ``lsn`` on
         timeline ``tli``, returning the segment path. Used to corrupt WAL on a
         stopped server. Mirrors Perl's ``$node->write_wal``."""
@@ -701,7 +725,7 @@ class PostgresServer:
             f.write(data)
         return path
 
-    def advance_wal_out_of_record_splitting_zone(self, wal_block_size):
+    def advance_wal_out_of_record_splitting_zone(self, wal_block_size: int) -> int:
         """Advance WAL to a safe distance from the end of a page (enough to fit
         a couple of small records), returning the end LSN in bytes. Mirrors
         Perl's ``$node->advance_wal_out_of_record_splitting_zone``."""
@@ -714,7 +738,7 @@ class PostgresServer:
             page_offset = end_lsn % wal_block_size
         return end_lsn
 
-    def advance_wal_to_record_splitting_zone(self, wal_block_size):
+    def advance_wal_to_record_splitting_zone(self, wal_block_size: int) -> int:
         """Advance WAL so close to the end of a page that an XLogRecordHeader
         would not fit on it, returning the end LSN in bytes. Mirrors Perl's
         ``$node->advance_wal_to_record_splitting_zone``."""
@@ -744,7 +768,7 @@ class PostgresServer:
                 message_size += 8
         return end_lsn
 
-    def backup_fs_cold(self, backup_name="cold_backup"):
+    def backup_fs_cold(self, backup_name: str = "cold_backup") -> pathlib.Path:
         """Take a filesystem-level cold backup of this (stopped) server.
 
         Copies the whole data directory, including WAL, into a per-server
@@ -764,7 +788,7 @@ class PostgresServer:
         )
         return backup_path
 
-    def lsn(self, mode="write"):
+    def lsn(self, mode: str = "write") -> str:
         """Return a current WAL LSN of this server as a string.
 
         ``mode`` selects the function: ``insert``/``flush``/``write`` on a
@@ -779,7 +803,12 @@ class PostgresServer:
         }
         return self.sql(f"SELECT {funcs[mode]}")
 
-    def wait_for_catchup(self, standby_name, mode="replay", target_lsn=None):
+    def wait_for_catchup(
+        self,
+        standby_name: str | PostgresServer,
+        mode: str = "replay",
+        target_lsn: str | None = None,
+    ) -> None:
         """Wait until a streaming standby has caught up to ``target_lsn``.
 
         Polls pg_stat_replication on this (upstream) server until the standby's
@@ -806,7 +835,12 @@ class PostgresServer:
         )
         self.poll_query_until(query, target_lsn, standby_name)
 
-    def wait_for_slot_catchup(self, slot_name, mode="restart", target_lsn=None):
+    def wait_for_slot_catchup(
+        self,
+        slot_name: str,
+        mode: str = "restart",
+        target_lsn: str | None = None,
+    ) -> None:
         """Wait until a replication slot's ``<mode>_lsn`` reaches ``target_lsn``.
 
         Polls pg_replication_slots on this server. ``mode`` is ``restart`` or
@@ -824,8 +858,11 @@ class PostgresServer:
         )
 
     def wait_for_subscription_sync(
-        self, publisher=None, subname=None, dbname="postgres"
-    ):
+        self,
+        publisher: PostgresServer | None = None,
+        subname: str | None = None,
+        dbname: str = "postgres",
+    ) -> None:
         """Wait for a subscription's initial table sync to finish, then for the
         subscriber to catch up to the publisher.
 
@@ -843,7 +880,9 @@ class PostgresServer:
             publisher.wait_for_catchup(subname)
 
     @contextlib.contextmanager
-    def repeat_query(self, query, interval=0.1, dbname="postgres"):
+    def repeat_query(
+        self, query: str, interval: float = 0.1, dbname: str = "postgres"
+    ) -> Generator[None, None, None]:
         """Context manager that runs ``query`` repeatedly in the background on
         its own connection until the block exits, like psql's ``\\watch``.
 
@@ -874,7 +913,7 @@ class PostgresServer:
             except Exception:
                 pass
 
-    def log_standby_snapshot(self, standby, slot_name):
+    def log_standby_snapshot(self, standby: PostgresServer, slot_name: str) -> None:
         """Emit the ``xl_running_xacts`` record a standby's logical slot
         creation is waiting for.
 
@@ -889,7 +928,9 @@ class PostgresServer:
         )
         self.sql("SELECT pg_log_standby_snapshot()")
 
-    def create_logical_slot_on_standby(self, primary, slot_name, dbname="postgres"):
+    def create_logical_slot_on_standby(
+        self, primary: PostgresServer, slot_name: str, dbname: str = "postgres"
+    ) -> None:
         """Create a logical replication slot on this standby.
 
         Logical slot creation on a standby blocks until an ``xl_running_xacts``
@@ -923,7 +964,7 @@ class PostgresServer:
             == "logical"
         ), f"{slot_name} on standby created"
 
-    def wait_for_event(self, backend_type, wait_event):
+    def wait_for_event(self, backend_type: str, wait_event: str) -> None:
         """Wait until some backend is parked on a given wait event.
 
         Polls pg_stat_activity until a backend of ``backend_type`` reports
@@ -938,7 +979,7 @@ class PostgresServer:
             wait_event,
         )
 
-    def wait_for_injection_point(self, name):
+    def wait_for_injection_point(self, name: str) -> None:
         """Wait until some backend is parked at the named injection point.
 
         Polls pg_stat_activity for a backend whose wait event is the injection
@@ -956,7 +997,7 @@ class PostgresServer:
         )
 
     @contextlib.contextmanager
-    def subcontext(self):
+    def subcontext(self) -> Generator[PostgresServer, None, None]:
         """
         Create a new cleanup context for per-test isolation.
 
@@ -972,7 +1013,7 @@ class PostgresServer:
             self._cleanup_stack.__exit__(None, None, None)
             self._cleanup_stack = old_stack
 
-    def stop(self, mode="fast"):
+    def stop(self, mode: str = "fast") -> None:
         """
         Stop the PostgreSQL server instance.
 
@@ -1009,7 +1050,9 @@ class PostgresServer:
             f.seek(offset)
             return f.read().decode("utf-8", errors="replace")
 
-    def wait_for_log(self, pattern, offset=0, timeout=None):
+    def wait_for_log(
+        self, pattern: str, offset: int = 0, timeout: float | None = None
+    ) -> int | None:
         """Wait until the log written since ``offset`` matches ``pattern``.
 
         Returns the log's end offset once the regex matches, so chained waits
@@ -1022,7 +1065,9 @@ class PostgresServer:
                 return self.current_log_position()
 
     @contextlib.contextmanager
-    def log_contains(self, pattern, times=None):
+    def log_contains(
+        self, pattern: str, times: int | None = None
+    ) -> Generator[None, None, None]:
         """
         Context manager that checks if the log matches pattern during the block.
 
@@ -1046,11 +1091,11 @@ class PostgresServer:
                 f"Expected {times} matches of {pattern!r}, found {match_count}"
             )
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Run all registered cleanup callbacks."""
         self._cleanup_stack.close()
 
-    def connect(self, **opts) -> PGconn:
+    def connect(self, **opts: Any) -> PGconn:
         """
         Creates a connection to this PostgreSQL server instance.
 

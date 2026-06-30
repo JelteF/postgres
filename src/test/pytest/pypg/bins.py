@@ -14,6 +14,8 @@ The :class:`PgBin` resolves itself lazily against the test bindir when called,
 so importing a name here never runs pg_config.
 """
 
+from __future__ import annotations
+
 import functools
 
 from .proc import PgBin

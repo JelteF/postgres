@@ -1,5 +1,7 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
 import functools
 import logging
 import os
@@ -45,7 +47,7 @@ _LIBPQ_ENV_VARS = (
 )
 
 
-def clean_libpq_environment():
+def clean_libpq_environment() -> None:
     """Remove inherited libpq connection environment variables (see above)."""
     for var in _LIBPQ_ENV_VARS:
         os.environ.pop(var, None)
@@ -64,7 +66,7 @@ def _has_test_extra(key: str) -> bool:
     return key in extra.split()
 
 
-def require_test_extras(*keys: str):
+def require_test_extras(*keys: str) -> pytest.MarkDecorator:
     """
     A convenience annotation which will skip tests if all of the required keys
     are not present in PG_TEST_EXTRA.
@@ -85,7 +87,7 @@ def require_test_extras(*keys: str):
     )
 
 
-def skip_unless_test_extras(*keys: str):
+def skip_unless_test_extras(*keys: str) -> None:
     """
     Skip the current test/fixture if any of the required keys are not present
     in PG_TEST_EXTRA. Use this inside fixtures where decorators can't be used.
@@ -120,7 +122,7 @@ def _injection_points_supported() -> bool:
     return (sharedir() / "extension" / "injection_points.control").exists()
 
 
-def require_injection_points():
+def require_injection_points() -> pytest.MarkDecorator:
     """Skip the decorated test/class/module unless the build supports
     injection points.
 
@@ -138,7 +140,7 @@ def require_injection_points():
     )
 
 
-def skip_unless_injection_points():
+def skip_unless_injection_points() -> None:
     """Skip the current test/fixture unless the build supports injection
     points. Use this inside fixtures where decorators can't be used; prefer
     the ``require_injection_points()`` decorator otherwise.
@@ -148,7 +150,7 @@ def skip_unless_injection_points():
 
 
 @functools.cache
-def _pg_config_h_lines() -> tuple:
+def _pg_config_h_lines() -> tuple[str, ...]:
     """Return the lines of the server build's ``pg_config.h``, stripped.
 
     Read once and cached, since the build under test does not change during a

@@ -1,13 +1,18 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
+import os
 import platform
 import shlex
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
+from typing import Any
 
 
-def shell_path(path):
+def shell_path(path: str | os.PathLike[str]) -> str:
     """Render ``path`` for embedding in a shell command that the *server* runs
     (archive_command, restore_command, basebackup_to_shell's redirect target,
     ...). This needs to use backslashes on Windows, even in MinGW environments.
@@ -27,12 +32,18 @@ def shell_path(path):
     return str(path)
 
 
-def eprint(*args, **kwargs):
+def eprint(*args: object, **kwargs: Any) -> None:
     """eprint prints to stderr"""
     print(*args, file=sys.stderr, **kwargs)
 
 
-def run(*command, check=True, shell=None, silent=False, **kwargs):
+def run(
+    *command: object,
+    check: bool = True,
+    shell: bool | None = None,
+    silent: bool = False,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess[Any]:
     """run runs the given command and prints it to stderr"""
 
     __tracebackhide__ = True  # Don't show in pytest stack traces
@@ -40,36 +51,50 @@ def run(*command, check=True, shell=None, silent=False, **kwargs):
     if shell is None:
         shell = len(command) == 1 and isinstance(command[0], str)
 
+    # A shell command is a single string; everything else is a list of
+    # stringified argv elements. Build it into a fresh local rather than
+    # rebinding the *command parameter (whose static type is a tuple).
+    cmd: str | list[str]
     if shell:
-        command = command[0]
+        # The shell auto-detection above only sets shell when the single
+        # argument is a str; an explicit shell=True is the caller's promise of
+        # the same, so command[0] is the shell command line.
+        assert isinstance(command[0], str)
+        cmd = command[0]
     else:
-        command = list(map(str, command))
+        cmd = [str(c) for c in command]
 
     if not silent:
         if shell:
-            eprint(f"+ {command}")
+            eprint(f"+ {cmd}")
         else:
             # We could normally use shlex.join here, but it's not available in
             # Python 3.6 which we still like to support
-            unsafe_string_cmd = " ".join(map(shlex.quote, command))
+            unsafe_string_cmd = " ".join(map(shlex.quote, cmd))
             eprint(f"+ {unsafe_string_cmd}")
 
     if silent:
         kwargs.setdefault("stdout", subprocess.DEVNULL)
 
-    result = subprocess.run(command, check=False, shell=shell, **kwargs)
+    result = subprocess.run(cmd, check=False, shell=shell, **kwargs)
 
     # Manually throw CalledProcessError to avoid subprocess.run's huge body
     # poluting stack traces.
     if check and result.returncode:
         raise subprocess.CalledProcessError(
-            result.returncode, command, result.stdout, result.stderr
+            result.returncode, cmd, result.stdout, result.stderr
         )
 
     return result
 
 
-def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
+def capture(
+    command: object,
+    *args: object,
+    stdout: int = subprocess.PIPE,
+    encoding: str = "utf-8",
+    **kwargs: Any,
+) -> str:
     __tracebackhide__ = True  # Don't pollute pytest stack traces
 
     return run(
@@ -77,7 +102,11 @@ def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
     ).stdout.removesuffix("\n")
 
 
-def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
+def wait_until(
+    error_message: str = "Did not complete",
+    timeout: float = 5,
+    interval: float = 0.1,
+) -> Iterator[None]:
     """
     Loop until the timeout is reached. If the timeout is reached, raise an
     exception with the given error message.

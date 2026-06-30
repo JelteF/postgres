@@ -1,5 +1,7 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
+from __future__ import annotations
+
 from ._env import (
     check_pg_config,
     clean_libpq_environment,

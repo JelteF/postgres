@@ -11,6 +11,8 @@ collection if pg_config isn't found. As lazy cached functions they run
 pg_config only when something actually needs a path, and only once.
 """
 
+from __future__ import annotations
+
 import functools
 import os
 import pathlib
