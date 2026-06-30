@@ -68,10 +68,7 @@ def run(
         if shell:
             eprint(f"+ {cmd}")
         else:
-            # We could normally use shlex.join here, but it's not available in
-            # Python 3.6 which we still like to support
-            unsafe_string_cmd = " ".join(map(shlex.quote, cmd))
-            eprint(f"+ {unsafe_string_cmd}")
+            eprint(f"+ {shlex.join(cmd)}")
 
     if silent:
         kwargs.setdefault("stdout", subprocess.DEVNULL)
