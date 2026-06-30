@@ -1,7 +1,13 @@
 # Copyright (c) 2025, PostgreSQL Global Development Group
 
 """
-Exception classes for libpq errors.
+Exception and warning classes for libpq.
+
+Errors the server reports on a failed result are raised as ``LibpqError``;
+NOTICE/WARNING/... messages it reports on a successful result are surfaced as
+the ``PostgresMessage`` warning categories. Both sides share
+``PostgresDiagnostics`` so a caught error or warning exposes the same
+``.detail``/``.hint``/``.sqlstate`` fields.
 """
 
 from __future__ import annotations
@@ -77,3 +83,26 @@ class PostgresDiagnostics(Exception):
 
 class LibpqError(PostgresDiagnostics, RuntimeError):
     """Exception for libpq errors with PostgreSQL diagnostic fields."""
+
+
+class PostgresMessage(PostgresDiagnostics, UserWarning):
+    """Base category for server messages surfaced over libpq as Python warnings.
+
+    A message the server sends outside of an error result (a NOTICE, WARNING,
+    INFO, ... — what psql prints to stderr) is reported as a Python warning, so
+    tests can assert on it with ``pytest.warns(..., match=...)``. WARNING and
+    NOTICE map to the subclasses below; any other level (INFO, LOG, DEBUG, ...)
+    is reported as this base category directly.
+
+    Like ``LibpqError`` it carries the full set of diagnostic fields the server
+    attached to the result (see ``PostgresDiagnostics``), so a caught warning
+    exposes ``.detail``, ``.hint``, ``.sqlstate``, etc.
+    """
+
+
+class PostgresNotice(PostgresMessage):
+    """A NOTICE message reported by the server over libpq."""
+
+
+class PostgresWarning(PostgresMessage):
+    """A WARNING message reported by the server over libpq."""

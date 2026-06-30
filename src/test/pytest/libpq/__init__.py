@@ -9,21 +9,25 @@ This module provides Python wrappers around libpq for use in pytest tests.
 from __future__ import annotations
 
 from . import errors
-from .errors import LibpqError
-from ._core import (
-    ConnectionStatus,
-    DiagField,
-    ExecStatus,
-    Notify,
-    PGconn,
-    PGresult,
+from .errors import (
+    LibpqError,
     PostgresMessage,
     PostgresNotice,
     PostgresWarning,
+)
+from ._bindings import (
+    ConnectionStatus,
+    DiagField,
+    ExecStatus,
+    load_libpq_handle,
+)
+from ._conversions import register_type_info
+from ._core import (
+    Notify,
+    PGconn,
+    PGresult,
     connect,
     connstr,
-    load_libpq_handle,
-    register_type_info,
 )
 
 __all__ = [
