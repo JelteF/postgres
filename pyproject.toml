@@ -2,12 +2,14 @@
 name = "postgresql-hackers-tooling"
 version = "0.1.0"
 description = "Pytest infrastructure for PostgreSQL"
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 dependencies = [
-    # pytest 7.0 was the last version which supported Python 3.6, but the BSDs
-    # have started putting 8.x into ports, so we support both. (pytest 8 can be
-    # used throughout once we drop support for Python 3.7.)
-    "pytest >= 7.0, < 10",
+    # 8.3.5 is the last pytest release that still supports Python 3.8 (8.4
+    # bumped its floor to 3.9). Requiring it as the minimum keeps 3.8 working
+    # while guaranteeing a modern-enough pytest for everyone -- notably the
+    # new-style hook wrappers (@pytest.hookimpl(wrapper=True)), which need
+    # >= 7.2. Python 3.9+ installs pick up newer pytest within this range.
+    "pytest >= 8.3.5, < 10",
 
     # Any other dependencies are effectively optional (added below). We import
     # these libraries using pytest.importorskip(). So tests will be skipped if
@@ -15,7 +17,7 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-minversion = "7.0"
+minversion = "8.3.5"
 
 # Common test code can be found here.
 pythonpath = ["src/test/pytest"]
