@@ -1,7 +1,7 @@
 [project]
 name = "postgresql-hackers-tooling"
 version = "0.1.0"
-description = "Pytest infrastructure for PostgreSQL"
+description = "Python infrastructure for PostgreSQL"
 requires-python = ">=3.8"
 dependencies = [
     # 8.3.5 is the last pytest release that still supports Python 3.8 (8.4
