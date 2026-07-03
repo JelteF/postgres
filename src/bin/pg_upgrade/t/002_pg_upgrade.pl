@@ -280,6 +280,10 @@ else
 	# --inputdir points to the path of the input files.
 	my $inputdir = "$srcdir/src/test/regress";
 
+	# pg_regress emits a status line per test and caps its own diff size, so
+	# disable command_ok's first/last-30-lines truncation: the per-test status
+	# lines (e.g. timing, which test actually failed) sit in the middle and
+	# would otherwise be dropped.
 	command_ok(
 		[
 			$ENV{PG_REGRESS},
@@ -293,7 +297,8 @@ else
 			"--inputdir=$inputdir",
 			"--outputdir=$outputdir"
 		],
-		'regression tests in old instance');
+		'regression tests in old instance',
+		truncate_output => 0);
 }
 
 # Initialize a new node for the upgrade.

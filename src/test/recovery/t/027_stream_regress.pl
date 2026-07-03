@@ -66,7 +66,11 @@ $node_standby_1->start;
 my $dlpath = dirname($ENV{REGRESS_SHLIB});
 my $outputdir = $PostgreSQL::Test::Utils::tmp_check;
 
-# Run the regression tests against the primary.
+# Run the regression tests against the primary.  pg_regress emits a status
+# line per test and caps its own diff size, so disable command_ok's
+# first/last-30-lines truncation: the per-test status lines (e.g. timing,
+# which test actually failed) sit in the middle and would otherwise be
+# dropped.
 my $extra_opts = $ENV{EXTRA_REGRESS_OPTS} || "";
 command_ok(
 	[
@@ -81,7 +85,8 @@ command_ok(
 		'--inputdir=../regress',
 		"--outputdir=$outputdir"
 	],
-	'regression tests pass');
+	'regression tests pass',
+	truncate_output => 0);
 
 my $primary_alive = $node_primary->is_alive;
 my $standby_alive = $node_standby_1->is_alive;

@@ -961,10 +961,13 @@ sub dir_symlink
 	croak "No $newname" unless -e $newname;
 }
 
-# Log command output. Truncates to first/last 30 lines if over 60 lines.
+# Log command output. By default, truncates to first/last 30 lines if over 60
+# lines; callers that produce heavily structured output (e.g. pg_regress, which
+# already caps its own diff) can pass truncate_output => 0 to keep all of it.
 sub _diag_command_output
 {
-	my ($cmd, $stdout, $stderr) = @_;
+	my ($cmd, $stdout, $stderr, %params) = @_;
+	my $truncate = exists $params{truncate_output} ? $params{truncate_output} : 1;
 
 	diag(join(" ", @$cmd));
 
@@ -975,7 +978,7 @@ sub _diag_command_output
 
 		diag("-------------- $name --------------");
 		my @lines = split /\n/, $output;
-		if (@lines > 60)
+		if ($truncate && @lines > 60)
 		{
 			diag(join("\n", @lines[ 0 .. 29 ]));
 			diag("... " . (@lines - 60) . " lines omitted ...");
@@ -998,46 +1001,62 @@ sub _diag_command_output
 
 =over
 
-=item command_ok(cmd, test_name)
+=item command_ok(cmd, test_name, %params)
 
 Check that the command runs successfully.
+
+Accepts the following options in C<%params>:
+
+=over
+
+=item truncate_output => 0
+
+By default, captured stdout/stderr is truncated to the first and last 30 lines
+when it exceeds 60 lines, to keep TAP output digestible.  Pass
+C<< truncate_output => 0 >> for callers whose output is already capped at the
+source (e.g. C<pg_regress>) and where the middle section carries the most
+useful information, such as per-test status lines.
+
+=back
 
 =cut
 
 sub command_ok
 {
 	local $Test::Builder::Level = $Test::Builder::Level + 1;
-	my ($cmd, $test_name) = @_;
+	my ($cmd, $test_name, %params) = @_;
 	my ($stdout, $stderr);
 	print("# Running: " . join(" ", @{$cmd}) . "\n");
 	my $result = IPC::Run::run $cmd, '>' => \$stdout, '2>' => \$stderr;
 	ok($result, $test_name) or do
 	{
 		diag("---------- command failed ----------");
-		_diag_command_output($cmd, $stdout, $stderr);
+		_diag_command_output($cmd, $stdout, $stderr, %params);
 	};
 	return;
 }
 
 =pod
 
-=item command_fails(cmd, test_name)
+=item command_fails(cmd, test_name, %params)
 
 Check that the command fails.
+
+Accepts the same options as L</command_ok>.
 
 =cut
 
 sub command_fails
 {
 	local $Test::Builder::Level = $Test::Builder::Level + 1;
-	my ($cmd, $test_name) = @_;
+	my ($cmd, $test_name, %params) = @_;
 	my ($stdout, $stderr);
 	print("# Running: " . join(" ", @{$cmd}) . "\n");
 	my $result = IPC::Run::run $cmd, '>' => \$stdout, '2>' => \$stderr;
 	ok(!$result, $test_name) or do
 	{
 		diag("-- command succeeded unexpectedly --");
-		_diag_command_output($cmd, $stdout, $stderr);
+		_diag_command_output($cmd, $stdout, $stderr, %params);
 	};
 	return;
 }
