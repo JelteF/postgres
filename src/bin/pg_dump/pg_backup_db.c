@@ -209,7 +209,13 @@ die_on_query_failure(ArchiveHandle *AH, const char *query)
 	pg_log_error("query failed: %s",
 				 PQerrorMessage(AH->connection));
 	pg_log_error_detail("Query was: %s", query);
-	exit(1);
+
+	/*
+	 * Use exit_nicely() rather than exit(): on Windows the workers are
+	 * threads, and a failed worker's query must only end its own thread, not
+	 * bring down the whole process.
+	 */
+	exit_nicely(1);
 }
 
 void
