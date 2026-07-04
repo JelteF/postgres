@@ -1703,7 +1703,19 @@ PQsendQueryStart(PGconn *conn, bool newQuery)
 	 * buffer belongs to that command and we shouldn't clear it.
 	 */
 	if (newQuery && conn->cmd_queue_head == NULL)
+	{
 		pqClearConnErrorState(conn);
+
+		/*
+		 * Discard any cancel request left pending from a previous query
+		 * cycle. PQsetCancelPending() might have set the flag just as the
+		 * prior query finished, i.e. too late for that query's PQgetResult
+		 * loop to consume it; without this a stale request would cancel this
+		 * fresh query immediately.
+		 */
+		conn->cancel_pending = 0;
+		conn->cancel_sent = false;
+	}
 
 	/* Don't try to send if we know there's no live connection. */
 	if (conn->status != CONNECTION_OK)
