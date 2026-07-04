@@ -31,6 +31,27 @@ extern void set_dump_section(const char *arg, int *dumpSections);
 extern void on_exit_nicely(on_exit_nicely_callback function, void *arg);
 pg_noreturn extern void exit_nicely(int code);
 
+/*
+ * On Windows the parallel workers are threads inside the leader process.  When
+ * a cancel is processed there, the leader sends cancels to the workers'
+ * in-flight queries; without this flag each worker would then report the
+ * resulting "canceling statement due to user request" error and clutter the
+ * screen in the brief window before the whole process exits.  The cancel
+ * thread sets this flag before sending any cancel, and worker threads check it
+ * before reporting a query failure.  It's written and read from different
+ * threads, so it's marked volatile; see the comment in pg_backup_utils.c.
+ *
+ * On other platforms the workers are separate processes that just _exit() when
+ * cancelled, so they never reach the error-reporting code; there the check is
+ * compiled out to a constant false and the flag doesn't exist.
+ */
+#ifdef WIN32
+extern void set_cancel_in_progress(void);
+extern bool is_cancel_in_progress(void);
+#else
+#define is_cancel_in_progress() false
+#endif
+
 /* In pg_dump, we modify pg_fatal to call exit_nicely instead of exit */
 #undef pg_fatal
 #define pg_fatal(...) do { \
