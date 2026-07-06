@@ -306,8 +306,7 @@ explain (costs off) select * from pg_proc where proname ~ '^abc$';
 ------------------------------------------------------------
  Index Scan using pg_proc_proname_args_nsp_index on pg_proc
    Index Cond: (proname = 'abc'::text)
-   Filter: (proname ~ '^abc$'::text)
-(3 rows)
+(2 rows)
 
 explain (costs off) select * from pg_proc where proname ~ '^abcd*e';
                               QUERY PLAN                              
@@ -338,8 +337,7 @@ explain (costs off) select * from pg_proc where proname ~ '^(abc)$';
 ------------------------------------------------------------
  Index Scan using pg_proc_proname_args_nsp_index on pg_proc
    Index Cond: (proname = 'abc'::text)
-   Filter: (proname ~ '^(abc)$'::text)
-(3 rows)
+(2 rows)
 
 explain (costs off) select * from pg_proc where proname ~ '^(abc)?d';
                QUERY PLAN               

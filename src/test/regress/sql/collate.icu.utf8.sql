@@ -603,6 +603,12 @@ SET enable_seqscan = off;
 SET enable_bitmapscan = off;
 EXPLAIN (costs off)
 SELECT x FROM test3cs WHERE x ~ '^(abc)$';
+-- When the expression uses the same (nondeterministic) collation as the index,
+-- the "=" indexqual means exactly what the exact-match pattern does, so the
+-- recheck Filter is dropped even though the collation is nondeterministic.
+EXPLAIN (costs off)
+SELECT x FROM test3cs WHERE x COLLATE case_insensitive LIKE 'abc';
+SELECT x FROM test3cs WHERE x COLLATE case_insensitive LIKE 'abc' ORDER BY x;
 RESET enable_seqscan;
 RESET enable_bitmapscan;
 DROP INDEX test3cs_ci;

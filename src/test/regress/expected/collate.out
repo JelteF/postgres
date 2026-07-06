@@ -782,9 +782,35 @@ SELECT * FROM regex_idx_test WHERE x ~ '^(abc)$' COLLATE "default";
 --------------------------------------------------------------
  Index Only Scan using regex_idx_test_x_idx on regex_idx_test
    Index Cond: (x = 'abc'::text)
-   Filter: (x ~ '^(abc)$'::text)
+(2 rows)
+
+RESET enable_seqscan;
+RESET enable_bitmapscan;
+-- Conversely, when the expression's collation is indeterminate (here a
+-- concatenation of differently-collated columns) but the index pins a
+-- collation, the "=" indexqual must stay lossy so the LIKE recheck still runs.
+-- Otherwise the query would silently resolve the comparison under the index's
+-- collation instead of failing with "could not determine which collation to
+-- use", making the result depend on whether an index scan is chosen.
+CREATE TABLE coll_conflict_idx_test (x text COLLATE "C", y text COLLATE "POSIX");
+INSERT INTO coll_conflict_idx_test VALUES ('a', 'bc');
+CREATE INDEX ON coll_conflict_idx_test ((x || y) COLLATE "C");
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+EXPLAIN (costs off)
+SELECT * FROM coll_conflict_idx_test WHERE (x || y) LIKE 'abc';
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Index Scan using coll_conflict_idx_test_x_y_idx on coll_conflict_idx_test
+   Index Cond: ((x || y) = 'abc'::text)
+   Filter: ((x || y) ~~ 'abc'::text)
 (3 rows)
 
+-- must error (rather than silently return the row via the index) so that the
+-- outcome does not depend on the chosen plan
+SELECT * FROM coll_conflict_idx_test WHERE (x || y) LIKE 'abc';
+ERROR:  could not determine which collation to use for LIKE
+HINT:  Use the COLLATE clause to set the collation explicitly.
 RESET enable_seqscan;
 RESET enable_bitmapscan;
 --
@@ -793,7 +819,7 @@ RESET enable_bitmapscan;
 -- must get rid of them.
 --
 DROP SCHEMA collate_tests CASCADE;
-NOTICE:  drop cascades to 21 other objects
+NOTICE:  drop cascades to 22 other objects
 DETAIL:  drop cascades to table collate_test1
 drop cascades to table collate_test_like
 drop cascades to table collate_test2
@@ -815,3 +841,4 @@ drop cascades to collation mycoll2
 drop cascades to table collate_test23
 drop cascades to view collate_on_int
 drop cascades to table regex_idx_test
+drop cascades to table coll_conflict_idx_test
