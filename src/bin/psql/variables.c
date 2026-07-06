@@ -266,7 +266,7 @@ PrintVariables(VariableSpace space)
 	{
 		if (ptr->value)
 			printf("%s = '%s'\n", ptr->name, ptr->value);
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 	}
 }

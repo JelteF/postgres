@@ -367,7 +367,7 @@ vacuum_one_database(ConnParams *cparams,
 		const char *tabname = cell->val;
 		ParallelSlot *free_slot;
 
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			ret = EXIT_FAILURE;
 			goto finish;

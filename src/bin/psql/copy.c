@@ -18,6 +18,7 @@
 #include "common.h"
 #include "common/logging.h"
 #include "copy.h"
+#include "fe_utils/cancel.h"
 #include "libpq-fe.h"
 #include "pqexpbuffer.h"
 #include "prompt.h"
@@ -521,6 +522,13 @@ handleCopyIn(PGconn *conn, FILE *copystream, bool isbinary, PGresult **res)
 	if (sigsetjmp(sigint_interrupt_jmp, 1) != 0)
 	{
 		/* got here with longjmp */
+
+		/*
+		 * The signal handler does not CancelRequested (it is set from the
+		 * cancel thread, which is not woken when we longjmp out of the
+		 * handler), so record the cancellation request here.
+		 */
+		SetCancelRequested();
 
 		/* Terminate data transfer */
 		PQputCopyEnd(conn,

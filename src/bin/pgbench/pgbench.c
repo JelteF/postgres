@@ -5074,7 +5074,7 @@ initPopulateTable(PGconn *con, const char *table, int64 base,
 		if (PQputline(con, sql.data))
 			pg_fatal("PQputline failed");
 
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 
 		/*

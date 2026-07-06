@@ -4,7 +4,7 @@
  *
  * This file used to be part of psql, but now it's separated out to allow
  * other frontend programs to use it.  Because the printing code needs
- * access to the CancelRequested flag as well as SIGPIPE trapping and
+ * access to the CancelRequested() flag as well as SIGPIPE trapping and
  * pager open/close functions, all that stuff came with it.
  *
  *
@@ -40,7 +40,7 @@
 #endif
 
 /*
- * Note: print.c's general strategy for when to check CancelRequested is to do
+ * Note: print.c's general strategy for when to check CancelRequested() is to do
  * so at completion of each row of output.
  */
 
@@ -439,7 +439,7 @@ print_unaligned_text(const printTableContent *cont, FILE *fout)
 	const char *const *ptr;
 	bool		need_recordsep = false;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -474,7 +474,7 @@ print_unaligned_text(const printTableContent *cont, FILE *fout)
 		{
 			print_separator(cont->opt->recordSep, fout);
 			need_recordsep = false;
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 		}
 		fputs(*ptr, fout);
@@ -490,7 +490,7 @@ print_unaligned_text(const printTableContent *cont, FILE *fout)
 	{
 		printTableFooter *footers = footers_with_default(cont);
 
-		if (!opt_tuples_only && footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -530,7 +530,7 @@ print_unaligned_vertical(const printTableContent *cont, FILE *fout)
 	const char *const *ptr;
 	bool		need_recordsep = false;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -555,7 +555,7 @@ print_unaligned_vertical(const printTableContent *cont, FILE *fout)
 			print_separator(cont->opt->recordSep, fout);
 			print_separator(cont->opt->recordSep, fout);
 			need_recordsep = false;
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 		}
 
@@ -572,7 +572,7 @@ print_unaligned_vertical(const printTableContent *cont, FILE *fout)
 	if (cont->opt->stop_table)
 	{
 		/* print footers */
-		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -680,7 +680,7 @@ print_aligned_text(const printTableContent *cont, FILE *fout, bool is_pager)
 	int			output_columns = 0; /* Width of interactive console */
 	bool		is_local_pager = false;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 2)
@@ -1001,7 +1001,7 @@ print_aligned_text(const printTableContent *cont, FILE *fout, bool is_pager)
 	{
 		bool		more_lines;
 
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 
 		/*
@@ -1157,12 +1157,12 @@ print_aligned_text(const printTableContent *cont, FILE *fout, bool is_pager)
 	{
 		printTableFooter *footers = footers_with_default(cont);
 
-		if (opt_border == 2 && !CancelRequested)
+		if (opt_border == 2 && !CancelRequested())
 			_print_horizontal_line(col_count, width_wrap, opt_border,
 								   PRINT_RULE_BOTTOM, format, fout);
 
 		/* print footers */
-		if (footers && !opt_tuples_only && !CancelRequested)
+		if (footers && !opt_tuples_only && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -1322,7 +1322,7 @@ print_aligned_vertical(const printTableContent *cont,
 				dmultiline = false;
 	int			output_columns = 0; /* Width of interactive console */
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 2)
@@ -1338,7 +1338,7 @@ print_aligned_vertical(const printTableContent *cont,
 	{
 		printTableFooter *footers = footers_with_default(cont);
 
-		if (!opt_tuples_only && !CancelRequested && footers)
+		if (!opt_tuples_only && !CancelRequested() && footers)
 		{
 			printTableFooter *f;
 
@@ -1594,7 +1594,7 @@ print_aligned_vertical(const printTableContent *cont,
 					offset,
 					chars_to_output;
 
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 
 		if (i == 0)
@@ -1803,12 +1803,12 @@ print_aligned_vertical(const printTableContent *cont,
 
 	if (cont->opt->stop_table)
 	{
-		if (opt_border == 2 && !CancelRequested)
+		if (opt_border == 2 && !CancelRequested())
 			print_aligned_vertical_line(cont->opt, 0, hwidth, dwidth,
 										output_columns, PRINT_RULE_BOTTOM, fout);
 
 		/* print footers */
-		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -1882,7 +1882,7 @@ print_csv_text(const printTableContent *cont, FILE *fout)
 	const char *const *ptr;
 	int			i;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	/*
@@ -1925,7 +1925,7 @@ print_csv_vertical(const printTableContent *cont, FILE *fout)
 	/* print records */
 	for (i = 0, ptr = cont->cells; *ptr; i++, ptr++)
 	{
-		if (CancelRequested)
+		if (CancelRequested())
 			return;
 
 		/* print name of column */
@@ -1998,7 +1998,7 @@ print_html_text(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -2035,7 +2035,7 @@ print_html_text(const printTableContent *cont, FILE *fout)
 	{
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 			fputs("  <tr valign=\"top\">\n", fout);
 		}
@@ -2060,7 +2060,7 @@ print_html_text(const printTableContent *cont, FILE *fout)
 		fputs("</table>\n", fout);
 
 		/* print footers */
-		if (!opt_tuples_only && footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2088,7 +2088,7 @@ print_html_vertical(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -2112,7 +2112,7 @@ print_html_vertical(const printTableContent *cont, FILE *fout)
 	{
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 			if (!opt_tuples_only)
 				fprintf(fout,
@@ -2141,7 +2141,7 @@ print_html_vertical(const printTableContent *cont, FILE *fout)
 		fputs("</table>\n", fout);
 
 		/* print footers */
-		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2190,7 +2190,7 @@ print_asciidoc_text(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -2249,7 +2249,7 @@ print_asciidoc_text(const printTableContent *cont, FILE *fout)
 	{
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 		}
 
@@ -2277,7 +2277,7 @@ print_asciidoc_text(const printTableContent *cont, FILE *fout)
 		printTableFooter *footers = footers_with_default(cont);
 
 		/* print footers */
-		if (!opt_tuples_only && footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2301,7 +2301,7 @@ print_asciidoc_vertical(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->start_table)
@@ -2340,7 +2340,7 @@ print_asciidoc_vertical(const printTableContent *cont, FILE *fout)
 	{
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 			if (!opt_tuples_only)
 				fprintf(fout,
@@ -2367,7 +2367,7 @@ print_asciidoc_vertical(const printTableContent *cont, FILE *fout)
 	if (cont->opt->stop_table)
 	{
 		/* print footers */
-		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested)
+		if (!opt_tuples_only && cont->footers != NULL && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2458,7 +2458,7 @@ print_latex_text(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 3)
@@ -2519,7 +2519,7 @@ print_latex_text(const printTableContent *cont, FILE *fout)
 			fputs(" \\\\\n", fout);
 			if (opt_border == 3)
 				fputs("\\hline\n", fout);
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 		}
 		else
@@ -2536,7 +2536,7 @@ print_latex_text(const printTableContent *cont, FILE *fout)
 		fputs("\\end{tabular}\n\n\\noindent ", fout);
 
 		/* print footers */
-		if (footers && !opt_tuples_only && !CancelRequested)
+		if (footers && !opt_tuples_only && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2568,7 +2568,7 @@ print_latex_longtable_text(const printTableContent *cont, FILE *fout)
 	const char *last_opt_table_attr_char = NULL;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 3)
@@ -2704,7 +2704,7 @@ print_latex_longtable_text(const printTableContent *cont, FILE *fout)
 			if (opt_border == 3)
 				fputs(" \\hline\n", fout);
 		}
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 	}
 
@@ -2722,7 +2722,7 @@ print_latex_vertical(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 2)
@@ -2755,7 +2755,7 @@ print_latex_vertical(const printTableContent *cont, FILE *fout)
 		/* new record */
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 			if (!opt_tuples_only)
 			{
@@ -2785,7 +2785,7 @@ print_latex_vertical(const printTableContent *cont, FILE *fout)
 		fputs("\\end{tabular}\n\n\\noindent ", fout);
 
 		/* print footers */
-		if (cont->footers && !opt_tuples_only && !CancelRequested)
+		if (cont->footers && !opt_tuples_only && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2831,7 +2831,7 @@ print_troff_ms_text(const printTableContent *cont, FILE *fout)
 	unsigned int i;
 	const char *const *ptr;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 2)
@@ -2885,7 +2885,7 @@ print_troff_ms_text(const printTableContent *cont, FILE *fout)
 		if ((i + 1) % cont->ncolumns == 0)
 		{
 			fputc('\n', fout);
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 		}
 		else
@@ -2899,7 +2899,7 @@ print_troff_ms_text(const printTableContent *cont, FILE *fout)
 		fputs(".TE\n.DS L\n", fout);
 
 		/* print footers */
-		if (footers && !opt_tuples_only && !CancelRequested)
+		if (footers && !opt_tuples_only && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -2925,7 +2925,7 @@ print_troff_ms_vertical(const printTableContent *cont, FILE *fout)
 	const char *const *ptr;
 	unsigned short current_format = 0;	/* 0=none, 1=header, 2=body */
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (opt_border > 2)
@@ -2961,7 +2961,7 @@ print_troff_ms_vertical(const printTableContent *cont, FILE *fout)
 		/* new record */
 		if (i % cont->ncolumns == 0)
 		{
-			if (CancelRequested)
+			if (CancelRequested())
 				break;
 			if (!opt_tuples_only)
 			{
@@ -3006,7 +3006,7 @@ print_troff_ms_vertical(const printTableContent *cont, FILE *fout)
 		fputs(".TE\n.DS L\n", fout);
 
 		/* print footers */
-		if (cont->footers && !opt_tuples_only && !CancelRequested)
+		if (cont->footers && !opt_tuples_only && !CancelRequested())
 		{
 			printTableFooter *f;
 
@@ -3184,7 +3184,7 @@ ClosePager(FILE *pagerpipe)
 		 * pager quit as a result of the SIGINT, this message won't go
 		 * anywhere ...
 		 */
-		if (CancelRequested)
+		if (CancelRequested())
 			fprintf(pagerpipe, _("Interrupted\n"));
 
 		pclose(pagerpipe);
@@ -3653,7 +3653,7 @@ printTable(const printTableContent *cont,
 {
 	bool		is_local_pager = false;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	if (cont->opt->format == PRINT_NOTHING)
@@ -3762,7 +3762,7 @@ printQuery(const PGresult *result, const printQueryOpt *opt,
 				r,
 				c;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return;
 
 	printTableInit(&cont, &opt->topt, opt->title,

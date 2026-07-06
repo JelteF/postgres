@@ -86,7 +86,7 @@ MainLoop(FILE *source)
 		/*
 		 * Clean up after a previous Control-C
 		 */
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			if (!pset.cur_cmd_interactive)
 			{
@@ -97,7 +97,7 @@ MainLoop(FILE *source)
 				break;
 			}
 
-			CancelRequested = false;
+			ResetCancelRequested();
 		}
 
 		/*
@@ -119,7 +119,7 @@ MainLoop(FILE *source)
 			prompt_status = PROMPT_READY;
 			need_redisplay = false;
 			pset.stmt_lineno = 1;
-			CancelRequested = false;
+			ResetCancelRequested();
 
 			if (pset.cur_cmd_interactive)
 			{

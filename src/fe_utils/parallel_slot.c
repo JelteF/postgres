@@ -82,7 +82,7 @@ select_loop(int maxFd, fd_set *workerset)
 	int			i;
 	fd_set		saveSet = *workerset;
 
-	if (CancelRequested)
+	if (CancelRequested())
 		return -1;
 
 	for (;;)
@@ -92,9 +92,9 @@ select_loop(int maxFd, fd_set *workerset)
 		 * on other platforms we can generally rely on select() returning when
 		 * interrupted, but even on those platforms its possible for another
 		 * signal to interrupt the select and then for SIGINT to arrive and
-		 * race between our CancelRequested check and us re-arming the
+		 * race between our CancelRequested() check and us re-arming the
 		 * select(). So we also add a timeout of 1 second to the select, so we
-		 * can manually poll CancelRequested as a fallback.
+		 * can manually poll CancelRequested() as a fallback.
 		 */
 		struct timeval tv = {0, 1000000};
 		struct timeval *tvp = &tv;
@@ -102,7 +102,7 @@ select_loop(int maxFd, fd_set *workerset)
 		*workerset = saveSet;
 		i = select(maxFd + 1, workerset, NULL, NULL, tvp);
 
-		if (CancelRequested)
+		if (CancelRequested())
 			return -1;
 
 #ifdef WIN32

@@ -20,11 +20,13 @@
  *    can be the cancel target at a time.  ResetCancelConn() should be called
  *    to disarm the mechanism again after the blocking wait has completed.
  *
- * 2. CancelRequested flag -- The CancelRequested flag is set to true whenever
- *    SIGINT is received, and can be checked by the application at appropriate
- *    times.  The primary use case for this is when the application code is
- *    not blocked (indefinitely), but needs to take an action when Ctrl-C is
- *    pressed, such as break out of a long running loop.
+ * 2. CancelRequested flag -- A flag that is set whenever SIGINT is received
+ *    and can be checked by the application at appropriate times via
+ *    CancelRequested(). It is set from the cancel thread, not the signal
+ *    handler, and may be read from any thread; use SetCancelRequested() and
+ *    ResetCancelRequested() to change it. The primary use case is when the
+ *    application code is not blocked (indefinitely), but needs to take an
+ *    action when Ctrl-C is pressed, such as break out of a long running loop.
  *
  * 3. Thread handler callback -- A callback function can be registered with
  *    setup_cancel_handler(), which will then be called whenever SIGINT is
@@ -40,11 +42,12 @@
  *    setup_cancel_handler(), which will then be called directly from the
  *    signal handler whenever SIGINT is received.  Because it is called from a
  *    signal handler, the callback function must be async-signal-safe.  On
- *    Windows, this callback is never called.  NOTE: The
- *    callback is called AFTER setting CancelRequested but BEFORE sending the
- *    cancel request to the server (if armed by SetCancelConn).  This means
- *    that if the callback exits or longjmps, no cancel request will be sent
- *    to the server.
+ *    Windows, this callback is never called.  NOTE: The callback is called
+ *    BEFORE the cancel thread is woken to set the CancelRequested flag and
+ *    send the cancel request (if armed by SetCancelConn).  This means that if
+ *    the callback exits or longjmps, no cancel request is sent and
+ *    CancelRequested is not set, so such callers (like psql) must call
+ *    SetCancelRequested() themselves if they need the flag set.
  *
  * Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -110,13 +113,16 @@ static const char *cancel_sent_msg = NULL;
 static const char *cancel_not_sent_msg = NULL;
 
 /*
- * CancelRequested is set when we receive SIGINT (or local equivalent).
- * There is no provision in this module for resetting it; but applications
- * might choose to clear it after successfully recovering from a cancel.
- * Note that there is no guarantee that we successfully sent a Cancel request,
+ * cancel_requested is set when we receive SIGINT (or local equivalent).  It is
+ * set from the cancel thread (Unix) or the console handler thread (Windows)
+ * rather than from the signal handler, and it may be read from the main
+ * thread, so all access goes through CancelRequested(), SetCancelRequested()
+ * and ResetCancelRequested(), which serialize access with cancel_requested_lock.
+ * Note that there is no guarantee that we successfully sent a cancel request,
  * or that the request will have any effect if we did send it.
  */
-volatile sig_atomic_t CancelRequested = false;
+static pthread_mutex_t cancel_requested_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool cancel_requested = false;
 
 /*
  * Signal handler callback, called directly from signal handler context.
@@ -238,14 +244,51 @@ UnlockCancelThread(void)
 	pthread_mutex_unlock(&cancel_thread_lock);
 }
 
+/*
+ * SetCancelRequested / ResetCancelRequested / CancelRequested
+ *
+ * Set, clear and read the cancel-requested flag.  The flag is set from the
+ * cancel thread (or the Windows console handler thread) and read from the main
+ * thread, so all access is serialized with cancel_requested_lock to make it
+ * safe on all platforms.  It must not be touched from the signal handler,
+ * because taking a lock there is not async-signal-safe.
+ */
+void
+SetCancelRequested(void)
+{
+	pthread_mutex_lock(&cancel_requested_lock);
+	cancel_requested = true;
+	pthread_mutex_unlock(&cancel_requested_lock);
+}
+
+void
+ResetCancelRequested(void)
+{
+	pthread_mutex_lock(&cancel_requested_lock);
+	cancel_requested = false;
+	pthread_mutex_unlock(&cancel_requested_lock);
+}
+
+bool
+CancelRequested(void)
+{
+	bool		requested;
+
+	pthread_mutex_lock(&cancel_requested_lock);
+	requested = cancel_requested;
+	pthread_mutex_unlock(&cancel_requested_lock);
+
+	return requested;
+}
+
 #ifndef WIN32
 /*
  * ResetCancelAfterFork
  *
  * Reset cancel module state after fork(). Threads don't survive fork(), so the
- * cancel thread and its pipe are gone. The mutex may have been held by the
- * cancel thread at fork time, so we must reinitialize it rather than trying to
- * unlock it.  cancelConn is NULLed without freeing because the parent process
+ * cancel thread and its pipe are gone. The mutexes may have been held by the
+ * cancel thread at fork time, so we must reinitialize them rather than trying
+ * to unlock them.  cancelConn is NULLed without freeing because the parent process
  * owns the underlying object.  The SIGINT handler is reset to SIG_DFL so that
  * a signal arriving before setup_cancel_handler() is called again doesn't try
  * to write to the closed pipe.
@@ -261,9 +304,10 @@ ResetCancelAfterFork(void)
 	cancel_pipe[0] = cancel_pipe[1] = -1;
 
 	pthread_mutex_init(&cancel_thread_lock, NULL);
+	pthread_mutex_init(&cancel_requested_lock, NULL);
 
 	cancelConn = NULL;
-	CancelRequested = false;
+	cancel_requested = false;
 
 	pqsignal(SIGINT, PG_SIG_DFL);
 }
@@ -282,7 +326,7 @@ consoleHandler(DWORD dwCtrlType)
 	if (dwCtrlType == CTRL_C_EVENT ||
 		dwCtrlType == CTRL_BREAK_EVENT)
 	{
-		CancelRequested = true;
+		SetCancelRequested();
 
 		LockCancelThread();
 
@@ -311,8 +355,14 @@ CancelSignalHandler(SIGNAL_ARGS)
 {
 	int			save_errno = errno;
 
-	CancelRequested = true;
-
+	/*
+	 * The cancel-requested flag is deliberately not set here: setting it
+	 * takes a lock, which is not safe in a signal handler.  It is instead set
+	 * from the cancel thread once it is woken via the pipe below.  Note that
+	 * if signal_callback longjmps out of this handler (as psql does), the
+	 * cancel thread is never woken, so such callers must set the flag
+	 * themselves.
+	 */
 	if (signal_callback_fn != NULL)
 		signal_callback_fn();
 
@@ -348,6 +398,13 @@ cancel_thread_loop(void *arg)
 			/* Pipe closed or error - exit thread */
 			break;
 		}
+
+		/*
+		 * Record that a cancel was requested before sending it, so that the
+		 * flag is visible to the main thread by the time the query it cancels
+		 * returns an error.
+		 */
+		SetCancelRequested();
 
 		LockCancelThread();
 

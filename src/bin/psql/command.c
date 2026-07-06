@@ -4392,7 +4392,7 @@ wait_until_connected(PGconn *conn)
 		 * On every iteration of the connection sequence, let's check if the
 		 * user has requested a cancellation.
 		 */
-		if (CancelRequested)
+		if (CancelRequested())
 			break;
 
 		/*
@@ -4404,7 +4404,7 @@ wait_until_connected(PGconn *conn)
 			break;
 
 		/*
-		 * If the user sends SIGINT between the CancelRequested check, and
+		 * If the user sends SIGINT between the CancelRequested() check, and
 		 * polling of the socket, it will not be recognized. Instead, we will
 		 * just wait until the next step in the connection sequence or
 		 * forever, which might require users to send SIGTERM or SIGQUIT.
@@ -4415,7 +4415,7 @@ wait_until_connected(PGconn *conn)
 		 * The self-pipe trick requires a bit of code to setup. pselect(2) and
 		 * ppoll(2) are not on all the platforms we support. The simplest
 		 * solution happens to just be adding a timeout, so let's wait for 1
-		 * second and check CancelRequested again.
+		 * second and check CancelRequested() again.
 		 */
 		end_time = PQgetCurrentTimeUSec() + 1000000;
 		rc = PQsocketPoll(sock, forRead, !forRead, end_time);
@@ -6082,7 +6082,7 @@ do_watch(PQExpBuffer query_buf, double sleep, int iter, int min_rows)
 			long		s = Min(i, 1000L);
 
 			pg_usleep(s * 1000L);
-			if (CancelRequested)
+			if (CancelRequested())
 			{
 				done = true;
 				break;
@@ -6092,7 +6092,7 @@ do_watch(PQExpBuffer query_buf, double sleep, int iter, int min_rows)
 #else
 		/* sigwait() will handle SIGINT. */
 		sigprocmask(SIG_BLOCK, &sigint, NULL);
-		if (CancelRequested)
+		if (CancelRequested())
 			done = true;
 
 		/* Wait for SIGINT, SIGCHLD or SIGALRM. */

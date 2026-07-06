@@ -292,7 +292,7 @@ NoticeProcessor(void *arg, const char *message)
  *
  * SIGINT is supposed to abort all long-running psql operations, not only
  * database queries.  In most places, this is accomplished by checking
- * CancelRequested during long-running loops.  However, that won't work when
+ * CancelRequested() during long-running loops.  However, that won't work when
  * blocked on user input (in readline() or fgets()).  In those places, we
  * set sigint_interrupt_enabled true while blocked, instructing the signal
  * catcher to longjmp through sigint_interrupt_jmp.  We assume readline and
@@ -882,8 +882,8 @@ ExecQueryTuples(const PGresult *result)
 			{
 				const char *query = PQgetvalue(result, r, c);
 
-				/* Abandon execution if CancelRequested */
-				if (CancelRequested)
+				/* Abandon execution if CancelRequested() */
+				if (CancelRequested())
 					goto loop_exit;
 
 				/*
@@ -1147,7 +1147,7 @@ SendQuery(const char *query)
 		if (fgets(buf, sizeof(buf), stdin) != NULL)
 			if (buf[0] == 'x')
 				goto sendquery_cleanup;
-		if (CancelRequested)
+		if (CancelRequested())
 			goto sendquery_cleanup;
 	}
 	else if (pset.echo == PSQL_ECHO_QUERIES)
@@ -1769,7 +1769,7 @@ ExecQueryAndProcessResults(const char *query,
 	 * consumed.  The user's intention, though, is to cancel the entire watch
 	 * process, so detect a sent cancellation request and exit in this case.
 	 */
-	if (is_watch && CancelRequested)
+	if (is_watch && CancelRequested())
 	{
 		ClearOrSaveAllResults();
 		return 0;
@@ -1987,7 +1987,7 @@ ExecQueryAndProcessResults(const char *query,
 				 * use of chunking for all cases in which PrintQueryResult
 				 * would send the result to someplace other than printQuery.
 				 */
-				if (success && !flush_error && !CancelRequested)
+				if (success && !flush_error && !CancelRequested())
 				{
 					printQuery(result, &my_popt, tuples_fout, is_pager, pset.logfile);
 					flush_error = fflush(tuples_fout);
@@ -2014,7 +2014,7 @@ ExecQueryAndProcessResults(const char *query,
 				Assert(PQntuples(result) == 0);
 
 				/* Display the footer using the empty result */
-				if (success && !flush_error && !CancelRequested)
+				if (success && !flush_error && !CancelRequested())
 				{
 					my_popt.topt.stop_table = true;
 					printQuery(result, &my_popt, tuples_fout, is_pager, pset.logfile);
@@ -2173,7 +2173,7 @@ ExecQueryAndProcessResults(const char *query,
 		ClearOrSaveResult(result);
 		result = next_result;
 
-		if (CancelRequested && PQpipelineStatus(pset.db) == PQ_PIPELINE_OFF)
+		if (CancelRequested() && PQpipelineStatus(pset.db) == PQ_PIPELINE_OFF)
 		{
 			/*
 			 * Outside of a pipeline, drop the next result, as well as any
@@ -2230,7 +2230,7 @@ ExecQueryAndProcessResults(const char *query,
 	if (!CheckConnection())
 		return -1;
 
-	if (CancelRequested || return_early)
+	if (CancelRequested() || return_early)
 		return 0;
 
 	return success ? 1 : -1;

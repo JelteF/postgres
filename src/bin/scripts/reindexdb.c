@@ -419,7 +419,7 @@ reindex_one_database(ConnParams *cparams, ReindexType type,
 		PQExpBufferData sql;
 		const char *objname = cell->val;
 
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			failed = true;
 			goto finish;

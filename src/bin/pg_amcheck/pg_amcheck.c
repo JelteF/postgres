@@ -716,7 +716,7 @@ main(int argc, char *argv[])
 
 		rel = (RelationInfo *) cell->ptr;
 
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			failed = true;
 			break;

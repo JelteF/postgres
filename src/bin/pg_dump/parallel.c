@@ -1329,7 +1329,7 @@ ListenToWorkers(ArchiveHandle *AH, ParallelState *pstate, bool do_wait)
 		 * it's due to a cancel request, that's expected, otherwise it's a
 		 * problem.
 		 */
-		if (do_wait && !CancelRequested)
+		if (do_wait && !CancelRequested())
 			pg_fatal("a worker process died unexpectedly");
 		return false;
 	}

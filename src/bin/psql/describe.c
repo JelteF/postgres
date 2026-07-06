@@ -1513,7 +1513,7 @@ describeTableDetails(const char *pattern, bool verbose, bool showSystem)
 			PQclear(res);
 			return false;
 		}
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			PQclear(res);
 			return false;
@@ -5499,7 +5499,7 @@ listTSParsersVerbose(const char *pattern)
 			return false;
 		}
 
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			PQclear(res);
 			return false;
@@ -5889,7 +5889,7 @@ listTSConfigsVerbose(const char *pattern)
 			return false;
 		}
 
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			PQclear(res);
 			return false;
@@ -6368,7 +6368,7 @@ listExtensionContents(const char *pattern)
 			PQclear(res);
 			return false;
 		}
-		if (CancelRequested)
+		if (CancelRequested())
 		{
 			PQclear(res);
 			return false;
