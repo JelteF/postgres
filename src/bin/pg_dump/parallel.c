@@ -506,11 +506,15 @@ WaitForTerminatingWorkers(ParallelState *pstate)
  * leader gets signaled.
  *
  * On Windows, the cancel handler runs in a separate thread, because that's
- * how SetConsoleCtrlHandler works.  We make it forcibly terminate the worker
- * threads (so they can't report the query cancellations as errors), send
- * cancels on all active connections, and then call _exit() to terminate the
- * process.  Access to the shared PGcancelConn structures is serialized against
- * the main thread by the cancel thread lock held around the callback.
+ * how SetConsoleCtrlHandler works.  There the workers are threads in this same
+ * process, so once we cancel their queries they would report the cancellations
+ * as errors and clutter the user's screen.  We avoid that by relying on the
+ * CancelRequested() flag, which is set (before any cancel is sent) by the
+ * cancel machinery in fe_utils, and checked by the worker error paths before
+ * they log anything.  We then send cancels on all active connections and call
+ * _exit() to terminate the process.  Access to the shared PGcancelConn
+ * structures is serialized against the main thread by the cancel thread lock
+ * held around the callback.
  */
 
 /*
@@ -525,33 +529,16 @@ WaitForTerminatingWorkers(ParallelState *pstate)
 pg_noreturn static void
 CancelBackendsAndExit(void)
 {
-#ifdef WIN32
-	int			i;
-
 	/*
-	 * On Windows the workers are threads within this same process.  Once we
-	 * cancel their queries below they would receive the cancellation as an
-	 * error and report it, cluttering the user's screen in the brief window
-	 * before the process exits.  Forcibly terminate the worker threads first
-	 * so they can't do that.
+	 * On Windows the workers are threads within this same process, and once
+	 * we cancel their queries below they would report the cancellation as an
+	 * error, cluttering the user's screen in the brief window before the
+	 * process exits.  We don't terminate the threads to prevent that (which
+	 * is unsafe, as it can leak resources or leave user-space locks held by
+	 * the killed thread); instead the CancelRequested() flag has already been
+	 * set by the fe_utils cancel machinery before this callback runs, and the
+	 * worker error paths stay quiet while it is set.
 	 *
-	 * TerminateThread is unsafe in general (it may leak resources or leave
-	 * user-space locks held by the killed thread), but that's acceptable here
-	 * because we're about to end the whole process anyway.
-	 */
-	if (signal_info.pstate != NULL)
-	{
-		for (i = 0; i < signal_info.pstate->numWorkers; i++)
-		{
-			HANDLE		hThread = (HANDLE) signal_info.pstate->parallelSlot[i].hThread;
-
-			if (hThread != INVALID_HANDLE_VALUE)
-				TerminateThread(hThread, 0);
-		}
-	}
-#endif
-
-	/*
 	 * Stop workers first to avoid invalid-snapshot errors if the leader
 	 * cancels before workers.
 	 */

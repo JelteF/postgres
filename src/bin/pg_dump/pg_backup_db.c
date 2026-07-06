@@ -20,6 +20,7 @@
 #include "common/connect.h"
 #include "common/string.h"
 #include "connectdb.h"
+#include "fe_utils/cancel.h"
 #include "parallel.h"
 #include "pg_backup_archiver.h"
 #include "pg_backup_db.h"
@@ -206,9 +207,13 @@ notice_processor(void *arg, const char *message)
 static void
 die_on_query_failure(ArchiveHandle *AH, const char *query)
 {
-	pg_log_error("query failed: %s",
-				 PQerrorMessage(AH->connection));
-	pg_log_error_detail("Query was: %s", query);
+	/* Stay quiet if this is the result of our own cancellation. */
+	if (!CancelRequested())
+	{
+		pg_log_error("query failed: %s",
+					 PQerrorMessage(AH->connection));
+		pg_log_error_detail("Query was: %s", query);
+	}
 
 	/*
 	 * Use exit_nicely() rather than exit(): on Windows the workers are
@@ -401,8 +406,13 @@ ExecuteSqlCommandBuf(Archive *AHX, const char *buf, size_t bufLen)
 		 */
 		if (AH->pgCopyIn &&
 			PQputCopyData(AH->connection, buf, bufLen) <= 0)
-			pg_fatal("error returned by PQputCopyData: %s",
-					 PQerrorMessage(AH->connection));
+		{
+			/* Stay quiet if this is the result of our own cancellation. */
+			if (!CancelRequested())
+				pg_log_error("error returned by PQputCopyData: %s",
+							 PQerrorMessage(AH->connection));
+			exit_nicely(1);
+		}
 	}
 	else if (AH->outputKind == OUTPUT_OTHERDATA)
 	{
@@ -450,8 +460,13 @@ EndDBCopyMode(Archive *AHX, const char *tocEntryTag)
 		PGresult   *res;
 
 		if (PQputCopyEnd(AH->connection, NULL) <= 0)
-			pg_fatal("error returned by PQputCopyEnd: %s",
-					 PQerrorMessage(AH->connection));
+		{
+			/* Stay quiet if this is the result of our own cancellation. */
+			if (!CancelRequested())
+				pg_log_error("error returned by PQputCopyEnd: %s",
+							 PQerrorMessage(AH->connection));
+			exit_nicely(1);
+		}
 
 		/* Check command status and return to normal libpq state */
 		res = PQgetResult(AH->connection);
