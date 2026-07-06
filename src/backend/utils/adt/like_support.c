@@ -93,7 +93,8 @@ static Pattern_Prefix_Status pattern_fixed_prefix(Const *patt,
 												  Pattern_Type ptype,
 												  Oid collation,
 												  Const **prefix,
-												  Selectivity *rest_selec);
+												  Selectivity *rest_selec,
+												  bool *pure_prefix);
 static Selectivity prefix_selectivity(PlannerInfo *root,
 									  VariableStatData *vardata,
 									  Oid eqopr, Oid ltopr, Oid geopr,
@@ -255,6 +256,7 @@ match_pattern_prefix(Node *leftop,
 	Const	   *patt;
 	Const	   *prefix;
 	Pattern_Prefix_Status pstatus;
+	bool		pure_prefix = false;
 	Oid			ldatatype;
 	Oid			rdatatype;
 	Oid			eqopr;
@@ -282,7 +284,7 @@ match_pattern_prefix(Node *leftop,
 	 * Try to extract a fixed prefix from the pattern.
 	 */
 	pstatus = pattern_fixed_prefix(patt, ptype, expr_coll,
-								   &prefix, NULL);
+								   &prefix, NULL, &pure_prefix);
 
 	/* fail if no fixed prefix */
 	if (pstatus == Pattern_Prefix_None)
@@ -447,6 +449,17 @@ match_pattern_prefix(Node *leftop,
 	 */
 	if (OidIsValid(preopr) && op_in_opfamily(preopr, opfamily))
 	{
+		/*
+		 * A pure-prefix pattern means exactly "value starts with <prefix>",
+		 * which is precisely what the prefix operator tests, so the recheck
+		 * can be skipped.  As with the "=" case above, a nondeterministic
+		 * index collation is excluded: the operator would then match a
+		 * superset and still needs the recheck.
+		 */
+		if (pure_prefix &&
+			!NONDETERMINISTIC(indexcollation) && !NONDETERMINISTIC(expr_coll))
+			*lossy = false;
+
 		expr = make_opclause(preopr, BOOLOID, false,
 							 (Expr *) leftop, (Expr *) prefix,
 							 InvalidOid, indexcollation);
@@ -652,7 +665,7 @@ patternsel_common(PlannerInfo *root,
 	 */
 	patt = (Const *) other;
 	pstatus = pattern_fixed_prefix(patt, ptype, collation,
-								   &prefix, &rest_selec);
+								   &prefix, &rest_selec, NULL);
 
 	/*
 	 * If necessary, coerce the prefix constant to the right type.  The only
@@ -1019,7 +1032,7 @@ icnlikejoinsel(PG_FUNCTION_ARGS)
 
 static Pattern_Prefix_Status
 like_fixed_prefix(Const *patt_const, Const **prefix_const,
-				  Selectivity *rest_selec)
+				  Selectivity *rest_selec, bool *pure_prefix)
 {
 	char	   *match;
 	char	   *patt;
@@ -1075,6 +1088,26 @@ like_fixed_prefix(Const *patt_const, Const **prefix_const,
 
 	if (rest_selec != NULL)
 		*rest_selec = like_selectivity(&patt[pos], pattlen - pos, false);
+
+	/*
+	 * The pattern is a "pure prefix" -- equivalent to "value starts with
+	 * <prefix>" -- when everything after the extracted prefix consists of '%'
+	 * wildcards.  A '_', or a literal (including an escaped '%') after the
+	 * prefix, would constrain the value beyond the prefix, so those are not
+	 * pure prefixes.  This lets the caller emit a non-lossy prefix indexqual.
+	 */
+	if (pure_prefix != NULL)
+	{
+		*pure_prefix = (pos < pattlen);
+		for (int i = pos; i < pattlen; i++)
+		{
+			if (patt[i] != '%')
+			{
+				*pure_prefix = false;
+				break;
+			}
+		}
+	}
 
 	pfree(patt);
 	pfree(match);
@@ -1197,7 +1230,8 @@ like_fixed_prefix_ci(Const *patt_const, Oid collation, Const **prefix_const,
 
 static Pattern_Prefix_Status
 regex_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
-				   Const **prefix_const, Selectivity *rest_selec)
+				   Const **prefix_const, Selectivity *rest_selec,
+				   bool *pure_prefix)
 {
 	Oid			typeid = patt_const->consttype;
 	char	   *prefix;
@@ -1216,7 +1250,7 @@ regex_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 	/* Use the regexp machinery to extract the prefix, if any */
 	prefix = regexp_fixed_prefix(DatumGetTextPP(patt_const->constvalue),
 								 case_insensitive, collation,
-								 &exact);
+								 &exact, pure_prefix);
 
 	if (prefix == NULL)
 	{
@@ -1265,14 +1299,22 @@ regex_fixed_prefix(Const *patt_const, bool case_insensitive, Oid collation,
 
 static Pattern_Prefix_Status
 pattern_fixed_prefix(Const *patt, Pattern_Type ptype, Oid collation,
-					 Const **prefix, Selectivity *rest_selec)
+					 Const **prefix, Selectivity *rest_selec, bool *pure_prefix)
 {
 	Pattern_Prefix_Status result;
+
+	/*
+	 * Default to "not a pure prefix".  Only LIKE and the prefix operator can
+	 * currently prove this; the regex machinery can't tell an unconstrained
+	 * tail (e.g. "^abc") from a constrained one (e.g. "^abc[0-9]").
+	 */
+	if (pure_prefix != NULL)
+		*pure_prefix = false;
 
 	switch (ptype)
 	{
 		case Pattern_Type_Like:
-			result = like_fixed_prefix(patt, prefix, rest_selec);
+			result = like_fixed_prefix(patt, prefix, rest_selec, pure_prefix);
 			break;
 		case Pattern_Type_Like_IC:
 			result = like_fixed_prefix_ci(patt, collation, prefix,
@@ -1280,15 +1322,18 @@ pattern_fixed_prefix(Const *patt, Pattern_Type ptype, Oid collation,
 			break;
 		case Pattern_Type_Regex:
 			result = regex_fixed_prefix(patt, false, collation,
-										prefix, rest_selec);
+										prefix, rest_selec, pure_prefix);
 			break;
 		case Pattern_Type_Regex_IC:
 			result = regex_fixed_prefix(patt, true, collation,
-										prefix, rest_selec);
+										prefix, rest_selec, pure_prefix);
 			break;
 		case Pattern_Type_Prefix:
 			/* Prefix type work is trivial.  */
 			result = Pattern_Prefix_Partial;
+			/* A prefix operator is by definition a pure prefix match. */
+			if (pure_prefix != NULL)
+				*pure_prefix = true;
 			*prefix = makeConst(patt->consttype,
 								patt->consttypmod,
 								patt->constcollid,

@@ -258,7 +258,8 @@ extern int	pg_regcomp(regex_t *re, const pg_wchar *string, size_t len,
 extern int	pg_regexec(regex_t *re, const pg_wchar *string, size_t len,
 					   size_t search_start, rm_detail_t *details,
 					   size_t nmatch, regmatch_t pmatch[], int flags);
-extern int	pg_regprefix(regex_t *re, pg_wchar **string, size_t *slength);
+extern int	pg_regprefix(regex_t *re, pg_wchar **string, size_t *slength,
+						 bool *matchall);
 extern void pg_regfree(regex_t *re);
 extern size_t pg_regerror(int errcode, const regex_t *preg, char *errbuf,
 						  size_t errbuf_size);

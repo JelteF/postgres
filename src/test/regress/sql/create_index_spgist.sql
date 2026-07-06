@@ -299,6 +299,30 @@ EXPLAIN (COSTS OFF)
 SELECT count(*) FROM radix_text_tbl WHERE starts_with(t, 'Worth');
 SELECT count(*) FROM radix_text_tbl WHERE starts_with(t, 'Worth');
 
+-- A pure-prefix LIKE is converted to a prefix (^@) indexqual.  Since that is
+-- an exact equivalent of the pattern, the plan should have no recheck Filter.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%';
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%';
+
+-- A LIKE with more pattern after the prefix is not a pure prefix, so the
+-- prefix indexqual is lossy and the recheck Filter must remain.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%St%';
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%St%';
+
+-- The same holds for a regex whose whole match is a fixed prefix: '^Worth'
+-- accepts any suffix, so it is a pure prefix and needs no recheck Filter.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth';
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth';
+
+-- But a regex that constrains the string after the prefix ('^Worth.*St') is
+-- not a pure prefix, so the prefix indexqual stays lossy.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth.*St';
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth.*St';
+
 -- Now check the results from bitmap indexscan
 SET enable_seqscan = OFF;
 SET enable_indexscan = OFF;
