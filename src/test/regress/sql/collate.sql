@@ -302,6 +302,38 @@ CREATE COLLATION coll_dup_chk (LC_CTYPE = "POSIX", LOCALE = '');
 -- FROM conflicts with any other option
 CREATE COLLATION coll_dup_chk (FROM = "C", VERSION = "1");
 
+-- Regex exact-match optimization should use index even when the expression
+-- has COLLATE "default" and the index has a different (but deterministic)
+-- collation OID, because equality is collation-insensitive for deterministic
+-- collations.
+CREATE TABLE regex_idx_test (x text);
+CREATE INDEX ON regex_idx_test (x COLLATE "C");
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+EXPLAIN (costs off)
+SELECT * FROM regex_idx_test WHERE x ~ '^(abc)$' COLLATE "default";
+RESET enable_seqscan;
+RESET enable_bitmapscan;
+
+-- Conversely, when the expression's collation is indeterminate (here a
+-- concatenation of differently-collated columns) but the index pins a
+-- collation, the "=" indexqual must stay lossy so the LIKE recheck still runs.
+-- Otherwise the query would silently resolve the comparison under the index's
+-- collation instead of failing with "could not determine which collation to
+-- use", making the result depend on whether an index scan is chosen.
+CREATE TABLE coll_conflict_idx_test (x text COLLATE "C", y text COLLATE "POSIX");
+INSERT INTO coll_conflict_idx_test VALUES ('a', 'bc');
+CREATE INDEX ON coll_conflict_idx_test ((x || y) COLLATE "C");
+SET enable_seqscan = off;
+SET enable_bitmapscan = off;
+EXPLAIN (costs off)
+SELECT * FROM coll_conflict_idx_test WHERE (x || y) LIKE 'abc';
+-- must error (rather than silently return the row via the index) so that the
+-- outcome does not depend on the chosen plan
+SELECT * FROM coll_conflict_idx_test WHERE (x || y) LIKE 'abc';
+RESET enable_seqscan;
+RESET enable_bitmapscan;
+
 --
 -- Clean up.  Many of these table names will be re-used if the user is
 -- trying to run any platform-specific collation tests later, so we

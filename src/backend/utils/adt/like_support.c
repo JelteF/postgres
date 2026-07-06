@@ -69,13 +69,18 @@ typedef enum
 	Pattern_Prefix_None, Pattern_Prefix_Partial, Pattern_Prefix_Exact,
 } Pattern_Prefix_Status;
 
+/* non-collatable comparisons, eg for bytea, are always deterministic */
+#define NONDETERMINISTIC(coll) \
+	(OidIsValid(coll) && !get_collation_isdeterministic(coll))
+
 static Node *like_regex_support(Node *rawreq, Pattern_Type ptype);
 static List *match_pattern_prefix(Node *leftop,
 								  Node *rightop,
 								  Pattern_Type ptype,
 								  Oid expr_coll,
 								  Oid opfamily,
-								  Oid indexcollation);
+								  Oid indexcollation,
+								  bool *lossy);
 static double patternsel_common(PlannerInfo *root,
 								Oid oprid,
 								Oid opfuncid,
@@ -211,7 +216,8 @@ like_regex_support(Node *rawreq, Pattern_Type ptype)
 									 ptype,
 									 clause->inputcollid,
 									 req->opfamily,
-									 req->indexcollation);
+									 req->indexcollation,
+									 &req->lossy);
 		}
 		else if (is_funcclause(req->node))	/* be paranoid */
 		{
@@ -224,7 +230,8 @@ like_regex_support(Node *rawreq, Pattern_Type ptype)
 									 ptype,
 									 clause->inputcollid,
 									 req->opfamily,
-									 req->indexcollation);
+									 req->indexcollation,
+									 &req->lossy);
 		}
 	}
 
@@ -241,7 +248,8 @@ match_pattern_prefix(Node *leftop,
 					 Pattern_Type ptype,
 					 Oid expr_coll,
 					 Oid opfamily,
-					 Oid indexcollation)
+					 Oid indexcollation,
+					 bool *lossy)
 {
 	List	   *result;
 	Const	   *patt;
@@ -381,13 +389,55 @@ match_pattern_prefix(Node *leftop,
 	 * us to not be concerned with specific opclasses (except for the legacy
 	 * "pattern" cases); any index that correctly implements the operators
 	 * will work.
+	 *
+	 * Also, we can use an index whose collation differs from the
+	 * expression's, so long as the expression's collation is deterministic.
+	 * It doesn't matter whether the index collation is deterministic or not:
+	 * if it's deterministic it agrees on equality with the expression
+	 * collation, and if it's nondeterministic the "=" indexqual merely treats
+	 * a superset of values as equal.  The latter is fine because we keep the
+	 * indexqual as lossy (the original pattern is rechecked), so the recheck
+	 * filters out the rows where the index collation disagrees with the
+	 * expression collation.  A nondeterministic expression collation, on the
+	 * other hand, is only safe when the index uses that exact same collation,
+	 * since otherwise the indexqual could omit matching rows.  Otherwise,
+	 * fail quietly.
 	 */
 	if (pstatus == Pattern_Prefix_Exact)
 	{
 		if (!op_in_opfamily(eqopr, opfamily))
 			return NIL;
-		if (indexcollation != expr_coll)
+		if (indexcollation != expr_coll && NONDETERMINISTIC(expr_coll))
 			return NIL;
+
+		/*
+		 * The "=" indexqual is normally treated as lossy (the original
+		 * pattern is rechecked) because "=" can match rows that the pattern
+		 * does not.  But the recheck can be skipped when "=" means exactly
+		 * the exact-match pattern: that is, for a non-blank-padded type, when
+		 * the index and expression collations agree on equality (they're the
+		 * same collation, or both deterministic).  bpchar is excluded because
+		 * its "=" ignores trailing blanks, and a nondeterministic index
+		 * collation that differs from the expression's is excluded because
+		 * then "=" matches a superset of the pattern; both of those need the
+		 * recheck.
+		 *
+		 * We must also keep the recheck when the expression has no collation
+		 * (InvalidOid) but the index does.  That happens for a collatable
+		 * expression whose collation is indeterminate (e.g. a concatenation
+		 * of differently-collated columns): the pattern match would error out
+		 * with "could not determine which collation to use", and dropping the
+		 * recheck would let the "=" indexqual silently resolve the comparison
+		 * under the index's collation instead.  When the expression is a
+		 * genuinely non-collatable type (bytea) the index collation is
+		 * InvalidOid too, so indexcollation == expr_coll and we still
+		 * optimize.
+		 */
+		if (ldatatype != BPCHAROID &&
+			(indexcollation == expr_coll || OidIsValid(expr_coll)) &&
+			collations_agree_on_equality(indexcollation, expr_coll))
+			*lossy = false;
+
 		expr = make_opclause(eqopr, BOOLOID, false,
 							 (Expr *) leftop, (Expr *) prefix,
 							 InvalidOid, indexcollation);
@@ -400,10 +450,8 @@ match_pattern_prefix(Node *leftop,
 	 * expression collation is nondeterministic.  The optimized equality or
 	 * prefix tests use bytewise comparisons, which is not consistent with
 	 * nondeterministic collations.
-	 *
-	 * expr_coll is not set for a non-collation-aware data type such as bytea.
 	 */
-	if (expr_coll && !get_collation_isdeterministic(expr_coll))
+	if (NONDETERMINISTIC(expr_coll))
 		return NIL;
 
 	/*
