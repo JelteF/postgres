@@ -20,7 +20,7 @@
  * forward declarations
  */
 static int	findprefix(struct cnfa *cnfa, struct colormap *cm,
-					   chr *string, size_t *slength);
+					   chr *string, size_t *slength, bool *matchall);
 
 
 /*
@@ -41,11 +41,19 @@ static int	findprefix(struct cnfa *cnfa, struct colormap *cm,
  * the reported prefix or exact-match string do not satisfy the regex.  But
  * it should never be the case that a string satisfying the regex does not
  * match the reported prefix or exact-match string.
+ *
+ * If matchall is not NULL, *matchall is set to true when the regex is
+ * equivalent to a pure prefix test, i.e. it matches exactly the strings that
+ * begin with the reported prefix (with REG_PREFIX result).  It is always set
+ * to false for the REG_EXACT and failure cases.  Unlike the prefix itself,
+ * this is computed exactly: *matchall is never set to true unless every string
+ * beginning with the prefix does satisfy the regex.
  */
 int
 pg_regprefix(regex_t *re,
 			 chr **string,
-			 size_t *slength)
+			 size_t *slength,
+			 bool *matchall)
 {
 	struct guts *g;
 	struct cnfa *cnfa;
@@ -56,6 +64,8 @@ pg_regprefix(regex_t *re,
 		return REG_INVARG;
 	*string = NULL;				/* initialize for failure cases */
 	*slength = 0;
+	if (matchall != NULL)
+		*matchall = false;
 	if (re == NULL || re->re_magic != REMAGIC)
 		return REG_INVARG;
 	if (re->re_csize != sizeof(chr))
@@ -91,7 +101,7 @@ pg_regprefix(regex_t *re,
 		return REG_ESPACE;
 
 	/* do it */
-	st = findprefix(cnfa, &g->cmap, *string, slength);
+	st = findprefix(cnfa, &g->cmap, *string, slength, matchall);
 
 	assert(*slength <= cnfa->nstates);
 
@@ -116,7 +126,8 @@ static int						/* regprefix return code */
 findprefix(struct cnfa *cnfa,
 		   struct colormap *cm,
 		   chr *string,
-		   size_t *slength)
+		   size_t *slength,
+		   bool *matchall)
 {
 	int			st;
 	int			nextst;
@@ -255,6 +266,34 @@ findprefix(struct cnfa *cnfa,
 	}
 	if (nextst == cnfa->post)
 		return REG_EXACT;
+
+	/*
+	 * Check for a "matchall suffix": from state st, is every possible
+	 * continuation of the string accepted?  That's the case when st has both
+	 * a RAINBOW arc to the "post" state (so consuming any one more character
+	 * completes a match) and an EOS arc to "post" (so the string may also end
+	 * here).  Together these mean that any string with the identified prefix
+	 * satisfies the regex, i.e. the regex is equivalent to a pure prefix
+	 * test. (This is not fooled by additional arcs, including LACON
+	 * constraints: the RAINBOW-to-post arc is an unconditional accepting
+	 * path, so no string with the prefix can fail to match.)
+	 */
+	if (matchall != NULL && *slength > 0)
+	{
+		bool		rainbow_to_post = false;
+		bool		eos_to_post = false;
+
+		for (ca = cnfa->states[st]; ca->co != COLORLESS; ca++)
+		{
+			if (ca->to != cnfa->post)
+				continue;
+			if (ca->co == RAINBOW)
+				rainbow_to_post = true;
+			else if (ca->co == cnfa->eos[0] || ca->co == cnfa->eos[1])
+				eos_to_post = true;
+		}
+		*matchall = (rainbow_to_post && eos_to_post);
+	}
 
 	/*
 	 * Otherwise, if we were unable to identify any prefix characters, say

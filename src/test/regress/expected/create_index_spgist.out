@@ -817,10 +817,79 @@ SELECT count(*) FROM radix_text_tbl WHERE starts_with(t, 'Worth');
  Aggregate
    ->  Index Only Scan using sp_radix_ind on radix_text_tbl
          Index Cond: (t ^@ 'Worth'::text)
-         Filter: starts_with(t, 'Worth'::text)
-(4 rows)
+(3 rows)
 
 SELECT count(*) FROM radix_text_tbl WHERE starts_with(t, 'Worth');
+ count 
+-------
+     2
+(1 row)
+
+-- A pure-prefix LIKE is converted to a prefix (^@) indexqual.  Since that is
+-- an exact equivalent of the pattern, the plan should have no recheck Filter.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Aggregate
+   ->  Index Only Scan using sp_radix_ind on radix_text_tbl
+         Index Cond: (t ^@ 'Worth'::text)
+(3 rows)
+
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%';
+ count 
+-------
+     2
+(1 row)
+
+-- A LIKE with more pattern after the prefix is not a pure prefix, so the
+-- prefix indexqual is lossy and the recheck Filter must remain.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%St%';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Aggregate
+   ->  Index Only Scan using sp_radix_ind on radix_text_tbl
+         Index Cond: (t ^@ 'Worth'::text)
+         Filter: (t ~~ 'Worth%St%'::text)
+(4 rows)
+
+SELECT count(*) FROM radix_text_tbl WHERE t LIKE 'Worth%St%';
+ count 
+-------
+     2
+(1 row)
+
+-- The same holds for a regex whose whole match is a fixed prefix: '^Worth'
+-- accepts any suffix, so it is a pure prefix and needs no recheck Filter.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Aggregate
+   ->  Index Only Scan using sp_radix_ind on radix_text_tbl
+         Index Cond: (t ^@ 'Worth'::text)
+(3 rows)
+
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth';
+ count 
+-------
+     2
+(1 row)
+
+-- But a regex that constrains the string after the prefix ('^Worth.*St') is
+-- not a pure prefix, so the prefix indexqual stays lossy.
+EXPLAIN (COSTS OFF)
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth.*St';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Aggregate
+   ->  Index Only Scan using sp_radix_ind on radix_text_tbl
+         Index Cond: (t ^@ 'Worth'::text)
+         Filter: (t ~ '^Worth.*St'::text)
+(4 rows)
+
+SELECT count(*) FROM radix_text_tbl WHERE t ~ '^Worth.*St';
  count 
 -------
      2

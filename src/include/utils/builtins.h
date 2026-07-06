@@ -74,7 +74,7 @@ extern int	oid_cmp(const void *p1, const void *p2);
 
 /* regexp.c */
 extern char *regexp_fixed_prefix(text *text_re, bool case_insensitive,
-								 Oid collation, bool *exact);
+								 Oid collation, bool *exact, bool *pure_prefix);
 
 /* ruleutils.c */
 extern PGDLLIMPORT bool quote_all_identifiers;

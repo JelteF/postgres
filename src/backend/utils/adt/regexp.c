@@ -2020,21 +2020,27 @@ regexp_substr_no_subexpr(PG_FUNCTION_ARGS)
  *
  * The result is NULL if there is no fixed prefix, else a palloc'd string.
  * If it is an exact match, not just a prefix, *exact is returned as true.
+ * If pure_prefix is not NULL, *pure_prefix is set to true when the regexp
+ * matches exactly the strings that begin with the prefix (so that a prefix
+ * test is an exact equivalent of the regexp, not merely a superset).
  */
 char *
 regexp_fixed_prefix(text *text_re, bool case_insensitive, Oid collation,
-					bool *exact)
+					bool *exact, bool *pure_prefix)
 {
 	char	   *result;
 	regex_t    *re;
 	int			cflags;
 	int			re_result;
+	bool		matchall;
 	pg_wchar   *str;
 	size_t		slen;
 	size_t		maxlen;
 	char		errMsg[100];
 
 	*exact = false;				/* default result */
+	if (pure_prefix != NULL)
+		*pure_prefix = false;
 
 	/* Compile RE */
 	cflags = REG_ADVANCED;
@@ -2044,7 +2050,9 @@ regexp_fixed_prefix(text *text_re, bool case_insensitive, Oid collation,
 	re = RE_compile_and_cache(text_re, cflags | REG_NOSUB, collation);
 
 	/* Examine it to see if there's a fixed prefix */
-	re_result = pg_regprefix(re, &str, &slen);
+	re_result = pg_regprefix(re, &str, &slen, &matchall);
+	if (pure_prefix != NULL)
+		*pure_prefix = matchall;
 
 	switch (re_result)
 	{
