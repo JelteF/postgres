@@ -79,7 +79,8 @@ static List *match_pattern_prefix(Node *leftop,
 								  Pattern_Type ptype,
 								  Oid expr_coll,
 								  Oid opfamily,
-								  Oid indexcollation);
+								  Oid indexcollation,
+								  bool *lossy);
 static double patternsel_common(PlannerInfo *root,
 								Oid oprid,
 								Oid opfuncid,
@@ -215,7 +216,8 @@ like_regex_support(Node *rawreq, Pattern_Type ptype)
 									 ptype,
 									 clause->inputcollid,
 									 req->opfamily,
-									 req->indexcollation);
+									 req->indexcollation,
+									 &req->lossy);
 		}
 		else if (is_funcclause(req->node))	/* be paranoid */
 		{
@@ -228,7 +230,8 @@ like_regex_support(Node *rawreq, Pattern_Type ptype)
 									 ptype,
 									 clause->inputcollid,
 									 req->opfamily,
-									 req->indexcollation);
+									 req->indexcollation,
+									 &req->lossy);
 		}
 	}
 
@@ -245,7 +248,8 @@ match_pattern_prefix(Node *leftop,
 					 Pattern_Type ptype,
 					 Oid expr_coll,
 					 Oid opfamily,
-					 Oid indexcollation)
+					 Oid indexcollation,
+					 bool *lossy)
 {
 	List	   *result;
 	Const	   *patt;
@@ -391,8 +395,8 @@ match_pattern_prefix(Node *leftop,
 	 * It doesn't matter whether the index collation is deterministic or not:
 	 * if it's deterministic it agrees on equality with the expression
 	 * collation, and if it's nondeterministic the "=" indexqual merely treats
-	 * a superset of values as equal.  The latter is fine because the
-	 * indexqual is lossy (the original pattern is rechecked), so the recheck
+	 * a superset of values as equal.  The latter is fine because we keep the
+	 * indexqual as lossy (the original pattern is rechecked), so the recheck
 	 * filters out the rows where the index collation disagrees with the
 	 * expression collation.  A nondeterministic expression collation, on the
 	 * other hand, is only safe when the index uses that exact same collation,
@@ -405,6 +409,21 @@ match_pattern_prefix(Node *leftop,
 			return NIL;
 		if (indexcollation != expr_coll && NONDETERMINISTIC(expr_coll))
 			return NIL;
+
+		/*
+		 * The "=" indexqual is normally treated as lossy (the original
+		 * pattern is rechecked) because "=" can match rows that the pattern
+		 * does not. But when the type is not blank-padded and both collations
+		 * are deterministic, "=" is exactly bytewise equality, i.e. precisely
+		 * the exact-match pattern, so the recheck can be skipped.  bpchar is
+		 * excluded because its "=" ignores trailing blanks, and a
+		 * nondeterministic collation is excluded because then "=" matches a
+		 * superset of the pattern; both of those genuinely need the recheck.
+		 */
+		if (ldatatype != BPCHAROID &&
+			!NONDETERMINISTIC(indexcollation) && !NONDETERMINISTIC(expr_coll))
+			*lossy = false;
+
 		expr = make_opclause(eqopr, BOOLOID, false,
 							 (Expr *) leftop, (Expr *) prefix,
 							 InvalidOid, indexcollation);

@@ -782,8 +782,7 @@ SELECT * FROM regex_idx_test WHERE x ~ '^(abc)$' COLLATE "default";
 --------------------------------------------------------------
  Index Only Scan using regex_idx_test_x_idx on regex_idx_test
    Index Cond: (x = 'abc'::text)
-   Filter: (x ~ '^(abc)$'::text)
-(3 rows)
+(2 rows)
 
 RESET enable_seqscan;
 RESET enable_bitmapscan;
