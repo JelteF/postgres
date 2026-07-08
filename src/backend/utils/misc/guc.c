@@ -36,6 +36,7 @@
 #include "catalog/pg_parameter_acl.h"
 #include "catalog/pg_type.h"
 #include "guc_internal.h"
+#include "libpq/libpq.h"
 #include "libpq/pqformat.h"
 #include "libpq/protocol.h"
 #include "miscadmin.h"
@@ -4167,11 +4168,38 @@ set_config_with_handle(const char *name, config_handle *handle,
 			}
 	}
 
-	if (changeVal && (record->flags & GUC_REPORT) &&
-		!(record->status & GUC_NEEDS_REPORT))
+	if (changeVal && (record->flags & GUC_REPORT))
 	{
-		record->status |= GUC_NEEDS_REPORT;
-		slist_push_head(&guc_report_list, &record->report_link);
+		/*
+		 * Normally we don't transmit the ParameterStatus right away; we
+		 * merely flag the variable so that ReportChangedGUCOptions() reports
+		 * it once, just before we next become ready for a query.  That
+		 * batching keeps a value that changes repeatedly within a query (e.g.
+		 * via function SET clauses) from generating a flurry of messages.
+		 *
+		 * That rationale only holds while a query is running.  When we're
+		 * sitting idle waiting for the next command there is nothing to
+		 * coalesce, and deferring until the client's next query could mean
+		 * the client never hears about the change.  So in that case report it
+		 * immediately and flush, which lets an idle client (e.g. a connection
+		 * pool) learn about a change such as a reloaded configuration setting
+		 * without having to issue a query first.
+		 */
+		if (reporting_enabled && DoingCommandRead)
+		{
+			if (record->status & GUC_NEEDS_REPORT)
+			{
+				record->status &= ~GUC_NEEDS_REPORT;
+				slist_delete(&guc_report_list, &record->report_link);
+			}
+			ReportGUCOption(record);
+			pq_flush();
+		}
+		else if (!(record->status & GUC_NEEDS_REPORT))
+		{
+			record->status |= GUC_NEEDS_REPORT;
+			slist_push_head(&guc_report_list, &record->report_link);
+		}
 	}
 
 	return changeVal ? 1 : -1;
