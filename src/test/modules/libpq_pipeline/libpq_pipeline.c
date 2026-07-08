@@ -2100,6 +2100,81 @@ process_result(PGconn *conn, PGresult *res, int results, int numsent)
 	return got_error;
 }
 
+/*
+ * Verify that a GUC_REPORT setting changed by a configuration reload is
+ * reported to a connection that is sitting idle, without that connection
+ * having to issue a query first.  This exercises the mechanism whereby
+ * set_config_option() transmits a ParameterStatus immediately while no query
+ * is running (see ProcessClientReadInterrupt()).
+ */
+static void
+test_idle_config_report(PGconn *conn)
+{
+	PGconn	   *otherConn;
+	PGresult   *res;
+	const char *val;
+	int			i;
+
+	fprintf(stderr, "test idle config report... ");
+
+	otherConn = copy_connection(conn);
+	Assert(PQstatus(otherConn) == CONNECTION_OK);
+
+	/* Drain startup traffic and confirm the setting isn't already iso_8601. */
+	if (!PQconsumeInput(conn))
+		pg_fatal("PQconsumeInput failed: %s", PQerrorMessage(conn));
+	(void) PQisBusy(conn);
+	val = PQparameterStatus(conn, "IntervalStyle");
+	if (val && strcmp(val, "iso_8601") == 0)
+		pg_fatal("IntervalStyle already iso_8601 before reload");
+
+	/* Change a reportable setting in the config file and reload it. */
+	res = PQexec(otherConn, "ALTER SYSTEM SET intervalstyle = iso_8601");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("ALTER SYSTEM failed: %s", PQerrorMessage(otherConn));
+	PQclear(res);
+	res = PQexec(otherConn, "SELECT pg_reload_conf()");
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal("pg_reload_conf() failed: %s", PQerrorMessage(otherConn));
+	PQclear(res);
+
+	/*
+	 * conn is idle and never issues a query, yet it must still be told the
+	 * new value with a ParameterStatus message once the reload reaches its
+	 * backend. PQconsumeInput() only reads bytes; PQisBusy() forces the
+	 * parsing that applies the ParameterStatus.
+	 */
+	for (i = 0; i < 1000; i++)
+	{
+		if (!PQconsumeInput(conn))
+			pg_fatal("PQconsumeInput failed: %s", PQerrorMessage(conn));
+		(void) PQisBusy(conn);
+
+		val = PQparameterStatus(conn, "IntervalStyle");
+		if (val && strcmp(val, "iso_8601") == 0)
+			break;
+
+		pg_usleep(10000);		/* 10ms */
+	}
+
+	val = PQparameterStatus(conn, "IntervalStyle");
+	if (!val || strcmp(val, "iso_8601") != 0)
+		pg_fatal("IntervalStyle not reported as iso_8601 for idle connection after reload");
+
+	/* Restore the previous configuration for any later tests on this server. */
+	res = PQexec(otherConn, "ALTER SYSTEM RESET intervalstyle");
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+		pg_fatal("ALTER SYSTEM RESET failed: %s", PQerrorMessage(otherConn));
+	PQclear(res);
+	res = PQexec(otherConn, "SELECT pg_reload_conf()");
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		pg_fatal("pg_reload_conf() failed: %s", PQerrorMessage(otherConn));
+	PQclear(res);
+
+	PQfinish(otherConn);
+
+	fprintf(stderr, "ok\n");
+}
 
 static void
 usage(const char *progname)
@@ -2118,6 +2193,7 @@ print_test_list(void)
 {
 	printf("cancel\n");
 	printf("disallowed_in_pipeline\n");
+	printf("idle_config_report\n");
 	printf("multi_pipelines\n");
 	printf("nosync\n");
 	printf("pipeline_abort\n");
@@ -2225,6 +2301,8 @@ main(int argc, char **argv)
 		test_cancel(conn);
 	else if (strcmp(testname, "disallowed_in_pipeline") == 0)
 		test_disallowed_in_pipeline(conn);
+	else if (strcmp(testname, "idle_config_report") == 0)
+		test_idle_config_report(conn);
 	else if (strcmp(testname, "multi_pipelines") == 0)
 		test_multi_pipelines(conn);
 	else if (strcmp(testname, "nosync") == 0)
