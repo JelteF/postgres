@@ -8,7 +8,7 @@ import os
 
 import pytest
 
-from .paths import includedir_server, sharedir
+from .paths import INCLUDEDIR_SERVER, SHAREDIR
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ def _injection_points_supported() -> bool:
     used as a collection-time decorator. The control file is preferred over
     the shared library because its name is platform independent.
     """
-    return (sharedir() / "extension" / "injection_points.control").exists()
+    return (SHAREDIR / "extension" / "injection_points.control").exists()
 
 
 def require_injection_points() -> pytest.MarkDecorator:
@@ -156,7 +156,7 @@ def _pg_config_h_lines() -> tuple[str, ...]:
     Read once and cached, since the build under test does not change during a
     session.
     """
-    path = includedir_server() / "pg_config.h"
+    path = INCLUDEDIR_SERVER / "pg_config.h"
     return tuple(line.strip() for line in path.read_text().splitlines())
 
 

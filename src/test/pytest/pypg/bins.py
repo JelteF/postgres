@@ -9,9 +9,6 @@ program, so ``from pypg.bins import psql`` (or pg_verifybackup, pg_controldata,
     from pypg.bins import psql, pg_verifybackup
     psql("-c", "select 1")
     pg_verifybackup.check_standard_options()
-
-The :class:`PgBin` resolves itself lazily against the test bindir when called,
-so importing a name here never runs pg_config.
 """
 
 from __future__ import annotations

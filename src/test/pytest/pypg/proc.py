@@ -31,12 +31,7 @@ if TYPE_CHECKING:
 
 
 class PgBin:
-    """A single installed PostgreSQL program, resolved against the test bindir.
-
-    Instances are import-time-cheap constants: the bindir (and therefore
-    pg_config) is only consulted when the program is actually run or its
-    ``.path`` is read.
-    """
+    """A single installed PostgreSQL program, resolved against the test bindir."""
 
     def __init__(self, name: str):
         self.name = name
@@ -46,13 +41,8 @@ class PgBin:
 
     @property
     def path(self) -> pathlib.Path:
-        """The resolved executable path (``bindir() / name``).
-
-        A property rather than an ``__init__`` assignment so that merely
-        constructing a ``PgBin`` (which :mod:`pypg.bins` does for every name at
-        import/collection time) does not run ``pg_config``; the lookup happens
-        lazily on first use and is cached by :mod:`pypg.paths`."""
-        return paths.bindir() / self.name
+        """The resolved executable path (``paths.BINDIR / name``)."""
+        return paths.BINDIR / self.name
 
     def _apply_env(
         self,

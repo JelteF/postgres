@@ -13,7 +13,7 @@ from typing import Any, List
 import pytest
 
 from ._env import test_timeout_default
-from .paths import bindir, libdir
+from .paths import BINDIR, LIBDIR
 from .server import PostgresServer
 
 from libpq import PGconn, load_libpq_handle, connect as libpq_connect
@@ -43,7 +43,7 @@ def libpq_handle() -> ctypes.CDLL:
     reload it for every module when several run in one process.
     """
     try:
-        return load_libpq_handle(bindir(), libdir())
+        return load_libpq_handle(BINDIR, LIBDIR)
     except OSError as e:
         if "wrong ELF class" in str(e):
             # This happens in CI when trying to lead a 32-bit libpq library

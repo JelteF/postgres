@@ -3,28 +3,25 @@
 """
 Install-location discovery for the PostgreSQL build under test.
 
-These are plain cached functions -- not pytest fixtures and not import-time
-globals. The values are static for the whole session, so routing them through
-fixture signatures would be needless plumbing; and computing them at import
-time would run pg_config (a subprocess) on every ``import``, breaking all
-collection if pg_config isn't found. As lazy cached functions they run
-pg_config only when something actually needs a path, and only once.
+The paths are constants for the whole session, so they are plain module
+globals, filled from a single ``pg_config`` run at import time. pg_config is
+found via the ``PG_CONFIG`` environment variable, falling back to ``PATH``.
+The cost is that importing this module fails if pg_config can't be run -- but
+no test can do anything useful without an install, so failing collection
+loudly is fine.
 """
 
 from __future__ import annotations
 
-import functools
 import os
 import pathlib
 
 from .util import capture
 
 
-@functools.cache
 def _config_values() -> dict[str, str]:
     """All pg_config settings, from a single argument-less pg_config run, which
-    prints every setting as a ``NAME = value`` line. pg_config is found via the
-    ``PG_CONFIG`` environment variable, falling back to ``PATH``."""
+    prints every setting as a ``NAME = value`` line."""
     pg_config = os.environ.get("PG_CONFIG", "pg_config")
     values = {}
     for line in capture(pg_config, silent=True).splitlines():
@@ -34,29 +31,18 @@ def _config_values() -> dict[str, str]:
     return values
 
 
-def _config_path(name: str) -> pathlib.Path:
-    return pathlib.Path(_config_values()[name])
+_values = _config_values()
 
+BINDIR = pathlib.Path(_values["BINDIR"])
+"""PostgreSQL bin directory (pg_config's ``BINDIR``)."""
 
-@functools.cache
-def bindir() -> pathlib.Path:
-    """PostgreSQL bin directory (pg_config's ``BINDIR``)."""
-    return _config_path("BINDIR")
+LIBDIR = pathlib.Path(_values["LIBDIR"])
+"""PostgreSQL lib directory (pg_config's ``LIBDIR``)."""
 
+SHAREDIR = pathlib.Path(_values["SHAREDIR"])
+"""PostgreSQL share directory (pg_config's ``SHAREDIR``)."""
 
-@functools.cache
-def libdir() -> pathlib.Path:
-    """PostgreSQL lib directory (pg_config's ``LIBDIR``)."""
-    return _config_path("LIBDIR")
+INCLUDEDIR_SERVER = pathlib.Path(_values["INCLUDEDIR-SERVER"])
+"""PostgreSQL server include directory (pg_config's ``INCLUDEDIR-SERVER``)."""
 
-
-@functools.cache
-def sharedir() -> pathlib.Path:
-    """PostgreSQL share directory (pg_config's ``SHAREDIR``)."""
-    return _config_path("SHAREDIR")
-
-
-@functools.cache
-def includedir_server() -> pathlib.Path:
-    """PostgreSQL server include directory (pg_config's ``INCLUDEDIR-SERVER``)."""
-    return _config_path("INCLUDEDIR-SERVER")
+del _values
