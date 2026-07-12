@@ -451,37 +451,41 @@ class PostgresServer:
     def append_conf(self, **gucs: object) -> None:
         """Append GUC settings to postgresql.conf.
 
-        Each keyword is written as ``name = 'value'`` with the value escaped for
-        a postgresql.conf single-quoted string, so callers never have to quote
-        or escape values themselves — e.g.
-        ``append_conf(primary_conninfo=conninfo, work_mem="4MB")``.
+        Each keyword is written as ``name = 'value'`` with the value escaped
+        for a postgresql.conf single-quoted string, so callers never have to
+        quote or escape values themselves (a ``bool`` becomes ``on``/``off``).
+        For GUCs whose names are not valid Python identifiers — the dotted
+        names of extension GUCs — unpack a dict::
+
+            node.append_conf(primary_conninfo=conninfo, work_mem="4MB")
+            node.append_conf(**{"basebackup_to_shell.command": cmd})
         """
         self._snapshot_conf_if_needed()
         with open(self.datadir / "postgresql.conf", "a") as f:
             for name, value in gucs.items():
                 f.write(f"{name} = {_escape_conf_value(value)}\n")
 
-    def adjust_conf(
-        self,
-        setting: str,
-        value: object = None,
-        filename: str = "postgresql.conf",
-    ) -> None:
-        """Set ``setting`` to ``value`` in a config file, replacing any existing
-        (or commented-out) lines for it; if ``value`` is None, remove them.
+    def adjust_conf(self, **gucs: object) -> None:
+        """Set each given GUC in postgresql.conf, replacing any existing (or
+        commented-out) line for it; a value of ``None`` removes the setting.
 
-        The value is quoted and escaped for postgresql.conf exactly like
-        append_conf (a ``bool`` becomes ``on``/``off``), so callers pass plain
-        values. Unlike append_conf this leaves a single clean line for the
-        setting rather than relying on later-line-wins, and does not reload the
-        server. Mirrors Perl's ``$node->adjust_conf``.
+        Values are escaped exactly like append_conf, but unlike append_conf
+        this leaves a single clean line per setting rather than relying on
+        later-line-wins, and does not reload the server. Mirrors Perl's
+        ``$node->adjust_conf``::
+
+            node.adjust_conf(work_mem="8MB", fsync=False)
+            node.adjust_conf(autovacuum=None)  # remove the setting
+            node.adjust_conf(**{"auto_explain.log_min_duration": 0})
         """
         self._snapshot_conf_if_needed()
-        path = self.datadir / filename
-        pat = re.compile(rf"^\s*#?\s*{re.escape(setting)}\s*=")
-        lines = [ln for ln in path.read_text().splitlines() if not pat.match(ln)]
-        if value is not None:
-            lines.append(f"{setting} = {_escape_conf_value(value)}")
+        path = self.datadir / "postgresql.conf"
+        lines = path.read_text().splitlines()
+        for setting, value in gucs.items():
+            pat = re.compile(rf"^\s*#?\s*{re.escape(setting)}\s*=")
+            lines = [ln for ln in lines if not pat.match(ln)]
+            if value is not None:
+                lines.append(f"{setting} = {_escape_conf_value(value)}")
         path.write_text("\n".join(lines) + "\n")
 
     def _config_files(self) -> list[pathlib.Path]:
