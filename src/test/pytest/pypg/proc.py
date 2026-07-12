@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
@@ -35,14 +36,17 @@ class PgBin:
 
     def __init__(self, name: str):
         self.name = name
+        # shutil.which rather than Path.exists: it also checks the executable
+        # bit, and on Windows resolves the implied .exe suffix.
+        resolved = shutil.which(paths.BINDIR / name)
+        if resolved is None:
+            raise FileNotFoundError(
+                f"program {name!r} is not installed in {paths.BINDIR}"
+            )
+        self.path = pathlib.Path(resolved)
 
     def __repr__(self) -> str:
         return f"PgBin({self.name!r})"
-
-    @property
-    def path(self) -> pathlib.Path:
-        """The resolved executable path (``paths.BINDIR / name``)."""
-        return paths.BINDIR / self.name
 
     def _apply_env(
         self,
