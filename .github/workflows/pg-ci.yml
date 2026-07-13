@@ -672,6 +672,16 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
+      # EXPERIMENT: put the test data directories on RAM instead of the
+      # runner's disk, to measure how much of "Test world" is I/O-bound.
+      - name: Mount tmpfs for test directories
+        run: |
+          mkdir -p build/testrun build/tmp_install
+          mount -t tmpfs -o size=10g tmpfs build/testrun
+          mount -t tmpfs -o size=2g tmpfs build/tmp_install
+          chown postgres:postgres build/testrun build/tmp_install
+          df -hT build/testrun build/tmp_install
+
       - name: Test world
         shell: *su_postgres_shell
         run: *meson_test_world_cmd
