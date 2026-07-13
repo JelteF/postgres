@@ -27,7 +27,7 @@ from ._bindings import (
     _PGresult,
     _extract_diag_fields,
 )
-from ._conversions import _build_params, _convert_pg_value, simplify_query_results
+from ._conversions import _build_params, _converter_for_oid, simplify_query_results
 from .errors import (
     LibpqError,
     PostgresMessage,
@@ -77,22 +77,39 @@ class PGresult(contextlib.AbstractContextManager):
         """
         Fetch all rows and convert to Python types.
         Returns a list of tuples, with values converted based on their PostgreSQL type.
-        """
-        nrows = self._lib.PQntuples(self._res)
-        ncols = self._lib.PQnfields(self._res)
 
-        # Get type OIDs for each column
-        type_oids = [self._lib.PQftype(self._res, col) for col in range(ncols)]
+        This is a hot path (large result sets pay one ctypes FFI call per
+        cell), so it's written to minimize per-cell overhead: the converter
+        for each column is resolved once from its type OID rather than
+        re-dispatched per cell, and ``PQgetisnull`` is only consulted for
+        cells whose value comes back empty (``PQgetvalue`` already returns
+        ``b""`` for SQL NULL, so the common non-empty case skips that call
+        entirely).
+        """
+        res = self._res
+        lib = self._lib
+        getvalue = lib.PQgetvalue
+        getisnull = lib.PQgetisnull
+        nrows = lib.PQntuples(res)
+        ncols = lib.PQnfields(res)
+
+        # Resolve each column's converter once from its type OID, instead of
+        # re-dispatching on the OID for every cell in the column.
+        converters = [
+            _converter_for_oid(lib.PQftype(res, col)) for col in range(ncols)
+        ]
 
         results = []
         for row in range(nrows):
-            row_data = []
+            row_data = [None] * ncols
             for col in range(ncols):
-                if self._lib.PQgetisnull(self._res, row, col):
-                    row_data.append(None)
+                raw = getvalue(res, row, col)
+                if raw:
+                    row_data[col] = converters[col](raw.decode())
+                elif getisnull(res, row, col):
+                    row_data[col] = None
                 else:
-                    value = self._lib.PQgetvalue(self._res, row, col).decode()
-                    row_data.append(_convert_pg_value(value, type_oids[col]))
+                    row_data[col] = converters[col]("")
             results.append(tuple(row_data))
 
         return results
@@ -204,6 +221,18 @@ class PGconn(contextlib.AbstractContextManager):
         if self._handle is not None:
             self._lib.PQfinish(self._handle)
             self._handle = None
+
+    def connection_ok(self) -> bool:
+        """Whether the connection is still usable (``PQstatus`` reports OK).
+
+        A backend death (server restart, crash, ``pg_terminate_backend``)
+        leaves the connection in a bad state while a plain SQL error does not,
+        so this distinguishes "the connection died" from "the query failed"
+        without pattern-matching error messages."""
+        return (
+            self._handle is not None
+            and self._lib.PQstatus(self._handle) == ConnectionStatus.CONNECTION_OK
+        )
 
     def exec(self, query: str) -> PGresult:
         """

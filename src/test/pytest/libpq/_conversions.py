@@ -113,18 +113,22 @@ def _convert_pg_value(value: str, type_oid: int) -> Any:
     Convert PostgreSQL string value to appropriate Python type based on OID.
     Uses the registered type converters from register_type_info().
     """
+    return _converter_for_oid(type_oid)(value)
+
+
+def _converter_for_oid(type_oid: int) -> Callable[[str], Any]:
+    """
+    Resolve the converter function for a column's type OID once, so callers
+    that convert many cells of the same column (e.g. ``PGresult.fetch_all``)
+    don't repeat the array/registry lookup per cell.
+    """
     # Check if it's an array type
-    if type_oid in _array_to_elem_map:
-        elem_oid = _array_to_elem_map[type_oid]
-        return _parse_array(value, elem_oid)
+    elem_oid = _array_to_elem_map.get(type_oid)
+    if elem_oid is not None:
+        return lambda value: _parse_array(value, elem_oid)
 
-    # Use registered converter if available
-    converter = _type_converters.get(type_oid)
-    if converter:
-        return converter(value)
-
-    # Unknown types - return as string
-    return value
+    # Use registered converter if available, else return as string unchanged
+    return _type_converters.get(type_oid, str)
 
 
 def simplify_query_results(results: list[tuple[Any, ...]]) -> Any:
