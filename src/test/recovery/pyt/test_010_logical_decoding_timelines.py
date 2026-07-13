@@ -60,7 +60,7 @@ def test_logical_decoding_timelines(create_pg):
         # only way to get a logical slot on a standby is the same physical-copy
         # trick.
         pconn.sql("CREATE DATABASE dropme")
-        primary.sql(
+        primary.sql_oneshot(
             "SELECT pg_create_logical_replication_slot('dropme_slot', 'test_decoding')",
             dbname="dropme",
         )

@@ -67,16 +67,16 @@ def test_relfilenode_reuse(create_pg):
         psql_standby.sql(EVICT)
 
     def verify(counter, message):
-        assert primary.sql(GROUP_QUERY, dbname="conflict_db") == (str(counter), 4000), (
+        assert primary.sql_oneshot(GROUP_QUERY, dbname="conflict_db") == (str(counter), 4000), (
             f"primary: {message}"
         )
         primary.wait_for_catchup(standby)
-        assert standby.sql(GROUP_QUERY, dbname="conflict_db") == (str(counter), 4000), (
+        assert standby.sql_oneshot(GROUP_QUERY, dbname="conflict_db") == (str(counter), 4000), (
             f"standby: {message}"
         )
 
     # Dirty lots of rows, then do work in another database to write them back.
-    primary.sql("UPDATE large SET datab = 1", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 1", dbname="conflict_db")
     cause_eviction()
 
     # Drop and recreate the database, reusing OID 50001.
@@ -84,28 +84,28 @@ def test_relfilenode_reuse(create_pg):
     primary.sql("CREATE DATABASE conflict_db TEMPLATE conflict_db_template OID = 50001")
     verify(1, "initial contents as expected")
 
-    primary.sql("UPDATE large SET datab = 2", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 2", dbname="conflict_db")
     cause_eviction()
     verify(2, "update to reused relfilenode (due to DB oid conflict) is not lost")
 
-    primary.sql("VACUUM FULL large", dbname="conflict_db")
-    primary.sql("UPDATE large SET datab = 3", dbname="conflict_db")
+    primary.sql_oneshot("VACUUM FULL large", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 3", dbname="conflict_db")
     verify(3, "restored contents as expected")
 
     # Old filehandles after moving a database in/out of a tablespace.
     primary.sql("CREATE TABLESPACE test_tablespace LOCATION ''")
-    primary.sql("UPDATE large SET datab = 4", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 4", dbname="conflict_db")
     cause_eviction()
     primary.sql("ALTER DATABASE conflict_db SET TABLESPACE test_tablespace")
     primary.sql("ALTER DATABASE conflict_db SET TABLESPACE pg_default")
-    primary.sql("UPDATE large SET datab = 5", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 5", dbname="conflict_db")
     cause_eviction()
     verify(5, "post move contents as expected")
 
     primary.sql("ALTER DATABASE conflict_db SET TABLESPACE test_tablespace")
-    primary.sql("UPDATE large SET datab = 7", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 7", dbname="conflict_db")
     cause_eviction()
-    primary.sql("UPDATE large SET datab = 8", dbname="conflict_db")
+    primary.sql_oneshot("UPDATE large SET datab = 8", dbname="conflict_db")
     primary.sql("DROP DATABASE conflict_db")
     primary.sql("DROP TABLESPACE test_tablespace")
     primary.sql("REINDEX TABLE pg_database")

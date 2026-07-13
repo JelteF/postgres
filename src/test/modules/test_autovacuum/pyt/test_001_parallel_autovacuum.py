@@ -47,9 +47,13 @@ def test_parallel_autovacuum(create_pg):
             conn.sql(f"CREATE INDEX idx_col_{i} ON test_autovac (col_{i})")
 
     def prepare(test_number):
-        # Disable autovacuum on the table and generate dead tuples.
+        # Disable autovacuum on the table and generate dead tuples. The
+        # dead-tuple counts must reach the stats collector for autovacuum to
+        # notice them; a short-lived session would flush them on disconnect,
+        # but node.sql() keeps its session alive, so force the flush.
         node.sql("ALTER TABLE test_autovac SET (autovacuum_enabled = false)")
         node.sql(f"UPDATE test_autovac SET col_1 = {test_number}")
+        node.sql("SELECT pg_stat_force_next_flush()")
 
     # Test 1: the table can be autovacuumed in parallel.
     prepare(1)

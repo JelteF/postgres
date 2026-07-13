@@ -93,8 +93,8 @@ def test_generated(create_pg):
             f"CREATE SUBSCRIPTION regress_sub1_gen_to_nogen CONNECTION '{connstr}' "
             "PUBLICATION regress_pub1_gen_to_nogen WITH (copy_data = true)"
         )
-    subscriber.sql("CREATE TABLE tab_gen_to_nogen (a int, b int)", dbname="test_pgc_true")
-    subscriber.sql(
+    subscriber.sql_oneshot("CREATE TABLE tab_gen_to_nogen (a int, b int)", dbname="test_pgc_true")
+    subscriber.sql_oneshot(
         f"CREATE SUBSCRIPTION regress_sub2_gen_to_nogen CONNECTION '{connstr}' "
         "PUBLICATION regress_pub2_gen_to_nogen WITH (copy_data = true)",
         dbname="test_pgc_true",
@@ -108,7 +108,7 @@ def test_generated(create_pg):
     assert subscriber.sql("SELECT a, b FROM tab_gen_to_nogen ORDER BY a") == [
         (1, None), (2, None), (3, None)
     ], "tab_gen_to_nogen initial sync, publish_generated_columns=none"
-    assert subscriber.sql(
+    assert subscriber.sql_oneshot(
         "SELECT a, b FROM tab_gen_to_nogen ORDER BY a", dbname="test_pgc_true"
     ) == [(1, 2), (2, 4), (3, 6)], (
         "tab_gen_to_nogen initial sync, publish_generated_columns=stored"
@@ -120,19 +120,19 @@ def test_generated(create_pg):
         (1, None), (2, None), (3, None), (4, None), (5, None)
     ], "tab_gen_to_nogen incremental, publish_generated_columns=none"
     publisher.wait_for_catchup("regress_sub2_gen_to_nogen")
-    assert subscriber.sql(
+    assert subscriber.sql_oneshot(
         "SELECT a, b FROM tab_gen_to_nogen ORDER BY a", dbname="test_pgc_true"
     ) == [(1, 2), (2, 4), (3, 6), (4, 8), (5, 10)], (
         "tab_gen_to_nogen incremental, publish_generated_columns=stored"
     )
 
     subscriber.sql("DROP SUBSCRIPTION regress_sub1_gen_to_nogen")
-    subscriber.sql("DROP SUBSCRIPTION regress_sub2_gen_to_nogen", dbname="test_pgc_true")
+    subscriber.sql_oneshot("DROP SUBSCRIPTION regress_sub2_gen_to_nogen", dbname="test_pgc_true")
     publisher.sql_batch(
         "DROP PUBLICATION regress_pub1_gen_to_nogen",
         "DROP PUBLICATION regress_pub2_gen_to_nogen",
     )
-    subscriber.sql("DROP table tab_gen_to_nogen", dbname="test_pgc_true")
+    subscriber.sql_oneshot("DROP table tab_gen_to_nogen", dbname="test_pgc_true")
     subscriber.sql("DROP DATABASE test_pgc_true")
 
     # --- column list takes precedence over publish_generated_columns=none ----

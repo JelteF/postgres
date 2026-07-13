@@ -50,12 +50,16 @@ def test_effective_wal_level(create_pg):
     # delegates disabling it to the checkpointer.
     enable_msg = "logical decoding is enabled upon creating a new logical replication slot"
     offset = primary.current_log_position()
-    primary.sql(
-        "SELECT pg_create_logical_replication_slot('test_tmp_slot', 'test_decoding', true)"
-    )
-    assert enable_msg in primary.log_since(offset), (
-        "logical decoding enabled upon creating a temp slot"
-    )
+    # The temporary slot lives until its session ends, so create it on an
+    # explicit connection whose lifetime we control; node.sql() would keep the
+    # slot alive as long as the node's cached connection.
+    with primary.connect() as conn:
+        conn.sql(
+            "SELECT pg_create_logical_replication_slot('test_tmp_slot', 'test_decoding', true)"
+        )
+        assert enable_msg in primary.log_since(offset), (
+            "logical decoding enabled upon creating a temp slot"
+        )
     wait_logical_disabled(primary)
 
     # Logical decoding is also disabled again after a REPACK that used it.

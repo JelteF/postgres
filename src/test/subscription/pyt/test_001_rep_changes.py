@@ -367,8 +367,17 @@ def test_rep_changes(create_pg):
 
     # --- empty transaction optimization (DEBUG1) -----------------------------
     publisher.append_conf(log_min_messages="debug1")
-    publisher.pg_ctl("reload")
     log_location_pub = publisher.current_log_position()
+    publisher.pg_ctl("reload")
+    # The walsender only applies the new log_min_messages at its next main
+    # loop iteration; if the INSERT below is decoded before that, the DEBUG1
+    # "skipped replication" message is never logged. Wait for the reload to
+    # be processed before generating the empty transaction. (This race was
+    # previously hidden by the connection-setup latency of the fresh
+    # connection each sql() call used to open.)
+    publisher.wait_for_log(
+        'parameter "log_min_messages" changed to "debug1"', log_location_pub
+    )
 
     publisher.sql("INSERT INTO tab_notrep VALUES (11)")
     publisher.wait_for_catchup("tap_sub")

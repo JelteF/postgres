@@ -180,7 +180,7 @@ def test_vacuum_horizon_floor(create_pg):
 
     primary_lsn = primary.lsn("flush")
     # Make sure something causes us to flush.
-    primary.sql(f"INSERT INTO {TABLE} VALUES (1)", dbname=TEST_DB)
+    primary.sql_oneshot(f"INSERT INTO {TABLE} VALUES (1)", dbname=TEST_DB)
 
     # Nothing on the replica should cause a recovery conflict, so this finishes.
     primary.wait_for_catchup(replica, "replay", primary_lsn)

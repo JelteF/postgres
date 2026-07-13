@@ -17,22 +17,28 @@ def test_run_as_table_owner(create_pg):
     offset = 0
     perm_denied = r"ERROR: ( [A-Z0-9]+:)? permission denied for table unpartitioned"
 
+    # Each batch that runs as alice ends with a RESET: the batches share the
+    # node's cached default connection, so a SET SESSION AUTHORIZATION would
+    # otherwise leak into later sql()/sql_batch() calls on the same node.
     def publish_insert(tbl, new_i):
         publisher.sql_batch(
             "SET SESSION AUTHORIZATION regress_alice",
             f"INSERT INTO {tbl} (i) VALUES ({new_i})",
+            "RESET SESSION AUTHORIZATION",
         )
 
     def publish_update(tbl, old_i, new_i):
         publisher.sql_batch(
             "SET SESSION AUTHORIZATION regress_alice",
             f"UPDATE {tbl} SET i = {new_i} WHERE i = {old_i}",
+            "RESET SESSION AUTHORIZATION",
         )
 
     def publish_delete(tbl, old_i):
         publisher.sql_batch(
             "SET SESSION AUTHORIZATION regress_alice",
             f"DELETE FROM {tbl} WHERE i = {old_i}",
+            "RESET SESSION AUTHORIZATION",
         )
 
     def expect_replication(tbl, cnt, mn, mx, name):
@@ -56,11 +62,13 @@ def test_run_as_table_owner(create_pg):
             "CREATE TABLE alice.unpartitioned (i INTEGER)",
             "ALTER TABLE alice.unpartitioned REPLICA IDENTITY FULL",
             "GRANT SELECT ON TABLE alice.unpartitioned TO regress_admin",
+            "RESET SESSION AUTHORIZATION",
         )
     publisher.sql_batch(
         "SET SESSION AUTHORIZATION regress_alice",
         "CREATE PUBLICATION alice FOR TABLE alice.unpartitioned "
         "WITH (publish_via_partition_root = true)",
+        "RESET SESSION AUTHORIZATION",
     )
     with subscriber.connect(user="regress_admin") as c:
         c.sql(
@@ -88,6 +96,7 @@ def test_run_as_table_owner(create_pg):
         "SET SESSION AUTHORIZATION regress_alice",
         "GRANT INSERT,UPDATE,DELETE ON alice.unpartitioned TO regress_admin",
         "REVOKE SELECT ON alice.unpartitioned FROM regress_admin",
+        "RESET SESSION AUTHORIZATION",
     )
     expect_replication("alice.unpartitioned", 3, 5, 9, "with INSERT privilege can replicate INSERT")
 
@@ -102,6 +111,7 @@ def test_run_as_table_owner(create_pg):
     subscriber.sql_batch(
         "SET SESSION AUTHORIZATION regress_alice",
         "GRANT SELECT ON alice.unpartitioned TO regress_admin",
+        "RESET SESSION AUTHORIZATION",
     )
     expect_replication("alice.unpartitioned", 2, 7, 11, "with all privileges can replicate")
 

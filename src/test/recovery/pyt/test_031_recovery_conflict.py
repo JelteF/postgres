@@ -90,7 +90,7 @@ def test_recovery_conflict(create_pg):
     assert res == 0, "buffer pin conflict: cursor with conflicting pin established"
 
     offset = standby.current_log_position()
-    primary.sql(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
+    primary.sql_oneshot(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
     # Existing connection is terminated before replay finishes, so waiting for
     # catchup avoids a race between the conflict disconnect and the log check.
     primary.wait_for_catchup(standby)
@@ -100,7 +100,7 @@ def test_recovery_conflict(create_pg):
 
     # RECOVERY CONFLICT 2: Snapshot conflict.
     expected_conflicts += 1
-    primary.sql(
+    primary.sql_oneshot(
         f"INSERT INTO {TABLE1} SELECT i, 0 FROM generate_series(1,20) i", dbname=TEST_DB
     )
     primary.wait_for_catchup(standby)
@@ -114,9 +114,9 @@ def test_recovery_conflict(create_pg):
     assert res == 0, "snapshot conflict: cursor with conflicting snapshot established"
 
     # HOT updates, then VACUUM FREEZE pruning those dead tuples.
-    primary.sql(f"UPDATE {TABLE1} SET a = a + 1 WHERE a > 2", dbname=TEST_DB)
+    primary.sql_oneshot(f"UPDATE {TABLE1} SET a = a + 1 WHERE a > 2", dbname=TEST_DB)
     offset = standby.current_log_position()
-    primary.sql(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
+    primary.sql_oneshot(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
     primary.wait_for_catchup(standby)
     standby.wait_for_log(
         "User query might have needed to see row versions that must be removed", offset
@@ -133,7 +133,7 @@ def test_recovery_conflict(create_pg):
     assert res == 1, "lock conflict: conflicting lock acquired"
 
     offset = standby.current_log_position()
-    primary.sql(f"DROP TABLE {TABLE1}", dbname=TEST_DB)
+    primary.sql_oneshot(f"DROP TABLE {TABLE1}", dbname=TEST_DB)
     primary.wait_for_catchup(standby)
     standby.wait_for_log("User was holding a relation lock for too long", offset)
     bg.close()
@@ -152,7 +152,7 @@ def test_recovery_conflict(create_pg):
     assert res == 6000, "tablespace conflict: cursor with conflicting temp file established"
 
     offset = standby.current_log_position()
-    primary.sql(f"DROP TABLESPACE {TABLESPACE1}", dbname=TEST_DB)
+    primary.sql_oneshot(f"DROP TABLESPACE {TABLESPACE1}", dbname=TEST_DB)
     primary.wait_for_catchup(standby)
     standby.wait_for_log(
         "User was or might have been using tablespace that must be dropped", offset
@@ -203,7 +203,7 @@ def test_recovery_conflict(create_pg):
         # VACUUM FREEZE prunes rows, causing a buffer pin conflict while the
         # standby session waits on the lock -> recovery deadlock.
         offset = standby.current_log_position()
-        primary.sql(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
+        primary.sql_oneshot(f"VACUUM FREEZE {TABLE1}", dbname=TEST_DB)
         primary.wait_for_catchup(standby)
         standby.wait_for_log(
             "User transaction caused buffer deadlock with recovery.", offset
@@ -220,13 +220,13 @@ def test_recovery_conflict(create_pg):
     check_conflict_stat("deadlock")
 
     # Clean up for the next tests.
-    primary.sql("ROLLBACK PREPARED 'lock'", dbname=TEST_DB)
+    primary.sql_oneshot("ROLLBACK PREPARED 'lock'", dbname=TEST_DB)
     standby.append_conf(max_standby_streaming_delay="50ms")
     standby.pg_ctl("restart")
 
     # Check the conflict count in pg_stat_database before the database is dropped.
     assert (
-        standby.sql(
+        standby.sql_oneshot(
             f"SELECT conflicts FROM pg_stat_database WHERE datname='{TEST_DB}'",
             dbname=TEST_DB,
         )

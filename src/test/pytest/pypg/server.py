@@ -18,7 +18,12 @@ from typing import Any
 from . import bins
 from ._env import test_timeout_default
 from .util import shell_path, wait_until
-from libpq import PGconn, connect as libpq_connect, connstr as libpq_connstr
+from libpq import (
+    LibpqError,
+    PGconn,
+    connect as libpq_connect,
+    connstr as libpq_connstr,
+)
 
 
 def _escape_conf_value(value: object) -> str:
@@ -160,6 +165,12 @@ class PostgresServer:
 
         # ExitStack for cleanup callbacks
         self._cleanup_stack = contextlib.ExitStack()
+
+        # Cached connection reused by sql() (see _get_default_conn). Closed
+        # (and reopened lazily on next use) whenever the server
+        # stops/restarts/reconfigures, or when
+        # a query on it turns out to have hit a dead connection.
+        self._default_conn: PGconn | None = None
 
         # Per-test config save/restore state (see _snapshot_conf_if_needed).
         # Tracking is only armed inside start_new_test(); config written during
@@ -365,6 +376,7 @@ class PostgresServer:
         restart, since a reload cannot undo a postmaster-level GUC. (A restart
         before any edit just re-reads the baseline, so it does not count.)
         """
+        self._close_default_conn()
         self.pg_ctl("restart", "--mode", mode)
         self.pid = self._read_postmaster_pid()
         if self._track_conf_changes and self._conf_snapshotted:
@@ -427,12 +439,26 @@ class PostgresServer:
         """Run psql with the given arguments."""
         bins.psql("-w", *args, server=self)
 
-    def sql(self, query: str, *params: Any, **connection_opts: Any) -> Any:
+    def sql(self, query: str, *params: Any) -> Any:
         """Execute a SQL query via libpq. Returns simplified results.
 
+        Runs on a cached "default" connection that is reused across calls (see
+        ``_run_on_default_conn``) instead of paying for a fresh connect() every
+        time. Session state therefore persists between calls; use
+        ``sql_oneshot()`` or an explicit ``connect()`` when the query needs a
+        fresh session or non-default connection options.
+        """
+        return self._run_on_default_conn(lambda conn: conn.sql(query, *params))
+
+    def sql_oneshot(self, query: str, *params: Any, **connection_opts: Any) -> Any:
+        """Execute a SQL query on a fresh, single-use connection.
+
         Any keyword arguments are passed through to ``connect()`` as connection
-        options, e.g. ``sql(q, dbname="mydb")`` or
-        ``sql(q, application_name="probe")``.
+        options, e.g. ``sql_oneshot(q, dbname="mydb")``. Use this over ``sql()``
+        when the query must run in its own session: connecting as another
+        user/database, or when the disconnect itself matters (temporary slots
+        or objects dropped at session end, stats flushed on exit, picking up a
+        reloaded setting immediately, ...).
         """
         with self.connect(**connection_opts) as conn:
             return conn.sql(query, *params)
@@ -444,9 +470,71 @@ class PostgresServer:
 
         Any keyword arguments are passed through to ``connect()`` as connection
         options (see ``sql``).
+
+        Unlike ``sql()`` this always opens a fresh connection: a batch's
+        typical reason to exist is setting up session state for its final
+        statement (``SET ROLE; UPDATE ...``), so running it on the shared
+        cached connection would leak that state into every later ``sql()``
+        call on the node.
         """
         with self.connect(**connection_opts) as conn:
             return conn.sql_batch(*queries)
+
+    def _get_default_conn(self) -> PGconn:
+        """Return the cached connection used by sql()/sql_batch() when called
+        without connection_opts, opening it lazily on first use.
+
+        The connection is registered in whatever cleanup stack was current
+        when it was opened, so a per-test subcontext exiting may close it
+        behind our back; connection_ok() catches that (closed handle) as well
+        as a connection known to be dead, and we simply reopen."""
+        if self._default_conn is None or not self._default_conn.connection_ok():
+            self._close_default_conn()
+            self._default_conn = self.connect()
+        return self._default_conn
+
+    def _close_default_conn(self) -> None:
+        """Close and forget the cached default connection, if any.
+
+        Called whenever the server stops/restarts/reconfigures (the cached
+        session would otherwise outlive the backend it was talking to), and
+        internally when a query on it turns out to have hit a dead connection.
+        """
+        if self._default_conn is not None:
+            self._default_conn.close()
+            self._default_conn = None
+
+    def _run_on_default_conn(self, run: Any) -> Any:
+        """Run ``run(conn)`` against the cached default connection, reusing it
+        across calls instead of reconnecting every time (profiling showed
+        per-call connection setup is a real cost when a test calls sql() a lot).
+
+        Two consequences of the reuse:
+
+        - Session state (SET, temp objects, prepared statements) now persists
+          across sql() calls on the same node, unlike the old
+          fresh-connection-per-call behavior. Tests that need an isolated or
+          deliberately-configured session should use node.connect() and run
+          their statements on that connection.
+        - If the backend died under us (a test terminating backends, a crash,
+          a restart this class didn't perform itself), the query fails with a
+          connection-level error rather than a SQL error. That case is
+          detected via the connection's status (not by pattern-matching the
+          error message) and handled by transparently reconnecting once and
+          retrying; a real SQL error (constraint violation, syntax error, ...)
+          leaves the connection OK and always propagates unchanged, since
+          tests rely on pytest.raises matching it.
+        """
+        conn = self._get_default_conn()
+        try:
+            return run(conn)
+        except LibpqError:
+            if conn.connection_ok():
+                raise
+            # The connection died mid-query; reconnect once and retry. A
+            # second failure propagates as-is.
+            self._close_default_conn()
+            return run(self._get_default_conn())
 
     def append_conf(self, **gucs: object) -> None:
         """Append GUC settings to postgresql.conf.
@@ -1023,6 +1111,7 @@ class PostgresServer:
 
         Ignores failures if the server is already stopped.
         """
+        self._close_default_conn()
         try:
             self.pg_ctl("stop", "--mode", mode)
         except subprocess.CalledProcessError:
@@ -1097,6 +1186,7 @@ class PostgresServer:
 
     def cleanup(self) -> None:
         """Run all registered cleanup callbacks."""
+        self._close_default_conn()
         self._cleanup_stack.close()
 
     def connect(self, **opts: Any) -> PGconn:

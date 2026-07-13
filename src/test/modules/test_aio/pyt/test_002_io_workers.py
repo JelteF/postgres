@@ -42,7 +42,11 @@ def test_io_workers_dynamic(create_pg):
     for count in WORKER_COUNTS:
         node.sql(f"ALTER SYSTEM SET io_min_workers = {count}")
         node.sql("SELECT pg_reload_conf()")
-        assert node.sql("SHOW io_min_workers") == str(count)
+        # A backend only applies the reloaded value when it processes the
+        # SIGHUP, which races with an immediate SHOW on an already-open
+        # session (a fresh connection would always start with the new value),
+        # so poll instead of asserting once.
+        node.poll_query_until("SHOW io_min_workers", expected=str(count))
 
         # The pool reaches the requested size, ...
         node.poll_query_until(IO_WORKER_COUNT, expected=count)

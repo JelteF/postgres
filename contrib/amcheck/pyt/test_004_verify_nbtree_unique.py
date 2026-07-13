@@ -103,12 +103,22 @@ CREATE UNIQUE INDEX bttest_unique_idx3 ON bttest_unique3
 CHECK = "SELECT bt_index_check('{}', true, true)"
 
 
+def check_index(node, index):
+    """Run bt_index_check on a *fresh* connection. The pg_amproc swaps below
+    are direct catalog UPDATEs that don't invalidate an existing session's
+    relcache entry for the index, so a session that already used the index
+    would keep validating with the old comparison function and miss the
+    corruption; a new backend rebuilds the entry from the updated catalog."""
+    with node.connect() as conn:
+        conn.sql(CHECK.format(index))
+
+
 def test_verify_nbtree_unique(create_pg):
     node = create_pg("test", conf={"autovacuum": False})
     node.sql_batch(SETUP)
 
     # Test 1: not yet broken, so no corruption.
-    node.sql(CHECK.format("bttest_unique_idx1"))
+    check_index(node, "bttest_unique_idx1")
 
     # Swap in a comparison function that treats some distinct values as equal.
     node.sql(
@@ -118,7 +128,7 @@ def test_verify_nbtree_unique(create_pg):
     with pytest.raises(
         LibpqError, match='index uniqueness is violated for index "bttest_unique_idx1"'
     ):
-        node.sql(CHECK.format("bttest_unique_idx1"))
+        check_index(node, "bttest_unique_idx1")
 
     # Test 2: index built under a bad cmp; first an item-order violation, then a
     # uniqueness violation once the comparison function is corrected.
@@ -126,7 +136,7 @@ def test_verify_nbtree_unique(create_pg):
         LibpqError,
         match='item order invariant violated for index "bttest_unique_idx2"',
     ):
-        node.sql(CHECK.format("bttest_unique_idx2"))
+        check_index(node, "bttest_unique_idx2")
 
     node.sql(
         "UPDATE pg_catalog.pg_amproc SET amproc = 'ok_cmp2'::regproc "
@@ -135,14 +145,14 @@ def test_verify_nbtree_unique(create_pg):
     with pytest.raises(
         LibpqError, match='index uniqueness is violated for index "bttest_unique_idx2"'
     ):
-        node.sql(CHECK.format("bttest_unique_idx2"))
+        check_index(node, "bttest_unique_idx2")
 
     # Test 3: same as test 2 but with deduplication on.
     with pytest.raises(
         LibpqError,
         match='item order invariant violated for index "bttest_unique_idx3"',
     ):
-        node.sql(CHECK.format("bttest_unique_idx3"))
+        check_index(node, "bttest_unique_idx3")
 
     # Create posting-list entries with equal values but different visibility,
     # so deduplication kicks in for the unique index.
@@ -164,4 +174,4 @@ def test_verify_nbtree_unique(create_pg):
     with pytest.raises(
         LibpqError, match='index uniqueness is violated for index "bttest_unique_idx3"'
     ):
-        node.sql(CHECK.format("bttest_unique_idx3"))
+        check_index(node, "bttest_unique_idx3")

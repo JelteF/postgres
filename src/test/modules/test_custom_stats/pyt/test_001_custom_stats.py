@@ -38,6 +38,11 @@ def test_custom_stats(create_pg):
         node.sql(f"SELECT test_custom_stats_var_update('{entry}')")
     for _ in range(3):
         node.sql("SELECT test_custom_stats_fixed_update()")
+    # Pending stats only reach shared memory when the updating backend flushes
+    # them. A short-lived session would flush on disconnect, but node.sql()
+    # keeps its session alive, so force the flush before reading the reports.
+    flush = "SELECT pg_stat_force_next_flush()"
+    node.sql(flush)
 
     def var_report(entry):
         return node.sql(f"SELECT * FROM test_custom_stats_var_report('{entry}')")
@@ -50,8 +55,10 @@ def test_custom_stats(create_pg):
 
     # Dropping variable-sized stats removes the entry.
     node.sql("SELECT * FROM test_custom_stats_var_drop('entry3')")
+    node.sql(flush)
     assert var_report("entry3") == []
     node.sql("SELECT * FROM test_custom_stats_var_drop('entry4')")
+    node.sql(flush)
     assert var_report("entry4") == []
 
     # Persistence across a clean restart.
@@ -78,6 +85,7 @@ def test_custom_stats(create_pg):
     # Manual reset of fixed-sized stats.
     for _ in range(3):
         node.sql("SELECT test_custom_stats_fixed_update()")
+    node.sql(flush)
     assert node.sql("SELECT numcalls FROM test_custom_stats_fixed_report()") == 3
     node.sql("SELECT test_custom_stats_fixed_reset()")
     assert (

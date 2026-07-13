@@ -67,4 +67,4 @@ def test_clusterdb_all_specific_table(pg):
             clusterdb("--all", "--table", "test1", server=pg)
     finally:
         pg.sql("DROP TABLE test1")
-        pg.sql("DROP TABLE test1", dbname="template1")
+        pg.sql_oneshot("DROP TABLE test1", dbname="template1")

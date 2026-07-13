@@ -403,7 +403,7 @@ def test_conflicts(create_pg):
     # isolated database so the bulk move only touches the objects created
     # here.
     subscriber.sql("CREATE DATABASE clt_ts_test")
-    subscriber.sql(
+    subscriber.sql_oneshot(
         "CREATE SUBSCRIPTION sub_ts_test "
         "CONNECTION 'dbname=nonexistent' PUBLICATION pub "
         "WITH (connect=false, conflict_log_destination='table')",
@@ -412,7 +412,7 @@ def test_conflicts(create_pg):
 
     # A plain user table that should be moved, alongside the CLT that must not
     # be.
-    subscriber.sql("CREATE TABLE user_tbl (i int)", dbname="clt_ts_test")
+    subscriber.sql_oneshot("CREATE TABLE user_tbl (i int)", dbname="clt_ts_test")
 
     # Create a tablespace backed by a directory inside the data dir.
     ts_dir = subscriber.datadir / "backup_space"
@@ -421,17 +421,17 @@ def test_conflicts(create_pg):
 
     # The bulk move succeeds: the user table is relocated while the CLT is
     # skipped.
-    subscriber.sql(
+    subscriber.sql_oneshot(
         "ALTER TABLE ALL IN TABLESPACE pg_default SET TABLESPACE backup_space",
         dbname="clt_ts_test",
     )
 
-    assert subscriber.sql(
+    assert subscriber.sql_oneshot(
         "SELECT reltablespace <> 0 FROM pg_class WHERE relname = 'user_tbl'",
         dbname="clt_ts_test",
     ) is True, "ALTER TABLE ALL IN TABLESPACE moves an ordinary user table"
 
-    assert subscriber.sql(
+    assert subscriber.sql_oneshot(
         "SELECT count(*) FROM pg_class c JOIN pg_subscription s "
         "ON c.relname = 'pg_conflict_log_' || s.oid "
         "WHERE s.subname = 'sub_ts_test' AND c.reltablespace <> 0",
@@ -440,10 +440,10 @@ def test_conflicts(create_pg):
 
     # Cleanup. The subscription has no real publisher connection, so detach
     # its slot before dropping it.
-    subscriber.sql("ALTER SUBSCRIPTION sub_ts_test DISABLE", dbname="clt_ts_test")
-    subscriber.sql(
+    subscriber.sql_oneshot("ALTER SUBSCRIPTION sub_ts_test DISABLE", dbname="clt_ts_test")
+    subscriber.sql_oneshot(
         "ALTER SUBSCRIPTION sub_ts_test SET (slot_name = NONE)", dbname="clt_ts_test"
     )
-    subscriber.sql("DROP SUBSCRIPTION sub_ts_test", dbname="clt_ts_test")
+    subscriber.sql_oneshot("DROP SUBSCRIPTION sub_ts_test", dbname="clt_ts_test")
     subscriber.sql("DROP DATABASE clt_ts_test")
     subscriber.sql("DROP TABLESPACE backup_space")

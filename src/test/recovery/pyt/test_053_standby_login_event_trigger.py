@@ -33,7 +33,7 @@ def test_standby_login_event_trigger(create_pg):
 
     # Sanity check: the standby can connect to the new database before the
     # trigger machinery has touched it.
-    standby.sql("SELECT 1", dbname="regress_login_evt")
+    standby.sql_oneshot("SELECT 1", dbname="regress_login_evt")
 
     # Create and drop a login event trigger inside the dedicated database in a
     # single session.  CREATE EVENT TRIGGER sets pg_database.dathasloginevt =
@@ -71,7 +71,7 @@ def test_standby_login_event_trigger(create_pg):
     # EventTriggerOnLogin()'s cleanup branch.  With the RecoveryInProgress()
     # guard it succeeds; without it the session aborts with a FATAL about
     # AccessExclusiveLock.
-    standby.sql("SELECT 1", dbname="regress_login_evt")
+    standby.sql_oneshot("SELECT 1", dbname="regress_login_evt")
 
     # Finally exercise the primary-side cleanup that the standby is meant to
     # defer to.  Opening a fresh session against regress_login_evt on the
@@ -81,7 +81,7 @@ def test_standby_login_event_trigger(create_pg):
     # but does not assign an xid or write a commit record, so the WAL is not
     # auto-flushed -- force a flush via pg_switch_wal() so the record reaches
     # the standby.
-    primary.sql("SELECT 1", dbname="regress_login_evt")
+    primary.sql_oneshot("SELECT 1", dbname="regress_login_evt")
     assert primary.sql(flag) is False, (
         "primary clears dathasloginevt on next login after DROP"
     )

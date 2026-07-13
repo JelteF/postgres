@@ -10,10 +10,10 @@ def test_late_shmem_alloc(create_pg):
     # rather than via shared_preload_libraries.
     node.sql("CREATE EXTENSION test_shmem;")
 
-    # Each sql() opens a fresh connection (a new backend), so the per-backend
-    # attach callback should increment the counter each time.
-    attach_count1 = node.sql("SELECT get_test_shmem_attach_count();")
-    attach_count2 = node.sql("SELECT get_test_shmem_attach_count();")
+    # Each sql_oneshot() opens a fresh connection (a new backend), so the
+    # per-backend attach callback should increment the counter each time.
+    attach_count1 = node.sql_oneshot("SELECT get_test_shmem_attach_count();")
+    attach_count2 = node.sql_oneshot("SELECT get_test_shmem_attach_count();")
     assert attach_count2 > attach_count1, "attach callback is called in each backend"
 
     # Loading via shared_preload_libraries instead.
@@ -23,8 +23,8 @@ def test_late_shmem_alloc(create_pg):
     # When preloaded, whether the attach callback runs per backend depends on
     # whether this is an EXEC_BACKEND build.
     exec_backend = node.sql("SHOW debug_exec_backend;") == "on"
-    attach_count1 = node.sql("SELECT get_test_shmem_attach_count();")
-    attach_count2 = node.sql("SELECT get_test_shmem_attach_count();")
+    attach_count1 = node.sql_oneshot("SELECT get_test_shmem_attach_count();")
+    attach_count2 = node.sql_oneshot("SELECT get_test_shmem_attach_count();")
     if exec_backend:
         assert attach_count2 > attach_count1, (
             "attach callback is called in each backend when loaded via"

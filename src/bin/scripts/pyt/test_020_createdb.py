@@ -227,7 +227,7 @@ def test_createdb_template_and_strategy(pg):
         createdb("--locale", "C", "--template", "foobar2", "foobar3", server=pg)
 
     # The shared dependencies must have been copied into the cloned database.
-    shdepend = pg.sql(
+    shdepend = pg.sql_oneshot(
         "SELECT pg_describe_object(classid, objid, objsubid) AS obj,"
         "       pg_describe_object(refclassid, refobjid, 0) AS refobj"
         "   FROM pg_shdepend s JOIN pg_database d ON (d.oid = s.dbid)"
