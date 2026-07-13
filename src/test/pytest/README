@@ -123,7 +123,7 @@ Server configuration is changed by editing the config files and then
 reloading (or restarting) the server:
 
     pg.append_conf(log_connections="all")   # append a setting
-    pg.adjust_conf("work_mem", "4MB")        # replace any existing line(s)
+    pg.adjust_conf(work_mem="4MB")           # replace any existing line(s)
     pg.pg_ctl("reload")                      # or pg.pg_ctl("restart")
 
 Both helpers quote and escape values for postgresql.conf automatically, and
