@@ -196,7 +196,36 @@ class PostgresServer:
         elif (initdb_template := os.environ.get("INITDB_TEMPLATE")) and (
             not initdb_opts and os.path.isdir(initdb_template)
         ):
-            shutil.copytree(initdb_template, datadir)
+            # EXPERIMENT: instead of copying the template, mount an overlayfs
+            # with the template as the read-only lower layer, making datadir
+            # creation O(1) in the number of template files. Requires a
+            # sudoers rule allowing mount/umount, so it's opt-in via env var.
+            if os.environ.get("PG_TEST_OVERLAY_DATADIR"):
+                upper = datadir.parent / (datadir.name + ".upper")
+                work = datadir.parent / (datadir.name + ".work")
+                os.makedirs(upper)
+                os.makedirs(work)
+                os.makedirs(datadir)
+                subprocess.run(
+                    [
+                        "sudo", "-n", "mount", "-t", "overlay", "overlay",
+                        "-o",
+                        f"lowerdir={initdb_template},upperdir={upper},workdir={work}",
+                        str(datadir),
+                    ],
+                    check=True,
+                )
+                # Unmount at teardown. The server's stop callback is
+                # registered later on the same stack, so it runs first
+                # (LIFO); lazy unmount in case something still holds it.
+                self._cleanup_stack.callback(
+                    lambda: subprocess.run(
+                        ["sudo", "-n", "umount", "-l", str(datadir)], check=False
+                    )
+                )
+                os.chmod(datadir, 0o700)
+            else:
+                shutil.copytree(initdb_template, datadir)
         else:
             if platform.system() == "Windows":
                 auth_method = "trust"

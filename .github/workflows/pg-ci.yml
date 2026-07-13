@@ -672,8 +672,20 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
+      # EXPERIMENT: let the test framework mount per-datadir overlayfs with
+      # the initdb template as lower layer (PG_TEST_OVERLAY_DATADIR), to
+      # measure whether O(1) datadir creation helps. Needs mount/umount via
+      # sudo for the unprivileged postgres user.
+      - name: Allow postgres to mount overlays
+        run: |
+          apt-get -qq update && apt-get -qq install -y sudo
+          echo 'postgres ALL=(root) NOPASSWD: /usr/bin/mount, /usr/bin/umount' > /etc/sudoers.d/pgtest-overlay
+          chmod 440 /etc/sudoers.d/pgtest-overlay
+
       - name: Test world
         shell: *su_postgres_shell
+        env:
+          PG_TEST_OVERLAY_DATADIR: "1"
         run: *meson_test_world_cmd
 
       - *linux_collect_cores_step
