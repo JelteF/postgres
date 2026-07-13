@@ -81,6 +81,13 @@ returncode = sp.wait()
 if returncode == 0:
     print('# test succeeded')
     open(os.path.join(testdir, 'test.success'), 'x')
+    # The Perl test framework removes a node's data directory when its test
+    # passes (unless PG_TEST_NOCLEAN is set); the pytest framework relies on
+    # this cleanup instead. Without it a full test run leaves many gigabytes
+    # of passed-test cluster data behind, which both wastes space and, on CI,
+    # can fill the runner's disk. Logs are always kept.
+    if 'PG_TEST_NOCLEAN' not in env_dict:
+        shutil.rmtree(os.path.join(testdir, 'data'), ignore_errors=True)
 else:
     print('# test failed')
     open(os.path.join(testdir, 'test.fail'), 'x')
