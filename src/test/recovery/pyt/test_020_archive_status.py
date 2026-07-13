@@ -154,10 +154,19 @@ def test_archive_status(create_pg):
         ".done files created after archive success with archive_mode=always on standby"
     )
 
-    # The shell archive module's shutdown callback runs on archiver shutdown.
+    # The shell archive module's shutdown callback runs on archiver shutdown,
+    # but its message is DEBUG1, so the archiver must have processed the SIGHUP
+    # for the new log_min_messages before the shutdown reaches it. Waiting for
+    # the parameter-change log line confirms the postmaster has broadcast the
+    # SIGHUP to its children; the Perl test relied on psql startup latency to
+    # paper over this race.
+    reload_offset = standby2.current_log_position()
     standby2.append_conf(log_min_messages="debug1")
     standby2.pg_ctl("reload")
-    standby2.sql("SELECT 1")  # ensure the reload took effect
+    standby2.wait_for_log(
+        'parameter "log_min_messages" changed to "debug1"', reload_offset
+    )
+    standby2.sql("SELECT 1")  # ensure the reload took effect in our session too
     log_offset = standby2.current_log_position()
     standby2.stop()
     assert "archiver process shutting down" in standby2.log_since(log_offset), (

@@ -102,7 +102,7 @@ def capture(
 def wait_until(
     error_message: str = "Did not complete",
     timeout: float = 5,
-    interval: float = 0.1,
+    interval: float | None = None,
 ) -> Iterator[None]:
     """
     Loop until the timeout is reached. If the timeout is reached, raise an
@@ -113,15 +113,25 @@ def wait_until(
         for _ in wait_until("standby did not catch up", timeout=60):
             if standby.sql("SELECT ...") == expected:
                 break
+
+    By default the sleep between attempts starts at 1ms and doubles up to
+    100ms: most conditions polled in tests become true almost immediately, and
+    a fixed 100ms interval wastes on average half of it per wait — which adds
+    up over the hundreds of waits in a suite — while the backoff keeps
+    long waits as cheap as a fixed interval. Pass ``interval`` to poll at a
+    fixed rate instead (e.g. when each attempt is itself expensive).
     """
     start = time.time()
     end = start + timeout
     last_printed_progress = start
+    sleep_for = interval if interval is not None else 0.001
     while time.time() < end:
         if timeout > 5 and time.time() - last_printed_progress > 5:
             last_printed_progress = time.time()
             print(f"{error_message} in {time.time() - start} seconds - will retry")
         yield
-        time.sleep(interval)
+        time.sleep(sleep_for)
+        if interval is None:
+            sleep_for = min(sleep_for * 2, 0.1)
 
     raise TimeoutError(error_message + " in time")
