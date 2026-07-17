@@ -10,10 +10,19 @@ name: CI for PostgreSQL
 
 on:
   push:
-  # TODO: It might make sense to also add PR based triggers, to make it easier
-  # to use PRs on one's own repo, but it's a tad more complicated than just
-  # adding the 'pull_request' event, as naively doing so would often lead to
-  # running CI twice.
+  # A pull_request run can, unlike a push run, restore caches created on the
+  # PR's base branch. That makes opening a PR within one's own repository
+  # useful when working on top of a branch other than the default one (e.g.
+  # when backpatching), as the base branch's ccache is shared that way. See
+  # CACHE_PREFIX_BRANCH below.
+  #
+  # Once a branch has an open PR in the same repository, each push to it
+  # triggers both a push and a pull_request run. To avoid running CI twice,
+  # the `setup` job detects that case and disables all jobs of the push run,
+  # in favor of the strictly more useful pull_request run. A push run that
+  # is already executing when the PR is opened is cancelled by the
+  # companion workflow pg-ci-cancel-superseded.yml instead.
+  pull_request:
 
 # Restrict GITHUB_TOKEN to the minimum the jobs need: reading repo
 # contents during checkout.
@@ -26,8 +35,18 @@ concurrency:
   # neither want to wait for prior runs, nor to cancel them, so that each
   # separately pushed commit is tested.  We achieve that by setting a unique
   # concurrency group when on such a branch.
+  #
+  # For pull_request runs github.ref is the PR's merge ref
+  # (refs/pull/<nr>/merge), so each PR gets its own group, like a branch.
+  # This group intentionally never mixes push and pull_request runs;
+  # deduplication between those happens through the skip check in the
+  # `setup` job and through pg-ci-cancel-superseded.yml, which deliberately
+  # enters a push run's group to cancel it. The group uses a hardcoded
+  # 'pg-ci' prefix rather than the workflow name, so that renaming the
+  # workflow can't silently break that; changing the group's format still
+  # requires adjusting pg-ci-cancel-superseded.yml too.
   group: |
-    ${{github.workflow }}-${{
+    pg-ci-${{
     case(github.ref == 'refs/heads/master' ||
          (startsWith(github.ref, 'refs/heads/REL_') && endsWith(github.ref, '_STABLE')),
          github.run_id,
@@ -134,15 +153,26 @@ env:
   # A few variables to make expressions later on shorter
   ###
 
+  # Used by gha_ccache_decide.py to pick the target cache hit rate. This is
+  # intentionally false for pull_request runs, even those targeting the
+  # default branch: caches saved by a pull_request run are only restorable
+  # by later runs of the same PR, they are not shared with everything the
+  # way caches created on the default branch itself are.
   ON_DEFAULT_BRANCH: ${{github.event.repository.default_branch == github.ref_name }}
 
   # Note that we need to be careful to use a separator that can't be in branch
   # names, otherwise e.g. caches for 'master' might be restored on the
   # 'master-pending' branch.
+  #
+  # For pull_request runs use the PR's base branch instead of
+  # github.ref_name: the latter would be the meaningless "<nr>/merge", and
+  # the base branch's caches are exactly the ones a pull_request run is
+  # additionally permitted to restore (the reason to use PR based CI in the
+  # first place, see `on:` above).
   CACHE_PREFIX_DEFAULT: >-
     :${{ github.job }}:${{ github.event.repository.default_branch }}:
   CACHE_PREFIX_BRANCH: >-
-    :${{ github.job }}:${{ github.ref_name }}:
+    :${{ github.job }}:${{ github.base_ref || github.ref_name }}:
   CACHE_SUFFIX: >-
     ${{ github.run_id }}:${{ github.run_attempt }}
 
@@ -193,7 +223,13 @@ jobs:
     # if, none of it's depending tasks (i.e. the actual CI tasks) run either.
     if: ${{vars.PG_CI_ENABLED == '1'}}
     runs-on: *linux_runs_on
-    timeout-minutes: 1
+    # The duplicate-run check below needs to list the repository's pull
+    # requests. Job level permissions replace the workflow level ones
+    # entirely, so contents: read has to be repeated here.
+    permissions:
+      contents: read
+      pull-requests: read
+    timeout-minutes: 2
     outputs:
       linux: ${{ steps.os.outputs.linux }}
       macos: ${{ steps.os.outputs.macos }}
@@ -220,14 +256,63 @@ jobs:
           ulimit -a -H && ulimit -a -S
           env
 
+      # Detect whether this push run is superseded by a pull_request run,
+      # see the comment at `on:` for why. Pushes to the default branch and
+      # the stable branches are never superseded: PRs are not used to manage
+      # those, and their runs create the caches other branches build on.
+      - name: Check for a superseding pull_request run
+        id: dup
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        shell: bash
+        run: |
+          skip=false
+          case "$GITHUB_REF_NAME" in
+            "$DEFAULT_BRANCH" | REL_*_STABLE)
+              ;;
+            *)
+              # Only PRs whose head branch is in this repository trigger
+              # pull_request runs of this workflow, so PRs from other forks
+              # targeting this repository must not suppress the push run. If
+              # the API call fails, assume there is no PR — better to run CI
+              # twice than not at all.
+              prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+                      --head "$GITHUB_REF_NAME" \
+                      --json headRepositoryOwner \
+                      --jq '[.[] | select(.headRepositoryOwner.login == env.GITHUB_REPOSITORY_OWNER)] | length' \
+                    || echo 0)
+              if [ "$prs" -gt 0 ]; then
+                skip=true
+              fi
+              ;;
+          esac
+          echo "skip=$skip" | tee -a "$GITHUB_OUTPUT"
+
       - name: Parse ci-os-only
         id: os
         env:
           MSG: ${{ github.event.head_commit.message }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SUPERSEDED: ${{ steps.dup.outputs.skip }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           all_os=${CI_OS_ONLY_JOBS}
-          if printf '%s\n' "$MSG" | grep -qE '^ci-os-only: '; then
+          # pull_request payloads have no head_commit, fetch the head
+          # commit's message via the API instead (this job doesn't check out
+          # the repository, so we can't ask git). If the call fails, err on
+          # the side of running all jobs.
+          if [ -n "$PR_HEAD_SHA" ]; then
+            MSG=$(gh api "repos/$GITHUB_REPOSITORY/commits/$PR_HEAD_SHA" \
+                    --jq .commit.message) || MSG=''
+          fi
+          if [ "$SUPERSEDED" = 'true' ]; then
+            sel=''
+            echo 'Superseded by the pull_request run for this branch, disabling all jobs' \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          elif printf '%s\n' "$MSG" | grep -qE '^ci-os-only: '; then
             sel=$(printf '%s\n' "$MSG" | sed -n 's/^ci-os-only: //p' | head -n 1)
             echo "ci-os-only selection: $sel"
           else
@@ -294,15 +379,19 @@ jobs:
           fetch-depth: ${{ env.CLONE_DEPTH }}
 
       # We restore both the ccache from the default branch (typically master),
-      # and from the current branch. This will often allow feature branches to
-      # start out with a high cache hit ratio.
+      # and from the current branch (for pull_request runs: the PR's base
+      # branch, see CACHE_PREFIX_BRANCH). This will often allow feature
+      # branches to start out with a high cache hit ratio.
       #
       # With ccache it turns out to work to just restore two caches into the
       # same directory, as it's basically a content addressed store. Stats
       # could be corrupted, but we zero them out anyway.
       - &ccache_restore_default_step
         name: "ccache: Restore for default branch ${{github.event.repository.default_branch}}"
-        if: ${{ env.ON_DEFAULT_BRANCH == 'false' }}
+        # Not worth restoring separately when the branch restore below uses
+        # the same key anyway, i.e. when on the default branch or in a
+        # pull_request run whose base is the default branch.
+        if: ${{ env.CACHE_PREFIX_BRANCH != env.CACHE_PREFIX_DEFAULT }}
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -310,7 +399,7 @@ jobs:
           restore-keys: ccache${{env.CACHE_PREFIX_DEFAULT}}
 
       - &ccache_restore_branch_step
-        name: "ccache: Restore for branch ${{ github.ref_name }}"
+        name: "ccache: Restore for branch ${{ github.base_ref || github.ref_name }}"
         id: ccache-restore-branch
         uses: actions/cache/restore@v5
         with:
