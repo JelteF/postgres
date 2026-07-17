@@ -16,6 +16,17 @@ POINT = "autovacuum-start-parallel-vacuum"
 def test_parallel_autovacuum(create_pg):
     # One autovacuum worker, autovacuum logging only on the test table, so the
     # log checks below match only the expected activity.
+    #
+    # Autovacuum must trigger for nothing but test_autovac: with
+    # min_parallel_index_scan_size = 0, any table with more than one index is
+    # eligible for parallel vacuum, including catalog tables in template1 etc.
+    # (which do get autovacuumed in a fresh cluster, from initdb's insert
+    # stats). If one of those grabs the injection point in test 2, the wakeup
+    # is wasted on it and the actual test_autovac vacuum then blocks on the
+    # still-attached 'wait' point until the test times out (seen on Windows
+    # CI). So disable insert-triggered vacuums and push the dead-tuple
+    # threshold out of reach globally; test_autovac gets a workable threshold
+    # back via reloptions below.
     node = create_pg(
         "autovac",
         conf={
