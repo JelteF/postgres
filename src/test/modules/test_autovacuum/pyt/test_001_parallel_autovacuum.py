@@ -49,7 +49,8 @@ def test_parallel_autovacuum(create_pg):
         "CREATE TABLE test_autovac ("
         "  id SERIAL PRIMARY KEY,"
         "  col_1 INTEGER, col_2 INTEGER, col_3 INTEGER, col_4 INTEGER"
-        ") WITH (autovacuum_parallel_workers = 2, log_autovacuum_min_duration = 0)"
+        ") WITH (autovacuum_parallel_workers = 2, log_autovacuum_min_duration = 0,"
+        "  autovacuum_vacuum_threshold = 50)"
     )
     node.sql(
         "INSERT INTO test_autovac SELECT g, g + 1, g + 2, g + 3 "
