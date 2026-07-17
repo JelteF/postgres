@@ -85,8 +85,7 @@ def tmp_check(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
     Session-scoped: this directory is shared by all test files in a pytest
     invocation (e.g. ``make check`` sets a single TESTDATADIR for the whole
     suite), so everything created in it must have a name that's unique across
-    the whole suite. Server data directories get this via _reserve_datadir
-    below.
+    the whole suite. Server basedirs get this via _reserve_basedir below.
     """
     d = os.getenv("TESTDATADIR")
     if d:
@@ -98,30 +97,32 @@ def tmp_check(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
 
 
 @pytest.fixture(scope="module")
-def _reserve_datadir(
+def _reserve_basedir(
     request: pytest.FixtureRequest, tmp_check: pathlib.Path
 ) -> Iterator[Callable[[str], pathlib.Path]]:
     """
-    Returns a function that reserves a data directory for a named server. The
-    test file name is included in the directory name (like Perl's
-    t_${testname}_${name}_data), so that test files reusing a server name
-    never collide inside the suite-wide shared tmp_check directory.
+    Returns a function that reserves a basedir for a named server, under which
+    the server keeps everything it owns (data directory, backups, archived
+    WAL; see Server.__init__). The test file name is included in the directory
+    name (like Perl's t_${testname}_${name}_data basedir), so that test files
+    reusing a server name never collide inside the suite-wide shared tmp_check
+    directory.
 
-    On teardown the handed-out data directories are removed again if every
-    test in this file passed, like the Perl framework's end-of-script cleanup:
-    a full run otherwise leaves many gigabytes of cluster data behind, which
-    wastes space and enough disk write I/O to visibly slow down CI. On any
-    failure the data is kept for debugging, as it is when PG_TEST_NOCLEAN is
-    set (same as in Perl). Only this file's directories are removed -- not all
-    of tmp_check -- so data kept for an earlier failed file in the same
+    On teardown the handed-out basedirs are removed again if every test in
+    this file passed, like the Perl framework's end-of-script cleanup: a full
+    run otherwise leaves many gigabytes of cluster data behind, which wastes
+    space and enough disk write I/O to visibly slow down CI. On any failure
+    the data is kept for debugging, as it is when PG_TEST_NOCLEAN is set (same
+    as in Perl). Only this file's directories are removed -- not all of
+    tmp_check -- so data kept for an earlier failed file in the same
     invocation survives later passing ones. This runs after the dependent
     server fixtures' teardown has stopped their nodes.
     """
-    datadirs: list[pathlib.Path] = []
+    basedirs: list[pathlib.Path] = []
 
     def _reserve(name: str) -> pathlib.Path:
-        d = tmp_check / f"{request.path.stem}_{name}_data"
-        datadirs.append(d)
+        d = tmp_check / f"{request.path.stem}_{name}"
+        basedirs.append(d)
         return d
 
     # Only the Session tracks failures, so detect failures in *this module*
@@ -133,17 +134,17 @@ def _reserve_datadir(
         request.session.testsfailed == failed_before
         and "PG_TEST_NOCLEAN" not in os.environ
     ):
-        for d in datadirs:
+        for d in basedirs:
             shutil.rmtree(d, ignore_errors=True)
 
 
 @pytest.fixture(scope="module")
-def datadir(_reserve_datadir: Callable[[str], pathlib.Path]) -> pathlib.Path:
+def basedir(_reserve_basedir: Callable[[str], pathlib.Path]) -> pathlib.Path:
     """
-    Returns the data directory to use for the pg fixture.
+    Returns the basedir to use for the pg fixture's server.
     """
 
-    return _reserve_datadir("default")
+    return _reserve_basedir("default")
 
 
 @pytest.fixture(scope="module")
@@ -163,7 +164,7 @@ def sockdir() -> Iterator[pathlib.Path]:
 @pytest.fixture(scope="module")
 def pg_server_module(
     request: pytest.FixtureRequest,
-    datadir: pathlib.Path,
+    basedir: pathlib.Path,
     sockdir: pathlib.Path,
     libpq_handle: ctypes.CDLL,
 ) -> Iterator[PostgresServer]:
@@ -184,7 +185,7 @@ def pg_server_module(
     Returns a PostgresServer instance with methods for server management,
     configuration, and creating test databases/users.
     """
-    server = PostgresServer("default", datadir, sockdir, libpq_handle)
+    server = PostgresServer("default", basedir, sockdir, libpq_handle)
     try:
         server.start()
     except Exception:
@@ -237,7 +238,7 @@ def create_pg(
     request: pytest.FixtureRequest,
     sockdir: pathlib.Path,
     libpq_handle: ctypes.CDLL,
-    _reserve_datadir: Callable[[str], pathlib.Path],
+    _reserve_basedir: Callable[[str], pathlib.Path],
 ) -> Iterator[Callable[..., PostgresServer]]:
     """
     Factory fixture to create additional PostgreSQL servers (per-test scope).
@@ -260,8 +261,8 @@ def create_pg(
             count = len(servers) + 1
             name = f"pg{count}"
 
-        datadir = _reserve_datadir(name)
-        server = PostgresServer(name, datadir, sockdir, libpq_handle, **kwargs)
+        basedir = _reserve_basedir(name)
+        server = PostgresServer(name, basedir, sockdir, libpq_handle, **kwargs)
         servers.append(server)
         _record_server_for_log_reporting(request, server)
         # Pass start=False when the test must touch the data directory before
@@ -289,7 +290,7 @@ def create_pg_module(
     request: pytest.FixtureRequest,
     sockdir: pathlib.Path,
     libpq_handle: ctypes.CDLL,
-    _reserve_datadir: Callable[[str], pathlib.Path],
+    _reserve_basedir: Callable[[str], pathlib.Path],
     _module_scoped_servers: list[PostgresServer],
 ) -> Iterator[Callable[..., PostgresServer]]:
     """
@@ -313,8 +314,8 @@ def create_pg_module(
         if name is None:
             count = len(_module_scoped_servers) + 1
             name = f"pg{count}"
-        datadir = _reserve_datadir(name)
-        server = PostgresServer(name, datadir, sockdir, libpq_handle, **kwargs)
+        basedir = _reserve_basedir(name)
+        server = PostgresServer(name, basedir, sockdir, libpq_handle, **kwargs)
         _module_scoped_servers.append(server)
         _record_server_for_log_reporting(request, server)
         if start:

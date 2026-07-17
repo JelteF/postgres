@@ -80,7 +80,7 @@ class PostgresServer:
     def __init__(
         self,
         name: str,
-        datadir: pathlib.Path,
+        basedir: pathlib.Path,
         sockdir: pathlib.Path,
         libpq_handle: ctypes.CDLL,
         *,
@@ -101,7 +101,12 @@ class PostgresServer:
 
         Args:
             name: The name of this server instance (for logging purposes)
-            datadir: Path to data directory for this server
+            basedir: Directory holding everything belonging to this server:
+                the data directory (``pgdata``), base backups taken from it
+                (``backup``), and archived WAL (``archives``). Like Perl's
+                per-node basedir, it must be unique per server *and* per test
+                file, since under autoconf's make check the whole suite shares
+                one tmp_check directory.
             sockdir: Path to directory for Unix sockets
             libpq_handle: ctypes handle to libpq
             hostaddr: If provided, use this specific address (e.g., "127.0.0.2")
@@ -153,16 +158,26 @@ class PostgresServer:
             raise NotImplementedError("port was provided without hostaddr")
 
         self.name = name
-        self.datadir = datadir
+        # Everything belonging to this server lives under its basedir, like
+        # Perl's Cluster.pm layout: the data directory, base backups taken
+        # from it, and its archived WAL (when archiving is enabled; also the
+        # source a restoring node reads from). That makes cleanup a single
+        # rmtree of basedir, and anything a test places next to the datadir
+        # (tablespaces, COPY files, ...) is scoped to this server
+        # automatically.
+        self.basedir = basedir
+        self.datadir = basedir / "pgdata"
+        self._backup_root = basedir / "backup"
+        self.archive_dir = basedir / "archives"
         self.sockdir = sockdir
         self.libpq_handle = libpq_handle
-        self.log = datadir / "postgresql.log"
+        # The log deliberately lives outside the data directory: pg_basebackup
+        # copies unknown files in pgdata, so a log in there would leak the
+        # primary's log lines into backups and confuse log searches on nodes
+        # built from them.
+        self.log = basedir / "postgresql.log"
         self._log_start_pos = 0
-        # Where base backups taken from this server are written.
-        self._backup_root = pathlib.Path(datadir).parent / f"{name}_backups"
-        # Where archived WAL segments are written (when archiving is enabled),
-        # and the source a restoring node reads from.
-        self.archive_dir = pathlib.Path(datadir).parent / f"{name}_archive"
+        basedir.mkdir(parents=True, exist_ok=True)
 
         # ExitStack for cleanup callbacks
         self._cleanup_stack = contextlib.ExitStack()
@@ -190,14 +205,14 @@ class PostgresServer:
         # initdb. The backup carries the primary's config; the conf appended
         # below (port, sockets, ...) overrides it since later entries win.
         if from_backup is not None:
-            shutil.copytree(from_backup, datadir)
-            os.chmod(datadir, 0o700)
+            shutil.copytree(from_backup, self.datadir)
+            os.chmod(self.datadir, 0o700)
         # Use INITDB_TEMPLATE if available (much faster than running initdb),
         # unless caller-supplied initdb options require a real initdb.
         elif (initdb_template := os.environ.get("INITDB_TEMPLATE")) and (
             not initdb_opts and os.path.isdir(initdb_template)
         ):
-            shutil.copytree(initdb_template, datadir)
+            shutil.copytree(initdb_template, self.datadir)
         else:
             if platform.system() == "Windows":
                 auth_method = "trust"
@@ -919,9 +934,7 @@ class PostgresServer:
         shutil.copytree(
             self.datadir,
             backup_path,
-            ignore=shutil.ignore_patterns(
-                "postmaster.pid", "postmaster.opts", "postgresql.log"
-            ),
+            ignore=shutil.ignore_patterns("postmaster.pid", "postmaster.opts"),
         )
         return backup_path
 

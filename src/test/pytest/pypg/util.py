@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import shlex
+import stat
 import subprocess
 import sys
 import time
@@ -35,6 +36,36 @@ def shell_path(path: str | os.PathLike[str]) -> str:
 def eprint(*args: object, **kwargs: Any) -> None:
     """eprint prints to stderr"""
     print(*args, file=sys.stderr, **kwargs)
+
+
+def check_mode_recursive(
+    root: str | os.PathLike[str], dir_mode: int, file_mode: int
+) -> list[str]:
+    """Check permissions of a directory tree (usually a data directory),
+    returning a list of paths whose mode differs from the expected one --
+    empty if everything matches, so tests can assert on the result and get
+    the offending paths in the failure message. Mirrors Perl's
+    ``check_mode_recursive``, which is why files that vanish mid-walk are
+    ignored: a running server can remove files (e.g. in pg_stat) while we
+    are walking.
+    """
+    violations = []
+
+    def check(path: str, expected: int) -> None:
+        try:
+            mode = stat.S_IMODE(os.stat(path).st_mode)
+        except FileNotFoundError:
+            return
+        if mode != expected:
+            violations.append(f"{path}: mode {oct(mode)} != {oct(expected)}")
+
+    check(os.fspath(root), dir_mode)
+    for dirpath, dirnames, filenames in os.walk(root):
+        for d in dirnames:
+            check(os.path.join(dirpath, d), dir_mode)
+        for f in filenames:
+            check(os.path.join(dirpath, f), file_mode)
+    return violations
 
 
 def run(
