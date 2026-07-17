@@ -25,9 +25,9 @@ tests += {
   'name': 'test_shmem',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_late_shmem_alloc.pl',
+      'pyt/test_001_late_shmem_alloc.py',
     ],
   },
 }

@@ -41,6 +41,7 @@ clean distclean:
 
 check:
 	$(prove_check)
+	$(pytest_check)
 
 installcheck:
 	$(prove_installcheck)

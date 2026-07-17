@@ -22,9 +22,9 @@ tests += {
   'name': 'test_escape',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_test_escape.pl',
+      'pyt/test_001_test_escape.py',
     ],
     'deps': [test_escape],
   },

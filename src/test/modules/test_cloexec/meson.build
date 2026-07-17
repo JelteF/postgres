@@ -18,9 +18,9 @@ tests += {
   'name': 'test_cloexec',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_cloexec.pl',
+      'pyt/test_001_cloexec.py',
     ],
   },
 }

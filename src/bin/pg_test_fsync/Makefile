@@ -23,10 +23,10 @@ installdirs:
 	$(MKDIR_P) '$(DESTDIR)$(bindir)'
 
 check:
-	$(prove_check)
+	$(pytest_check)
 
 installcheck:
-	$(prove_installcheck)
+	$(pytest_installcheck)
 
 uninstall:
 	rm -f '$(DESTDIR)$(bindir)/pg_test_fsync$(X)'

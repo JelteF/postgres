@@ -22,13 +22,17 @@ tests += {
   'name': 'pg_verifybackup',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'tests': [
+      'pyt/test_001_basic.py',
+    ],
+  },
   'tap': {
     'env': {'GZIP_PROGRAM': gzip.found() ? gzip.full_path() : '',
             'TAR': tar.found() ? tar.full_path() : '',
             'LZ4': program_lz4.found() ? program_lz4.full_path() : '',
             'ZSTD': program_zstd.found() ? program_zstd.full_path() : ''},
     'tests': [
-      't/001_basic.pl',
       't/002_algorithm.pl',
       't/003_corruption.pl',
       't/004_options.pl',

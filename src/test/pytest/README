@@ -1,0 +1,162 @@
+src/test/pytest/README
+
+Pytest-based tests
+==================
+
+This directory contains infrastructure for Python-based tests using pytest,
+along with some core tests for the pytest infrastructure itself. The framework
+provides fixtures for managing PostgreSQL server instances and connecting to
+them via libpq.
+
+
+Running the tests
+=================
+
+NOTE: You must have given the --enable-pytest argument to configure (or
+-Dpytest=enabled for Meson builds). You also need to have pytest installed.
+
+If you don't have pytest installed system-wide, you can create a virtual
+environment:
+
+    python3 -m venv .venv
+    source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+    pip install .                # Installs pytest and other dependencies
+
+Or using uv (https://docs.astral.sh/uv/):
+
+    uv sync
+    source .venv/bin/activate    # On Windows: .venv\Scripts\activate
+
+Remember to activate the virtual environment before running configure/meson
+setup.
+
+With Meson builds, you can run:
+    meson test --suite pytest
+
+With autoconf based builds, you can run:
+    make check
+or
+    make installcheck
+
+You can run specific test files and/or use pytest's -k option to select tests:
+    pytest src/test/pytest/pyt/test_libpq.py
+    pytest -k "test_connstr"
+
+
+Directory structure
+===================
+
+pypg/
+    Python library providing common functions and pytest fixtures that can be
+    used in tests.
+
+libpq/
+    A simple but user-friendly python wrapper around libpq
+
+pyt/
+    Tests for the pytest infrastructure itself
+
+pgtap.py
+    A pytest plugin to output results in TAP format
+
+
+Writing tests
+=============
+
+Tests use pytest fixtures to manage server instances and connections. The
+most commonly used fixtures are:
+
+pg
+    A PostgresServer instance configured for the current test. Use this for
+    creating test users/databases (via create_users/create_dbs) or modifying
+    server configuration. Test users and databases created through it are
+    automatically dropped after the test; configuration file changes are not
+    undone (see "Server configuration" below).
+
+conn
+    A connected PGconn instance to the test server. Automatically cleaned up
+    after the test.
+
+connect
+    A function to create additional connections with custom options.
+
+create_pg
+    A factory function to create additional PostgreSQL servers within a test.
+    Servers are automatically cleaned up at the end of the test. Useful for
+    testing scenarios that require multiple independent servers.
+
+create_pg_module
+    Like create_pg, but servers persist for the entire test module. Use this
+    when multiple tests in a module can share the same servers, which is
+    faster than creating new servers for each test.
+
+
+Example test:
+
+    def test_simple_query(conn):
+        result = conn.sql("SELECT 1 + 1")
+        assert result == 2
+
+    def test_with_user(pg):
+        users = pg.create_users("test")
+        # Allow the new role to connect over the local socket.
+        pg.reset_hba("all", users["test"], "trust")
+
+        conn = pg.connect(user=users["test"])
+        assert conn.sql("SELECT current_user") == users["test"]
+
+    def test_multiple_servers(create_pg):
+        node1 = create_pg("primary")
+        node2 = create_pg("secondary")
+
+        conn1 = node1.connect()
+        conn2 = node2.connect()
+
+        # Each server is independent
+        assert node1.port != node2.port
+
+
+Server configuration
+====================
+
+Server configuration is changed by editing the config files and then
+reloading (or restarting) the server:
+
+    pg.append_conf(log_connections="all")   # append a setting
+    pg.adjust_conf(work_mem="4MB")           # replace any existing line(s)
+    pg.pg_ctl("reload")                      # or pg.pg_ctl("restart")
+
+Both helpers quote and escape values for postgresql.conf automatically, and
+boolean GUCs accept Python True/False. These changes are written to the
+config files and are NOT automatically undone at the end of the test, so use
+them on a dedicated server (e.g. one from create_pg) or restore the setting
+yourself.
+
+The pg_hba.conf and pg_ident.conf files can be reset to a single rule with
+pg.reset_hba(database, role, method) and
+pg.reset_ident(map, system_user, pg_user); both reload the server.
+
+
+Timeouts
+========
+
+Tests inherit the PG_TEST_TIMEOUT_DEFAULT environment variable (defaulting
+to 180 seconds). It is used as the default connect_timeout for connections
+and as the default timeout for the polling/wait helpers (poll_query_until,
+wait_for_log, wait_for_catchup, and similar).
+
+
+Environment variables
+=====================
+
+PG_TEST_TIMEOUT_DEFAULT
+    Per-test timeout in seconds (default: 180)
+
+PG_CONFIG
+    Path to pg_config (default: uses PATH)
+
+TESTDATADIR
+    Directory for test data (default: pytest temp directory)
+
+PG_TEST_EXTRA
+    Space-separated list of optional test categories to run (e.g., "ssl")

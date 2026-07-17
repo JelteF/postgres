@@ -21,9 +21,9 @@ tests += {
   'name': 'pg_config',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_pg_config.pl',
+      'pyt/test_001_pg_config.py',
     ],
   },
 }

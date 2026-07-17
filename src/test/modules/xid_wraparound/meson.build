@@ -25,12 +25,12 @@ tests += {
   'name': 'xid_wraparound',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_emergency_vacuum.pl',
-      't/002_limits.pl',
-      't/003_wraparounds.pl',
-      't/004_notify_freeze.pl',
+      'pyt/test_001_emergency_vacuum.py',
+      'pyt/test_002_limits.py',
+      'pyt/test_003_wraparounds.py',
+      'pyt/test_004_notify_freeze.py',
     ],
   },
 }

@@ -19,12 +19,16 @@ tests += {
   'name': 'test_checksums',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'tests': [
+      'pyt/test_001_basic.py',
+    ],
+  },
   'tap': {
     'env': {
        'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
 	},
     'tests': [
-      't/001_basic.pl',
       't/002_restarts.pl',
       't/003_standby_restarts.pl',
       't/004_offline.pl',
