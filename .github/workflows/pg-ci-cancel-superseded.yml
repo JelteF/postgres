@@ -1,0 +1,59 @@
+# Companion workflow to pg-ci.yml.
+#
+# When a PR is opened for an already-pushed branch, a push run for that
+# branch may still be executing: the skip check in pg-ci.yml's `setup` job
+# only helps push runs that start while the PR already exists. This workflow
+# cancels such a push run by entering the push runs' concurrency group with
+# cancel-in-progress enabled. Using a separate workflow, rather than a job
+# in pg-ci.yml, has two advantages:
+#
+# - a pull_request run of pg-ci.yml needs its own concurrency group, and a
+#   workflow run can only be in one group
+# - workflow level concurrency takes effect when the run is created, before
+#   waiting for a runner, so the superseded run is cancelled immediately
+#
+# Note that the cancelled push run will show up as a failed ('cancelled')
+# check on the PR's head commit, next to the pull_request run's results.
+# Cleaning that up would require a job with `actions: write` permissions
+# deleting the cancelled run, which doesn't seem worth it.
+#
+# This only triggers when a PR is (re)opened. Pushes to a branch with an
+# open PR skip themselves, see pg-ci.yml's `setup`; not triggering for them
+# also avoids cancelling those (quickly, successfully self-skipping) push
+# runs, which would make them show up as 'cancelled' instead.
+#
+# Pushes to master & the stable branches use a unique concurrency group per
+# run, so this workflow can never cancel those, even if a PR is opened with
+# one of them as the head branch.
+
+name: Cancel superseded push run
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+concurrency:
+  # This must render identically to pg-ci.yml's concurrency group for a
+  # push run of this PR's head branch.
+  group: |
+    pg-ci-refs/heads/${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The cancellation happens as a side effect of creating this workflow
+  # run: concurrency is processed when the run enters its group, before any
+  # job is scheduled. A workflow merely needs at least one job to be valid;
+  # it never has to execute, so this run finishes immediately without ever
+  # occupying a runner.
+  noop:
+    name: Cancelled superseded push run
+    # Constantly false, as this workflow only has pull_request triggers.
+    # Spelled this way instead of a literal `false` because actionlint
+    # flags constant conditions as likely mistakes, and it supports no
+    # inline ignore comments.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-slim
+    steps:
+      - run: 'true'
