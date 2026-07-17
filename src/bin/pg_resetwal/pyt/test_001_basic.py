@@ -7,6 +7,7 @@ import platform
 import re
 
 from pypg.bins import pg_resetwal
+from pypg.util import check_mode_recursive
 
 
 def _slru_files(datadir, subdir):
