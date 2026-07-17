@@ -31,10 +31,11 @@ def test_resetwal(create_pg):
 
     pg_resetwal.check_all("-n", datadir, exit_code=0, stdout=r"checkpoint")
 
-    # NB: the Perl test also checks recursive 0700/0600 permissions on PGDATA
-    # here. The pytest framework writes postgresql.log inside the data
-    # directory, so that recursive mode check does not apply cleanly; it is
-    # omitted.
+    # Unix-style permissions are not supported on Windows.
+    if platform.system() != "Windows":
+        assert check_mode_recursive(node.datadir, 0o700, 0o600) == [], (
+            "check PGDATA permissions"
+        )
 
     pg_resetwal("--pgdata", datadir)
     node.start()
