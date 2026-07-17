@@ -15,6 +15,26 @@ on:
   # adding the 'pull_request' event, as naively doing so would often lead to
   # running CI twice.
 
+  # Build the ccache for another branch and publish it in the dispatching
+  # branch's cache scope. GitHub Actions only lets a workflow run restore
+  # caches created on its own branch or on the default branch, so plain
+  # pushes of branches based on a stable branch normally can't reuse that
+  # stable branch's compilation results. But caches created on the default
+  # branch are readable from everywhere. Thus, dispatching this workflow on
+  # master with e.g. REL_19_STABLE as the input makes that branch's ccache
+  # available to all branches (see the 'Derive cache base branch' step for
+  # the restore side). The run simply executes all of CI on the checked out
+  # branch, so it doubles as a full test of that branch. Re-dispatch
+  # occasionally to refresh the cache as the branch progresses.
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: >-
+          Branch to check out and build, instead of the branch the workflow
+          was dispatched on (e.g. REL_19_STABLE)
+        type: string
+        required: false
+
 # Restrict GITHUB_TOKEN to the minimum the jobs need: reading repo
 # contents during checkout.
 permissions:
@@ -26,8 +46,15 @@ concurrency:
   # neither want to wait for prior runs, nor to cancel them, so that each
   # separately pushed commit is tested.  We achieve that by setting a unique
   # concurrency group when on such a branch.
+  #
+  # workflow_dispatch cache builds (see `on:`) are keyed by the branch they
+  # build, so that a re-dispatch for a branch replaces a still-running
+  # build of it, while builds for different branches run concurrently. The
+  # bare branch name cannot collide with the push groups, which use the
+  # full refs/heads/... ref.
   group: |
     ${{github.workflow }}-${{
+    inputs.branch ||
     case(github.ref == 'refs/heads/master' ||
          (startsWith(github.ref, 'refs/heads/REL_') && endsWith(github.ref, '_STABLE')),
          github.run_id,
@@ -139,10 +166,15 @@ env:
   # Note that we need to be careful to use a separator that can't be in branch
   # names, otherwise e.g. caches for 'master' might be restored on the
   # 'master-pending' branch.
+  #
+  # For workflow_dispatch runs with a `branch` input, the key names that
+  # branch rather than the one the workflow was dispatched on: the cache
+  # describes the sources that were built, not the ref the run executed on
+  # (which determines the cache's scope, see `on:` above).
   CACHE_PREFIX_DEFAULT: >-
     :${{ github.job }}:${{ github.event.repository.default_branch }}:
   CACHE_PREFIX_BRANCH: >-
-    :${{ github.job }}:${{ github.ref_name }}:
+    :${{ github.job }}:${{ inputs.branch || github.ref_name }}:
   CACHE_SUFFIX: >-
     ${{ github.run_id }}:${{ github.run_attempt }}
 
@@ -292,6 +324,35 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: ${{ env.CLONE_DEPTH }}
+          # Empty for everything but workflow_dispatch runs with a `branch`
+          # input, and empty means: check out the triggering commit.
+          ref: ${{ inputs.branch || '' }}
+
+      # Determine which stable branch, if any, the checked out sources
+      # belong to, by parsing the version from meson.build (a 'devel'
+      # version means master). The ccache restore below uses this as an
+      # additional fallback: a stable branch's ccache can be published in
+      # the globally readable default branch cache scope by dispatching
+      # this workflow, see `on:` above. This is what makes plain pushes of
+      # branches based on a stable branch start out with that branch's
+      # cache.
+      - &derive_cache_base_step
+        name: Derive cache base branch
+        id: cache-base
+        shell: bash
+        run: |
+          version=$(sed -n "s/^ *version: '\([^']*\)'.*/\1/p" meson.build | head -n 1)
+          restore_key=''
+          case "$version" in
+            *devel | '')
+              ;;
+            *)
+              major=${version%%[!0-9]*}
+              restore_key="ccache:${GITHUB_JOB}:REL_${major}_STABLE:"
+              ;;
+          esac
+          echo "version: $version"
+          echo "restore-key=$restore_key" | tee -a "$GITHUB_OUTPUT"
 
       # We restore both the ccache from the default branch (typically master),
       # and from the current branch. This will often allow feature branches to
@@ -302,7 +363,11 @@ jobs:
       # could be corrupted, but we zero them out anyway.
       - &ccache_restore_default_step
         name: "ccache: Restore for default branch ${{github.event.repository.default_branch}}"
-        if: ${{ env.ON_DEFAULT_BRANCH == 'false' }}
+        # Skip when the branch restore below would restore the same cache
+        # anyway. Comparing the prefixes, rather than checking
+        # ON_DEFAULT_BRANCH, makes a workflow_dispatch cache build on the
+        # default branch bootstrap from the default branch's cache.
+        if: ${{ env.CACHE_PREFIX_BRANCH != env.CACHE_PREFIX_DEFAULT }}
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
@@ -310,13 +375,15 @@ jobs:
           restore-keys: ccache${{env.CACHE_PREFIX_DEFAULT}}
 
       - &ccache_restore_branch_step
-        name: "ccache: Restore for branch ${{ github.ref_name }}"
+        name: "ccache: Restore for branch ${{ inputs.branch || github.ref_name }}"
         id: ccache-restore-branch
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache${{env.CACHE_PREFIX_BRANCH}}${{env.CACHE_SUFFIX}}
-          restore-keys: ccache${{env.CACHE_PREFIX_BRANCH}}
+          restore-keys: |
+            ccache${{env.CACHE_PREFIX_BRANCH}}
+            ${{ steps.cache-base.outputs.restore-key }}
 
       - &linux_prepare_workspace_step
         name: Prepare workspace
@@ -493,6 +560,7 @@ jobs:
 
       - *nix_sysinfo_step
       - *checkout_step
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
       - *linux_prepare_workspace_step
@@ -555,6 +623,7 @@ jobs:
 
       - *nix_sysinfo_step
       - *checkout_step
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
       - *linux_prepare_workspace_step
@@ -645,6 +714,7 @@ jobs:
 
       - *nix_sysinfo_step
       - *checkout_step
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
       - *linux_prepare_workspace_step
@@ -795,6 +865,7 @@ jobs:
           path: ${{ env.MACPORTS_CACHE }}
           key: ${{ steps.mp-key.outputs.key }}
 
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
 
@@ -1116,6 +1187,7 @@ jobs:
         shell: cmd
         run: mkdir ${{env.PG_REGRESS_SOCK_DIR}}
 
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
 
@@ -1174,6 +1246,7 @@ jobs:
     steps:
       - *nix_sysinfo_step
       - *checkout_step
+      - *derive_cache_base_step
       - *ccache_restore_default_step
       - *ccache_restore_branch_step
 
