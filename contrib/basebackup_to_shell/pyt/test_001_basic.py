@@ -99,7 +99,9 @@ def test_basic(create_pg, tmp_path):
     # (privilege-dropped on Windows) backend, which must be able to write the
     # backup file, so put it under the test data tree the CI grants ACLs on
     # rather than pytest's tmp_path under the system temp directory.
-    backup_path = node.datadir.parent / "backup"
+    # Not named "backup" because that's the framework's own backup directory
+    # inside the node's basedir.
+    backup_path = node.datadir.parent / "shell_backup"
     backup_path.mkdir()
     node.adjust_conf(
         **{"basebackup_to_shell.command": _shell_command(gzip, backup_path, "%f")}
