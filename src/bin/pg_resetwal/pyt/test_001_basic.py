@@ -3,6 +3,7 @@
 """Port of src/bin/pg_resetwal/t/001_basic.pl."""
 
 import os
+import platform
 import re
 
 from pypg.bins import pg_resetwal
