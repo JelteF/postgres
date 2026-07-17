@@ -43,6 +43,30 @@ https://github.com/<username>/<reponame>/settings/variables/actions and
 create a new repository variable named PG_CI_ENABLED, with the value 1.
 
 
+Using pull requests for CI
+==========================
+
+CI runs both for pushed branches and for pull requests opened within a
+repository (the main postgres repository does not use pull requests, but
+personal forks can).
+
+For branches based on the repository's default branch the two behave the
+same, and simply pushing the branch is the easiest way to get CI. However,
+GitHub Actions only allows a workflow run to restore caches created on the
+branch itself, on the default branch, and - only for pull request runs - on
+the pull request's base branch. Thus, when working on top of another branch,
+e.g. when backpatching to REL_*_STABLE branches, it is worth opening a pull
+request within one's own repository, targeting that branch: after pushing
+the base branch once to populate its cache, its compilation results (ccache)
+are reused, instead of building from scratch each time.
+
+When a branch has an open pull request in the same repository, a push to it
+triggers both a push and a pull_request workflow run. To avoid duplicated
+work, the push run detects this situation and skips all its jobs in favor
+of the pull_request run. Additionally, opening a pull request cancels a
+push run of its branch that is still executing at that moment.
+
+
 Viewing CI results in a GitHub repository
 =========================================
 
