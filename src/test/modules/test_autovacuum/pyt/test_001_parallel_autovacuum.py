@@ -39,6 +39,8 @@ def test_parallel_autovacuum(create_pg):
             "autovacuum_naptime": "1s",
             "min_parallel_index_scan_size": 0,
             "log_autovacuum_min_duration": -1,
+            "autovacuum_vacuum_insert_threshold": -1,
+            "autovacuum_vacuum_threshold": 1000000,
         },
     )
     node.sql("CREATE EXTENSION injection_points")
