@@ -3206,6 +3206,7 @@ func_checks = [
   ['mbstowcs_l'],
   ['memset_explicit'],
   ['mkdtemp'],
+  ['pipe2'],
   ['posix_fadvise'],
   ['posix_fallocate'],
   ['ppoll'],
