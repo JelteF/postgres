@@ -1296,7 +1296,6 @@ CompactCheckpointerRequestQueue(void)
 	int			num_requests;
 	int			read_idx,
 				write_idx;
-	HASHCTL		ctl;
 	HTAB	   *htab;
 	bool	   *skip_slot;
 
@@ -1316,14 +1315,9 @@ CompactCheckpointerRequestQueue(void)
 	head = CheckpointerShmem->head;
 
 	/* Initialize temporary hash table */
-	ctl.keysize = sizeof(CheckpointerRequest);
-	ctl.entrysize = sizeof(struct CheckpointerSlotMapping);
-	ctl.hcxt = CurrentMemoryContext;
-
-	htab = hash_create("CompactCheckpointerRequestQueue",
-					   CheckpointerShmem->num_requests,
-					   &ctl,
-					   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+	htab = hash_make(struct CheckpointerSlotMapping, request,
+					 "CompactCheckpointerRequestQueue",
+					 CheckpointerShmem->num_requests);
 
 	/*
 	 * The basic idea here is that a request can be skipped if it's followed
