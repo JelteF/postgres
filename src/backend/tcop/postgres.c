@@ -148,7 +148,7 @@ static bool xact_started = false;
  * as opposed to any random read from client that might happen within
  * commands like COPY FROM STDIN.
  */
-static bool DoingCommandRead = false;
+bool		DoingCommandRead = false;
 
 /*
  * Flags to implement skip-till-Sync-after-error behavior for messages of
@@ -528,6 +528,22 @@ ProcessClientReadInterrupt(bool blocked)
 		/* Process notify interrupts, if any */
 		if (notifyInterruptPending)
 			ProcessNotifyInterrupt(true);
+
+		/*
+		 * Apply a pending configuration reload here, while we sit idle
+		 * waiting for a command, rather than deferring it until the next
+		 * command.  This changes GUC_REPORT variables, and
+		 * set_config_option() notices that no query is running (see
+		 * DoingCommandRead) and transmits the resulting ParameterStatus
+		 * messages right away.  So a SIGHUP that changes a reportable setting
+		 * reaches an otherwise-idle client promptly, instead of only once the
+		 * client happens to issue its next query.
+		 */
+		if (ConfigReloadPending)
+		{
+			ConfigReloadPending = false;
+			ProcessConfigFile(PGC_SIGHUP);
+		}
 	}
 	else if (ProcDiePending)
 	{
