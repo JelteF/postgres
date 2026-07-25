@@ -43,14 +43,14 @@ def libpq_handle() -> ctypes.CDLL:
     state: there is nothing per-module to isolate, so there is no reason to
     reload it for every module when several run in one process.
     """
-    try:
-        return load_libpq_handle(BINDIR, LIBDIR)
-    except OSError as e:
-        if "wrong ELF class" in str(e):
-            # This happens in CI when trying to lead a 32-bit libpq library
-            # with a 64-bit Python
-            pytest.skip("libpq architecture does not match Python interpreter")
-        raise
+    # Deliberately not caught: an architecture mismatch between libpq and the
+    # interpreter (e.g. a 32-bit build driven by a 64-bit python, which fails
+    # with "wrong ELF class") used to be turned into a skip here. That silently
+    # dropped every test that opens a connection, which is almost all of them,
+    # and a skipped test looks the same as one that had nothing to do. Let it
+    # fail instead, and give the interpreter to the suite explicitly -- see
+    # src/tools/ci/pytest-32.
+    return load_libpq_handle(BINDIR, LIBDIR)
 
 
 @pytest.fixture

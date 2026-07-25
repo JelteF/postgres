@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Run pytest under a 32-bit Python interpreter.
+#
+# Our 32-bit CI job builds with "gcc -m32", so the libpq the tests load is i386
+# while the distribution's python3 is amd64. ctypes cannot dlopen a 32-bit
+# library into a 64-bit interpreter (it fails with "wrong ELF class"), so
+# without this every test that opens a connection would skip.
+#
+# The Perl tests don't hit this because Debian ships a co-installable
+# arch-qualified interpreter, which the same job selects with
+# -DPERL=perl5.40-i386-linux-gnu. Python has no such convention: only the
+# libpython and stdlib packages are Multi-Arch: same, while the package owning
+# /usr/bin/python3.13 is Multi-Arch: allowed and so cannot be co-installed.
+# The CI image therefore places just the interpreter binary at an explicit
+# path, and we point at it here.
+#
+# meson's PYTEST option is only a program path, not a full command, so the
+# wrapping can't live in the option itself and needs a script like this -- the
+# same reason pytest-asan exists.
+#
+# pytest and its dependencies are pure Python, so the image installs them once
+# into an arch-independent directory instead of once per interpreter.
+
+# Defaults rather than environment variables, because meson invokes this via
+# the test harness under su(1), which does not reliably carry the job's
+# environment through.
+PYTHON32=${PYTHON32:-/usr/local/bin/python3-i386-linux-gnu}
+PYTEST32_PATH=${PYTEST32_PATH:-/opt/pytest-i386}
+
+if [ ! -x "$PYTHON32" ]; then
+	echo "pytest-32: no 32-bit python at $PYTHON32" >&2
+	echo "pytest-32: set PYTHON32, or install one (see this script's comments)" >&2
+	exit 1
+fi
+
+# Append rather than replace: meson already puts the pypg package on PYTHONPATH
+# via the pytest suite's env, and clobbering it would break every import.
+exec env PYTHONPATH="${PYTEST32_PATH}${PYTHONPATH:+:$PYTHONPATH}" \
+	"$PYTHON32" -m pytest "$@"
