@@ -9,6 +9,7 @@ from ._env import (
     require_test_extras,
     skip_unless_injection_points,
     skip_unless_test_extras,
+    test_timeout_default,
 )
 from .server import PostgresServer
 
@@ -22,5 +23,6 @@ __all__ = [
     "require_test_extras",
     "skip_unless_injection_points",
     "skip_unless_test_extras",
+    "test_timeout_default",
     "PostgresServer",
 ]
