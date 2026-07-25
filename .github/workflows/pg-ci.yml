@@ -560,6 +560,65 @@ jobs:
       - *ccache_restore_branch_step
       - *linux_prepare_workspace_step
 
+      # The pytest suites dlopen() the libpq they just built, which is i386 in
+      # this job, so they need an i386 interpreter: a 64-bit one fails with
+      # "wrong ELF class" and every test that opens a connection would fail.
+      #
+      # The Perl tests don't need this because Debian ships a co-installable
+      # arch-qualified interpreter (see -DPERL below). Python has no such
+      # convention. libpython*-{minimal,stdlib}:i386 are Multi-Arch: same and
+      # co-install cleanly -- their extension modules carry the architecture in
+      # the file name, so each interpreter picks up its own -- but the package
+      # owning /usr/bin/pythonX.Y is Multi-Arch: allowed and would collide, so
+      # we lift just the interpreter binary out of the .deb.
+      #
+      # pytest and its dependencies are pure Python, so rather than install a
+      # second copy we point the i386 interpreter at the one already in the
+      # image.
+      #
+      # This wants to live in the CI image; it is here until that lands.
+      - name: Install 32-bit Python
+        run: |
+          set -ex
+
+          pyver=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+
+          # These are already present in the image (libpython3-dev:i386 pulls
+          # them in), but ask explicitly rather than rely on that. Multi-Arch:
+          # same requires the i386 and amd64 versions to match, so this may
+          # upgrade the amd64 side too.
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            "libpython${pyver}-minimal:i386" "libpython${pyver}-stdlib:i386"
+
+          tmp=$(mktemp -d)
+          ( cd "$tmp" && apt-get download "python${pyver}-minimal:i386" )
+          dpkg-deb --fsys-tarfile "$tmp"/python${pyver}-minimal_*_i386.deb \
+            | tar -xOf - "./usr/bin/python${pyver}" \
+            > "/usr/local/bin/python${pyver}-i386-linux-gnu"
+          chmod 755 "/usr/local/bin/python${pyver}-i386-linux-gnu"
+          rm -rf "$tmp"
+
+          # Stable name, so src/tools/ci/pytest-32 needs no version in its
+          # default and no environment passed through su(1).
+          ln -sf "python${pyver}-i386-linux-gnu" \
+            /usr/local/bin/python3-i386-linux-gnu
+
+          # Where the image's pytest lives, whether apt- or pip-installed.
+          ln -sfT "$(python3 -c 'import pathlib, pytest; print(pathlib.Path(pytest.__file__).parent.parent)')" \
+            /opt/pytest-i386
+
+          # Fail here rather than midway through the test suite: prove the
+          # interpreter runs, is really 32-bit, and can import both ctypes (the
+          # part that has to be arch-matched) and pytest.
+          /usr/local/bin/python3-i386-linux-gnu -c \
+            'import ctypes, sys; assert ctypes.sizeof(ctypes.c_void_p) == 4, ctypes.sizeof(ctypes.c_void_p); print(sys.version)'
+          # From /tmp, so that the repository's pyproject.toml is not picked up:
+          # its addopts load the pypg plugin, which is not importable until
+          # meson puts src/test/pytest on PYTHONPATH when it runs the suites.
+          ( cd /tmp && PYTHONPATH=/opt/pytest-i386 \
+            /usr/local/bin/python3-i386-linux-gnu -m pytest --version )
+
       - name: Configure
         shell: *su_postgres_shell
         run: |
@@ -569,6 +628,7 @@ jobs:
             --buildtype=debug \
             --pkg-config-path /usr/lib/i386-linux-gnu/pkgconfig/ \
             -DPERL=perl5.40-i386-linux-gnu \
+            -DPYTEST="$(pwd)/src/tools/ci/pytest-32" \
             -Dlibnuma=disabled \
             build
 
