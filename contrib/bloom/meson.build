@@ -42,4 +42,9 @@ tests += {
       'pyt/test_001_wal.py',
     ],
   },
+  'tap': {
+    'tests': [
+      't/001_wal.pl',
+    ],
+  },
 }

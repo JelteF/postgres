@@ -131,6 +131,9 @@ env:
   # commit-message directive parsed in the `setup` job below.
   CI_OS_ONLY_JOBS: "linux macos windows mingw compilerwarnings sanitycheck"
 
+  # BENCHMARK BRANCH: how many times each test is run in each form.
+  BENCH_REPS: 5
+
   ###
   # A few variables to make expressions later on shorter
   ###
@@ -517,8 +520,12 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
+      # BENCHMARK BRANCH: this job builds with autoconf and so cannot run the
+      # meson-based benchmark. Skipped rather than left to spend half an hour
+      # on a check-world whose results this branch does not use.
       - name: Test world
         shell: *su_postgres_shell
+        if: false
         run: |
           make -s ${CHECK} ${CHECKFLAGS} -j${TEST_JOBS}
 
@@ -542,7 +549,7 @@ jobs:
     if: *linux_job_if
     runs-on: *linux_runs_on
     container: *linux_ci_container
-    timeout-minutes: 60
+    timeout-minutes: 150
     env: *linux_env
 
     steps:
@@ -644,13 +651,23 @@ jobs:
         env:
           PYTHONCOERCECLOCALE: 0
           LANG: C
-        run: *meson_test_world_cmd
+        run: &bench_cmd |
+          ulimit -c unlimited
 
-      # Test running against existing PG instance.
-      #
-      # linux-meson-32 chosen because it's currently comparatively fast
+          ${{env.ADDITIONAL_SETUP}}
+
+          echo ::group::test_setup
+          meson test ${{env.MTEST_ARGS}} --suite setup --logbase setup || exit 1
+          echo ::endgroup::
+
+          python3 src/tools/ci/bench_tap_vs_pytest.py \
+            --build build --reps ${{env.BENCH_REPS}}
+
+      # BENCHMARK BRANCH: "Test running" is disabled so the whole job is spent
+      # on the benchmark above rather than on a second full pass of the suite.
       - name: Test running
         shell: *su_postgres_shell
+        if: false
         run: |
           ulimit -c unlimited
 
@@ -694,7 +711,7 @@ jobs:
     if: *linux_job_if
     runs-on: *linux_runs_on
     container: *linux_ci_container
-    timeout-minutes: 60
+    timeout-minutes: 150
     env: *linux_env
 
     steps:
@@ -734,7 +751,7 @@ jobs:
 
       - name: Test world
         shell: *su_postgres_shell
-        run: *meson_test_world_cmd
+        run: *bench_cmd
 
       - *linux_collect_cores_step
       - *upload_logs_step
@@ -754,7 +771,7 @@ jobs:
       needs.setup.outputs.macos == 'true' &&
       needs.sanity-check.result != 'failure'
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       MACPORTS_CACHE: ${{ github.workspace }}/macports-cache
 
@@ -891,7 +908,7 @@ jobs:
         env:
           # default is 256, pretty low
           ADDITIONAL_SETUP: ulimit -n 1024
-        run: *meson_test_world_cmd
+        run: *bench_cmd
 
       - name: Core backtraces
         if: failure() && !cancelled()
@@ -914,7 +931,7 @@ jobs:
       needs.setup.outputs.windows == 'true' &&
       needs.sanity-check.result != 'failure'
     runs-on: windows-2022
-    timeout-minutes: 60
+    timeout-minutes: 150
 
     # As described at the top of the task, split the tests across two runners
     # for performance. The gains from additional concurrency diminish
@@ -922,9 +939,11 @@ jobs:
     # and build postgres.
     strategy:
       fail-fast: false
+      # BENCHMARK BRANCH: one slice only. The benchmark has to run on a single
+      # machine to be comparable, and slicing would just duplicate it.
       matrix:
-        num_slices: [2]
-        slice: [1, 2]
+        num_slices: [1]
+        slice: [1]
 
     env:
       # Avoid port conflicts between concurrent tap tests
@@ -1083,16 +1102,19 @@ jobs:
           ninja -C build ${{env.MBUILD_TARGET}} || exit 1
           ninja -C build -t missingdeps
 
+      # BENCHMARK BRANCH: runs the TAP-vs-pytest benchmark instead of the
+      # suite. Not shared with the unix jobs' *bench_cmd because this one needs
+      # cmd syntax and the interpreter is called "python" on the Windows
+      # images, not "python3".
       - name: Test world
-        env:
-          # As described at the top of the task, split the tests across two
-          # runners for performance.  It's not the prettiest to implement this
-          # by prepending to MTEST_TARGET, but a more complicated solution
-          # doesn't seem worth it.
-          MTEST_TARGET: --slice ${{ matrix.slice}}/${{ matrix.num_slices}} ${{env.MTEST_TARGET}}
-          ADDITIONAL_SETUP: |
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-        run: *meson_test_world_cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+
+          echo ::group::test_setup
+          meson test ${{env.MTEST_ARGS}} --suite setup --logbase setup || exit /b 1
+          echo ::endgroup::
+
+          python src\tools\ci\bench_tap_vs_pytest.py --build build --reps ${{env.BENCH_REPS}}
 
       - *upload_logs_step
 

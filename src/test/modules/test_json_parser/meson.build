@@ -66,6 +66,7 @@ tests += {
   'tap': {
     'tests': [
       't/001_test_json_parser_incremental.pl',
+      't/002_inline.pl',
       't/003_test_semantic.pl',
       't/004_test_parser_perf.pl'
     ],
