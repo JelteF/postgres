@@ -3798,30 +3798,25 @@ ri_NullCheck(TupleDesc tupDesc,
 static void
 ri_InitHashTables(void)
 {
-	HASHCTL		ctl;
-
-	ctl.keysize = sizeof(Oid);
-	ctl.entrysize = sizeof(RI_ConstraintInfo);
-	ri_constraint_cache = hash_create("RI constraint cache",
-									  RI_INIT_CONSTRAINTHASHSIZE,
-									  &ctl, HASH_ELEM | HASH_BLOBS);
+	ri_constraint_cache = hash_make(RI_ConstraintInfo, constraint_id,
+									"RI constraint cache",
+									RI_INIT_CONSTRAINTHASHSIZE,
+									.mcxt = TopMemoryContext);
 
 	/* Arrange to flush cache on pg_constraint changes */
 	CacheRegisterSyscacheCallback(CONSTROID,
 								  InvalidateConstraintCacheCallBack,
 								  (Datum) 0);
 
-	ctl.keysize = sizeof(RI_QueryKey);
-	ctl.entrysize = sizeof(RI_QueryHashEntry);
-	ri_query_cache = hash_create("RI query cache",
-								 RI_INIT_QUERYHASHSIZE,
-								 &ctl, HASH_ELEM | HASH_BLOBS);
+	ri_query_cache = hash_make(RI_QueryHashEntry, key,
+							   "RI query cache",
+							   RI_INIT_QUERYHASHSIZE,
+							   .mcxt = TopMemoryContext);
 
-	ctl.keysize = sizeof(RI_CompareKey);
-	ctl.entrysize = sizeof(RI_CompareHashEntry);
-	ri_compare_cache = hash_create("RI compare cache",
-								   RI_INIT_QUERYHASHSIZE,
-								   &ctl, HASH_ELEM | HASH_BLOBS);
+	ri_compare_cache = hash_make(RI_CompareHashEntry, key,
+								 "RI compare cache",
+								 RI_INIT_QUERYHASHSIZE,
+								 .mcxt = TopMemoryContext);
 }
 
 
@@ -4193,9 +4188,6 @@ RI_FKey_trigger_type(Oid tgfoid)
 static void
 ri_FastPathEndBatch(void *arg)
 {
-	HASH_SEQ_STATUS status;
-	RI_FastPathEntry *entry;
-
 	if (ri_fastpath_cache == NULL)
 		return;
 
@@ -4216,8 +4208,7 @@ ri_FastPathEndBatch(void *arg)
 	ri_fastpath_flushing = true;
 	PG_TRY();
 	{
-		hash_seq_init(&status, ri_fastpath_cache);
-		while ((entry = hash_seq_search(&status)) != NULL)
+		foreach_hash(RI_FastPathEntry, entry, ri_fastpath_cache)
 		{
 			if (entry->batch_count > 0)
 			{
@@ -4247,14 +4238,10 @@ ri_FastPathEndBatch(void *arg)
 static void
 ri_FastPathTeardown(void)
 {
-	HASH_SEQ_STATUS status;
-	RI_FastPathEntry *entry;
-
 	if (ri_fastpath_cache == NULL)
 		return;
 
-	hash_seq_init(&status, ri_fastpath_cache);
-	while ((entry = hash_seq_search(&status)) != NULL)
+	foreach_hash(RI_FastPathEntry, entry, ri_fastpath_cache)
 	{
 		if (entry->idx_rel)
 			index_close(entry->idx_rel, NoLock);
@@ -4345,17 +4332,9 @@ ri_FastPathGetEntry(const RI_ConstraintInfo *riinfo, Relation fk_rel)
 
 	/* Create hash table on first use in this batch */
 	if (ri_fastpath_cache == NULL)
-	{
-		HASHCTL		ctl;
-
-		ctl.keysize = sizeof(Oid);
-		ctl.entrysize = sizeof(RI_FastPathEntry);
-		ctl.hcxt = TopTransactionContext;
-		ri_fastpath_cache = hash_create("RI fast-path cache",
-										16,
-										&ctl,
-										HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
-	}
+		ri_fastpath_cache = hash_make(RI_FastPathEntry, conoid,
+									  "RI fast-path cache", 16,
+									  .mcxt = TopTransactionContext);
 
 	entry = hash_search(ri_fastpath_cache, &riinfo->constraint_id,
 						HASH_ENTER, &found);
