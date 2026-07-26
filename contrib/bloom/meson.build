@@ -37,9 +37,9 @@ tests += {
       'bloom',
     ],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_wal.pl',
+      'pyt/test_001_wal.py',
     ],
   },
 }
