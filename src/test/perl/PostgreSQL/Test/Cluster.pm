@@ -2802,10 +2802,15 @@ sub poll_query_until
 		'--dbname' => $self->connstr($dbname)
 	];
 	my ($stdout, $stderr);
-	my $max_attempts = 10 * $PostgreSQL::Test::Utils::timeout_default;
-	my $attempts = 0;
+	my $deadline = time() + $PostgreSQL::Test::Utils::timeout_default;
 
-	while ($attempts < $max_attempts)
+	# Start with a very short sleep, so that conditions that become true
+	# almost immediately (the common case) are noticed quickly, and back off
+	# exponentially up to 0.1 second so that long waits don't spam the server
+	# with psql invocations.
+	my $sleep_us = 1_000;
+
+	while (1)
 	{
 		my $result = IPC::Run::run $cmd,
 		  '<' => \$query,
@@ -2820,10 +2825,11 @@ sub poll_query_until
 			return 1;
 		}
 
-		# Wait 0.1 second before retrying.
-		usleep(100_000);
+		last if time() >= $deadline;
 
-		$attempts++;
+		usleep($sleep_us);
+		$sleep_us = int($sleep_us * 1.5);
+		$sleep_us = 100_000 if $sleep_us > 100_000;
 	}
 
 	# Give up. Print the output from the last attempt, hopefully that's useful
