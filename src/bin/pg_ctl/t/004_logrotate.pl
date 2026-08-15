@@ -7,7 +7,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 # Extract the file name of a $format from the contents of
 # current_logfiles.
@@ -39,15 +38,12 @@ sub check_log_pattern
 	my $node = shift;
 	my $lfname = fetch_file_name($logfiles, $format);
 
-	my $max_attempts = 10 * $PostgreSQL::Test::Utils::timeout_default;
-
 	my $logcontents;
-	for (my $attempts = 0; $attempts < $max_attempts; $attempts++)
-	{
-		$logcontents = slurp_file($node->data_dir . '/' . $lfname);
-		last if $logcontents =~ m/$pattern/;
-		usleep(100_000);
-	}
+	poll_until(
+		sub {
+			$logcontents = slurp_file($node->data_dir . '/' . $lfname);
+			return $logcontents =~ m/$pattern/;
+		});
 
 	like($logcontents, qr/$pattern/,
 		"found expected log file content for $format");
@@ -78,17 +74,15 @@ $node->start();
 $node->psql('postgres', 'SELECT 1/0');
 
 # might need to retry if logging collector process is slow...
-my $max_attempts = 10 * $PostgreSQL::Test::Utils::timeout_default;
-
 my $current_logfiles;
-for (my $attempts = 0; $attempts < $max_attempts; $attempts++)
-{
-	eval {
-		$current_logfiles = slurp_file($node->data_dir . '/current_logfiles');
-	};
-	last unless $@;
-	usleep(100_000);
-}
+poll_until(
+	sub {
+		eval {
+			$current_logfiles =
+			  slurp_file($node->data_dir . '/current_logfiles');
+		};
+		return !$@;
+	});
 die $@ if $@;
 
 note "current_logfiles = $current_logfiles";
@@ -112,12 +106,12 @@ $node->logrotate();
 # pg_ctl logrotate doesn't wait for rotation request to be completed.
 # Allow a bit of time for it to happen.
 my $new_current_logfiles;
-for (my $attempts = 0; $attempts < $max_attempts; $attempts++)
-{
-	$new_current_logfiles = slurp_file($node->data_dir . '/current_logfiles');
-	last if $new_current_logfiles ne $current_logfiles;
-	usleep(100_000);
-}
+poll_until(
+	sub {
+		$new_current_logfiles =
+		  slurp_file($node->data_dir . '/current_logfiles');
+		return $new_current_logfiles ne $current_logfiles;
+	});
 
 note "now current_logfiles = $new_current_logfiles";
 

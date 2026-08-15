@@ -15,7 +15,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 plan skip_all => 'Injection points not supported by this build'
   unless $ENV{enable_injection_points} eq 'yes';
@@ -848,18 +847,19 @@ sub wait_for_injection_point
 	my ($node, $point_name, $timeout) = @_;
 	$timeout //= $PostgreSQL::Test::Utils::timeout_default / 2;
 
-	for (my $elapsed = 0; $elapsed < $timeout * 10; $elapsed++)
-	{
-		my $pid = $node->safe_psql(
-			'postgres', qq[
-			SELECT pid FROM pg_stat_activity
-			WHERE wait_event_type = 'InjectionPoint'
-			  AND wait_event = '$point_name'
-			LIMIT 1;
-		]);
-		return 1 if $pid ne '';
-		usleep(100_000);
-	}
+	return 1
+	  if poll_until(
+		sub {
+			my $pid = $node->safe_psql(
+				'postgres', qq[
+				SELECT pid FROM pg_stat_activity
+				WHERE wait_event_type = 'InjectionPoint'
+				  AND wait_event = '$point_name'
+				LIMIT 1;
+			]);
+			return $pid ne '';
+		},
+		$timeout);
 
 	# Timeout - report diagnostic information
 	my $activity = $node->safe_psql(
@@ -892,21 +892,28 @@ sub wait_for_idle
 	my ($node, $pid, $timeout) = @_;
 	$timeout //= $PostgreSQL::Test::Utils::timeout_default / 2;
 
-	for (my $elapsed = 0; $elapsed < $timeout * 10; $elapsed++)
-	{
-		my $result = $node->safe_psql(
-			'postgres', qq[
-			SELECT state, wait_event_type FROM pg_stat_activity WHERE pid = $pid;
-		]);
-		my ($state, $wait_event_type) = split(/\|/, $result, 2);
-		$state           //= '';
-		$wait_event_type //= '';
-		return 1 if $state eq 'idle';
-		return 0 if $wait_event_type eq 'InjectionPoint';
+	my $idle = 0;
 
-		usleep(100_000);
-	}
-	return 0;
+	# Stop polling as soon as the backend is idle, but also as soon as it is
+	# waiting on an injection point, as it won't become idle on its own from
+	# there.
+	poll_until(
+		sub {
+			my $result = $node->safe_psql(
+				'postgres', qq[
+				SELECT state, wait_event_type FROM pg_stat_activity WHERE pid = $pid;
+			]);
+			my ($state, $wait_event_type) = split(/\|/, $result, 2);
+			$state           //= '';
+			$wait_event_type //= '';
+
+			$idle = 1 if $state eq 'idle';
+
+			return $idle || $wait_event_type eq 'InjectionPoint';
+		},
+		$timeout);
+
+	return $idle;
 }
 
 # Helper: Detach and wakeup an injection point

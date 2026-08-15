@@ -8,7 +8,6 @@ use warnings FATAL => 'all';
 
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
-use Time::HiRes qw(usleep);
 use Test::More;
 
 if ($ENV{enable_injection_points} ne 'yes')
@@ -46,17 +45,15 @@ my $conn = $node->background_psql('postgres', wait => 0);
 # Wait for the connection to show up in pg_stat_activity, with the wait_event
 # of the injection point.
 my $pid;
-while (1)
-{
-	$pid = $psql->query(
-		qq{SELECT pid FROM pg_stat_activity
+poll_until(
+	sub {
+		$pid = $psql->query(
+			qq{SELECT pid FROM pg_stat_activity
   WHERE backend_type = 'client backend'
     AND state = 'starting'
     AND wait_event = 'init-pre-auth';});
-	last if $pid ne "";
-
-	usleep(100_000);
-}
+		return $pid ne "";
+	}) or die "timed out waiting for backend to reach init-pre-auth";
 
 note "backend $pid is authenticating";
 ok(1, 'authenticating connections are recorded in pg_stat_activity');
@@ -66,15 +63,16 @@ $psql->query_safe("SELECT injection_points_wakeup('init-pre-auth');");
 $conn->wait_connect();
 
 # Make sure the pgstat entry is updated eventually.
-while (1)
-{
-	my $state =
-	  $psql->query("SELECT state FROM pg_stat_activity WHERE pid = $pid;");
-	last if $state eq "idle";
+poll_until(
+	sub {
+		my $state =
+		  $psql->query(
+			"SELECT state FROM pg_stat_activity WHERE pid = $pid;");
+		return 1 if $state eq "idle";
 
-	note "state for backend $pid is '$state'; waiting for 'idle'...";
-	usleep(100_000);
-}
+		note "state for backend $pid is '$state'; waiting for 'idle'...";
+		return 0;
+	}) or die "timed out waiting for backend $pid to become idle";
 
 ok(1, 'authenticated connections reach idle state in pg_stat_activity');
 

@@ -8,7 +8,6 @@ use warnings FATAL => 'all';
 
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
-use Time::HiRes qw(usleep);
 use Test::More;
 
 if ($ENV{enable_injection_points} ne 'yes')
@@ -386,11 +385,7 @@ run_log(
 	]);
 
 # wait for postgres to terminate
-foreach my $i (0 .. 10 * $PostgreSQL::Test::Utils::timeout_default)
-{
-	last if !-f $node_standby->data_dir . '/postmaster.pid';
-	usleep(100_000);
-}
+poll_until(sub { !-f $node_standby->data_dir . '/postmaster.pid'; });
 
 # Confirm that the server startup fails with an expected error
 my $logfile = slurp_file($node_standby->logfile());

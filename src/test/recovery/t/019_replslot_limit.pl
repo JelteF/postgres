@@ -10,7 +10,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Utils;
 use PostgreSQL::Test::Cluster;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 # Initialize primary node, setting wal-segsize to 1MB
 my $node_primary = PostgreSQL::Test::Cluster->new('primary');
@@ -186,17 +185,11 @@ $node_primary->advance_wal(7);
 $node_primary->safe_psql('postgres',
 	'ALTER SYSTEM RESET max_wal_size; SELECT pg_reload_conf()');
 $node_primary->safe_psql('postgres', "CHECKPOINT;");
-my $invalidated = 0;
-for (my $i = 0; $i < 10 * $PostgreSQL::Test::Utils::timeout_default; $i++)
-{
-	if ($node_primary->log_contains(
-			'invalidating obsolete replication slot "rep1"', $logstart))
-	{
-		$invalidated = 1;
-		last;
-	}
-	usleep(100_000);
-}
+my $invalidated = poll_until(
+	sub {
+		$node_primary->log_contains(
+			'invalidating obsolete replication slot "rep1"', $logstart);
+	});
 ok($invalidated, 'check that slot invalidation has been logged');
 
 $result = $node_primary->safe_psql(
@@ -208,16 +201,8 @@ is($result, "rep1|f|t|lost|",
 	'check that the slot became inactive and the state "lost" persists');
 
 # Wait until current checkpoint ends
-my $checkpoint_ended = 0;
-for (my $i = 0; $i < 10 * $PostgreSQL::Test::Utils::timeout_default; $i++)
-{
-	if ($node_primary->log_contains("checkpoint complete: ", $logstart))
-	{
-		$checkpoint_ended = 1;
-		last;
-	}
-	usleep(100_000);
-}
+my $checkpoint_ended = poll_until(
+	sub { $node_primary->log_contains("checkpoint complete: ", $logstart); });
 ok($checkpoint_ended, 'waited for checkpoint to end');
 
 # The invalidated slot shouldn't keep the old-segment horizon back;
@@ -238,18 +223,12 @@ is($oldestseg, $redoseg, "check that segments have been removed");
 $logstart = -s $node_standby->logfile;
 $node_standby->start;
 
-my $failed = 0;
-for (my $i = 0; $i < 10 * $PostgreSQL::Test::Utils::timeout_default; $i++)
-{
-	if ($node_standby->log_contains(
+my $failed = poll_until(
+	sub {
+		$node_standby->log_contains(
 			"This replication slot has been invalidated due to \"wal_removed\".",
-			$logstart))
-	{
-		$failed = 1;
-		last;
-	}
-	usleep(100_000);
-}
+			$logstart);
+	});
 ok($failed, 'check that replication has been broken');
 
 $node_primary->stop;
@@ -331,35 +310,37 @@ my $senderpid;
 # at this point, apparently just due to process shutdown being slow. To avoid
 # spurious failures, retry a couple times.
 my $i = 0;
-while (1)
+my $have_senderpid = poll_until(
+	sub {
+		my ($stdout, $stderr);
+
+		$senderpid = $node_primary3->safe_psql('postgres',
+			"SELECT pid FROM pg_stat_activity WHERE backend_type = 'walsender'"
+		);
+
+		return 1 if $senderpid =~ qr/^[0-9]+$/;
+
+		diag "multiple walsenders active in iteration $i";
+		$i++;
+
+		# show information about all active connections
+		$node_primary3->psql(
+			'postgres',
+			"\\a\\t\nSELECT * FROM pg_stat_activity",
+			stdout => \$stdout,
+			stderr => \$stderr);
+		diag $stdout, $stderr;
+
+		return 0;
+	});
+
+if (!$have_senderpid)
 {
-	my ($stdout, $stderr);
-
-	$senderpid = $node_primary3->safe_psql('postgres',
-		"SELECT pid FROM pg_stat_activity WHERE backend_type = 'walsender'");
-
-	last if $senderpid =~ qr/^[0-9]+$/;
-
-	diag "multiple walsenders active in iteration $i";
-
-	# show information about all active connections
-	$node_primary3->psql(
-		'postgres',
-		"\\a\\t\nSELECT * FROM pg_stat_activity",
-		stdout => \$stdout,
-		stderr => \$stderr);
-	diag $stdout, $stderr;
-
-	if ($i++ == 10 * $PostgreSQL::Test::Utils::timeout_default)
-	{
-		# An immediate shutdown may hide evidence of a locking bug. If
-		# retrying didn't resolve the issue, shut down in fast mode.
-		$node_primary3->stop('fast');
-		$node_standby3->stop('fast');
-		die "could not determine walsender pid, can't continue";
-	}
-
-	usleep(100_000);
+	# An immediate shutdown may hide evidence of a locking bug. If
+	# retrying didn't resolve the issue, shut down in fast mode.
+	$node_primary3->stop('fast');
+	$node_standby3->stop('fast');
+	die "could not determine walsender pid, can't continue";
 }
 
 like($senderpid, qr/^[0-9]+$/, "have walsender pid $senderpid");
@@ -374,19 +355,12 @@ $logstart = -s $node_primary3->logfile;
 kill 'STOP', $senderpid, $receiverpid;
 $node_primary3->advance_wal(2);
 
-my $msg_logged = 0;
-my $max_attempts = $PostgreSQL::Test::Utils::timeout_default;
-while ($max_attempts-- >= 0)
-{
-	if ($node_primary3->log_contains(
+my $msg_logged = poll_until(
+	sub {
+		$node_primary3->log_contains(
 			"terminating process $senderpid to release replication slot \"rep3\"",
-			$logstart))
-	{
-		$msg_logged = 1;
-		last;
-	}
-	sleep 1;
-}
+			$logstart);
+	});
 ok($msg_logged, "walsender termination logged");
 
 # Now let the walsender continue; slot should be killed now.
@@ -398,18 +372,11 @@ $node_primary3->poll_query_until('postgres',
 	"lost")
   or die "timed out waiting for slot to be lost";
 
-$msg_logged = 0;
-$max_attempts = $PostgreSQL::Test::Utils::timeout_default;
-while ($max_attempts-- >= 0)
-{
-	if ($node_primary3->log_contains(
-			'invalidating obsolete replication slot "rep3"', $logstart))
-	{
-		$msg_logged = 1;
-		last;
-	}
-	sleep 1;
-}
+$msg_logged = poll_until(
+	sub {
+		$node_primary3->log_contains(
+			'invalidating obsolete replication slot "rep3"', $logstart);
+	});
 ok($msg_logged, "slot invalidation logged");
 
 # Now let the walreceiver continue, so that the node can be stopped cleanly

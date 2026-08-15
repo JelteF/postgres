@@ -9,7 +9,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 sub test_tablespace
 {
@@ -130,16 +129,12 @@ $node_primary->safe_psql(
 # Standby should fail and should not silently skip replaying the wal
 # In this test, PANIC turns into WARNING by allow_in_place_tablespaces.
 # Check the log messages instead of confirming standby failure.
-my $max_attempts = $PostgreSQL::Test::Utils::timeout_default * 10;
-while ($max_attempts-- >= 0)
-{
-	last
-	  if (
+my $detected = poll_until(
+	sub {
 		$node_standby->log_contains(
 			qr!WARNING: ( [A-Z0-9]+:)? creating missing directory: pg_tblspc/!,
-			$logstart));
-	usleep(100_000);
-}
-ok($max_attempts > 0, "invalid directory creation is detected");
+			$logstart);
+	});
+ok($detected, "invalid directory creation is detected");
 
 done_testing();

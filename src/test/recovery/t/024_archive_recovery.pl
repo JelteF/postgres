@@ -7,7 +7,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 # Initialize and start node with wal_level = replica and WAL archiving
 # enabled.
@@ -83,11 +82,7 @@ sub test_recovery_wal_level_minimal
 		]);
 
 	# wait for postgres to terminate
-	foreach my $i (0 .. 10 * $PostgreSQL::Test::Utils::timeout_default)
-	{
-		last if !-f $recovery_node->data_dir . '/postmaster.pid';
-		usleep(100_000);
-	}
+	poll_until(sub { !-f $recovery_node->data_dir . '/postmaster.pid'; });
 
 	# Confirm that the archive recovery fails with an expected error
 	my $logfile = slurp_file($recovery_node->logfile());

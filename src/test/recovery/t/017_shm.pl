@@ -11,7 +11,6 @@ use IPC::Run 'run';
 use PostgreSQL::Test::Cluster;
 use Test::More;
 use PostgreSQL::Test::Utils;
-use Time::HiRes qw(usleep);
 
 # If we don't have shmem support, skip the whole thing
 eval {
@@ -141,20 +140,13 @@ unlink($gnat->data_dir . '/postmaster.pid');
 $gnat->rotate_logfile;    # on Windows, can't open old log for writing
 log_ipcs();
 # Reject ordinary startup.  Retry for the same reasons poll_start() does,
-# every 0.1s for at least $PostgreSQL::Test::Utils::timeout_default seconds.
+# for at least $PostgreSQL::Test::Utils::timeout_default seconds.
 my $pre_existing_msg = qr/pre-existing shared memory block/;
-{
-	my $max_attempts = 10 * $PostgreSQL::Test::Utils::timeout_default;
-	my $attempts = 0;
-	while ($attempts < $max_attempts)
-	{
-		last
-		  if $gnat->start(fail_ok => 1)
+poll_until(
+	sub {
+		$gnat->start(fail_ok => 1)
 		  || slurp_file($gnat->logfile) =~ $pre_existing_msg;
-		usleep(100_000);
-		$attempts++;
-	}
-}
+	});
 like(slurp_file($gnat->logfile),
 	$pre_existing_msg, 'detected live backend via shared memory');
 # Reject single-user startup.
@@ -191,21 +183,16 @@ sub poll_start
 {
 	my ($node) = @_;
 
-	my $max_attempts = 10 * $PostgreSQL::Test::Utils::timeout_default;
-	my $attempts = 0;
+	return 1
+	  if poll_until(
+		sub {
+			return 1 if $node->start(fail_ok => 1);
 
-	while ($attempts < $max_attempts)
-	{
-		$node->start(fail_ok => 1) && return 1;
+			# Clean up in case the start attempt just timed out or some such.
+			$node->stop('fast', fail_ok => 1);
 
-		# Wait 0.1 second before retrying.
-		usleep(100_000);
-
-		# Clean up in case the start attempt just timed out or some such.
-		$node->stop('fast', fail_ok => 1);
-
-		$attempts++;
-	}
+			return 0;
+		});
 
 	# Try one last time without fail_ok, which will BAIL_OUT unless it
 	# succeeds.

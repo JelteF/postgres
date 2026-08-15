@@ -253,22 +253,21 @@ EOC
 	  "$ldap_url $ldaps_url";
 
 	# wait until slapd accepts requests
-	my $retries = 0;
-	while (1)
-	{
-		last
-		  if (
-			system_log(
-				"ldapsearch", "-sbase",
-				"-H", $ldap_url,
-				"-b", $ldap_basedn,
-				"-D", $ldap_rootdn,
-				"-y", $ldap_pwfile,
-				"-n", "'objectclass=*'") == 0);
-		die "cannot connect to slapd" if ++$retries >= 300;
-		note "waiting for slapd to accept requests...";
-		Time::HiRes::usleep(1000000);
-	}
+	PostgreSQL::Test::Utils::poll_until(
+		sub {
+			return 1
+			  if (
+				system_log(
+					"ldapsearch", "-sbase",
+					"-H", $ldap_url,
+					"-b", $ldap_basedn,
+					"-D", $ldap_rootdn,
+					"-y", $ldap_pwfile,
+					"-n", "'objectclass=*'") == 0);
+			note "waiting for slapd to accept requests...";
+			return 0;
+		},
+		300) or die "cannot connect to slapd";
 
 	$self->{pidfile} = $slapd_pidfile;
 	$self->{pwfile} = $ldap_pwfile;

@@ -78,6 +78,7 @@ our @EXPORT = qw(
   chmod_recursive
   check_pg_config
   compare_files
+  poll_until
   wait_for_file
   dir_symlink
   scan_server_header
@@ -894,6 +895,46 @@ sub compare_files
 
 =pod
 
+=item poll_until(code[, timeout])
+
+Invoke B<code> repeatedly until it returns true, or until B<timeout>
+seconds have passed ($timeout_default if not given).  Returns 1 if B<code>
+returned true, 0 if we timed out.
+
+B<code> is always called at least once, and it is always called one last
+time once the timeout has expired, so that a condition that becomes true
+while we were sleeping is still noticed.
+
+The delay between invocations starts out very short and grows
+exponentially, up to a maximum of 0.1 second.  Most conditions we wait for
+become true almost immediately, and for those a fixed 0.1 second delay
+would dominate the time spent waiting.  Backing off keeps that case fast
+without polling excessively during the rare long waits.
+
+=cut
+
+sub poll_until
+{
+	my ($code, $timeout) = @_;
+	$timeout = $timeout_default unless defined $timeout;
+
+	my $deadline = time() + $timeout;
+	my $sleep_us = 1_000;
+
+	while (1)
+	{
+		return 1 if $code->();
+
+		return 0 if time() >= $deadline;
+
+		usleep($sleep_us);
+		$sleep_us = int($sleep_us * 1.5);
+		$sleep_us = 100_000 if $sleep_us > 100_000;
+	}
+}
+
+=pod
+
 =item wait_for_file(filename, regexp[, offset])
 
 Waits for the contents of the specified file, starting at the given offset, to
@@ -909,24 +950,23 @@ sub wait_for_file
 	my ($filename, $regexp, $offset) = @_;
 	$offset = 0 unless defined $offset;
 
-	my $max_attempts = 10 * $timeout_default;
-	my $attempts = 0;
+	my $length;
 
-	while ($attempts < $max_attempts)
-	{
-		if (-e $filename)
-		{
+	my $found = poll_until(
+		sub {
+			return 0 unless -e $filename;
+
 			my $contents = slurp_file($filename, $offset);
-			return $offset + length($contents) if ($contents =~ m/$regexp/);
-		}
+			return 0 unless $contents =~ m/$regexp/;
 
-		# Wait 0.1 second before retrying.
-		usleep(100_000);
+			$length = $offset + length($contents);
+			return 1;
+		});
 
-		$attempts++;
-	}
+	croak "timed out waiting for file $filename contents to match: $regexp"
+	  unless $found;
 
-	croak "timed out waiting for file $filename contents to match: $regexp";
+	return $length;
 }
 
 =pod

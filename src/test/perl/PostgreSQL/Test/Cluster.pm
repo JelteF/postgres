@@ -2802,35 +2802,20 @@ sub poll_query_until
 		'--dbname' => $self->connstr($dbname)
 	];
 	my ($stdout, $stderr);
-	my $deadline = time() + $PostgreSQL::Test::Utils::timeout_default;
 
-	# Start with a very short sleep, so that conditions that become true
-	# almost immediately (the common case) are noticed quickly, and back off
-	# exponentially up to 0.1 second so that long waits don't spam the server
-	# with psql invocations.
-	my $sleep_us = 1_000;
+	return 1
+	  if PostgreSQL::Test::Utils::poll_until(
+		sub {
+			my $result = IPC::Run::run $cmd,
+			  '<' => \$query,
+			  '>' => \$stdout,
+			  '2>' => \$stderr;
 
-	while (1)
-	{
-		my $result = IPC::Run::run $cmd,
-		  '<' => \$query,
-		  '>' => \$stdout,
-		  '2>' => \$stderr;
+			chomp($stdout);
+			chomp($stderr);
 
-		chomp($stdout);
-		chomp($stderr);
-
-		if ($stdout eq $expected && $stderr eq '')
-		{
-			return 1;
-		}
-
-		last if time() >= $deadline;
-
-		usleep($sleep_us);
-		$sleep_us = int($sleep_us * 1.5);
-		$sleep_us = 100_000 if $sleep_us > 100_000;
-	}
+			return $stdout eq $expected && $stderr eq '';
+		});
 
 	# Give up. Print the output from the last attempt, hopefully that's useful
 	# for debugging.

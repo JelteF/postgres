@@ -7,7 +7,6 @@ use warnings FATAL => 'all';
 use PostgreSQL::Test::Cluster;
 use PostgreSQL::Test::Utils;
 use Test::More;
-use Time::HiRes qw(usleep);
 
 # Create and test a standby from given backup, with a certain recovery target.
 # Choose $until_lsn later than the transaction commit that causes the row
@@ -174,11 +173,7 @@ run_log(
 	]);
 
 # wait for postgres to terminate
-foreach my $i (0 .. 10 * $PostgreSQL::Test::Utils::timeout_default)
-{
-	last if !-f $node_standby->data_dir . '/postmaster.pid';
-	usleep(100_000);
-}
+poll_until(sub { !-f $node_standby->data_dir . '/postmaster.pid'; });
 my $logfile = slurp_file($node_standby->logfile());
 like(
 	$logfile,
