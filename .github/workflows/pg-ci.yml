@@ -619,42 +619,12 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
-      - name: Test world
+      - name: timing probe
         shell: *su_postgres_shell
         env:
           PYTHONCOERCECLOCALE: 0
           LANG: C
-        run: *meson_test_world_cmd
-
-      # Test running against existing PG instance.
-      #
-      # linux-meson-32 chosen because it's currently comparatively fast
-      - name: Test running
-        shell: *su_postgres_shell
-        run: |
-          ulimit -c unlimited
-
-          # Ensure install exists, in case somebody is debugging a failing
-          # test and reorders this to be before "Test world".
-          echo ::group::test_setup
-          meson test ${{env.MTEST_ARGS}} --suite setup --logbase setup
-          echo ::endgroup::
-
-          # Make libraries discoverable (the x86_64 reference is a meson
-          # oddity)
-          export LD_LIBRARY_PATH="$(pwd)/build/tmp_install/usr/local/pgsql/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH"
-
-          build/tmp_install/usr/local/pgsql/bin/initdb -N build/runningcheck --no-instructions -A trust
-          echo "include '$(pwd)/src/tools/ci/pg_ci_base.conf'" >> build/runningcheck/postgresql.conf
-
-          # Log into a place that will be archived in case of failure
-          mkdir -p build/testrun
-          build/tmp_install/usr/local/pgsql/bin/pg_ctl -c -o '-c fsync=off' -D build/runningcheck -l build/testrun/runningcheck.log start
-
-          # Run the tests supporting running against an already running
-          meson test ${{env.MTEST_ARGS}} --num-processes ${{env.TEST_JOBS}} --setup running
-
-          build/tmp_install/usr/local/pgsql/bin/pg_ctl -D build/runningcheck stop
+        run: python3 src/tools/ci/timing_probe.py linux-32
 
       - *linux_collect_cores_step
       - *upload_logs_step
@@ -712,9 +682,9 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
-      - name: Test world
+      - name: timing probe
         shell: *su_postgres_shell
-        run: *meson_test_world_cmd
+        run: python3 src/tools/ci/timing_probe.py linux-64
 
       - *linux_collect_cores_step
       - *upload_logs_step
@@ -867,11 +837,10 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
-      - name: Test world
-        env:
-          # default is 256, pretty low
-          ADDITIONAL_SETUP: ulimit -n 1024
-        run: *meson_test_world_cmd
+      - name: timing probe
+        run: |
+          ulimit -n 1024
+          python3 src/tools/ci/timing_probe.py macos
 
       - name: Core backtraces
         if: failure() && !cancelled()
@@ -1063,16 +1032,10 @@ jobs:
           ninja -C build ${{env.MBUILD_TARGET}} || exit 1
           ninja -C build -t missingdeps
 
-      - name: Test world
-        env:
-          # As described at the top of the task, split the tests across two
-          # runners for performance.  It's not the prettiest to implement this
-          # by prepending to MTEST_TARGET, but a more complicated solution
-          # doesn't seem worth it.
-          MTEST_TARGET: --slice ${{ matrix.slice}}/${{ matrix.num_slices}} ${{env.MTEST_TARGET}}
-          ADDITIONAL_SETUP: |
-            call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-        run: *meson_test_world_cmd
+      - name: timing probe
+        if: matrix.slice == 1
+        shell: pwsh
+        run: python src/tools/ci/timing_probe.py windows
 
       - *upload_logs_step
 
@@ -1190,8 +1153,9 @@ jobs:
       - *ccache_decide_save_step
       - *ccache_save_step
 
-      - name: Test world
-        run: *meson_test_world_cmd
+      - name: timing probe
+        shell: 'D:\msys64\usr\bin\bash.exe --login -eo pipefail "{0}"'
+        run: python3 src/tools/ci/timing_probe.py mingw
 
       - *upload_logs_step
 
