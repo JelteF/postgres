@@ -59,7 +59,10 @@ env:
   # Build test dependencies as part of the build step, to see compiler
   # errors/warnings in one place.
   MBUILD_TARGET: all testprep
-  MTEST_ARGS: --print-errorlogs --no-rebuild -C build
+  # --max-lines raises meson's cap on how much of a failing test's log it
+  # prints, which defaults to the last 100 lines. That is often not enough to
+  # tell what went wrong.
+  MTEST_ARGS: --print-errorlogs --max-lines=10000 --no-rebuild -C build
 
   # Can be set to a non-empty value to run a limited set of tests
   # (e.g. --suite regress to only run the main regression tests).
