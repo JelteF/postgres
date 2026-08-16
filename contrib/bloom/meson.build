@@ -37,6 +37,11 @@ tests += {
       'bloom',
     ],
   },
+  'tap': {
+    'tests': [
+      't/001_wal.pl',
+    ],
+  },
   'pytest': {
     'tests': [
       'pyt/test_001_wal.py',

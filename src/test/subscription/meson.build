@@ -45,6 +45,7 @@ tests += {
       't/028_row_filter.pl',
       't/029_on_error.pl',
       't/030_origin.pl',
+      't/031_column_list.pl',
       't/032_subscribe_use_index.pl',
       't/033_run_as_table_owner.pl',
       't/034_temporal.pl',
