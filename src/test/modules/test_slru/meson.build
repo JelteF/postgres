@@ -33,13 +33,10 @@ tests += {
     'regress_args': ['--temp-config', files('test_slru.conf')],
     'runningcheck': false,
   },
-  'tap': {
-    'env': {
-       'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
+  'pytest': {
     'tests': [
-      't/001_multixact.pl',
-      't/002_multixact_wraparound.pl'
+      'pyt/test_001_multixact.py',
+      'pyt/test_002_multixact_wraparound.py',
     ],
   },
 }

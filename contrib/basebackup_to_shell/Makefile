@@ -7,7 +7,7 @@ OBJS = \
 
 PGFILEDESC = "basebackup_to_shell - target basebackup to shell command"
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 export GZIP_PROGRAM=$(GZIP)
 export TAR

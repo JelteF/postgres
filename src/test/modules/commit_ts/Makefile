@@ -6,7 +6,7 @@ REGRESS_OPTS = --temp-config=$(top_srcdir)/src/test/modules/commit_ts/commit_ts.
 # which typical installcheck users do not have (e.g. buildfarm clients).
 NO_INSTALLCHECK = 1
 
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

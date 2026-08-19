@@ -25,13 +25,10 @@ tests += {
   'name': 'worker_spi',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
-  'tap': {
-    'env': {
-      'enable_injection_points': get_option('injection_points') ? 'yes' : 'no',
-    },
+  'pytest': {
     'tests': [
-      't/001_worker_spi.pl',
-      't/002_worker_terminate.pl'
+      'pyt/test_001_worker_spi.py',
+      'pyt/test_002_worker_terminate.py',
     ],
   },
 }

@@ -7,7 +7,7 @@ PROGRAM = test_cloexec
 OBJS = $(WIN32RES) test_cloexec.o
 
 NO_INSTALLCHECK = 1
-TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

@@ -23,6 +23,7 @@ EXTENSION = test_checksums
 DATA = test_checksums--1.0.sql
 
 TAP_TESTS = 1
+PYTEST_TESTS = 1
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

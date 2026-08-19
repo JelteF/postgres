@@ -33,10 +33,10 @@ tests += {
       'pg_visibility',
     ],
   },
-  'tap': {
+  'pytest': {
     'tests': [
-      't/001_concurrent_transaction.pl',
-      't/002_corrupt_vm.pl',
+      'pyt/test_001_concurrent_transaction.py',
+      'pyt/test_002_corrupt_vm.py',
     ],
   },
 }

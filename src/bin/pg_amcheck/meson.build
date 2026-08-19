@@ -21,9 +21,13 @@ tests += {
   'name': 'pg_amcheck',
   'sd': meson.current_source_dir(),
   'bd': meson.current_build_dir(),
+  'pytest': {
+    'tests': [
+      'pyt/test_001_basic.py',
+    ],
+  },
   'tap': {
     'tests': [
-      't/001_basic.pl',
       't/002_nonesuch.pl',
       't/003_check.pl',
       't/004_verify_heapam.pl',
