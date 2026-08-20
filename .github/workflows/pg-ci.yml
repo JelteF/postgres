@@ -122,7 +122,7 @@ env:
 
   # Debian Trixie containers used by all Linux jobs. Built by
   # 'https://github.com/anarazel/pg-vm-images/'.
-  CONTAINER_REPO: ghcr.io/anarazel/pg-vm-images/main
+  CONTAINER_REPO: ghcr.io/nbyavuz/pg-vm-images/linux-32-image
   CONTAINER_LINUX_CI: linux_debian_trixie_ci:latest
   CONTAINER_LINUX_CI_DOCS: linux_debian_trixie_ci_docs:latest
 
@@ -540,7 +540,8 @@ jobs:
     needs: [setup, sanity-check]
     if: *linux_job_if
     runs-on: *linux_runs_on
-    container: *linux_ci_container
+    container:
+      image: ghcr.io/nbyavuz/pg-vm-images/linux-32-image/linux_debian_ci/trixie/linux-meson-32:latest
     timeout-minutes: 60
     env: *linux_env
 
