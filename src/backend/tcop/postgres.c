@@ -1528,10 +1528,27 @@ exec_parse_message(const char *query_string,	/* string to execute */
 
 		/*
 		 * Create the CachedPlanSource before we do parse analysis, since it
-		 * needs to see the unmodified raw parse tree.
+		 * needs to see the unmodified raw parse tree.  For unnamed statements
+		 * use a one-shot plan: this skips the deep copy of the raw parse
+		 * tree, the deep copy of the rewritten query tree in BuildCachedPlan,
+		 * and the SaveCachedPlan reparent into CacheMemoryContext.  The
+		 * trade-off is no invalidation support, which is acceptable for the
+		 * common case where the unnamed statement is Parse+Bind+Execute'd in
+		 * a single transaction.
 		 */
-		psrc = CreateCachedPlan(raw_parse_tree, query_string,
-								CreateCommandTag(raw_parse_tree->stmt));
+		if (is_named)
+			psrc = CreateCachedPlan(raw_parse_tree, query_string,
+									CreateCommandTag(raw_parse_tree->stmt));
+		else
+		{
+			/*
+			 * CreateOneShotCachedPlan doesn't copy query_string, so we must
+			 * stash it in unnamed_stmt_context (CurrentMemoryContext) so it
+			 * outlives the MessageContext reset between Parse and Bind.
+			 */
+			psrc = CreateOneShotCachedPlan(raw_parse_tree, pstrdup(query_string),
+										   CreateCommandTag(raw_parse_tree->stmt));
+		}
 
 		/*
 		 * Set up a snapshot if parse analysis will need one.
@@ -1561,8 +1578,12 @@ exec_parse_message(const char *query_string,	/* string to execute */
 	{
 		/* Empty input string.  This is legal. */
 		raw_parse_tree = NULL;
-		psrc = CreateCachedPlan(raw_parse_tree, query_string,
-								CMDTAG_UNKNOWN);
+		if (is_named)
+			psrc = CreateCachedPlan(raw_parse_tree, query_string,
+									CMDTAG_UNKNOWN);
+		else
+			psrc = CreateOneShotCachedPlan(raw_parse_tree, pstrdup(query_string),
+										   CMDTAG_UNKNOWN);
 		querytree_list = NIL;
 	}
 
@@ -1599,9 +1620,13 @@ exec_parse_message(const char *query_string,	/* string to execute */
 	else
 	{
 		/*
-		 * We just save the CachedPlanSource into unnamed_stmt_psrc.
+		 * For unnamed statements we use a one-shot CachedPlanSource, so we
+		 * can't SaveCachedPlan it.  Instead reparent its context (which is
+		 * unnamed_stmt_context) under CacheMemoryContext so that it survives
+		 * the MessageContext reset between Parse and the following Bind.
+		 * drop_unnamed_stmt() will MemoryContextDelete it explicitly.
 		 */
-		SaveCachedPlan(psrc);
+		MemoryContextSetParent(psrc->context, CacheMemoryContext);
 		unnamed_stmt_psrc = psrc;
 	}
 
@@ -2050,8 +2075,18 @@ exec_bind_message(StringInfo input_message)
 	 * Obtain a plan from the CachedPlanSource.  Any cruft from (re)planning
 	 * will be generated in MessageContext.  The plan refcount will be
 	 * assigned to the Portal, so it will be released at portal destruction.
+	 *
+	 * For one-shot plans (used for unnamed prepared statements),
+	 * BuildCachedPlan does not allocate a dedicated plan_context; the plan
+	 * ends up in CurrentMemoryContext.  Switch to the portal's context for
+	 * the call so the plan survives MessageContext resets between Bind and
+	 * Execute (e.g. in pipelined extended-protocol traffic).
 	 */
+	if (psrc->is_oneshot)
+		MemoryContextSwitchTo(portal->portalContext);
 	cplan = GetCachedPlan(psrc, params, NULL, NULL);
+	if (psrc->is_oneshot)
+		MemoryContextSwitchTo(MessageContext);
 
 	/*
 	 * Now we can define the portal.
@@ -2996,8 +3031,16 @@ drop_unnamed_stmt(void)
 	{
 		CachedPlanSource *psrc = unnamed_stmt_psrc;
 
+		/*
+		 * For one-shot plans DropCachedPlan does not free the context (it's
+		 * owned by the caller), so capture it and delete it ourselves.
+		 */
+		MemoryContext oneshot_ctx = psrc->is_oneshot ? psrc->context : NULL;
+
 		unnamed_stmt_psrc = NULL;
 		DropCachedPlan(psrc);
+		if (oneshot_ctx)
+			MemoryContextDelete(oneshot_ctx);
 	}
 }
 
