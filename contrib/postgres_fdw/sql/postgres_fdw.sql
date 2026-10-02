@@ -244,6 +244,31 @@ SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should work again
 ANALYZE ft1;
 ALTER FOREIGN TABLE ft2 OPTIONS (use_remote_estimate 'true');
 
+-- The local work on the fetched rows, i.e. checking local quals and
+-- evaluating the target list, is the same whether we sort remotely or
+-- locally.  So it should not keep us from pushing down the sort or LIMIT.
+CREATE FUNCTION local_filter(int) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE COST 10000 AS $$
+BEGIN
+  RETURN $1 > 0;
+END
+$$;
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT c1 FROM ft1 WHERE local_filter(c1) ORDER BY c1;
+-- Each of these is cheap enough that it's not postponed until after the sort.
+CREATE FUNCTION local_project(int) RETURNS int
+LANGUAGE plpgsql IMMUTABLE COST 9 AS $$
+BEGIN
+  RETURN $1;
+END
+$$;
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT local_project(c1), local_project(c1 + 1), local_project(c1 + 2),
+  local_project(c1 + 3)
+FROM ft1 ORDER BY c1 LIMIT 10;
+DROP FUNCTION local_filter(int);
+DROP FUNCTION local_project(int);
+
 -- ===================================================================
 -- test subscription
 -- ===================================================================
