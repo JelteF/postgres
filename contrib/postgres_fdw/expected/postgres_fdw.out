@@ -265,16 +265,13 @@ END
 $$;
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT c1 FROM ft1 WHERE local_filter(c1) ORDER BY c1;
-                    QUERY PLAN                     
----------------------------------------------------
- Sort
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Foreign Scan on public.ft1
    Output: c1
-   Sort Key: ft1.c1
-   ->  Foreign Scan on public.ft1
-         Output: c1
-         Filter: local_filter(ft1.c1)
-         Remote SQL: SELECT "C 1" FROM "S 1"."T 1"
-(7 rows)
+   Filter: local_filter(ft1.c1)
+   Remote SQL: SELECT "C 1" FROM "S 1"."T 1" ORDER BY "C 1" ASC NULLS LAST
+(4 rows)
 
 -- Each of these is cheap enough that it's not postponed until after the sort.
 CREATE FUNCTION local_project(int) RETURNS int
@@ -287,14 +284,12 @@ EXPLAIN (VERBOSE, COSTS OFF)
 SELECT local_project(c1), local_project(c1 + 1), local_project(c1 + 2),
   local_project(c1 + 3)
 FROM ft1 ORDER BY c1 LIMIT 10;
-                                                     QUERY PLAN                                                     
---------------------------------------------------------------------------------------------------------------------
- Limit
-   Output: (local_project(c1)), (local_project((c1 + 1))), (local_project((c1 + 2))), (local_project((c1 + 3))), c1
-   ->  Foreign Scan on public.ft1
-         Output: local_project(c1), local_project((c1 + 1)), local_project((c1 + 2)), local_project((c1 + 3)), c1
-         Remote SQL: SELECT "C 1" FROM "S 1"."T 1" ORDER BY "C 1" ASC NULLS LAST
-(5 rows)
+                                                 QUERY PLAN                                                 
+------------------------------------------------------------------------------------------------------------
+ Foreign Scan on public.ft1
+   Output: local_project(c1), local_project((c1 + 1)), local_project((c1 + 2)), local_project((c1 + 3)), c1
+   Remote SQL: SELECT "C 1" FROM "S 1"."T 1" ORDER BY "C 1" ASC NULLS LAST LIMIT 10::bigint
+(3 rows)
 
 DROP FUNCTION local_filter(int);
 DROP FUNCTION local_project(int);
