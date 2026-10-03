@@ -71,7 +71,8 @@ my $node_b = PostgreSQL::Test::Cluster->new('node_b');
 $node_b->init_from_backup($node_a, 'backup', has_streaming => 1);
 $node_b->start;
 
-$node_a->wait_for_catchup($node_b, 'replay', $node_a->lsn('insert'));
+# Backup completion has flushed the required WAL.
+$node_a->wait_for_replay_catchup($node_b);
 test_checksum_state($node_a, 'off');
 test_checksum_state($node_b, 'off');
 
@@ -83,7 +84,7 @@ $node_b->safe_psql('postgres',
 # in a background session; it will block on the injection point with
 # the checkpointer busy until released.
 $node_a->safe_psql('postgres', "CHECKPOINT;");
-$node_a->wait_for_catchup($node_b, 'replay', $node_a->lsn('insert'));
+$node_a->wait_for_replay_catchup($node_b);
 
 my $bg_psql = $node_b->background_psql('postgres', on_error_stop => 0);
 $bg_psql->query_until(
@@ -150,15 +151,27 @@ $backup_label =~ /^CHECKPOINT LOCATION: ([0-9A-F\/]+)$/m
   or die "checkpoint location missing from backup_label";
 is($1, $shutdown_ckpt, 'replay starts at the switchover checkpoint');
 
-($stdout, $stderr) = run_command(
+# Specify the WAL file so that pg_waldump does not try to determine the
+# segment size from an arbitrary, possibly preallocated, file in pg_wal.
+# This test would fail if the checkpoint record is straddling two WAL
+# segments, if this is ever observed then support for reading the next
+# segment as well.
+$backup_label =~
+  /^START WAL LOCATION: [0-9A-F\/]+ \(file ([0-9A-F]{8})[0-9A-F]{16}\)$/m
+  or die "WAL file name missing from backup_label";
+my $shutdown_wal = $1
+  . $node_b->safe_psql('postgres',
+	"SELECT substr(pg_walfile_name('$shutdown_ckpt'), 9);");
+
+command_like(
 	[
 		'pg_waldump',
 		'-p' => $node_a->data_dir . '/pg_wal',
-		'-t' => 1,
 		'-s' => $shutdown_ckpt,
 		'-n' => 1,
-	]);
-like($stdout, qr/CHECKPOINT_SHUTDOWN/,
+		$shutdown_wal,
+	],
+	qr/CHECKPOINT_SHUTDOWN/,
 	'last common checkpoint is a shutdown checkpoint');
 
 # pg_rewind keeps the target's own checksum state in the control file it
@@ -182,9 +195,14 @@ port = @{[$node_a->port]}
 primary_conninfo = '$connstr application_name=@{[$node_a->name]}'
 ]);
 $node_a->set_standby_mode;
+
+# Flush WAL through the minimum recovery point chosen by pg_rewind.  The
+# full_page_writes change can leave an unflushed record on the idle source,
+# delaying startup until the background writer logs its next snapshot.
+$node_b->safe_psql('postgres', 'SELECT pg_switch_wal();');
 $node_a->start;
 
-$node_b->wait_for_catchup($node_a, 'replay', $node_b->lsn('insert'));
+$node_b->wait_for_replay_catchup($node_a);
 test_checksum_state($node_a, 'on');
 
 is($node_a->safe_psql('postgres', "SELECT count(*) FROM t;"),

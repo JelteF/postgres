@@ -68,8 +68,11 @@ PG_MODULE_MAGIC_EXT(
 /* Default CPU cost to process 1 row (above and beyond cpu_tuple_cost). */
 #define DEFAULT_FDW_TUPLE_COST		0.2
 
-/* If no remote estimates, assume a sort costs 20% extra */
-#define DEFAULT_FDW_SORT_MULTIPLIER 1.2
+/*
+ * If no remote estimates, charge this fraction of a local sort's cost for a
+ * remote sort.  See adjust_foreign_path_cost_for_sort().
+ */
+#define DEFAULT_FDW_SORT_COST_FRACTION 0.8
 
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
@@ -524,12 +527,9 @@ static void get_remote_estimate(const char *sql,
 								int *width,
 								Cost *startup_cost,
 								Cost *total_cost);
-static void adjust_foreign_grouping_path_cost(PlannerInfo *root,
-											  List *pathkeys,
-											  double retrieved_rows,
-											  double width,
+static void adjust_foreign_path_cost_for_sort(PlannerInfo *root, List *pathkeys,
+											  double retrieved_rows, double width,
 											  double limit_tuples,
-											  int *p_disabled_nodes,
 											  Cost *p_startup_cost,
 											  Cost *p_run_cost);
 static bool ec_member_matches_foreign(PlannerInfo *root, RelOptInfo *rel,
@@ -3415,9 +3415,27 @@ estimate_path_cost_size(PlannerInfo *root,
 	int			disabled_nodes = 0;
 	Cost		startup_cost;
 	Cost		total_cost;
+	List	   *local_param_join_conds = NIL;
+	QualCost	remote_tlist_cost = {0};
+	QualCost	local_cost;
+	PathTarget *target;
 
 	/* Make sure the core code has set up the relation's reltarget */
 	Assert(foreignrel->reltarget);
+
+	/*
+	 * The costs are built up in the order in which the work happens: first
+	 * the work done by the foreign server to compute the result, then the
+	 * transfer of the rows, and finally the work done locally on each fetched
+	 * row.  Keeping these apart matters, because operations that we push
+	 * down, such as a sort, only apply to the remote work.
+	 *
+	 * For an upper relation, the expressions in grouped_tlist (such as the
+	 * grouping expressions) are computed remotely, and the rest of the target
+	 * list locally on top of them.
+	 */
+	if (IS_UPPER_REL(foreignrel))
+		cost_qual_eval(&remote_tlist_cost, fpinfo->grouped_tlist, root);
 
 	/*
 	 * If the table or the server is configured to use remote estimates,
@@ -3429,11 +3447,9 @@ estimate_path_cost_size(PlannerInfo *root,
 	if (fpinfo->use_remote_estimate)
 	{
 		List	   *remote_param_join_conds;
-		List	   *local_param_join_conds;
 		StringInfoData sql;
 		PGconn	   *conn;
 		Selectivity local_sel;
-		QualCost	local_cost;
 		List	   *fdw_scan_tlist = NIL;
 		List	   *remote_conds;
 
@@ -3491,31 +3507,6 @@ estimate_path_cost_size(PlannerInfo *root,
 		local_sel *= fpinfo->local_conds_sel;
 
 		rows = clamp_row_est(rows * local_sel);
-
-		/* Add in the eval cost of the locally-checked quals */
-		startup_cost += fpinfo->local_conds_cost.startup;
-		total_cost += fpinfo->local_conds_cost.per_tuple * retrieved_rows;
-		cost_qual_eval(&local_cost, local_param_join_conds, root);
-		startup_cost += local_cost.startup;
-		total_cost += local_cost.per_tuple * retrieved_rows;
-
-		/*
-		 * Add in tlist eval cost for each output row.  In case of an
-		 * aggregate, some of the tlist expressions such as grouping
-		 * expressions will be evaluated remotely, so adjust the costs.
-		 */
-		startup_cost += foreignrel->reltarget->cost.startup;
-		total_cost += foreignrel->reltarget->cost.startup;
-		total_cost += foreignrel->reltarget->cost.per_tuple * rows;
-		if (IS_UPPER_REL(foreignrel))
-		{
-			QualCost	tlist_cost;
-
-			cost_qual_eval(&tlist_cost, fdw_scan_tlist, root);
-			startup_cost -= tlist_cost.startup;
-			total_cost -= tlist_cost.startup;
-			total_cost -= tlist_cost.per_tuple * rows;
-		}
 	}
 	else
 	{
@@ -3543,24 +3534,6 @@ estimate_path_cost_size(PlannerInfo *root,
 			width = fpinfo->width;
 			startup_cost = fpinfo->rel_startup_cost;
 			run_cost = fpinfo->rel_total_cost - fpinfo->rel_startup_cost;
-
-			/*
-			 * If we estimate the costs of a foreign scan or a foreign join
-			 * with additional post-scan/join-processing steps, the scan or
-			 * join costs obtained from the cache wouldn't yet contain the
-			 * eval costs for the final scan/join target, which would've been
-			 * updated by apply_scanjoin_target_to_paths(); add the eval costs
-			 * now.
-			 */
-			if (fpextra && !IS_UPPER_REL(foreignrel))
-			{
-				/* Shouldn't get here unless we have LIMIT */
-				Assert(fpextra->has_limit);
-				Assert(foreignrel->reloptkind == RELOPT_BASEREL ||
-					   foreignrel->reloptkind == RELOPT_JOINREL);
-				startup_cost += foreignrel->reltarget->cost.startup;
-				run_cost += foreignrel->reltarget->cost.per_tuple * rows;
-			}
 		}
 		else if (IS_JOIN_REL(foreignrel))
 		{
@@ -3622,7 +3595,6 @@ estimate_path_cost_size(PlannerInfo *root,
 			startup_cost = fpinfo_i->rel_startup_cost + fpinfo_o->rel_startup_cost;
 			startup_cost += join_cost.startup;
 			startup_cost += remote_conds_cost.startup;
-			startup_cost += fpinfo->local_conds_cost.startup;
 
 			/*
 			 * Run time cost includes:
@@ -3635,20 +3607,12 @@ estimate_path_cost_size(PlannerInfo *root,
 			 *
 			 * 3. Run time cost of applying pushed down other clauses on the
 			 * result of join
-			 *
-			 * 4. Run time cost of applying nonpushable other clauses locally
-			 * on the result fetched from the foreign server.
 			 */
 			run_cost = fpinfo_i->rel_total_cost - fpinfo_i->rel_startup_cost;
 			run_cost += fpinfo_o->rel_total_cost - fpinfo_o->rel_startup_cost;
 			run_cost += nrows * join_cost.per_tuple;
 			nrows = clamp_row_est(nrows * fpinfo->joinclause_sel);
 			run_cost += nrows * remote_conds_cost.per_tuple;
-			run_cost += fpinfo->local_conds_cost.per_tuple * retrieved_rows;
-
-			/* Add in tlist eval cost for each output row */
-			startup_cost += foreignrel->reltarget->cost.startup;
-			run_cost += foreignrel->reltarget->cost.per_tuple * rows;
 		}
 		else if (IS_UPPER_REL(foreignrel))
 		{
@@ -3750,18 +3714,16 @@ estimate_path_cost_size(PlannerInfo *root,
 				cost_qual_eval(&remote_cost, fpinfo->remote_conds, root);
 				startup_cost += remote_cost.startup;
 				run_cost += remote_cost.per_tuple * numGroups;
-				/* Add in the eval cost of the locally-checked quals */
-				startup_cost += fpinfo->local_conds_cost.startup;
-				run_cost += fpinfo->local_conds_cost.per_tuple * retrieved_rows;
 			}
 
-			/* Add in tlist eval cost for each output row */
-			startup_cost += foreignrel->reltarget->cost.startup;
-			run_cost += foreignrel->reltarget->cost.per_tuple * rows;
+			/* Add in eval cost of the remotely computed tlist expressions */
+			startup_cost += remote_tlist_cost.startup;
+			run_cost += remote_tlist_cost.per_tuple * rows;
 		}
 		else
 		{
 			Cost		cpu_per_tuple;
+			QualCost	remote_conds_cost;
 
 			/* Use rows/width estimates made by set_baserel_size_estimates. */
 			rows = foreignrel->rows;
@@ -3775,21 +3737,19 @@ estimate_path_cost_size(PlannerInfo *root,
 			retrieved_rows = Min(retrieved_rows, foreignrel->tuples);
 
 			/*
-			 * Cost as though this were a seqscan, which is pessimistic.  We
-			 * effectively imagine the local_conds are being evaluated
-			 * remotely, too.
+			 * Cost as though this were a seqscan, which is pessimistic.  The
+			 * local_conds are not included here, because those are only
+			 * evaluated on the retrieved rows.
 			 */
+			cost_qual_eval(&remote_conds_cost, fpinfo->remote_conds, root);
+
 			startup_cost = 0;
 			run_cost = 0;
 			run_cost += seq_page_cost * foreignrel->pages;
 
-			startup_cost += foreignrel->baserestrictcost.startup;
-			cpu_per_tuple = cpu_tuple_cost + foreignrel->baserestrictcost.per_tuple;
+			startup_cost += remote_conds_cost.startup;
+			cpu_per_tuple = cpu_tuple_cost + remote_conds_cost.per_tuple;
 			run_cost += cpu_per_tuple * foreignrel->tuples;
-
-			/* Add in tlist eval cost for each output row */
-			startup_cost += foreignrel->reltarget->cost.startup;
-			run_cost += foreignrel->reltarget->cost.per_tuple * rows;
 		}
 
 		/*
@@ -3802,30 +3762,10 @@ estimate_path_cost_size(PlannerInfo *root,
 		 * pushing down the ORDER BY clause when it's useful to do so.
 		 */
 		if (pathkeys != NIL)
-		{
-			if (IS_UPPER_REL(foreignrel))
-			{
-				Assert(foreignrel->reloptkind == RELOPT_UPPER_REL &&
-					   fpinfo->stage == UPPERREL_GROUP_AGG);
-
-				/*
-				 * We can only get here when this function is called from
-				 * add_foreign_ordered_paths() or add_foreign_final_paths();
-				 * in which cases, the passed-in fpextra should not be NULL.
-				 */
-				Assert(fpextra);
-				adjust_foreign_grouping_path_cost(root, pathkeys,
-												  retrieved_rows, width,
-												  fpextra->limit_tuples,
-												  &disabled_nodes,
-												  &startup_cost, &run_cost);
-			}
-			else
-			{
-				startup_cost *= DEFAULT_FDW_SORT_MULTIPLIER;
-				run_cost *= DEFAULT_FDW_SORT_MULTIPLIER;
-			}
-		}
+			adjust_foreign_path_cost_for_sort(root, pathkeys,
+											  retrieved_rows, width,
+											  fpextra ? fpextra->limit_tuples : -1.0,
+											  &startup_cost, &run_cost);
 
 		total_cost = startup_cost + run_cost;
 
@@ -3839,32 +3779,16 @@ estimate_path_cost_size(PlannerInfo *root,
 	}
 
 	/*
-	 * If this includes the final sort step, the given target, which will be
-	 * applied to the resulting path, might have different expressions from
-	 * the foreignrel's reltarget (see make_sort_input_target()); adjust tlist
-	 * eval costs.
-	 */
-	if (fpextra && fpextra->has_final_sort &&
-		fpextra->target != foreignrel->reltarget)
-	{
-		QualCost	oldcost = foreignrel->reltarget->cost;
-		QualCost	newcost = fpextra->target->cost;
-
-		startup_cost += newcost.startup - oldcost.startup;
-		total_cost += newcost.startup - oldcost.startup;
-		total_cost += (newcost.per_tuple - oldcost.per_tuple) * rows;
-	}
-
-	/*
 	 * Cache the retrieved rows and cost estimates for scans, joins, or
 	 * groupings without any parameterization, pathkeys, or additional
 	 * post-scan/join-processing steps, before adding the costs for
-	 * transferring data from the foreign server.  These estimates are useful
-	 * for costing remote joins involving this relation or costing other
-	 * remote operations on this relation such as remote sorts and remote
-	 * LIMIT restrictions, when the costs can not be obtained from the foreign
-	 * server.  This function will be called at least once for every foreign
-	 * relation without any parameterization, pathkeys, or additional
+	 * transferring data from the foreign server and for the local work on the
+	 * fetched rows.  So these only contain the remote work, which makes them
+	 * useful for costing remote joins involving this relation or costing
+	 * other remote operations on this relation such as remote sorts and
+	 * remote LIMIT restrictions, when the costs can not be obtained from the
+	 * foreign server.  This function will be called at least once for every
+	 * foreign relation without any parameterization, pathkeys, or additional
 	 * post-scan/join-processing steps.
 	 */
 	if (pathkeys == NIL && param_join_conds == NIL && fpextra == NULL)
@@ -3875,15 +3799,38 @@ estimate_path_cost_size(PlannerInfo *root,
 	}
 
 	/*
-	 * Add some additional cost factors to account for connection overhead
-	 * (fdw_startup_cost), transferring data across the network
-	 * (fdw_tuple_cost per retrieved row), and local manipulation of the data
-	 * (cpu_tuple_cost per retrieved row).
+	 * Add the cost of connection overhead (fdw_startup_cost) and transferring
+	 * data across the network (fdw_tuple_cost per retrieved row).
 	 */
 	startup_cost += fpinfo->fdw_startup_cost;
 	total_cost += fpinfo->fdw_startup_cost;
 	total_cost += fpinfo->fdw_tuple_cost * retrieved_rows;
+
+	/*
+	 * Add the cost of the local work: manipulating each retrieved row
+	 * (cpu_tuple_cost), checking the quals that couldn't be sent to the
+	 * foreign server, and evaluating the target list for each output row.
+	 *
+	 * If this includes the final sort step, the given target, which will be
+	 * applied to the resulting path, might have different expressions from
+	 * the foreignrel's reltarget (see make_sort_input_target()).
+	 */
 	total_cost += cpu_tuple_cost * retrieved_rows;
+
+	cost_qual_eval(&local_cost, local_param_join_conds, root);
+	local_cost.startup += fpinfo->local_conds_cost.startup;
+	local_cost.per_tuple += fpinfo->local_conds_cost.per_tuple;
+	startup_cost += local_cost.startup;
+	total_cost += local_cost.startup;
+	total_cost += local_cost.per_tuple * retrieved_rows;
+
+	if (fpextra && fpextra->has_final_sort)
+		target = fpextra->target;
+	else
+		target = foreignrel->reltarget;
+	startup_cost += target->cost.startup - remote_tlist_cost.startup;
+	total_cost += target->cost.startup - remote_tlist_cost.startup;
+	total_cost += (target->cost.per_tuple - remote_tlist_cost.per_tuple) * rows;
 
 	/*
 	 * If we have LIMIT, we should prefer performing the restriction remotely
@@ -3955,58 +3902,51 @@ get_remote_estimate(const char *sql, PGconn *conn,
 }
 
 /*
- * Adjust the cost estimates of a foreign grouping path to include the cost of
- * generating properly-sorted output.
+ * Adjust the given path costs for having the remote side sort its output,
+ * when no remote estimates are available.
+ *
+ * We can't accurately estimate a remote sort; it might even be free if the
+ * remote plan happens to produce the order (e.g. a sorted aggregate).  What we
+ * do know is that the alternative is the unsorted path plus a local Sort of
+ * the same rows, which is costed accurately. We assume that the remote can
+ * sort at least as cheaply as we can.  So charge a fraction of the cost of a
+ * local Sort: enough to beat it, not so little that the sorted path looks
+ * free.
+ *
+ * Like a local Sort, a remote sort is blocking, so all of the input cost
+ * becomes startup cost.  Besides being accurate, that also matters when the
+ * ordering is merely potentially useful (e.g. for a merge join): the sorted
+ * path then shares a pathlist with the unsorted path, and add_path() lets
+ * fuzzily equal costs be decided by pathkeys.  A surcharge on the run cost
+ * alone can be within that fuzz for a small table, so the sorted path would
+ * prune the unsorted one and force every consumer to sort remotely.  With
+ * the input cost moved to startup, the sorted path is always clearly worse
+ * on startup cost, so both survive and the consumer gets to choose.
  */
 static void
-adjust_foreign_grouping_path_cost(PlannerInfo *root,
-								  List *pathkeys,
-								  double retrieved_rows,
-								  double width,
+adjust_foreign_path_cost_for_sort(PlannerInfo *root, List *pathkeys,
+								  double retrieved_rows, double width,
 								  double limit_tuples,
-								  int *p_disabled_nodes,
-								  Cost *p_startup_cost,
-								  Cost *p_run_cost)
+								  Cost *p_startup_cost, Cost *p_run_cost)
 {
-	/*
-	 * If the GROUP BY clause isn't sort-able, the plan chosen by the remote
-	 * side is unlikely to generate properly-sorted output, so it would need
-	 * an explicit sort; adjust the given costs with cost_sort().  Likewise,
-	 * if the GROUP BY clause is sort-able but isn't a superset of the given
-	 * pathkeys, adjust the costs with that function.  Otherwise, adjust the
-	 * costs by applying the same heuristic as for the scan or join case.
-	 */
-	if (!grouping_is_sortable(root->processed_groupClause) ||
-		!pathkeys_contained_in(pathkeys, root->group_pathkeys))
-	{
-		Path		sort_path;	/* dummy for result of cost_sort */
+	Cost		input_cost = *p_startup_cost + *p_run_cost;
+	Path		sort_path;		/* dummy for result of cost_sort */
 
-		cost_sort(&sort_path,
-				  root,
-				  pathkeys,
-				  0,
-				  *p_startup_cost + *p_run_cost,
-				  retrieved_rows,
-				  width,
-				  0.0,
-				  work_mem,
-				  limit_tuples);
+	cost_sort(&sort_path,
+			  root,
+			  pathkeys,
+			  0,
+			  input_cost,
+			  retrieved_rows,
+			  width,
+			  0.0,
+			  work_mem,
+			  limit_tuples);
 
-		*p_startup_cost = sort_path.startup_cost;
-		*p_run_cost = sort_path.total_cost - sort_path.startup_cost;
-	}
-	else
-	{
-		/*
-		 * The default extra cost seems too large for foreign-grouping cases;
-		 * add 1/4th of that default.
-		 */
-		double		sort_multiplier = 1.0 + (DEFAULT_FDW_SORT_MULTIPLIER
-											 - 1.0) * 0.25;
-
-		*p_startup_cost *= sort_multiplier;
-		*p_run_cost *= sort_multiplier;
-	}
+	*p_startup_cost = input_cost +
+		(sort_path.startup_cost - input_cost) * DEFAULT_FDW_SORT_COST_FRACTION;
+	*p_run_cost = (sort_path.total_cost - sort_path.startup_cost) *
+		DEFAULT_FDW_SORT_COST_FRACTION;
 }
 
 /*
