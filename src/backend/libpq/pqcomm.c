@@ -377,15 +377,26 @@ socket_close(int code, Datum arg)
 		secure_close(MyProcPort);
 
 		/*
-		 * Formerly we did an explicit close() here, but it seems better to
-		 * leave the socket open until the process dies.  This allows clients
-		 * to perform a "synchronous close" if they care --- wait till the
-		 * transport layer reports connection closure, and you can be sure the
-		 * backend has exited.
+		 * On most platforms, we leave the socket open until the process dies.
+		 * This allows clients to perform a "synchronous close" if they care
+		 * --- wait till the transport layer reports connection closure, and
+		 * you can be sure the backend has exited.
 		 *
-		 * We do set sock to PGINVALID_SOCKET to prevent any further I/O,
-		 * though.
+		 * However, that does not work on Windows: if the kernel closes the
+		 * socket it does an "abortive shutdown" that can discard data not yet
+		 * sent to the client, such as the FATAL message explaining why we are
+		 * exiting.  A graceful shutdown requires closing the socket
+		 * explicitly.  This was tried before and reverted in commit 29992a6a5
+		 * because walreceivers then failed to notice the walsender going
+		 * away, but that was due to lost FD_CLOSE events, which commit
+		 * a8458f508 has since fixed.
 		 */
+#ifdef WIN32
+		shutdown(MyProcPort->sock, SD_SEND);
+		closesocket(MyProcPort->sock);
+#endif
+
+		/* In any case, set sock to PGINVALID_SOCKET to prevent further I/O */
 		MyProcPort->sock = PGINVALID_SOCKET;
 	}
 }
