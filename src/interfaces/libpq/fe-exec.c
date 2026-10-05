@@ -1747,6 +1747,39 @@ PQsendQueryStart(PGconn *conn, bool newQuery)
 	}
 	else
 	{
+#ifdef WIN32
+
+		/*
+		 * The server may have sent us something while we were idle, most
+		 * importantly a FATAL error just before it closed the connection
+		 * (e.g. due to idle_in_transaction_session_timeout or
+		 * pg_terminate_backend()).  If so, sending our query will make the
+		 * server's OS answer with an RST, and when Winsock receives an RST it
+		 * discards any data we have not read yet.  So pull whatever is
+		 * available into our own buffer before sending.  We don't parse it
+		 * here: it gets processed along with this command's results, just as
+		 * it would be on other platforms where the data survives the RST.
+		 *
+		 * This only helps if the server closed its socket gracefully.  If it
+		 * didn't, as with servers older than PostgreSQL 20, Windows sends the
+		 * RST as soon as the backend exits, and the data is already gone
+		 * before we get here.
+		 *
+		 * We only do this when the connection is idle and not in pipeline
+		 * mode, which is the case where a FATAL from the server is most
+		 * likely to be sitting unread: if results are pending, the
+		 * application will normally be reading them anyway.  Doing it on
+		 * every send instead would cost an extra recv() call per flush, which
+		 * pipeline mode and COPY are particularly sensitive to.  It would
+		 * also remove TCP backpressure, letting unread result data pile up in
+		 * our input buffer without bound.  On an idle connection the only
+		 * thing that can be waiting is a few asynchronous messages, and this
+		 * command's result processing will consume those right away.
+		 */
+		if (conn->asyncStatus == PGASYNC_IDLE && pqReadData(conn) < 0)
+			return false;
+#endif
+
 		/*
 		 * This command's results will come in immediately. Initialize async
 		 * result-accumulation state
