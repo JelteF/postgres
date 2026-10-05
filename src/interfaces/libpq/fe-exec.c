@@ -1747,6 +1747,22 @@ PQsendQueryStart(PGconn *conn, bool newQuery)
 	}
 	else
 	{
+#ifdef WIN32
+
+		/*
+		 * The server may have sent us something while we were idle, most
+		 * importantly a FATAL error just before it closed the connection. If
+		 * so, sending our query will make the server's OS answer with a
+		 * reset, and when Winsock receives a reset it discards any data we
+		 * have not read yet.  So pull whatever is available into our own
+		 * buffer before sending.  We don't parse it here: it gets processed
+		 * along with this command's results, just as it would be on other
+		 * platforms where the data survives the reset.
+		 */
+		if (conn->asyncStatus == PGASYNC_IDLE && pqReadData(conn) < 0)
+			return false;
+#endif
+
 		/*
 		 * This command's results will come in immediately. Initialize async
 		 * result-accumulation state
