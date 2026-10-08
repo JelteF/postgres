@@ -3054,7 +3054,6 @@ AbortTransaction(void)
 		AtEOXact_PgStat(false, is_parallel_worker);
 		AtEOXact_ApplyLauncher(false);
 		AtEOXact_LogicalRepWorkers(false);
-		AtEOXact_LogicalCtl();
 		pgstat_report_xact_timestamp(0);
 	}
 
@@ -3106,6 +3105,17 @@ CleanupTransaction(void)
 
 	XactTopFullTransactionId = InvalidFullTransactionId;
 	nParallelCurrentXids = 0;
+
+	/*
+	 * Apply any pending XLogLogicalInfo update.  This must be done here
+	 * rather than in AbortTransaction(), because a failed transaction block
+	 * keeps its XID until ROLLBACK, so a barrier absorbed meanwhile is
+	 * deferred. Unlike CommitTransaction() and PrepareTransaction(), we are
+	 * not necessarily holding interrupts here, so do this after resetting the
+	 * top-level XID; otherwise a barrier absorbed in between would be left
+	 * pending into the next transaction.
+	 */
+	AtEOXact_LogicalCtl();
 
 	/*
 	 * done with abort processing, set current transaction state back to
@@ -5256,7 +5266,6 @@ CommitSubTransaction(void)
 					  s->parent->subTransactionId);
 	AtEOSubXact_HashTables(true, s->nestingLevel);
 	AtEOSubXact_PgStat(true, s->nestingLevel);
-	AtEOSubXact_RI(true, s->subTransactionId, s->parent->subTransactionId);
 	AtSubCommit_Snapshot(s->nestingLevel);
 
 	/*
@@ -5431,7 +5440,6 @@ AbortSubTransaction(void)
 						  s->parent->subTransactionId);
 		AtEOSubXact_HashTables(false, s->nestingLevel);
 		AtEOSubXact_PgStat(false, s->nestingLevel);
-		AtEOSubXact_RI(false, s->subTransactionId, s->parent->subTransactionId);
 		AtSubAbort_Snapshot(s->nestingLevel);
 	}
 

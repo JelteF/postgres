@@ -14,12 +14,18 @@ EXTRA_INSTALL = contrib/test_decoding
 REGRESS = injection_points hashagg reindex_conc vacuum
 REGRESS_OPTS = --dlpath=$(top_builddir)/src/test/regress
 
+# wait_cleanup terminates another backend, whose FATAL message can be lost
+# on Windows, making the test unstable there.
+# See https://postgr.es/m/088AB35D-0860-494A-A9CF-8B301543AA51@yandex-team.ru
+WAIT_CLEANUP_TST = $(if $(filter win32,$(PORTNAME)),,wait_cleanup)
+
 ISOLATION = basic \
 	    inplace \
 	    reindex_concurrently_deferred \
 	    repack \
 	    repack_commit_race \
 	    repack_decode \
+	    repack_dropped \
 	    repack_missingval \
 	    repack_temporal \
 	    repack_temporal_multirange \
@@ -27,7 +33,7 @@ ISOLATION = basic \
 	    ri_fastpath_reindex \
 	    ri_fastpath_snapshot \
 	    syscache-update-pruned \
-	    wait_cleanup \
+	    $(WAIT_CLEANUP_TST) \
 	    heap_lock_update \
 	    on_conflict_probe_window
 

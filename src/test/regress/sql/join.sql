@@ -1384,6 +1384,99 @@ from int8_tbl t1 left join
   on (t1.q2 = t2.q1)
 group by t1.q2 order by 1;
 
+-- nulled whole-row Var of a join alias in aggregate queries
+select t1.q2, count(t23)
+from int8_tbl t1 left join
+  (int8_tbl t2 join int4_tbl t3 on t3.f1 = 0) t23
+  on (t1.q2 = t23.q1)
+group by t1.q2 order by 1;
+
+select t23, count(*)
+from int8_tbl t1 left join
+  (int8_tbl t2 join int4_tbl t3 on t3.f1 = 0) t23
+  on (t1.q2 = t23.q1)
+group by t23 order by 1;
+
+-- nulled whole-row Var of a zero-column join, referenced from a subquery
+explain (verbose, costs off)
+select t1.q1, t1.q2, (select t23::text)
+from int8_tbl t1 left join
+  ((select from int4_tbl where f1 = 0) t2
+   cross join (select from int4_tbl where f1 = 0) t3) t23
+  on (t1.q1 = 123)
+order by 1, 2;
+select t1.q1, t1.q2, (select t23::text)
+from int8_tbl t1 left join
+  ((select from int4_tbl where f1 = 0) t2
+   cross join (select from int4_tbl where f1 = 0) t3) t23
+  on (t1.q1 = 123)
+order by 1, 2;
+
+-- nulled whole-row Var of a zero-column outer join
+explain (verbose, costs off)
+select t1.q1, t1.q2, f
+from int8_tbl t1 left join
+  ((select from int4_tbl where f1 = 0) t2
+   left join (select from int4_tbl where f1 = 0) t3 on true) t23
+  on (t1.q1 = 123),
+  length(t23::text) f
+order by 1, 2;
+select t1.q1, t1.q2, f
+from int8_tbl t1 left join
+  ((select from int4_tbl where f1 = 0) t2
+   left join (select from int4_tbl where f1 = 0) t3 on true) t23
+  on (t1.q1 = 123),
+  length(t23::text) f
+order by 1, 2;
+
+-- nulled whole-row Var of a join with a variable-free merged column
+explain (verbose, costs off)
+select 1 from (unnest(array[1, (select sum(f1) from int4_tbl)]) as u(b)
+               right join (values (1)) as v(b) using (b)
+               full join int8_tbl i8 on true) as j,
+  length(j::text) f;
+select 1 from (unnest(array[1, (select sum(f1) from int4_tbl)]) as u(b)
+               right join (values (1)) as v(b) using (b)
+               full join int8_tbl i8 on true) as j,
+  length(j::text) f;
+
+-- nulled whole-row Var of a join containing a lateral reference
+explain (verbose, costs off)
+select (j is null) from int4_tbl i4
+  left join (int8_tbl i8 join lateral (select i4.f1 from (values (3)) v) ss(x) on true) as j
+  on false;
+select (j is null) from int4_tbl i4
+  left join (int8_tbl i8 join lateral (select i4.f1 from (values (3)) v) ss(x) on true) as j
+  on false;
+
+-- same, but the PHV must be passed up through another join
+explain (verbose, costs off)
+select j from int4_tbl i4
+  left join (lateral (values (i4.f1)) as v(a) cross join int8_tbl i8) as j
+  on (j.q1 = 123 and j.q2 = 456),
+  int4_tbl i4b
+where i4.f1 = 0
+order by 1;
+select j from int4_tbl i4
+  left join (lateral (values (i4.f1)) as v(a) cross join int8_tbl i8) as j
+  on (j.q1 = 123 and j.q2 = 456),
+  int4_tbl i4b
+where i4.f1 = 0
+order by 1;
+
+-- same, referenced from a subquery, with only lateral references and constants
+explain (verbose, costs off)
+select i4.f1, (select j::text)
+from int4_tbl i4
+  left join (lateral (select i4.f1) ss(x) cross join (select 1) s2(y)) j
+  on (i4.f1 = 0)
+order by 1;
+select i4.f1, (select j::text)
+from int4_tbl i4
+  left join (lateral (select i4.f1) ss(x) cross join (select 1) s2(y)) j
+  on (i4.f1 = 0)
+order by 1;
+
 --
 -- test incorrect failure to NULL pulled-up subexpressions
 --
@@ -2746,6 +2839,12 @@ from (select case when false then remov.id else (select i41.f1) end as c1
       from int4_tbl i41 left join a remov on i41.f1 = remov.id) ss1
      right join int4_tbl i42 on true;
 
+-- likewise, where the pushed-down PHV sits within an outer-level aggregate
+explain (verbose, costs off)
+select (select sum(ss1.c1) from int4_tbl i43) as c2
+from (select (select i41.f1) as c1 from int4_tbl i41) ss1
+     right join int4_tbl i42 on true;
+
 -- likewise, where the pushed-down PHV's expression contains another PHV of
 -- the same level, which must not be preprocessed separately from its parent
 explain (verbose, costs off)
@@ -3965,6 +4064,32 @@ select * from
   int8_tbl a left join
   lateral (select *, coalesce(a.q2, 42) as x from int8_tbl b) ss on a.q2 = ss.q1;
 
+-- check EC-derived clauses for a UNION ALL member with nullable lateral refs
+explain (costs off)
+select * from
+  int8_tbl x left join int8_tbl y on x.q2 = y.q1,
+  lateral (select x.q1 as v union all select x.q1 + y.q2) ss
+where x.q2 = ss.v;
+select * from
+  int8_tbl x left join int8_tbl y on x.q2 = y.q1,
+  lateral (select x.q1 as v union all select x.q1 + y.q2) ss
+where x.q2 = ss.v;
+
+-- likewise when the member is scanned below the outer join nulling those refs
+explain (costs off)
+select * from
+  int8_tbl x left join int8_tbl y on true
+  left join (int8_tbl z join
+             lateral (select z.q1 as v union all select y.q1 + z.q1) ss
+             on z.q2 = ss.v)
+    on y.q1 = 1;
+select * from
+  int8_tbl x left join int8_tbl y on true
+  left join (int8_tbl z join
+             lateral (select z.q1 as v union all select y.q1 + z.q1) ss
+             on z.q2 = ss.v)
+    on y.q1 = 1;
+
 -- lateral can result in join conditions appearing below their
 -- real semantic level
 explain (verbose, costs off)
@@ -4104,6 +4229,39 @@ lateral (select * from int8_tbl t1,
                                      where q2 = (select greatest(t1.q1,t2.q2))
                                        and (select v.id=0)) offset 0) ss2) ss
          where t1.q1 = ss.q2) ss0;
+
+-- check that lateral references hidden in a whole-row join alias Var
+-- prevent pullup of a LATERAL subquery
+explain (verbose, costs off)
+select i4.f1, ss.x, i8.q1
+from int4_tbl i4,
+  lateral (select (j is null)::int
+           from ((select i4.f1) s left join (select 1) v on false) j) ss(x)
+  left join int8_tbl i8 on ss.x = i8.q1
+order by 1;
+select i4.f1, ss.x, i8.q1
+from int4_tbl i4,
+  lateral (select (j is null)::int
+           from ((select i4.f1) s left join (select 1) v on false) j) ss(x)
+  left join int8_tbl i8 on ss.x = i8.q1
+order by 1;
+
+-- same, with the lateral reference hidden in the subquery's quals
+explain (verbose, costs off)
+select i4.f1, i8.q1, ss.y
+from int4_tbl i4,
+  int8_tbl i8 left join
+  lateral (select 1 from ((select i4.f1) s left join (select 1) v on false) j
+           where length(j::text) > 3) ss(y) on true
+where i4.f1 = 0
+order by 1, 2;
+select i4.f1, i8.q1, ss.y
+from int4_tbl i4,
+  int8_tbl i8 left join
+  lateral (select 1 from ((select i4.f1) s left join (select 1) v on false) j
+           where length(j::text) > 3) ss(y) on true
+where i4.f1 = 0
+order by 1, 2;
 
 -- test some error cases where LATERAL should have been used but wasn't
 select f1,g from int4_tbl a, (select f1 as g) ss;

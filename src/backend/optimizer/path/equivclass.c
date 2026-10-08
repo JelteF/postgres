@@ -2022,19 +2022,27 @@ create_join_clause(PlannerInfo *root,
 										ec->ec_min_security);
 
 	/*
-	 * If either EM is a child, force the clause's clause_relids to include
-	 * the relid(s) of the child rel.  In normal cases it would already, but
-	 * not if we are considering appendrel child relations with pseudoconstant
-	 * translated variables (i.e., UNION ALL sub-selects with constant output
-	 * items).  We must do this so that join_clause_is_movable_into() will
-	 * think that the clause should be evaluated at the correct place.
+	 * If either EM is a child, set the clause's clause_relids from the
+	 * members' em_relids rather than the relids found in the expressions.
+	 * These normally match, but not for UNION ALL sub-selects whose output
+	 * items are constants (mentioning no rels) or contain lateral references
+	 * (mentioning rels that the child's parameterization supplies).  We must
+	 * do this so that join_clause_is_movable_into() will think that the
+	 * clause should be evaluated at the correct place.
 	 */
-	if (leftem->em_is_child)
-		rinfo->clause_relids = bms_add_members(rinfo->clause_relids,
-											   leftem->em_relids);
-	if (rightem->em_is_child)
-		rinfo->clause_relids = bms_add_members(rinfo->clause_relids,
-											   rightem->em_relids);
+	if (leftem->em_is_child || rightem->em_is_child)
+	{
+		Relids		baserels;
+
+		rinfo->clause_relids = bms_union(leftem->em_relids,
+										 rightem->em_relids);
+
+		/* keep num_base_rels in sync, as in make_restrictinfo() */
+		baserels = bms_difference(rinfo->clause_relids,
+								  root->outer_join_rels);
+		rinfo->num_base_rels = bms_num_members(baserels);
+		bms_free(baserels);
+	}
 
 	/* If it's a child clause, copy the parent's rinfo_serial */
 	if (parent_rinfo)
@@ -3029,6 +3037,84 @@ add_child_join_rel_equivalences(PlannerInfo *root,
 									cur_em->em_datatype,
 									bms_next_member(child_joinrel->relids, -1));
 			}
+		}
+	}
+
+	MemoryContextSwitchTo(oldcontext);
+}
+
+/*
+ * add_child_rel_pathkey_equivalences
+ *	  Make sure the ECs of the given pathkeys have members for child_rel.
+ *
+ * An EC created after its relations' children were processed has no child
+ * members, so child_rel could not be sorted by it.  Add them here.
+ */
+void
+add_child_rel_pathkey_equivalences(PlannerInfo *root, RelOptInfo *child_rel,
+								   List *pathkeys)
+{
+	Relids		top_parent_relids = child_rel->top_parent_relids;
+	MemoryContext oldcontext;
+	ListCell   *lc;
+
+	Assert(IS_OTHER_REL(child_rel));
+
+	/* As in add_child_join_rel_equivalences, new members must survive GEQO */
+	oldcontext = MemoryContextSwitchTo(root->planner_cxt);
+
+	foreach(lc, pathkeys)
+	{
+		EquivalenceClass *ec = lfirst_node(PathKey, lc)->pk_eclass;
+
+		if (ec->ec_has_volatile)
+			continue;
+
+		foreach_node(EquivalenceMember, cur_em, ec->ec_members)
+		{
+			EquivalenceMemberIterator it;
+			EquivalenceMember *em;
+			Expr	   *child_expr;
+			Relids		new_relids;
+			int			child_relid;
+
+			/* Consider only members computable at the topmost parent */
+			if (cur_em->em_is_const ||
+				!bms_is_subset(cur_em->em_relids, top_parent_relids))
+				continue;
+
+			/* Skip members that already have a child version for this rel */
+			setup_eclass_member_iterator(&it, ec, child_rel->relids);
+			while ((em = eclass_member_iterator_next(&it)) != NULL)
+			{
+				if (em->em_parent == cur_em &&
+					bms_is_subset(em->em_relids, child_rel->relids))
+					break;
+			}
+			if (em != NULL)
+				continue;
+
+			new_relids = adjust_child_relids_multilevel(root,
+														cur_em->em_relids,
+														child_rel,
+														child_rel->top_parent);
+
+			/* Store the member under one of its child relations */
+			child_relid = bms_next_member(bms_difference(new_relids,
+														 top_parent_relids),
+										  -1);
+			if (child_relid < 0)
+				continue;
+
+			child_expr = (Expr *)
+				adjust_appendrel_attrs_multilevel(root,
+												  (Node *) cur_em->em_expr,
+												  child_rel,
+												  child_rel->top_parent);
+
+			add_child_eq_member(root, ec, -1, child_expr, new_relids,
+								cur_em->em_jdomain, cur_em,
+								cur_em->em_datatype, child_relid);
 		}
 	}
 

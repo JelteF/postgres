@@ -244,6 +244,41 @@ SELECT c3, c4 FROM ft1 ORDER BY c3, c1 LIMIT 1;  -- should work again
 ANALYZE ft1;
 ALTER FOREIGN TABLE ft2 OPTIONS (use_remote_estimate 'true');
 
+-- We do some work locally on each fetched row.  We check the local quals and
+-- evaluate the target list.  This work is the same whether we sort remotely
+-- or locally.  So it should not keep us from pushing down the sort or LIMIT.
+CREATE FUNCTION local_filter(int) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE COST 10000 AS $$
+BEGIN
+  RETURN $1 > 0;
+END
+$$;
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT c1 FROM ft1 WHERE local_filter(c1) ORDER BY c1;
+-- Each of these is cheap enough that it's not postponed until after the sort.
+CREATE FUNCTION local_project(int) RETURNS int
+LANGUAGE plpgsql IMMUTABLE COST 9 AS $$
+BEGIN
+  RETURN $1;
+END
+$$;
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT local_project(c1), local_project(c1 + 1), local_project(c1 + 2),
+  local_project(c1 + 3)
+FROM ft1 ORDER BY c1 LIMIT 10;
+-- The same is true for target list expressions that we evaluate on top of a
+-- pushed down aggregate.  Without a LIMIT the planner does not postpone even
+-- expensive ones until after the sort.
+ALTER FUNCTION local_project(int) COST 10000;
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT local_project(c2), count(*) FROM ft1 GROUP BY c2 ORDER BY c2;
+-- The same is true for HAVING quals that we check locally.
+EXPLAIN (VERBOSE, COSTS OFF)
+SELECT c2, count(*) FROM ft1 GROUP BY c2 HAVING local_filter(count(*)::int)
+ORDER BY c2;
+DROP FUNCTION local_filter(int);
+DROP FUNCTION local_project(int);
+
 -- ===================================================================
 -- test subscription
 -- ===================================================================
@@ -646,7 +681,9 @@ RESET enable_memoize;
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT t1.c1, t2.c2, t3.c3 FROM ft2 t1 LEFT JOIN ft2 t2 ON (t1.c1 = t2.c1) RIGHT JOIN ft4 t3 ON (t2.c1 = t3.c1) OFFSET 10 LIMIT 10;
 SELECT t1.c1, t2.c2, t3.c3 FROM ft2 t1 LEFT JOIN ft2 t2 ON (t1.c1 = t2.c1) RIGHT JOIN ft4 t3 ON (t2.c1 = t3.c1) OFFSET 10 LIMIT 10;
--- full outer join + WHERE clause, only matched rows
+-- full outer join + WHERE clause, only matched rows.  The ORDER BY and LIMIT
+-- are pushed down too: without remote estimates, a remote sort should be
+-- preferred over a local one.
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT t1.c1, t2.c1 FROM ft4 t1 FULL JOIN ft5 t2 ON (t1.c1 = t2.c1) WHERE (t1.c1 = t2.c1 OR t1.c1 IS NULL) ORDER BY t1.c1, t2.c1 OFFSET 10 LIMIT 10;
 SELECT t1.c1, t2.c1 FROM ft4 t1 FULL JOIN ft5 t2 ON (t1.c1 = t2.c1) WHERE (t1.c1 = t2.c1 OR t1.c1 IS NULL) ORDER BY t1.c1, t2.c1 OFFSET 10 LIMIT 10;
@@ -1269,6 +1306,8 @@ alter extension postgres_fdw add aggregate least_agg(variadic items anyarray);
 alter server loopback options (set extensions 'postgres_fdw');
 
 -- Now aggregate will be pushed.  Aggregate will display VARIADIC argument.
+-- The ORDER BY is pushed down along with it: without remote estimates, a
+-- remote sort should be preferred over a local one.
 explain (verbose, costs off)
 select c2, least_agg(c1) from ft1 where c2 < 100 group by c2 order by c2;
 select c2, least_agg(c1) from ft1 where c2 < 100 group by c2 order by c2;
@@ -1439,6 +1478,11 @@ ORDER BY ref_0."C 1";
 explain (verbose, costs off)
 select sum(q.a), count(q.b) from ft4 left join (select 13, avg(ft1.c1), sum(ft2.c1) from ft1 right join ft2 on (ft1.c1 = ft2.c1)) q(a, b, c) on (ft4.c1 <= q.b);
 select sum(q.a), count(q.b) from ft4 left join (select 13, avg(ft1.c1), sum(ft2.c1) from ft1 right join ft2 on (ft1.c1 = ft2.c1)) q(a, b, c) on (ft4.c1 <= q.b);
+
+-- Eager aggregation: a partially grouped rel must not be joined remotely
+explain (verbose, costs off)
+select t1.c2, sum(t2.c1) from ft1 t1 inner join ft2 t2 on (t1.c2 = t2.c2) where t1.c1 < 20 group by t1.c2 order by 1;
+select t1.c2, sum(t2.c1) from ft1 t1 inner join ft2 t2 on (t1.c2 = t2.c2) where t1.c1 < 20 group by t1.c2 order by 1;
 
 
 -- Not supported cases
@@ -4651,6 +4695,8 @@ DROP VIEW my_application_name;
 -- test read-only and/or deferrable transactions
 -- ===================================================================
 CREATE TABLE loct (f1 int, f2 text);
+INSERT INTO loct VALUES (1, 'foo'), (2, 'bar');
+
 CREATE FUNCTION locf() RETURNS SETOF loct LANGUAGE SQL AS
   'UPDATE public.loct SET f2 = f2 || f2 RETURNING *';
 CREATE VIEW locv AS SELECT t.* FROM locf() t;
@@ -4658,7 +4704,6 @@ CREATE FOREIGN TABLE remt (f1 int, f2 text)
   SERVER loopback OPTIONS (table_name 'locv');
 CREATE FOREIGN TABLE remt2 (f1 int, f2 text)
   SERVER loopback2 OPTIONS (table_name 'locv');
-INSERT INTO loct VALUES (1, 'foo'), (2, 'bar');
 
 START TRANSACTION READ ONLY;
 SAVEPOINT s;
@@ -4704,9 +4749,31 @@ SET transaction_read_only = on;
 SELECT * FROM remt2;  -- should fail
 ROLLBACK;
 
+-- Clean up
 DROP FOREIGN TABLE remt;
+DROP FOREIGN TABLE remt2;
+DROP VIEW locv;
+DROP FUNCTION locf();
+
 CREATE FOREIGN TABLE remt (f1 int, f2 text)
   SERVER loopback OPTIONS (table_name 'loct');
+
+CREATE FUNCTION defer_trig_func() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.f2 IS NOT NULL THEN
+    UPDATE public.loct SET f2 = f2 || f2 WHERE f1 = NEW.f1;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+CREATE CONSTRAINT TRIGGER defer_trig AFTER INSERT ON loct
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE PROCEDURE defer_trig_func();
+
+START TRANSACTION;
+INSERT INTO remt VALUES (3, 'baz');
+SET TRANSACTION READ ONLY;
+COMMIT;
 
 START TRANSACTION ISOLATION LEVEL SERIALIZABLE READ ONLY;
 SELECT * FROM remt;
@@ -4722,9 +4789,8 @@ COMMIT;
 
 -- Clean up
 DROP FOREIGN TABLE remt;
-DROP FOREIGN TABLE remt2;
-DROP VIEW locv;
-DROP FUNCTION locf();
+DROP TRIGGER defer_trig ON loct;
+DROP FUNCTION defer_trig_func;
 DROP TABLE loct;
 
 -- ===================================================================

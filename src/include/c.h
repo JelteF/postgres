@@ -76,6 +76,9 @@
 #if defined(WIN32) || defined(__CYGWIN__)
 #include <fcntl.h>				/* ensure O_BINARY is available */
 #endif
+#ifdef _MSC_VER
+#include <sal.h>
+#endif
 #include <locale.h>
 #ifdef HAVE_XLOCALE_H
 #include <xlocale.h>
@@ -275,6 +278,22 @@ extern "C++"
 #endif
 
 /*
+ * Place this macro before functions that intentionally call through a
+ * function pointer whose type does not exactly match the called function.
+ * The prime examples are the expression tree walkers and mutators, which are
+ * declared with their own concrete node and context types and cast to a
+ * generic signature.  That is, strictly speaking, undefined behavior, but it
+ * is a convenient convention that works in practice.  See also
+ * -Wno-cast-function-type-strict, which disables the corresponding
+ * compile-time warning.
+ */
+#ifdef __clang__
+#define pg_attribute_no_sanitize_function() __attribute__((no_sanitize("function")))
+#else
+#define pg_attribute_no_sanitize_function()
+#endif
+
+/*
  * pg_attribute_nonnull means the compiler should warn if the function is
  * called with the listed arguments set to NULL.  If no arguments are
  * listed, the compiler should warn if any pointer arguments are set to NULL.
@@ -310,10 +329,17 @@ extern "C++"
  *   including after either member is updated.
  *
  * The attribute is ignored in C++ due to lack of compiler support.
+ *
+ * MSVC has no counted_by attribute, but the equivalent SAL annotation
+ * _Field_size_() is understood by its static analyzer (/analyze); in ordinary
+ * builds it expands to nothing.  (C++ would be supported here, but we leave
+ * it off for consistency with the other compilers.)
  */
 #ifndef __cplusplus
 #if __has_attribute (counted_by)
 #define pg_attribute_counted_by(count) __attribute__((counted_by(count)))
+#elif defined(_MSC_VER)
+#define pg_attribute_counted_by(count) _Field_size_(count)
 #else
 #define pg_attribute_counted_by(count)
 #endif
@@ -1386,20 +1412,37 @@ typedef struct PGAlignedXLogBlock PGAlignedXLogBlock;
  * design or language restrictions prevent you from declaring that
  * (e.g. because a function returns both const and non-const variables).
  *
- * Note that this only works in function scope, not for global variables (it'd
- * be nice, but not trivial, to improve that).
+ * unconstify_constexpr is for contexts where a constant expression is
+ * required, such as for initializing global variables.  It provides the same
+ * level of checking as unconstify, but the checking only works on GCC,
+ * otherwise it lets anything through.  Also, if the check fails, it gives a
+ * less clear error message.  So it should only be used when necessary.
+ *
+ * (An unvolatize_constexpr doesn't seem necessary, but it could be added if
+ * required.)
  */
 #if defined(__cplusplus)
 #define unconstify(underlying_type, expr) const_cast<underlying_type>(expr)
+#define unconstify_constexpr(underlying_type, expr) const_cast<underlying_type>(expr)
 #define unvolatize(underlying_type, expr) const_cast<underlying_type>(expr)
-#else
+#else							/* !__cplusplus */
 #define unconstify(underlying_type, expr) \
 	(StaticAssertVariableIsOfTypeMacro(expr, const underlying_type), \
 	 (underlying_type) (expr))
 #define unvolatize(underlying_type, expr) \
 	(StaticAssertVariableIsOfTypeMacro(expr, volatile underlying_type), \
 	 (underlying_type) (expr))
-#endif
+#ifdef __GNUC__
+#define unconstify_constexpr(underlying_type, expr) \
+	__builtin_choose_expr( \
+		_Generic((expr), const underlying_type: 1, default: 0), \
+		(underlying_type) (expr), \
+		(void) 0)
+#else							/* !__GNUC_ */
+#define unconstify_constexpr(underlying_type, expr) \
+	((underlying_type) (expr))
+#endif							/* !__GNUC_ */
+#endif							/* !__cplusplus */
 
 /*
  * SSE2 instructions are part of the spec for the 64-bit x86 ISA. We assume
