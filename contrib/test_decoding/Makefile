@@ -7,15 +7,9 @@ REGRESS = ddl xact rewrite toast permissions decoding_in_xact \
 	decoding_into_rel binary prepared replorigin time messages \
 	repack spill slot truncate stream stats twophase twophase_stream \
 	rowtypes_alter
-
-# slot_creation_error terminates another backend, whose FATAL message can be
-# lost on Windows, making the test unstable there.
-# See https://postgr.es/m/088AB35D-0860-494A-A9CF-8B301543AA51@yandex-team.ru
-SLOT_CREATION_TST = $(if $(filter win32,$(PORTNAME)),,slot_creation_error)
-
 ISOLATION = mxact delayed_startup ondisk_startup concurrent_ddl_dml \
 	oldest_xmin snapshot_transfer subxact_without_top concurrent_stream \
-	twophase_snapshot $(SLOT_CREATION_TST) catalog_change_snapshot \
+	twophase_snapshot slot_creation_error catalog_change_snapshot \
 	skip_snapshot_restore invalidation_distribution parallel_session_origin \
 	tuplecid_restart tuplecid_nested
 
