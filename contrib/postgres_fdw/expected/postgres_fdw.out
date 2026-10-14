@@ -3911,16 +3911,16 @@ $$;
 alter extension postgres_fdw add function expensive_func(bigint);
 explain (verbose, costs off)
 select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
-                                                         QUERY PLAN                                                         
-----------------------------------------------------------------------------------------------------------------------------
+                                             QUERY PLAN                                              
+-----------------------------------------------------------------------------------------------------
  Sort
-   Output: c2, ((sum(c1) * 2)), (expensive_func(sum(c1)))
+   Output: c2, ((sum(c1) * 2)), (expensive_func((sum(c1))))
    Sort Key: ft1.c2
    ->  Foreign Scan
-         Output: c2, ((sum(c1) * 2)), (expensive_func(sum(c1)))
+         Output: c2, ((sum(c1) * 2)), expensive_func((sum(c1)))
          Filter: ((((avg(ft1.c1)))::double precision * random()) <= '1000'::double precision)
          Relations: Aggregate on (public.ft1)
-         Remote SQL: SELECT c2, (sum("C 1") * 2), public.expensive_func(sum("C 1")), avg("C 1") FROM "S 1"."T 1" GROUP BY 1
+         Remote SQL: SELECT c2, (sum("C 1") * 2), sum("C 1"), avg("C 1") FROM "S 1"."T 1" GROUP BY 1
 (8 rows)
 
 select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
