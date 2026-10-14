@@ -3898,6 +3898,48 @@ select count(*) from (select c5, count(c1) from ft1 group by c5, sqrt(c2) having
     49
 (1 row)
 
+-- With an unshippable HAVING clause, expensive expressions on top of the
+-- aggregates should be computed locally, so that they aren't computed for
+-- groups that the HAVING clause filters out.  Cheap ones should still be
+-- computed remotely.
+create function expensive_func(bigint) returns bigint
+language plpgsql immutable as $$
+begin
+  return $1;
+end
+$$;
+alter extension postgres_fdw add function expensive_func(bigint);
+explain (verbose, costs off)
+select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Output: c2, ((sum(c1) * 2)), (expensive_func(sum(c1)))
+   Sort Key: ft1.c2
+   ->  Foreign Scan
+         Output: c2, ((sum(c1) * 2)), (expensive_func(sum(c1)))
+         Filter: ((((avg(ft1.c1)))::double precision * random()) <= '1000'::double precision)
+         Relations: Aggregate on (public.ft1)
+         Remote SQL: SELECT c2, (sum("C 1") * 2), public.expensive_func(sum("C 1")), avg("C 1") FROM "S 1"."T 1" GROUP BY 1
+(8 rows)
+
+select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
+ c2 | ?column? | expensive_func 
+----+----------+----------------
+  0 |   101000 |          50500
+  1 |    99200 |          49600
+  2 |    99400 |          49700
+  3 |    99600 |          49800
+  4 |    99800 |          49900
+  5 |   100000 |          50000
+  6 |   100200 |          50100
+  7 |   100400 |          50200
+  8 |   100600 |          50300
+  9 |   100800 |          50400
+(10 rows)
+
+alter extension postgres_fdw drop function expensive_func(bigint);
+drop function expensive_func(bigint);
 -- Aggregate in HAVING clause is not pushable, and thus aggregation is not pushed down
 explain (verbose, costs off)
 select sum(c1) from ft1 group by c2 having avg(c1 * (random() <= 1)::int) > 100 order by 1;

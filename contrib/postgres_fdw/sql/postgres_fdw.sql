@@ -1185,6 +1185,23 @@ explain (verbose, costs off)
 select count(*) from (select c5, count(c1) from ft1 group by c5, sqrt(c2) having (avg(c1) / avg(c1)) * random() <= 1 and avg(c1) < 500) x;
 select count(*) from (select c5, count(c1) from ft1 group by c5, sqrt(c2) having (avg(c1) / avg(c1)) * random() <= 1 and avg(c1) < 500) x;
 
+-- With an unshippable HAVING clause, expensive expressions on top of the
+-- aggregates should be computed locally, so that they aren't computed for
+-- groups that the HAVING clause filters out.  Cheap ones should still be
+-- computed remotely.
+create function expensive_func(bigint) returns bigint
+language plpgsql immutable as $$
+begin
+  return $1;
+end
+$$;
+alter extension postgres_fdw add function expensive_func(bigint);
+explain (verbose, costs off)
+select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
+select c2, sum(c1) * 2, expensive_func(sum(c1)) from ft1 group by c2 having avg(c1) * random() <= 1000 order by c2;
+alter extension postgres_fdw drop function expensive_func(bigint);
+drop function expensive_func(bigint);
+
 -- Aggregate in HAVING clause is not pushable, and thus aggregation is not pushed down
 explain (verbose, costs off)
 select sum(c1) from ft1 group by c2 having avg(c1 * (random() <= 1)::int) > 100 order by 1;
