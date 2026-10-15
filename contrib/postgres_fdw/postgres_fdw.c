@@ -660,6 +660,9 @@ static void add_foreign_grouping_paths(PlannerInfo *root,
 									   RelOptInfo *input_rel,
 									   RelOptInfo *grouped_rel,
 									   GroupPathExtraData *extra);
+static void add_foreign_distinct_paths(PlannerInfo *root,
+									   RelOptInfo *input_rel,
+									   RelOptInfo *distinct_rel);
 static void add_foreign_ordered_paths(PlannerInfo *root,
 									  RelOptInfo *input_rel,
 									  RelOptInfo *ordered_rel);
@@ -3617,6 +3620,44 @@ estimate_path_cost_size(PlannerInfo *root,
 			run_cost += nrows * join_cost.per_tuple;
 			nrows = clamp_row_est(nrows * fpinfo->joinclause_sel);
 			run_cost += nrows * remote_conds_cost.per_tuple;
+		}
+		else if (IS_UPPER_REL(foreignrel) &&
+				 fpinfo->stage == UPPERREL_DISTINCT)
+		{
+			RelOptInfo *inputrel;
+			PgFdwRelationInfo *ifpinfo;
+			double		input_rows;
+			List	   *distinct_exprs;
+
+			inputrel = fpinfo->distinct_grouped_rel ?
+				fpinfo->distinct_grouped_rel : fpinfo->outerrel;
+			ifpinfo = (PgFdwRelationInfo *) inputrel->fdw_private;
+			input_rows = ifpinfo->rows;
+
+			distinct_exprs = get_sortgrouplist_exprs(root->parse->distinctClause,
+													 fpinfo->grouped_tlist);
+			rows = retrieved_rows = estimate_num_groups(root, distinct_exprs,
+														input_rows, NULL, NULL);
+			width = foreignrel->reltarget->width;
+
+			/*
+			 * Cost the DISTINCT like a grouping without aggregates, see
+			 * below, on top of the remote cost of the input relation.
+			 */
+			Assert(ifpinfo->rel_startup_cost >= 0 &&
+				   ifpinfo->rel_run_cost >= 0);
+			startup_cost = ifpinfo->rel_startup_cost;
+			startup_cost += cpu_operator_cost *
+				list_length(root->parse->distinctClause) * input_rows;
+			run_cost = ifpinfo->rel_run_cost;
+			run_cost += cpu_tuple_cost * rows;
+
+			/*
+			 * The foreign server computes the target list for every input row
+			 * before making them distinct.
+			 */
+			startup_cost += remote_tlist_cost.startup;
+			run_cost += remote_tlist_cost.per_tuple * input_rows;
 		}
 		else if (IS_UPPER_REL(foreignrel))
 		{
@@ -8052,6 +8093,7 @@ postgresGetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage,
 
 	/* Ignore stages we don't support; and skip any duplicate calls. */
 	if ((stage != UPPERREL_GROUP_AGG &&
+		 stage != UPPERREL_DISTINCT &&
 		 stage != UPPERREL_ORDERED &&
 		 stage != UPPERREL_FINAL) ||
 		output_rel->fdw_private)
@@ -8067,6 +8109,9 @@ postgresGetForeignUpperPaths(PlannerInfo *root, UpperRelationKind stage,
 		case UPPERREL_GROUP_AGG:
 			add_foreign_grouping_paths(root, input_rel, output_rel,
 									   (GroupPathExtraData *) extra);
+			break;
+		case UPPERREL_DISTINCT:
+			add_foreign_distinct_paths(root, input_rel, output_rel);
 			break;
 		case UPPERREL_ORDERED:
 			add_foreign_ordered_paths(root, input_rel, output_rel);
@@ -8178,6 +8223,151 @@ add_foreign_grouping_paths(PlannerInfo *root, RelOptInfo *input_rel,
 }
 
 /*
+ * add_foreign_distinct_paths
+ *		Add foreign path for performing DISTINCT remotely.
+ *
+ * Given input_rel contains the source-data Paths.  The paths are added to the
+ * given distinct_rel.
+ */
+static void
+add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
+						   RelOptInfo *distinct_rel)
+{
+	Query	   *parse = root->parse;
+	PgFdwRelationInfo *ifpinfo = input_rel->fdw_private;
+	PgFdwRelationInfo *fpinfo = distinct_rel->fdw_private;
+	PathTarget *target = distinct_rel->reltarget;
+	List	   *tlist = NIL;
+	ListCell   *lc;
+	int			i;
+	ForeignPath *distinct_path;
+	double		rows;
+	int			width;
+	int			disabled_nodes;
+	Cost		startup_cost;
+	Cost		total_cost;
+
+	/* We don't support DISTINCT ON yet */
+	if (parse->hasDistinctOn)
+		return;
+
+	/* We don't support cases where there are any SRFs in the targetlist */
+	if (parse->hasTargetSRFs)
+		return;
+
+	/*
+	 * The rows must be made distinct after all filtering, so we can't push
+	 * down the DISTINCT if there are conditions that we check locally.
+	 */
+	if (ifpinfo->local_conds)
+		return;
+
+	/*
+	 * The DISTINCT is applied to a scan or join relation, or to a grouping of
+	 * one.  Use the scan or join relation as outerrel, because that's what
+	 * shippability checks and deparsing of an upper relation expect.  If
+	 * there's a grouping, deparse its HAVING clause as part of our query.
+	 */
+	if (input_rel->reloptkind == RELOPT_BASEREL ||
+		input_rel->reloptkind == RELOPT_JOINREL)
+		fpinfo->outerrel = input_rel;
+	else if (input_rel->reloptkind == RELOPT_UPPER_REL &&
+			 ifpinfo->stage == UPPERREL_GROUP_AGG)
+	{
+		fpinfo->distinct_grouped_rel = input_rel;
+		fpinfo->outerrel = ifpinfo->outerrel;
+		fpinfo->remote_conds = ifpinfo->remote_conds;
+	}
+	else
+		return;
+
+	/*
+	 * Copy foreign table, foreign server, user mapping, FDW options etc.
+	 * details from the input relation's fpinfo.
+	 */
+	fpinfo->table = ifpinfo->table;
+	fpinfo->server = ifpinfo->server;
+	fpinfo->user = ifpinfo->user;
+	merge_fdw_options(fpinfo, ifpinfo, NULL);
+
+	/*
+	 * Build the target list for the foreign server.  Since the foreign server
+	 * makes the rows distinct on all of its columns, every column has to be a
+	 * DISTINCT column.  That's not the case for e.g. a GROUP BY column that
+	 * isn't in the SELECT list.
+	 */
+	i = 0;
+	foreach(lc, target->exprs)
+	{
+		Expr	   *expr = (Expr *) lfirst(lc);
+		Index		sgref = get_pathtarget_sortgroupref(target, i);
+		TargetEntry *tle;
+
+		if (!sgref ||
+			!get_sortgroupref_clause_noerr(sgref, parse->distinctClause))
+			return;
+
+		/* See foreign_grouping_ok() for why foreign params are a problem */
+		if (!is_foreign_expr(root, distinct_rel, fpinfo, expr) ||
+			is_foreign_param(root, distinct_rel, expr))
+			return;
+
+		tle = makeTargetEntry(expr, list_length(tlist) + 1, NULL, false);
+		tle->ressortgroupref = sgref;
+		tlist = lappend(tlist, tle);
+
+		i++;
+	}
+
+	fpinfo->grouped_tlist = tlist;
+	fpinfo->local_conds_sel = 1.0;
+	fpinfo->pushdown_safe = true;
+
+	/*
+	 * Set # of retrieved rows and cached relation costs to some negative
+	 * value, so that we can detect when they are set to some sensible values,
+	 * during one (usually the first) of the calls to estimate_path_cost_size.
+	 */
+	fpinfo->retrieved_rows = -1;
+	fpinfo->rel_startup_cost = -1;
+	fpinfo->rel_run_cost = -1;
+
+	/*
+	 * Set the string describing this relation to be used in EXPLAIN output of
+	 * corresponding ForeignScan.  Note that the decoration we add to the
+	 * input relation name mustn't include any digits, or it'll confuse
+	 * postgresExplainForeignScan.
+	 */
+	fpinfo->relation_name = psprintf("Distinct (%s)", ifpinfo->relation_name);
+
+	/* Estimate the cost of push down */
+	estimate_path_cost_size(root, distinct_rel, NIL, NIL, NULL,
+							&rows, &width, &disabled_nodes,
+							&startup_cost, &total_cost);
+
+	/* Now update this information in the fpinfo */
+	fpinfo->rows = rows;
+	fpinfo->width = width;
+	fpinfo->disabled_nodes = disabled_nodes;
+	fpinfo->startup_cost = startup_cost;
+	fpinfo->total_cost = total_cost;
+
+	distinct_path = create_foreign_upper_path(root,
+											  distinct_rel,
+											  distinct_rel->reltarget,
+											  rows,
+											  disabled_nodes,
+											  startup_cost,
+											  total_cost,
+											  NIL,	/* no pathkeys */
+											  NULL,
+											  NIL,	/* no fdw_restrictinfo
+													 * list */
+											  NIL); /* no fdw_private */
+	add_path(distinct_rel, (Path *) distinct_path);
+}
+
+/*
  * add_foreign_ordered_paths
  *		Add foreign paths for performing the final sort remotely.
  *
@@ -8238,14 +8428,16 @@ add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		return;
 	}
 
-	/* The input_rel should be a grouping relation */
+	/* The input_rel should be a grouping or distinct relation */
 	Assert(input_rel->reloptkind == RELOPT_UPPER_REL &&
-		   ifpinfo->stage == UPPERREL_GROUP_AGG);
+		   (ifpinfo->stage == UPPERREL_GROUP_AGG ||
+			ifpinfo->stage == UPPERREL_DISTINCT));
 
 	/*
 	 * We try to create a path below by extending a simple foreign path for
-	 * the underlying grouping relation to perform the final sort remotely,
-	 * which is stored into the fdw_private list of the resulting path.
+	 * the underlying grouping or distinct relation to perform the final sort
+	 * remotely, which is stored into the fdw_private list of the resulting
+	 * path.
 	 */
 
 	/* Assess if it is safe to push down the final sort */
@@ -8463,17 +8655,18 @@ add_foreign_final_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		pathkeys = root->sort_pathkeys;
 	}
 
-	/* The input_rel should be a base, join, or grouping relation */
+	/* The input_rel should be a base, join, grouping or distinct relation */
 	Assert(input_rel->reloptkind == RELOPT_BASEREL ||
 		   input_rel->reloptkind == RELOPT_JOINREL ||
 		   (input_rel->reloptkind == RELOPT_UPPER_REL &&
-			ifpinfo->stage == UPPERREL_GROUP_AGG));
+			(ifpinfo->stage == UPPERREL_GROUP_AGG ||
+			 ifpinfo->stage == UPPERREL_DISTINCT)));
 
 	/*
 	 * We try to create a path below by extending a simple foreign path for
-	 * the underlying base, join, or grouping relation to perform the final
-	 * sort (if has_final_sort) and the LIMIT restriction remotely, which is
-	 * stored into the fdw_private list of the resulting path.  (We
+	 * the underlying base, join, grouping or distinct relation to perform the
+	 * final sort (if has_final_sort) and the LIMIT restriction remotely,
+	 * which is stored into the fdw_private list of the resulting path.  (We
 	 * re-estimate the costs of sorting the underlying relation, if
 	 * has_final_sort.)
 	 */

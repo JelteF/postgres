@@ -1382,6 +1382,9 @@ deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs,
 	 */
 	appendStringInfoString(buf, "SELECT ");
 
+	if (IS_UPPER_REL(foreignrel) && fpinfo->stage == UPPERREL_DISTINCT)
+		appendStringInfoString(buf, "DISTINCT ");
+
 	if (is_subquery)
 	{
 		/*

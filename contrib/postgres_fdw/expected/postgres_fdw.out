@@ -2512,8 +2512,8 @@ SELECT t1c1, avg(t1c1 + t2c1) FROM (SELECT t1.c1, t2.c1 FROM ft1 t1 JOIN ft2 t2 
 -- join with lateral reference
 EXPLAIN (VERBOSE, COSTS OFF)
 SELECT t1."C 1" FROM "S 1"."T 1" t1, LATERAL (SELECT DISTINCT t2.c1, t3.c1 FROM ft1 t2, ft2 t3 WHERE t2.c1 = t3.c1 AND t2.c2 = t1.c2) q ORDER BY t1."C 1" OFFSET 10 LIMIT 10;
-                                                                                   QUERY PLAN                                                                                   
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Limit
    Output: t1."C 1"
    ->  Nested Loop
@@ -2524,14 +2524,11 @@ SELECT t1."C 1" FROM "S 1"."T 1" t1, LATERAL (SELECT DISTINCT t2.c1, t3.c1 FROM 
                Cache Key: t1.c2
                Cache Mode: binary
                ->  Subquery Scan on q
-                     ->  HashAggregate
+                     ->  Foreign Scan
                            Output: t2.c1, t3.c1
-                           Group Key: t2.c1
-                           ->  Foreign Scan
-                                 Output: t2.c1, t3.c1
-                                 Relations: (public.ft1 t2) INNER JOIN (public.ft2 t3)
-                                 Remote SQL: SELECT r1."C 1", r2."C 1" FROM ("S 1"."T 1" r1 INNER JOIN "S 1"."T 1" r2 ON (((r2."C 1" = r1."C 1")) AND ((r1.c2 = $1::integer))))
-(17 rows)
+                           Relations: Distinct ((public.ft1 t2) INNER JOIN (public.ft2 t3))
+                           Remote SQL: SELECT DISTINCT r1."C 1", r2."C 1" FROM ("S 1"."T 1" r1 INNER JOIN "S 1"."T 1" r2 ON (((r2."C 1" = r1."C 1")) AND ((r1.c2 = $1::integer))))
+(14 rows)
 
 SELECT t1."C 1" FROM "S 1"."T 1" t1, LATERAL (SELECT DISTINCT t2.c1, t3.c1 FROM ft1 t2, ft2 t3 WHERE t2.c1 = t3.c1 AND t2.c2 = t1.c2) q ORDER BY t1."C 1" OFFSET 10 LIMIT 10;
  C 1 
@@ -4811,7 +4808,9 @@ select c2, sum(c1), grouping(c2) from ft1 where c2 < 3 group by c2 order by 1 nu
   2 | 49700 |        0
 (3 rows)
 
--- DISTINCT itself is not pushed down, whereas underneath aggregate is pushed
+-- DISTINCT itself is not pushed down, whereas underneath aggregate is pushed.
+-- The GROUP BY column isn't in the SELECT list, so the foreign server would
+-- also make the rows distinct on it.
 explain (verbose, costs off)
 select distinct sum(c1)/1000 s from ft2 where c2 < 6 group by c2 order by 1;
                                               QUERY PLAN                                               
@@ -4833,6 +4832,105 @@ select distinct sum(c1)/1000 s from ft2 where c2 < 6 group by c2 order by 1;
  49
  50
 (2 rows)
+
+-- DISTINCT is pushed down, together with ORDER BY and LIMIT on top of it
+explain (verbose, costs off)
+select distinct c2 from ft1 where c2 < 5 order by 1;
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: c2
+   Relations: Distinct (public.ft1)
+   Remote SQL: SELECT DISTINCT c2 FROM "S 1"."T 1" WHERE ((c2 < 5)) ORDER BY c2 ASC NULLS LAST
+(4 rows)
+
+select distinct c2 from ft1 where c2 < 5 order by 1;
+ c2 
+----
+  0
+  1
+  2
+  3
+  4
+(5 rows)
+
+explain (verbose, costs off)
+select distinct c2, c3 from ft1 where c2 < 5 order by 1, 2 limit 3;
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: c2, c3
+   Relations: Distinct (public.ft1)
+   Remote SQL: SELECT DISTINCT c2, c3 FROM "S 1"."T 1" WHERE ((c2 < 5)) ORDER BY c2 ASC NULLS LAST, c3 ASC NULLS LAST LIMIT 3::bigint
+(4 rows)
+
+select distinct c2, c3 from ft1 where c2 < 5 order by 1, 2 limit 3;
+ c2 |  c3   
+----+-------
+  0 | 00010
+  0 | 00020
+  0 | 00030
+(3 rows)
+
+-- DISTINCT on top of a pushed down aggregate
+explain (verbose, costs off)
+select distinct c2 % 2, sum(c1) % 2 from ft1 group by c2 % 2 order by 1, 2;
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: ((c2 % 2)), ((sum(c1) % '2'::bigint))
+   Relations: Distinct (Aggregate on (public.ft1))
+   Remote SQL: SELECT DISTINCT (c2 % 2), (sum("C 1") % 2::bigint) FROM "S 1"."T 1" GROUP BY 1 ORDER BY (c2 % 2) ASC NULLS LAST, (sum("C 1") % 2::bigint) ASC NULLS LAST
+(4 rows)
+
+select distinct c2 % 2, sum(c1) % 2 from ft1 group by c2 % 2 order by 1, 2;
+ ?column? | ?column? 
+----------+----------
+        0 |        0
+        1 |        0
+(2 rows)
+
+-- DISTINCT with remote estimates
+explain (verbose, costs off)
+select distinct c3 from ft2 where c1 < 10 order by 1;
+                                            QUERY PLAN                                             
+---------------------------------------------------------------------------------------------------
+ Foreign Scan
+   Output: c3
+   Relations: Distinct (public.ft2)
+   Remote SQL: SELECT DISTINCT c3 FROM "S 1"."T 1" WHERE (("C 1" < 10)) ORDER BY c3 ASC NULLS LAST
+(4 rows)
+
+select distinct c3 from ft2 where c1 < 10 order by 1;
+  c3   
+-------
+ 00001
+ 00002
+ 00003
+ 00004
+ 00005
+ 00006
+ 00007
+ 00008
+ 00009
+(9 rows)
+
+-- DISTINCT is not pushed down if there are conditions checked locally
+explain (verbose, costs off)
+select distinct c2 from ft1 where random() >= 0 order by 1;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Sort
+   Output: c2
+   Sort Key: ft1.c2
+   ->  HashAggregate
+         Output: c2
+         Group Key: ft1.c2
+         ->  Foreign Scan on public.ft1
+               Output: c2
+               Filter: (random() >= '0'::double precision)
+               Remote SQL: SELECT c2 FROM "S 1"."T 1"
+(10 rows)
 
 -- WindowAgg
 explain (verbose, costs off)

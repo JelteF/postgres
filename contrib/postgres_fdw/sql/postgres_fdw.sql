@@ -1500,10 +1500,34 @@ explain (verbose, costs off)
 select c2, sum(c1), grouping(c2) from ft1 where c2 < 3 group by c2 order by 1 nulls last;
 select c2, sum(c1), grouping(c2) from ft1 where c2 < 3 group by c2 order by 1 nulls last;
 
--- DISTINCT itself is not pushed down, whereas underneath aggregate is pushed
+-- DISTINCT itself is not pushed down, whereas underneath aggregate is pushed.
+-- The GROUP BY column isn't in the SELECT list, so the foreign server would
+-- also make the rows distinct on it.
 explain (verbose, costs off)
 select distinct sum(c1)/1000 s from ft2 where c2 < 6 group by c2 order by 1;
 select distinct sum(c1)/1000 s from ft2 where c2 < 6 group by c2 order by 1;
+
+-- DISTINCT is pushed down, together with ORDER BY and LIMIT on top of it
+explain (verbose, costs off)
+select distinct c2 from ft1 where c2 < 5 order by 1;
+select distinct c2 from ft1 where c2 < 5 order by 1;
+explain (verbose, costs off)
+select distinct c2, c3 from ft1 where c2 < 5 order by 1, 2 limit 3;
+select distinct c2, c3 from ft1 where c2 < 5 order by 1, 2 limit 3;
+
+-- DISTINCT on top of a pushed down aggregate
+explain (verbose, costs off)
+select distinct c2 % 2, sum(c1) % 2 from ft1 group by c2 % 2 order by 1, 2;
+select distinct c2 % 2, sum(c1) % 2 from ft1 group by c2 % 2 order by 1, 2;
+
+-- DISTINCT with remote estimates
+explain (verbose, costs off)
+select distinct c3 from ft2 where c1 < 10 order by 1;
+select distinct c3 from ft2 where c1 < 10 order by 1;
+
+-- DISTINCT is not pushed down if there are conditions checked locally
+explain (verbose, costs off)
+select distinct c2 from ft1 where random() >= 0 order by 1;
 
 -- WindowAgg
 explain (verbose, costs off)

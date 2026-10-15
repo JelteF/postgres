@@ -120,8 +120,17 @@ typedef struct PgFdwRelationInfo
 	/* Upper relation information */
 	UpperRelationKind stage;
 
-	/* Grouping information */
+	/*
+	 * Target list that the foreign server computes for an upper relation,
+	 * i.e. for a grouping or a DISTINCT.
+	 */
 	List	   *grouped_tlist;
+
+	/*
+	 * For a DISTINCT: the grouping relation that it's applied to, or NULL if
+	 * it's applied directly to outerrel.
+	 */
+	RelOptInfo *distinct_grouped_rel;
 
 	/* Subquery information */
 	bool		make_outerrel_subquery; /* do we deparse outerrel as a
