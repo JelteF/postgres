@@ -532,6 +532,13 @@ build_grouped_rel(PlannerInfo *root, RelOptInfo *rel)
 	grouped_rel->consider_partitionwise_join = false;
 
 	/*
+	 * clear FDW info; FDWs don't know how to handle grouped relations
+	 */
+	grouped_rel->serverid = InvalidOid;
+	grouped_rel->fdwroutine = NULL;
+	grouped_rel->fdw_private = NULL;
+
+	/*
 	 * clear size estimates
 	 */
 	grouped_rel->rows = 0;
@@ -3327,6 +3334,10 @@ get_expression_sortgroupref(PlannerInfo *root, Expr *expr)
 
 		if (ge_info->ec == NULL ||
 			!bms_is_member(((Var *) expr)->varno, ge_info->ec->ec_relids))
+			continue;
+
+		/* The grouping operators can't be applied to a cross-type member */
+		if (exprType((Node *) expr) != exprType((Node *) ge_info->expr))
 			continue;
 
 		/*

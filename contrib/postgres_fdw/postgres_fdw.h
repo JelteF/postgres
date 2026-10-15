@@ -67,13 +67,14 @@ typedef struct PgFdwRelationInfo
 	Cost		total_cost;
 
 	/*
-	 * Estimated number of rows fetched from the foreign server, and costs
-	 * excluding costs for transferring those rows from the foreign server.
-	 * These are only used by estimate_path_cost_size().
+	 * Estimated number of rows fetched from the foreign server, and costs of
+	 * the work done by the foreign server.  The costs exclude transferring
+	 * those rows from the foreign server and the local work on them.  These
+	 * are only used by estimate_path_cost_size().
 	 */
 	double		retrieved_rows;
 	Cost		rel_startup_cost;
-	Cost		rel_total_cost;
+	Cost		rel_run_cost;
 
 	/* Options extracted from catalogs. */
 	bool		use_remote_estimate;
@@ -119,8 +120,17 @@ typedef struct PgFdwRelationInfo
 	/* Upper relation information */
 	UpperRelationKind stage;
 
-	/* Grouping information */
+	/*
+	 * Target list that the foreign server computes for an upper relation,
+	 * i.e. for a grouping or a DISTINCT.
+	 */
 	List	   *grouped_tlist;
+
+	/*
+	 * For a DISTINCT: the grouping relation that it's applied to, or NULL if
+	 * it's applied directly to outerrel.
+	 */
+	RelOptInfo *distinct_grouped_rel;
 
 	/* Subquery information */
 	bool		make_outerrel_subquery; /* do we deparse outerrel as a

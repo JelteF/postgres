@@ -109,7 +109,9 @@ typedef struct XLogReaderRoutine
 
 	/*
 	 * WAL segment close callback.  ->seg.ws_file shall be set to a negative
-	 * number.
+	 * number.  This shall not raise an error, as it may be called in a memory
+	 * context reset callback if XLogReaderRegisterResetCallback() has been
+	 * used.
 	 */
 	WALSegmentCloseCB segment_close;
 } XLogReaderRoutine;
@@ -239,6 +241,15 @@ struct XLogReaderState
 	 * ----------------------------------------
 	 */
 
+#ifdef USE_ZSTD
+	/* Decompression context reused for zstd-compressed full-page images. */
+	void	   *zstd_dctx;
+#ifndef FRONTEND
+	/* Reset callback for zstd_dctx */
+	MemoryContextCallback zstd_dctx_cb;
+#endif
+#endif
+
 	/*
 	 * Buffer for decoded records.  This is a circular buffer, though
 	 * individual records can't be split in the middle, so some space is often
@@ -315,6 +326,12 @@ struct XLogReaderState
 	 * data.
 	 */
 	bool		nonblocking;
+
+#ifndef FRONTEND
+	/* Reset callback for the memory context holding this reader. */
+	MemoryContextCallback reset_cb;
+	bool		reset_cb_registered;
+#endif
 };
 
 /*
@@ -334,6 +351,11 @@ extern XLogReaderState *XLogReaderAllocate(int wal_segment_size,
 
 /* Free an XLogReader */
 extern void XLogReaderFree(XLogReaderState *state);
+
+#ifndef FRONTEND
+/* Register a memory context reset callback */
+extern void XLogReaderRegisterResetCallback(XLogReaderState *state);
+#endif
 
 /* Optionally provide a circular decoding buffer to allow readahead. */
 extern void XLogReaderSetDecodeBuffer(XLogReaderState *state,

@@ -36,6 +36,7 @@
 #ifndef FRONTEND
 #include "pgstat.h"
 #include "storage/bufmgr.h"
+#include "utils/memutils.h"
 #include "utils/wait_event.h"
 #else
 #include "common/logging.h"
@@ -55,6 +56,12 @@ static bool ValidXLogRecord(XLogReaderState *state, XLogRecord *record,
 static void ResetDecoder(XLogReaderState *state);
 static void WALOpenSegmentInit(WALOpenSegment *seg, WALSegmentContext *segcxt,
 							   int segsize, const char *waldir);
+#ifndef FRONTEND
+static void xlogreader_memory_context_reset_cb(void *arg);
+#ifdef USE_ZSTD
+static void XLogReaderFreeZstdContext(void *arg);
+#endif
+#endif
 
 /* size of the buffer allocated for error message. */
 #define MAX_ERRORMSG_LEN 1000
@@ -162,6 +169,12 @@ XLogReaderAllocate(int wal_segment_size, const char *waldir,
 void
 XLogReaderFree(XLogReaderState *state)
 {
+#ifndef FRONTEND
+	if (state->reset_cb_registered)
+		MemoryContextUnregisterResetCallback(GetMemoryChunkContext(state),
+											 &state->reset_cb);
+#endif
+
 	if (state->seg.ws_file != -1)
 		state->routine.segment_close(state);
 
@@ -171,9 +184,66 @@ XLogReaderFree(XLogReaderState *state)
 	pfree(state->errormsg_buf);
 	if (state->readRecordBuf)
 		pfree(state->readRecordBuf);
+#ifdef USE_ZSTD
+	if (state->zstd_dctx != NULL)
+	{
+#ifndef FRONTEND
+		MemoryContextUnregisterResetCallback(GetMemoryChunkContext(state),
+											 &state->zstd_dctx_cb);
+#endif
+		ZSTD_freeDCtx(state->zstd_dctx);
+	}
+#endif
 	pfree(state->readBuf);
 	pfree(state);
 }
+
+#ifndef FRONTEND
+
+/*
+ * Memory context reset callback for an XLogReader.
+ */
+static void
+xlogreader_memory_context_reset_cb(void *arg)
+{
+	XLogReaderState *state = (XLogReaderState *) arg;
+
+	/* Close the WAL segment file that was left open */
+	if (state->seg.ws_file >= 0)
+		state->routine.segment_close(state);
+}
+
+/*
+ * Register a memory reset callback, closing a segment, if necessary.
+ *
+ * This is useful when opening a WAL segment file with BasicOpenFile(), which
+ * doesn't have the automatic file descriptor cleanup that OpenTransientFile()
+ * provides, to guarantee that the segment is closed before XLogReaderFree() is
+ * reached (on ERRORs, for example).
+ */
+void
+XLogReaderRegisterResetCallback(XLogReaderState *state)
+{
+	if (state->reset_cb_registered)
+		return;
+
+	state->reset_cb.func = xlogreader_memory_context_reset_cb;
+	state->reset_cb.arg = state;
+	MemoryContextRegisterResetCallback(GetMemoryChunkContext(state),
+									   &state->reset_cb);
+	state->reset_cb_registered = true;
+}
+
+#ifdef USE_ZSTD
+/* Release the zstd decomoression context. */
+static void
+XLogReaderFreeZstdContext(void *arg)
+{
+	ZSTD_freeDCtx(arg);
+}
+#endif
+
+#endif							/* FRONTEND */
 
 /*
  * Allocate readRecordBuf to fit a record of at least the given length.
@@ -2177,9 +2247,31 @@ RestoreBlockImage(XLogReaderState *record, uint8 block_id, char *page)
 		else if ((bkpb->bimg_info & BKPIMAGE_COMPRESS_ZSTD) != 0)
 		{
 #ifdef USE_ZSTD
-			size_t		decomp_result = ZSTD_decompress(tmp.data,
-														BLCKSZ - bkpb->hole_length,
-														ptr, bkpb->bimg_len);
+			size_t		decomp_result;
+
+			if (record->zstd_dctx == NULL)
+			{
+				record->zstd_dctx = ZSTD_createDCtx();
+				if (record->zstd_dctx == NULL)
+				{
+					report_invalid_record(record, "out of memory while restoring image at %X/%08X, block %d",
+										  LSN_FORMAT_ARGS(record->ReadRecPtr),
+										  block_id);
+					return false;
+				}
+
+#ifndef FRONTEND
+				/* The reader may outlive the current memory context. */
+				record->zstd_dctx_cb.func = XLogReaderFreeZstdContext;
+				record->zstd_dctx_cb.arg = record->zstd_dctx;
+				MemoryContextRegisterResetCallback(GetMemoryChunkContext(record),
+												   &record->zstd_dctx_cb);
+#endif
+			}
+
+			decomp_result = ZSTD_decompressDCtx(record->zstd_dctx, tmp.data,
+												BLCKSZ - bkpb->hole_length,
+												ptr, bkpb->bimg_len);
 
 			if (ZSTD_isError(decomp_result))
 				decomp_success = false;
