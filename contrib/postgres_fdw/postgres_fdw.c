@@ -17,6 +17,7 @@
 #include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "access/table.h"
+#include "catalog/pg_operator.h"
 #include "catalog/pg_opfamily.h"
 #include "commands/defrem.h"
 #include "commands/explain_format.h"
@@ -3658,6 +3659,16 @@ estimate_path_cost_size(PlannerInfo *root,
 			 */
 			startup_cost += remote_tlist_cost.startup;
 			run_cost += remote_tlist_cost.per_tuple * input_rows;
+
+			/*
+			 * For DISTINCT ON it also sorts the input rows by the ORDER BY.
+			 * The sort is part of the DISTINCT ON, so we account for it here
+			 * instead of for the pathkeys below.
+			 */
+			if (root->parse->hasDistinctOn && root->sort_pathkeys)
+				adjust_foreign_path_cost_for_sort(root, root->sort_pathkeys,
+												  input_rows, width, -1.0,
+												  &startup_cost, &run_cost);
 		}
 		else if (IS_UPPER_REL(foreignrel))
 		{
@@ -3800,9 +3811,13 @@ estimate_path_cost_size(PlannerInfo *root,
 		/*
 		 * Without remote estimates, we have no real way to estimate the cost
 		 * of generating sorted output, so use a heuristic.  See
-		 * adjust_foreign_path_cost_for_sort().
+		 * adjust_foreign_path_cost_for_sort().  For DISTINCT ON, the costs
+		 * above already include the sort.
 		 */
-		if (pathkeys != NIL)
+		if (pathkeys != NIL &&
+			!(IS_UPPER_REL(foreignrel) &&
+			  fpinfo->stage == UPPERREL_DISTINCT &&
+			  root->parse->hasDistinctOn))
 			adjust_foreign_path_cost_for_sort(root, pathkeys,
 											  retrieved_rows, width,
 											  fpextra ? fpextra->limit_tuples : -1.0,
@@ -8246,10 +8261,7 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	int			disabled_nodes;
 	Cost		startup_cost;
 	Cost		total_cost;
-
-	/* We don't support DISTINCT ON yet */
-	if (parse->hasDistinctOn)
-		return;
+	List	   *pathkeys = NIL;
 
 	/* We don't support cases where there are any SRFs in the targetlist */
 	if (parse->hasTargetSRFs)
@@ -8291,10 +8303,13 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	merge_fdw_options(fpinfo, ifpinfo, NULL);
 
 	/*
-	 * Build the target list for the foreign server.  Since the foreign server
-	 * makes the rows distinct on all of its columns, every column has to be a
-	 * DISTINCT column.  That's not the case for e.g. a GROUP BY column that
-	 * isn't in the SELECT list.
+	 * Build the target list for the foreign server.  For DISTINCT the foreign
+	 * server makes the rows distinct on all of its columns, so every column
+	 * has to be a DISTINCT column.  That's not the case for e.g. a GROUP BY
+	 * column that isn't in the SELECT list.  For DISTINCT ON the other
+	 * columns are simply taken from the first row of each group.  But on top
+	 * of a grouping a plain Var that isn't a DISTINCT ON column might be an
+	 * ungrouped column, which the foreign server would reject.
 	 */
 	i = 0;
 	foreach(lc, target->exprs)
@@ -8303,8 +8318,14 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		Index		sgref = get_pathtarget_sortgroupref(target, i);
 		TargetEntry *tle;
 
-		if (!sgref ||
-			!get_sortgroupref_clause_noerr(sgref, parse->distinctClause))
+		if (!parse->hasDistinctOn)
+		{
+			if (!sgref ||
+				!get_sortgroupref_clause_noerr(sgref, parse->distinctClause))
+				return;
+		}
+		else if (!sgref && fpinfo->distinct_grouped_rel &&
+				 (IsA(expr, Var) || IsA(expr, PlaceHolderVar)))
 			return;
 
 		/* See foreign_grouping_ok() for why foreign params are a problem */
@@ -8317,6 +8338,24 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 		tlist = lappend(tlist, tle);
 
 		i++;
+	}
+
+	/*
+	 * Which rows DISTINCT ON returns depends on the ORDER BY, so the foreign
+	 * server has to do the sort too, which deparse.c always adds for DISTINCT
+	 * ON.  The ORDER BY columns are DISTINCT ON columns or other sortgroupref
+	 * columns of the target list, so their shippability was checked above.
+	 */
+	if (parse->hasDistinctOn)
+	{
+		foreach(lc, parse->sortClause)
+		{
+			SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+
+			if (!is_shippable(sgc->sortop, OperatorRelationId, fpinfo))
+				return;
+		}
+		pathkeys = root->sort_pathkeys;
 	}
 
 	fpinfo->grouped_tlist = tlist;
@@ -8340,7 +8379,10 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	 */
 	fpinfo->relation_name = psprintf("Distinct (%s)", ifpinfo->relation_name);
 
-	/* Estimate the cost of push down */
+	/*
+	 * Estimate the cost of push down.  For DISTINCT ON this includes the sort
+	 * that comes with it, so we don't pass the pathkeys here.
+	 */
 	estimate_path_cost_size(root, distinct_rel, NIL, NIL, NULL,
 							&rows, &width, &disabled_nodes,
 							&startup_cost, &total_cost);
@@ -8359,7 +8401,7 @@ add_foreign_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 											  disabled_nodes,
 											  startup_cost,
 											  total_cost,
-											  NIL,	/* no pathkeys */
+											  pathkeys,
 											  NULL,
 											  NIL,	/* no fdw_restrictinfo
 													 * list */
@@ -8432,6 +8474,31 @@ add_foreign_ordered_paths(PlannerInfo *root, RelOptInfo *input_rel,
 	Assert(input_rel->reloptkind == RELOPT_UPPER_REL &&
 		   (ifpinfo->stage == UPPERREL_GROUP_AGG ||
 			ifpinfo->stage == UPPERREL_DISTINCT));
+
+	/*
+	 * For DISTINCT ON the foreign server already sorts by the ORDER BY, so
+	 * the path for that is already the one we want.  We still add it here, so
+	 * that the LIMIT can be pushed down on top of it.
+	 */
+	if (ifpinfo->stage == UPPERREL_DISTINCT && parse->hasDistinctOn)
+	{
+		fpinfo->pushdown_safe = true;
+		ordered_path = create_foreign_upper_path(root,
+												 input_rel,
+												 root->upper_targets[UPPERREL_ORDERED],
+												 ifpinfo->rows,
+												 ifpinfo->disabled_nodes,
+												 ifpinfo->startup_cost,
+												 ifpinfo->total_cost,
+												 root->sort_pathkeys,
+												 NULL,	/* no extra plan */
+												 NIL,	/* no fdw_restrictinfo
+														 * list */
+												 list_make2(makeBoolean(true),
+															makeBoolean(false)));
+		add_path(ordered_rel, (Path *) ordered_path);
+		return;
+	}
 
 	/*
 	 * We try to create a path below by extending a simple foreign path for

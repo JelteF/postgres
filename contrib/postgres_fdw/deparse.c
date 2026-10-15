@@ -200,6 +200,9 @@ static void appendAggOrderBy(List *orderList, List *targetList,
 static void appendFunctionName(Oid funcid, deparse_expr_cxt *context);
 static Node *deparseSortGroupClause(Index ref, List *tlist, bool force_colno,
 									deparse_expr_cxt *context);
+static void appendDistinctClause(List *tlist, deparse_expr_cxt *context);
+static void appendDistinctOnOrderByClause(List *tlist,
+										  deparse_expr_cxt *context);
 
 /*
  * Helper functions
@@ -1343,8 +1346,15 @@ deparseSelectStmtForRel(StringInfo buf, PlannerInfo *root, RelOptInfo *rel,
 		}
 	}
 
-	/* Add ORDER BY clause if we found any useful pathkeys */
-	if (pathkeys)
+	/*
+	 * Add ORDER BY clause if we found any useful pathkeys.  For DISTINCT ON
+	 * the ORDER BY is needed for correctness instead, so it's always added by
+	 * appendDistinctOnOrderByClause().
+	 */
+	if (IS_UPPER_REL(rel) && fpinfo->stage == UPPERREL_DISTINCT &&
+		root->parse->hasDistinctOn)
+		appendDistinctOnOrderByClause(tlist, &context);
+	else if (pathkeys)
 		appendOrderByClause(pathkeys, has_final_sort, &context);
 
 	/* Add LIMIT clause if necessary */
@@ -1383,7 +1393,7 @@ deparseSelectSql(List *tlist, bool is_subquery, List **retrieved_attrs,
 	appendStringInfoString(buf, "SELECT ");
 
 	if (IS_UPPER_REL(foreignrel) && fpinfo->stage == UPPERREL_DISTINCT)
-		appendStringInfoString(buf, "DISTINCT ");
+		appendDistinctClause(tlist, context);
 
 	if (is_subquery)
 	{
@@ -4119,6 +4129,77 @@ appendGroupByClause(List *tlist, deparse_expr_cxt *context)
 		first = false;
 
 		deparseSortGroupClause(grp->tleSortGroupRef, tlist, true, context);
+	}
+}
+
+/*
+ * Deparse the DISTINCT or DISTINCT ON clause of the SELECT list.
+ *
+ * For DISTINCT ON we use column numbers like for GROUP BY, so that the
+ * foreign server sees the same expressions in it as in the ORDER BY added by
+ * appendDistinctOnOrderByClause(), which it requires to match.
+ */
+static void
+appendDistinctClause(List *tlist, deparse_expr_cxt *context)
+{
+	StringInfo	buf = context->buf;
+	Query	   *query = context->root->parse;
+	ListCell   *lc;
+	bool		first = true;
+
+	if (!query->hasDistinctOn)
+	{
+		appendStringInfoString(buf, "DISTINCT ");
+		return;
+	}
+
+	appendStringInfoString(buf, "DISTINCT ON (");
+	foreach(lc, query->distinctClause)
+	{
+		SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+
+		if (!first)
+			appendStringInfoString(buf, ", ");
+		first = false;
+
+		deparseSortGroupClause(sgc->tleSortGroupRef, tlist, true, context);
+	}
+	appendStringInfoString(buf, ") ");
+}
+
+/*
+ * Deparse the ORDER BY clause of a query with DISTINCT ON.
+ *
+ * Which rows DISTINCT ON returns depends on the ORDER BY, so we always use
+ * the query's own ORDER BY instead of pathkeys.  Pathkeys can leave out
+ * redundant columns, after which the foreign server would complain that the
+ * DISTINCT ON expressions don't match the initial ORDER BY expressions.
+ */
+static void
+appendDistinctOnOrderByClause(List *tlist, deparse_expr_cxt *context)
+{
+	StringInfo	buf = context->buf;
+	Query	   *query = context->root->parse;
+	ListCell   *lc;
+	bool		first = true;
+
+	if (!query->sortClause)
+		return;
+
+	appendStringInfoString(buf, " ORDER BY ");
+	foreach(lc, query->sortClause)
+	{
+		SortGroupClause *sgc = (SortGroupClause *) lfirst(lc);
+		Node	   *sortexpr;
+
+		if (!first)
+			appendStringInfoString(buf, ", ");
+		first = false;
+
+		sortexpr = deparseSortGroupClause(sgc->tleSortGroupRef, tlist, true,
+										  context);
+		appendOrderBySuffix(sgc->sortop, exprType(sortexpr), sgc->nulls_first,
+							context);
 	}
 }
 

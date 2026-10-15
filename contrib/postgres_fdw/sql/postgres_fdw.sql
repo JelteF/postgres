@@ -1529,6 +1529,29 @@ select distinct c3 from ft2 where c1 < 10 order by 1;
 explain (verbose, costs off)
 select distinct c2 from ft1 where random() >= 0 order by 1;
 
+-- DISTINCT ON is pushed down together with its ORDER BY, and a LIMIT
+explain (verbose, costs off)
+select distinct on (c2) c2, c1 from ft1 where c2 < 5 order by c2, c1 desc;
+select distinct on (c2) c2, c1 from ft1 where c2 < 5 order by c2, c1 desc;
+explain (verbose, costs off)
+select distinct on (c2) c2, c1 from ft1 order by c2, c1 desc limit 3;
+select distinct on (c2) c2, c1 from ft1 order by c2, c1 desc limit 3;
+
+-- DISTINCT ON without ORDER BY
+explain (verbose, costs off)
+select count(*) from (select distinct on (c2) c2, c1 from ft1) s;
+select count(*) from (select distinct on (c2) c2, c1 from ft1) s;
+
+-- DISTINCT ON on top of a pushed down aggregate.  Unlike for DISTINCT, the
+-- GROUP BY column doesn't have to be in the SELECT list.
+explain (verbose, costs off)
+select distinct on (c2 % 2) c2 % 2, sum(c1) from ft1 group by c2 order by c2 % 2, sum(c1);
+select distinct on (c2 % 2) c2 % 2, sum(c1) from ft1 group by c2 order by c2 % 2, sum(c1);
+
+-- DISTINCT ON is not pushed down if the ORDER BY can't be
+explain (verbose, costs off)
+select distinct on (c2) c2, c1 from ft1 order by c2, random();
+
 -- WindowAgg
 explain (verbose, costs off)
 select c2, sum(c2), count(c2) over (partition by c2%2) from ft2 where c2 < 10 group by c2 order by 1;
