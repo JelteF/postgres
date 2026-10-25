@@ -122,7 +122,7 @@ env:
 
   # Debian Trixie containers used by all Linux jobs. Built by
   # 'https://github.com/anarazel/pg-vm-images/'.
-  CONTAINER_REPO: ghcr.io/nbyavuz/pg-vm-images/linux-32-image
+  CONTAINER_REPO: ghcr.io/jeltef/pg-vm-images/linux-32bit-image-test
   CONTAINER_LINUX_CI: linux_debian_trixie_ci:latest
   CONTAINER_LINUX_CI_DOCS: linux_debian_trixie_ci_docs:latest
 
@@ -557,8 +557,6 @@ jobs:
         env:
           SANITIZER_FLAGS: -fsanitize=alignment,undefined
           PG_TEST_INITDB_EXTRA_OPTS: -c io_method=io_uring
-          CC: ccache gcc -m32
-          CXX: ccache g++ -m32
         run: *linux_update_config_cmd
 
       - *nix_sysinfo_step
@@ -574,8 +572,6 @@ jobs:
             ${MESON_COMMON_PG_CONFIG_ARGS} \
             -Duuid=e2fs \
             --buildtype=debug \
-            --pkg-config-path /usr/lib/i386-linux-gnu/pkgconfig/ \
-            -DPERL=perl5.40-i386-linux-gnu \
             -Dlibnuma=disabled \
             build
 
