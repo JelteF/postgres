@@ -124,12 +124,8 @@ env:
   # 'https://github.com/anarazel/pg-vm-images/'.
   CONTAINER_REPO: ghcr.io/jeltef/pg-vm-images/linux-32bit-image-test
   CONTAINER_LINUX_CI: linux_debian_trixie_ci:latest
-  CONTAINER_LINUX_CI_DOCS: linux_debian_trixie_ci_docs:latest
-
-  # The 32bit job uses a native i386 image, rather than the amd64 image above
-  # cross building with gcc-multilib. It doesn't have one of the backward
-  # compatibility aliases, hence the more verbose name.
   CONTAINER_LINUX_CI_32: linux_debian_ci/trixie/linux-meson-32:latest
+  CONTAINER_LINUX_CI_DOCS: linux_debian_trixie_ci_docs:latest
 
   # The full set of OS / job selectors recognized by the `ci-os-only:`
   # commit-message directive parsed in the `setup` job below.
