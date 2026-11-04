@@ -122,8 +122,9 @@ env:
 
   # Debian Trixie containers used by all Linux jobs. Built by
   # 'https://github.com/anarazel/pg-vm-images/'.
-  CONTAINER_REPO: ghcr.io/anarazel/pg-vm-images/main
+  CONTAINER_REPO: ghcr.io/jeltef/pg-vm-images/linux-32bit-image-test
   CONTAINER_LINUX_CI: linux_debian_trixie_ci:latest
+  CONTAINER_LINUX_CI_32: linux_debian_ci/trixie/linux-meson-32-native:latest
   CONTAINER_LINUX_CI_DOCS: linux_debian_trixie_ci_docs:latest
 
   # The full set of OS / job selectors recognized by the `ci-os-only:`
@@ -205,6 +206,7 @@ jobs:
       # from contexts (e.g. `jobs.<id>.container.image`) where the `env`
       # context is not available.
       container_linux_ci: ${{ env.CONTAINER_REPO }}/${{ env.CONTAINER_LINUX_CI }}
+      container_linux_ci_32: ${{ env.CONTAINER_REPO }}/${{ env.CONTAINER_LINUX_CI_32 }}
       container_linux_ci_docs: ${{ env.CONTAINER_REPO }}/${{ env.CONTAINER_LINUX_CI_DOCS }}
 
     steps:
@@ -540,7 +542,9 @@ jobs:
     needs: [setup, sanity-check]
     if: *linux_job_if
     runs-on: *linux_runs_on
-    container: *linux_ci_container
+    container:
+      image: ${{ needs.setup.outputs.container_linux_ci_32 }}
+      options: *linux_container_options
     timeout-minutes: 60
     env: *linux_env
 
@@ -549,8 +553,6 @@ jobs:
         env:
           SANITIZER_FLAGS: -fsanitize=alignment,undefined
           PG_TEST_INITDB_EXTRA_OPTS: -c io_method=io_uring
-          CC: ccache gcc -m32
-          CXX: ccache g++ -m32
         run: *linux_update_config_cmd
 
       - *nix_sysinfo_step
@@ -566,8 +568,6 @@ jobs:
             ${MESON_COMMON_PG_CONFIG_ARGS} \
             -Duuid=e2fs \
             --buildtype=debug \
-            --pkg-config-path /usr/lib/i386-linux-gnu/pkgconfig/ \
-            -DPERL=perl5.40-i386-linux-gnu \
             -Dlibnuma=disabled \
             build
 
@@ -599,9 +599,9 @@ jobs:
           meson test ${{env.MTEST_ARGS}} --suite setup --logbase setup
           echo ::endgroup::
 
-          # Make libraries discoverable (the x86_64 reference is a meson
-          # oddity)
-          export LD_LIBRARY_PATH="$(pwd)/build/tmp_install/usr/local/pgsql/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH"
+          # Make libraries discoverable (the multiarch subdirectory is a meson
+          # oddity, it's named after the architecture the build runs on)
+          export LD_LIBRARY_PATH="$(echo $(pwd)/build/tmp_install/usr/local/pgsql/lib/*-linux-gnu/ | tr ' ' ':'):$LD_LIBRARY_PATH"
 
           build/tmp_install/usr/local/pgsql/bin/initdb -N build/runningcheck --no-instructions -A trust
           echo "include '$(pwd)/src/tools/ci/pg_ci_base.conf'" >> build/runningcheck/postgresql.conf
