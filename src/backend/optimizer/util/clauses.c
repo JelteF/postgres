@@ -5792,8 +5792,7 @@ inline_function(Oid funcid, Oid result_type, Oid result_collid,
 			if (contain_subplans(param))
 				goto fail;
 			cost_qual_eval(&eval_cost, list_make1(param), NULL);
-			if (eval_cost.startup + eval_cost.per_tuple >
-				10 * cpu_operator_cost)
+			if (eval_cost.startup + eval_cost.per_tuple > EXPENSIVE_EXPR_COST)
 				goto fail;
 
 			/*

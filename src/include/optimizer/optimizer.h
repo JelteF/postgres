@@ -80,6 +80,13 @@ extern PGDLLIMPORT double parallel_setup_cost;
 extern PGDLLIMPORT double recursive_worktable_factor;
 extern PGDLLIMPORT int effective_cache_size;
 
+/*
+ * Per-evaluation cost above which the planner considers an expression to be
+ * expensive, i.e. more than about 10 operators.  It's used in a few places
+ * that decide whether it's worth avoiding evaluations of an expression.
+ */
+#define EXPENSIVE_EXPR_COST	(10 * cpu_operator_cost)
+
 extern double clamp_row_est(double nrows);
 extern int32 clamp_width_est(int64 tuple_width);
 
