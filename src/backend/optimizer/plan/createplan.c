@@ -5396,15 +5396,14 @@ order_qual_clauses(PlannerInfo *root, List *clauses)
 
 			/*
 			 * If a clause is leakproof, it doesn't have to be constrained by
-			 * its nominal security level.  If it's also reasonably cheap
-			 * (here defined as 10X cpu_operator_cost), pretend it has
-			 * security_level 0, which will allow it to go in front of
-			 * more-expensive quals of lower security levels.  Of course, that
-			 * will also force it to go in front of cheaper quals of its own
-			 * security level, which is not so great, but we can alleviate
-			 * that risk by applying the cost limit cutoff.
+			 * its nominal security level.  If it's also reasonably cheap,
+			 * pretend it has security_level 0, which will allow it to go in
+			 * front of more-expensive quals of lower security levels.  Of
+			 * course, that will also force it to go in front of cheaper quals
+			 * of its own security level, which is not so great, but we can
+			 * alleviate that risk by applying the cost limit cutoff.
 			 */
-			if (rinfo->leakproof && items[i].cost < 10 * cpu_operator_cost)
+			if (rinfo->leakproof && items[i].cost < EXPENSIVE_EXPR_COST)
 				items[i].security_level = 0;
 			else
 				items[i].security_level = rinfo->security_level;

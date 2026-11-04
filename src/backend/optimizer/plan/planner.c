@@ -6780,11 +6780,9 @@ make_sort_input_target(PlannerInfo *root,
 				cost_qual_eval_node(&cost, (Node *) expr, root);
 
 				/*
-				 * We arbitrarily define "expensive" as "more than 10X
-				 * cpu_operator_cost".  Note this will take in any PL function
-				 * with default cost.
+				 * Note this will take in any PL function with default cost.
 				 */
-				if (cost.per_tuple > 10 * cpu_operator_cost)
+				if (cost.per_tuple > EXPENSIVE_EXPR_COST)
 				{
 					postpone_col[i] = true;
 					have_expensive = true;

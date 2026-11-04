@@ -7870,6 +7870,39 @@ foreign_grouping_ok(PlannerInfo *root, RelOptInfo *grouped_rel,
 		return false;
 
 	/*
+	 * Classify the pushable and non-pushable HAVING clauses and save them in
+	 * remote_conds and local_conds of the grouped rel's fpinfo.
+	 */
+	if (havingQual)
+	{
+		foreach(lc, (List *) havingQual)
+		{
+			Expr	   *expr = (Expr *) lfirst(lc);
+			RestrictInfo *rinfo;
+
+			/*
+			 * Currently, the core code doesn't wrap havingQuals in
+			 * RestrictInfos, so we must make our own.
+			 */
+			Assert(!IsA(expr, RestrictInfo));
+			rinfo = make_restrictinfo(root,
+									  expr,
+									  true,
+									  false,
+									  false,
+									  false,
+									  root->qual_security_level,
+									  grouped_rel->relids,
+									  NULL,
+									  NULL);
+			if (is_foreign_expr(root, grouped_rel, fpinfo, expr))
+				fpinfo->remote_conds = lappend(fpinfo->remote_conds, rinfo);
+			else
+				fpinfo->local_conds = lappend(fpinfo->local_conds, rinfo);
+		}
+	}
+
+	/*
 	 * Examine grouping expressions, as well as other expressions we'd need to
 	 * compute, and check whether they are safe to push down to the foreign
 	 * server.  All GROUP BY expressions will be part of the grouping target
@@ -7929,11 +7962,32 @@ foreign_grouping_ok(PlannerInfo *root, RelOptInfo *grouped_rel,
 		}
 		else
 		{
+			bool		compute_locally = false;
+
+			/*
+			 * If there are local HAVING conditions, the foreign server would
+			 * compute the expression also for the groups that we filter out
+			 * locally afterwards.  For an expensive expression we avoid that
+			 * by fetching only the aggregates it contains, and computing the
+			 * rest of it locally for the groups that pass.  We don't do that
+			 * for cheap expressions, because the aggregates can be much wider
+			 * than the result of the expression, e.g. for
+			 * array_length(array_agg(...), 1).
+			 */
+			if (fpinfo->local_conds)
+			{
+				QualCost	cost;
+
+				cost_qual_eval_node(&cost, (Node *) expr, root);
+				compute_locally = cost.per_tuple > EXPENSIVE_EXPR_COST;
+			}
+
 			/*
 			 * Non-grouping expression we need to compute.  Can we ship it
 			 * as-is to the foreign server?
 			 */
-			if (is_foreign_expr(root, grouped_rel, fpinfo, expr) &&
+			if (!compute_locally &&
+				is_foreign_expr(root, grouped_rel, fpinfo, expr) &&
 				!is_foreign_param(root, grouped_rel, expr))
 			{
 				/* Yes, so add to tlist as-is; OK to suppress duplicates */
@@ -7941,7 +7995,10 @@ foreign_grouping_ok(PlannerInfo *root, RelOptInfo *grouped_rel,
 			}
 			else
 			{
-				/* Not pushable as a whole; extract its Vars and aggregates */
+				/*
+				 * Not pushable as a whole, or we want to compute it locally;
+				 * extract its Vars and aggregates
+				 */
 				List	   *aggvars;
 
 				aggvars = pull_var_clause((Node *) expr,
@@ -7977,39 +8034,6 @@ foreign_grouping_ok(PlannerInfo *root, RelOptInfo *grouped_rel,
 		}
 
 		i++;
-	}
-
-	/*
-	 * Classify the pushable and non-pushable HAVING clauses and save them in
-	 * remote_conds and local_conds of the grouped rel's fpinfo.
-	 */
-	if (havingQual)
-	{
-		foreach(lc, (List *) havingQual)
-		{
-			Expr	   *expr = (Expr *) lfirst(lc);
-			RestrictInfo *rinfo;
-
-			/*
-			 * Currently, the core code doesn't wrap havingQuals in
-			 * RestrictInfos, so we must make our own.
-			 */
-			Assert(!IsA(expr, RestrictInfo));
-			rinfo = make_restrictinfo(root,
-									  expr,
-									  true,
-									  false,
-									  false,
-									  false,
-									  root->qual_security_level,
-									  grouped_rel->relids,
-									  NULL,
-									  NULL);
-			if (is_foreign_expr(root, grouped_rel, fpinfo, expr))
-				fpinfo->remote_conds = lappend(fpinfo->remote_conds, rinfo);
-			else
-				fpinfo->local_conds = lappend(fpinfo->local_conds, rinfo);
-		}
 	}
 
 	/*
