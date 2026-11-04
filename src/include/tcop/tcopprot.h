@@ -23,6 +23,7 @@
 typedef struct ExplainState ExplainState;	/* defined in explain_state.h */
 
 extern PGDLLIMPORT CommandDest whereToSendOutput;
+extern PGDLLIMPORT bool DoingCommandRead;
 extern PGDLLIMPORT const char *debug_query_string;
 extern PGDLLIMPORT int PostAuthDelay;
 extern PGDLLIMPORT int client_connection_check_interval;
