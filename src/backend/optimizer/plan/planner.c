@@ -5094,6 +5094,7 @@ create_distinct_paths(PlannerInfo *root, RelOptInfo *input_rel,
 
 	/* For now, do all work in the (DISTINCT, NULL) upperrel */
 	distinct_rel = fetch_upper_rel(root, UPPERREL_DISTINCT, NULL);
+	distinct_rel->reltarget = target;
 
 	/*
 	 * We don't compute anything at this level, so distinct_rel will be
