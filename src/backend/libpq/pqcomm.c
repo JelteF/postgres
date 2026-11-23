@@ -377,15 +377,35 @@ socket_close(int code, Datum arg)
 		secure_close(MyProcPort);
 
 		/*
-		 * Formerly we did an explicit close() here, but it seems better to
-		 * leave the socket open until the process dies.  This allows clients
-		 * to perform a "synchronous close" if they care --- wait till the
-		 * transport layer reports connection closure, and you can be sure the
-		 * backend has exited.
+		 * On most platforms, we leave the socket open until the process dies.
+		 * This allows clients to perform a "synchronous close" if they care
+		 * --- wait till the transport layer reports connection closure, and
+		 * you can be sure the backend has exited.  Saves a kernel call, too.
 		 *
-		 * We do set sock to PGINVALID_SOCKET to prevent any further I/O,
-		 * though.
+		 * However, that does not work on Windows: if the kernel closes the
+		 * socket at process exit it does an "abortive shutdown", sending a
+		 * reset instead of a FIN.  When the reset arrives at the client, its
+		 * TCP stack discards any data the client has not read yet, such as a
+		 * FATAL error message explaining why we're exiting.  To get the
+		 * graceful shutdown behavior, we must call closesocket() explicitly.
+		 * With OpenSSL, a clean shutdown also seems to need an explicit
+		 * shutdown() call.
+		 *
+		 * This was tried before and reverted, because a graceful close
+		 * signals FD_CLOSE to the peer only once, and our WaitEventSet code
+		 * could miss it, causing walreceivers to hang instead of noticing
+		 * that the walsender exited.  WaitEventSetWaitBlock() now peeks for
+		 * EOF before sleeping, so that event can no longer be lost.
 		 */
+#ifdef WIN32
+		if (MyProcPort->sock != PGINVALID_SOCKET)
+		{
+			shutdown(MyProcPort->sock, SD_SEND);
+			closesocket(MyProcPort->sock);
+		}
+#endif
+
+		/* In any case, set sock to PGINVALID_SOCKET to prevent further I/O */
 		MyProcPort->sock = PGINVALID_SOCKET;
 	}
 }
