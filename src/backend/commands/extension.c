@@ -3647,6 +3647,14 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
 			table_close(extRel, RowExclusiveLock);
 			return InvalidObjectAddress;
 		}
+
+		/*
+		 * Renaming to a name that execute_extension_script() refuses to put
+		 * in search_path would leave an extension that can never be updated
+		 * again, so reject it now instead of at the next ALTER EXTENSION
+		 * UPDATE.
+		 */
+		extension_search_path_element_check(newschema);
 	}
 
 	/* Check extension is supposed to be relocatable */
