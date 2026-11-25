@@ -896,6 +896,48 @@ Objects in extension "test_ext_owned_schema_trusted"
 (3 rows)
 
 DROP EXTENSION test_ext_owned_schema_trusted;
+-- The owner of a trusted extension can move it with SET SCHEMA, even though
+-- the owned schema that gets renamed belongs to the bootstrap superuser
+CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA test_owned_schema_reloc;
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc2;
+SELECT n.nspname, n.nspowner = 10 as owned_by_bootstrap_superuser
+FROM pg_namespace n
+WHERE n.nspname LIKE 'test_owned_schema_reloc%';
+         nspname          | owned_by_bootstrap_superuser 
+--------------------------+------------------------------
+ test_owned_schema_reloc2 | t
+(1 row)
+
+-- Renaming the schema directly is still not allowed
+ALTER SCHEMA test_owned_schema_reloc2 RENAME TO test_owned_schema_reloc3;
+ERROR:  must be owner of schema test_owned_schema_reloc2
 RESET SESSION AUTHORIZATION;
+-- The schema being owned by the extension means that objects in it that are
+-- not members of the extension don't stop its owner from moving it...
+CREATE FUNCTION test_owned_schema_reloc2.non_ext_func() RETURNS int LANGUAGE SQL AS $$ SELECT 1 $$;
+SET SESSION AUTHORIZATION regress_test_ext_user;
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc3;
+RESET SESSION AUTHORIZATION;
+SELECT 'test_owned_schema_reloc3.non_ext_func()'::regprocedure;
+              regprocedure               
+-----------------------------------------
+ test_owned_schema_reloc3.non_ext_func()
+(1 row)
+
 DO $$ BEGIN EXECUTE format('REVOKE CREATE ON DATABASE %I FROM regress_test_ext_user', current_database()); END $$;
+-- Without CREATE on the database SET SCHEMA is not allowed for an owned
+-- schema. The error contains the database name, so only show the SQLSTATE.
+SET SESSION AUTHORIZATION regress_test_ext_user;
+\set VERBOSITY sqlstate
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc4;
+ERROR:  42501
+\set VERBOSITY default
+-- ... nor from dropping them together with the extension
+DROP EXTENSION test_ext_owned_schema_relocatable;
+ERROR:  cannot drop extension test_ext_owned_schema_relocatable because other objects depend on it
+DETAIL:  function test_owned_schema_reloc3.non_ext_func() depends on schema test_owned_schema_reloc3
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+DROP EXTENSION test_ext_owned_schema_relocatable CASCADE;
+NOTICE:  drop cascades to function test_owned_schema_reloc3.non_ext_func()
+RESET SESSION AUTHORIZATION;
 DROP USER regress_test_ext_user;

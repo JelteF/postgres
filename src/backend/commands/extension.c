@@ -3637,12 +3637,39 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
 	}
 	else
 	{
+		char	   *oldSchemaName;
+
+		/*
+		 * Permission check: renaming the owned schema introduces a new schema
+		 * name in the database, so like ALTER SCHEMA RENAME this requires
+		 * creation rights in the database.
+		 */
+		aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
+		if (aclresult != ACLCHECK_OK)
+			aclcheck_error(aclresult, OBJECT_DATABASE,
+						   get_database_name(MyDatabaseId));
+
+		/*
+		 * Lock the schema before looking at its name, so that the name cannot
+		 * be changed by a concurrent ALTER SCHEMA RENAME between the check
+		 * below and the actual rename.  All permission checks are done at
+		 * this point, so nobody can take this lock without being allowed to
+		 * do the rename.
+		 */
+		LockDatabaseObject(NamespaceRelationId, extForm->extnamespace, 0,
+						   AccessExclusiveLock);
+
+		oldSchemaName = get_namespace_name(extForm->extnamespace);
+		if (!oldSchemaName)
+			elog(ERROR, "cache lookup failed for schema %u",
+				 extForm->extnamespace);
+
 		/*
 		 * If the owned schema already has the target name, just silently do
 		 * nothing. We cannot compare namespace OIDs like the non-owned case
 		 * does, because renaming means the target schema doesn't exist yet.
 		 */
-		if (strcmp(get_namespace_name(extForm->extnamespace), newschema) == 0)
+		if (strcmp(oldSchemaName, newschema) == 0)
 		{
 			table_close(extRel, RowExclusiveLock);
 			return InvalidObjectAddress;
@@ -3784,8 +3811,17 @@ AlterExtensionNamespace(const char *extensionName, const char *newschema, Oid *o
 		 * For owned schemas, we simply rename the schema. This means that we
 		 * don't need to update the extension its catalog entry, because the
 		 * oid of the schema will stay the same.
+		 *
+		 * We don't require ownership of the schema like ALTER SCHEMA RENAME
+		 * does, owning the extension that owns the schema is enough.  That
+		 * check would otherwise always fail for the owner of a trusted
+		 * extension, because its owned schema belongs to the bootstrap
+		 * superuser.  This holds even if the schema contains objects that are
+		 * not members of the extension: the owner of the extension can
+		 * already drop those together with the schema using DROP EXTENSION
+		 * CASCADE, so there's no point in protecting them from a rename.
 		 */
-		RenameSchema(get_namespace_name(oldNspOid), newschema);
+		RenameSchemaInternal(oldNspOid, newschema);
 		table_close(extRel, RowExclusiveLock);
 	}
 	else

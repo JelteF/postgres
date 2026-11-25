@@ -432,6 +432,32 @@ WHERE n.nspname = 'test_owned_schema_trusted';
 ALTER EXTENSION test_ext_owned_schema_trusted UPDATE TO '1.1';
 \dx+ test_ext_owned_schema_trusted;
 DROP EXTENSION test_ext_owned_schema_trusted;
+-- The owner of a trusted extension can move it with SET SCHEMA, even though
+-- the owned schema that gets renamed belongs to the bootstrap superuser
+CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA test_owned_schema_reloc;
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc2;
+SELECT n.nspname, n.nspowner = 10 as owned_by_bootstrap_superuser
+FROM pg_namespace n
+WHERE n.nspname LIKE 'test_owned_schema_reloc%';
+-- Renaming the schema directly is still not allowed
+ALTER SCHEMA test_owned_schema_reloc2 RENAME TO test_owned_schema_reloc3;
 RESET SESSION AUTHORIZATION;
+-- The schema being owned by the extension means that objects in it that are
+-- not members of the extension don't stop its owner from moving it...
+CREATE FUNCTION test_owned_schema_reloc2.non_ext_func() RETURNS int LANGUAGE SQL AS $$ SELECT 1 $$;
+SET SESSION AUTHORIZATION regress_test_ext_user;
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc3;
+RESET SESSION AUTHORIZATION;
+SELECT 'test_owned_schema_reloc3.non_ext_func()'::regprocedure;
 DO $$ BEGIN EXECUTE format('REVOKE CREATE ON DATABASE %I FROM regress_test_ext_user', current_database()); END $$;
+-- Without CREATE on the database SET SCHEMA is not allowed for an owned
+-- schema. The error contains the database name, so only show the SQLSTATE.
+SET SESSION AUTHORIZATION regress_test_ext_user;
+\set VERBOSITY sqlstate
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA test_owned_schema_reloc4;
+\set VERBOSITY default
+-- ... nor from dropping them together with the extension
+DROP EXTENSION test_ext_owned_schema_relocatable;
+DROP EXTENSION test_ext_owned_schema_relocatable CASCADE;
+RESET SESSION AUTHORIZATION;
 DROP USER regress_test_ext_user;

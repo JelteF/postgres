@@ -30,6 +30,7 @@
 #include "miscadmin.h"
 #include "parser/parse_utilcmd.h"
 #include "parser/scansup.h"
+#include "storage/lock.h"
 #include "tcop/utility.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
@@ -252,10 +253,7 @@ RenameSchema(const char *oldname, const char *newname)
 {
 	ObjectAddress address;
 	Oid			nspOid;
-	HeapTuple	tup;
-	Relation	rel;
 	AclResult	aclresult;
-	Form_pg_namespace nspform;
 
 	/* Locking before priv checks is bad, but DROP SCHEMA does the same. */
 	address = get_object_address(OBJECT_SCHEMA,
@@ -263,6 +261,50 @@ RenameSchema(const char *oldname, const char *newname)
 								 NULL,
 								 AccessExclusiveLock, false);
 	nspOid = address.objectId;
+
+	/* must be owner */
+	if (!object_ownercheck(NamespaceRelationId, nspOid, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
+					   oldname);
+
+	/* must have CREATE privilege on database */
+	aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
+	if (aclresult != ACLCHECK_OK)
+		aclcheck_error(aclresult, OBJECT_DATABASE,
+					   get_database_name(MyDatabaseId));
+
+	RenameSchemaInternal(nspOid, newname);
+
+	return address;
+}
+
+/*
+ * Rename schema, given its OID
+ *
+ * This does no permission checks, those are the responsibility of the caller.
+ * That's what allows ALTER EXTENSION SET SCHEMA to do its own checks and
+ * rename a schema owned by an extension, even if the schema itself is not
+ * owned by the current user.
+ *
+ * The caller must also already hold an AccessExclusiveLock on the schema.
+ * Taking the lock is left to the caller because it has to happen before the
+ * caller inspects the schema for its own checks, not only before the rename.
+ */
+void
+RenameSchemaInternal(Oid nspOid, const char *newname)
+{
+	HeapTuple	tup;
+	Relation	rel;
+	Form_pg_namespace nspform;
+
+#ifdef USE_ASSERT_CHECKING
+	{
+		LOCKTAG		tag;
+
+		SET_LOCKTAG_OBJECT(tag, MyDatabaseId, NamespaceRelationId, nspOid, 0);
+		Assert(LockHeldByMe(&tag, AccessExclusiveLock, false));
+	}
+#endif
 
 	rel = table_open(NamespaceRelationId, RowExclusiveLock);
 
@@ -278,17 +320,6 @@ RenameSchema(const char *oldname, const char *newname)
 				(errcode(ERRCODE_DUPLICATE_SCHEMA),
 				 errmsg("schema \"%s\" already exists", newname)));
 
-	/* must be owner */
-	if (!object_ownercheck(NamespaceRelationId, nspOid, GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
-					   oldname);
-
-	/* must have CREATE privilege on database */
-	aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, OBJECT_DATABASE,
-					   get_database_name(MyDatabaseId));
-
 	if (!allowSystemTableMods && IsReservedName(newname))
 		ereport(ERROR,
 				(errcode(ERRCODE_RESERVED_NAME),
@@ -303,8 +334,6 @@ RenameSchema(const char *oldname, const char *newname)
 
 	table_close(rel, NoLock);
 	heap_freetuple(tup);
-
-	return address;
 }
 
 void
