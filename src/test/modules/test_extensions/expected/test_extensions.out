@@ -785,6 +785,16 @@ HINT:  Drop schema "already_existing" or specify another schema using CREATE EXT
 -- Fails because no schema is set in control file
 CREATE EXTENSION test_ext_owned_schema_relocatable;
 ERROR:  no schema has been selected to create in
+-- Fails because "$user" is special in search_path, and the schema that was
+-- created for the extension is rolled back
+CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA "$user";
+ERROR:  unacceptable extension schema name "$user"
+SELECT COUNT(*) FROM pg_namespace WHERE nspname = '$user';
+ count 
+-------
+     0
+(1 row)
+
 CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA test_schema;
 \dx+ test_ext_owned_schema_relocatable
 Objects in extension "test_ext_owned_schema_relocatable"
@@ -797,6 +807,10 @@ Objects in extension "test_ext_owned_schema_relocatable"
 -- Fails because schema already exists
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA already_existing;
 ERROR:  schema "already_existing" already exists
+-- Fails because the owned schema would be renamed to a name that is special
+-- in search_path
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA "$user";
+ERROR:  unacceptable extension schema name "$user"
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA some_other_name;
 -- Setting the schema to the current one is a no-op
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA some_other_name;

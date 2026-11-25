@@ -382,10 +382,17 @@ CREATE SCHEMA already_existing;
 CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA already_existing;
 -- Fails because no schema is set in control file
 CREATE EXTENSION test_ext_owned_schema_relocatable;
+-- Fails because "$user" is special in search_path, and the schema that was
+-- created for the extension is rolled back
+CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA "$user";
+SELECT COUNT(*) FROM pg_namespace WHERE nspname = '$user';
 CREATE EXTENSION test_ext_owned_schema_relocatable SCHEMA test_schema;
 \dx+ test_ext_owned_schema_relocatable
 -- Fails because schema already exists
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA already_existing;
+-- Fails because the owned schema would be renamed to a name that is special
+-- in search_path
+ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA "$user";
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA some_other_name;
 -- Setting the schema to the current one is a no-op
 ALTER EXTENSION test_ext_owned_schema_relocatable SET SCHEMA some_other_name;
