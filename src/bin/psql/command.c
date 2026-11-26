@@ -2667,9 +2667,34 @@ exec_command_prompt(PsqlScanState scan_state, bool active_branch,
 					fputs(prompt_text, stdout);
 					fflush(stdout);
 				}
-				result = gets_fromFile(stdin);
-				if (!result)
+
+				/*
+				 * We don't use gets_fromFile() here, because that relies on
+				 * sigint_interrupt_jmp pointing to MainLoop(). An earlier
+				 * command on the same line, e.g. a COPY FROM STDIN, might
+				 * have pointed it at a stack frame that doesn't exist
+				 * anymore. pg_get_line() sets up its own longjmp target.
+				 */
+				result = pg_get_line(stdin, &prompt_ctx);
+				if (result)
 				{
+					size_t		len = strlen(result);
+
+					if (len > 0 && result[len - 1] == '\n')
+						result[len - 1] = '\0';
+				}
+				else if (prompt_ctx.canceled)
+				{
+					/*
+					 * When reading commands from a file, Ctrl+C has always
+					 * stopped the script here, so keep doing that.
+					 */
+					cancel_pressed = true;
+				}
+				else
+				{
+					if (ferror(stdin))
+						pg_log_error("could not read from input file: %m");
 					pg_log_error("\\%s: could not read value for variable",
 								 cmd);
 					success = false;
