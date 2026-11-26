@@ -382,13 +382,24 @@ socket_close(int code, Datum arg)
 		 * --- wait till the transport layer reports connection closure, and
 		 * you can be sure the backend has exited.  Saves a kernel call, too.
 		 *
-		 * However, that does not work on Windows: if the kernel closes the
-		 * socket it will invoke an "abortive shutdown" that discards any data
-		 * not yet sent to the client.  (This is a flat-out violation of the
-		 * TCP RFCs, but count on Microsoft not to care about that.)  To get
-		 * the spec-compliant "graceful shutdown" behavior, we must invoke
-		 * closesocket() explicitly.  When using OpenSSL, it seems that clean
-		 * shutdown also requires an explicit shutdown() call.
+		 * However, that does not work on Windows: if the kernel closes a
+		 * socket that is still open at process exit, it does an "abortive
+		 * shutdown", sending an RST instead of a FIN.  Any data not yet sent
+		 * is discarded, and when the RST reaches the client, Winsock also
+		 * discards whatever the client has not read yet.  Either way, the
+		 * client is likely to lose the error message explaining why we're
+		 * exiting, and reports that the server closed the connection
+		 * unexpectedly instead.  Calling closesocket() explicitly gives a
+		 * graceful shutdown.  The shutdown() call was added because, with
+		 * OpenSSL, closesocket() alone was observed to still lose messages
+		 * occasionally; why exactly was never determined.
+		 *
+		 * Even with a graceful shutdown, if the client sends anything after
+		 * we're gone, such as its next query, our side answers with an RST,
+		 * and the client can still lose the data we sent.  The client can
+		 * reduce that risk by reading any pending input before sending, but
+		 * it can't rule it out: our data might not have arrived yet when it
+		 * sends.
 		 *
 		 * This code runs late enough during process shutdown that we should
 		 * have finished all externally-visible shutdown activities, so that
