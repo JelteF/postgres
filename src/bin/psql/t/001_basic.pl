@@ -151,6 +151,41 @@ psql:<stdin>:2: server closed the connection unexpectedly
 psql:<stdin>:2: error: connection to server was lost/,
 	'server crash: error message');
 
+# Terminate the backend of an idle psql session from another session, then
+# send a query.  The FATAL message is already waiting in the client's socket
+# buffer when psql sends that query.  On Windows, the reset the dead peer
+# answers our send with used to make the OS discard that buffered message, so
+# the server's own error never reached the user.
+my $idle_timeout = IPC::Run::timer($PostgreSQL::Test::Utils::timeout_default);
+my ($idle_stdin, $idle_stdout, $idle_stderr) = ('', '', '');
+my $idle_psql = IPC::Run::start(
+	[
+		'psql', '--no-psqlrc', '--quiet', '--no-align', '--tuples-only',
+		'--file' => '-',
+		'--dbname' => $node->connstr('postgres')
+	],
+	'<' => \$idle_stdin,
+	'>' => \$idle_stdout,
+	'2>' => \$idle_stderr,
+	$idle_timeout);
+
+$idle_stdin .= "SELECT pg_backend_pid();\n";
+pump_until($idle_psql, $idle_timeout, \$idle_stdout, qr/[[:digit:]]+[\r\n]$/m);
+my $idle_pid = $idle_stdout;
+chomp $idle_pid;
+
+$node->safe_psql('postgres',
+	"SELECT pg_terminate_backend($idle_pid, 180000)");
+
+$idle_stdin .= "SELECT 1;\n";
+pump_until($idle_psql, $idle_timeout, \$idle_stderr,
+	qr/connection to server was lost/);
+$idle_psql->finish;
+like(
+	$idle_stderr,
+	qr/FATAL:  terminating connection due to administrator command/,
+	'FATAL while idle: server message reported');
+
 # test \errverbose
 #
 # (This is not in the regular regression tests because the output
